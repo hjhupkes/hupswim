@@ -1,0 +1,2090 @@
+Option Compare Database
+Option Explicit
+
+'To become obsoleted
+Private Function catCreate_obs(ByVal ageDate As Date, ByVal ges As String, ByVal catYearMin As Long, ByVal catYearMax As Long) As String
+On Error GoTo fout
+
+catCreate_obs = ""
+
+Dim curDate As Date
+curDate = Nz(ageDate, #1/1/1900#)
+If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+  curDate = Now()
+End If
+
+Dim wedYear As Long
+Dim wedMonth As Long
+
+wedYear = val(Format(curDate, "yyyy"))
+wedMonth = val(Format(curDate, "mm"))
+
+
+Dim ageMin As Long
+  Dim ageMax As Long
+  ageMin = wedYear - catYearMin - 1
+  ageMax = wedYear - catYearMax - 1
+  
+  If (wedMonth >= 8) Then
+    ageMin = ageMin + 1
+    ageMax = ageMax + 1
+  End If
+  
+  Dim lenGender As String
+  lenGender = IIf(ges = "M", "M", IIf(ges = "V", "F", "X"))
+  catCreate_obs = lenParseAgeGroup(LFT_MODE_SZYR, ageDate, lenGender, ageMin, ageMax, False)
+  
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+'This function returns the age range that swimmers that satisfy (categorie, lftModeCat) may have on ageDate, as perceived by an age calculation
+'according to lftModeCalcAge.
+Private Function catGetAllowedAgeRange_bare_obs(ByVal Categorie As String, ByRef catMinAge As Integer, ByRef catMaxAge As Integer, ByVal ageDate As Date, ByVal lftModeCat As String, ByVal lftModeCalcAge As String, Optional blLetOpLftBep As Boolean = False) As Boolean
+On Error GoTo fout
+catGetAllowedAgeRange_bare_obs = False
+
+If (lftModeCat <> lftModeCalcAge) And (blLetOpLftBep) Then
+  Err.Raise 1, , "This use is not supported."
+End If
+
+
+Dim isYOBBased As Boolean, isAgeBased As Boolean, isDutchDescription As Boolean, isEstafTotAge As Boolean
+Dim minYOB As Integer, maxYOB As Integer, minAge As Integer, maxAge As Integer
+Dim descr As String
+Dim allowedGes As String
+
+catMaxAge = CAT_MAX_AGE
+catMinAge = 0
+
+Dim curDate As Date
+Dim curMonth As Integer
+
+
+curDate = Nz(ageDate, #1/1/1900#)
+If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+  curDate = Now()
+End If
+
+
+If (Not analyzeCategorie(Categorie, curDate, isDutchDescription, isYOBBased, minYOB, maxYOB, isAgeBased, minAge, maxAge, descr, allowedGes, isEstafTotAge)) Then
+  Exit Function
+End If
+
+
+Dim curYear As Long
+Dim catRefYear As Long
+Dim calcRefYear As Long
+Dim deltaAge As Long
+
+catRefYear = 0
+calcRefYear = 0
+deltaAge = 0
+
+curYear = val(Format(curDate, "yyyy"))
+catRefYear = curYear
+calcRefYear = curYear
+
+
+Select Case lftModeCat
+  Case LFT_MODE_SZYR
+    curMonth = CInt(val(Format(curDate, "mm")))
+    If (curMonth < 8) Then
+      catRefYear = catRefYear - 1
+    End If
+  Case LFT_MODE_WEDDAT, LFT_MODE_WEDYR_END
+  Case LFT_MODE_WEDYR_START
+    catRefYear = catRefYear - 1
+End Select
+
+
+If (lftModeCalcAge <> lftModeCat) Then
+  Select Case lftModeCalcAge
+    Case LFT_MODE_SZYR
+      curMonth = CInt(val(Format(curDate, "mm")))
+      If (curMonth < 8) Then
+        calcRefYear = calcRefYear - 1
+      End If
+    Case LFT_MODE_WEDDAT, LFT_MODE_WEDYR_END
+    Case LFT_MODE_WEDYR_START
+      calcRefYear = calcRefYear - 1
+  End Select
+Else
+  calcRefYear = catRefYear
+End If
+
+
+deltaAge = calcRefYear - catRefYear
+
+If isAgeBased Or isDutchDescription Then
+
+  catMaxAge = maxAge
+  catMinAge = minAge
+
+
+  If (isDutchDescription) Then
+  
+
+    'When a dutch age description (like min1 etc) is used, lftModeCat is irrelevant
+    
+    Select Case lftModeCalcAge
+      Case LFT_MODE_WEDDAT, LFT_MODE_WEDYR_END
+        curMonth = CInt(val(Format(curDate, "mm")))
+        If (curMonth < 8) Then
+          catMaxAge = catMaxAge + 1
+          catMinAge = catMinAge + 1
+        End If
+      Case LFT_MODE_WEDYR_START
+        curMonth = CInt(val(Format(curDate, "mm")))
+        If (curMonth >= 8) Then
+          catMaxAge = catMaxAge - 1
+          catMinAge = catMinAge - 1
+        End If
+    End Select
+     
+  Else 'not a dutch description -> isAgeBased = true
+  
+    'Have to compare the age mode calculations.
+    catMaxAge = catMaxAge + deltaAge
+    catMinAge = catMinAge + deltaAge
+  
+  End If
+     
+    
+  
+  
+  
+ElseIf isYOBBased Then
+  
+  If (minYOB > 0) Then
+    catMaxAge = calcRefYear - minYOB
+  Else
+    catMaxAge = CAT_MAX_AGE
+  End If
+  
+  If (maxYOB < 9999) Then
+    catMinAge = calcRefYear - maxYOB
+  Else
+    catMinAge = 0
+  End If
+  
+  
+End If
+
+
+If (catMaxAge > CAT_MAX_AGE) Then
+  catMaxAge = CAT_MAX_AGE
+End If
+If (catMinAge < 0) Then
+  catMinAge = 0
+End If
+  
+
+'Voeg leeftijdsbeperkingen toe:
+If (blLetOpLftBep And lftModeCat = LFT_MODE_SZYR) Then
+  Dim lftMinAge As Long
+  
+  lftMinAge = catGetMinAllowedAgeLftBep(catMaxAge)
+  If lftMinAge > catMinAge Then
+    catMinAge = lftMinAge
+  End If
+End If
+
+
+
+
+
+catGetAllowedAgeRange_bare_obs = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function cat_voldoet_est_bare_obs(ByVal estMinYOB As Long, ByVal estMaxYOB As Long, ByVal estSumYOB As Long, ByVal estCntYOB As Integer, ByVal estGes As String, ByVal cat As String, ByVal wedLftMode As String, ByVal ageDate As Date, ByVal blLetOpLftBep) As Integer
+On Error GoTo fout
+
+cat_voldoet_est_bare_obs = CAT_OK
+
+If (wedLftMode = LFT_MODE_WEDDAT) Then
+  'This is not supported for estafettes.
+  wedLftMode = LFT_MODE_WEDYR_END
+End If
+
+Dim isYOBBased As Boolean, isAgeBased As Boolean, isDutchDescription As Boolean, isEstafTotAge As Boolean
+Dim minYOB As Integer, maxYOB As Integer, minAge As Integer, maxAge As Integer
+Dim descr As String
+Dim allowedGes As String
+
+If (Not analyzeCategorie(cat, ageDate, isDutchDescription, isYOBBased, minYOB, maxYOB, isAgeBased, minAge, maxAge, descr, allowedGes, isEstafTotAge)) Then
+  Exit Function
+End If
+
+If Not estGes Like allowedGes Then
+  cat_voldoet_est_bare_obs = CAT_GES_ERROR
+  Exit Function
+End If
+
+Dim estMinAge As Long
+Dim estMaxAge As Long
+Dim estSumAge As Long
+
+
+Dim curJaar As Long
+Dim curMonth As Integer
+
+Dim curDate As Date
+
+
+If (isAgeBased Or isDutchDescription Or blLetOpLftBep) Then
+  'Have to determine age.
+  curDate = Nz(ageDate, #1/1/1900#)
+  If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+    curDate = Now()
+  End If
+  curJaar = CLng(val(Format(curDate, "yyyy")))
+  curMonth = CInt(val(Format(curDate, "mm")))
+    
+  
+    If (isDutchDescription Or wedLftMode = LFT_MODE_SZYR) Then
+      If (curMonth >= 8) Then
+        estMinAge = curJaar - estMaxYOB
+        estMaxAge = curJaar - estMinYOB
+        estSumAge = estCntYOB * curJaar - estSumYOB
+      Else
+        estMinAge = curJaar - 1 - estMaxYOB
+        estMaxAge = curJaar - 1 - estMinYOB
+        estSumAge = estCntYOB * (curJaar - 1) - estSumYOB
+      End If
+    ElseIf (wedLftMode = LFT_MODE_WEDYR_START) Then
+      estMinAge = curJaar - 1 - estMaxYOB
+      estMaxAge = curJaar - 1 - estMinYOB
+      estSumAge = estCntYOB * (curJaar - 1) - estSumYOB
+    ElseIf (wedLftMode = LFT_MODE_WEDYR_END) Then
+      estMinAge = curJaar - estMaxYOB
+      estMaxAge = curJaar - estMinYOB
+      estSumAge = estCntYOB * (curJaar) - estSumYOB
+    End If
+ 
+End If
+
+If (isAgeBased Or isDutchDescription) Then
+  If (isEstafTotAge) Then
+    If (estSumAge < minAge Or estSumAge > maxAge) Then
+      cat_voldoet_est_bare_obs = CAT_NOT_IN_RANGE
+      Exit Function
+    End If
+  Else
+    If (estMinAge < minAge Or estMaxAge > maxAge) Then
+      cat_voldoet_est_bare_obs = CAT_NOT_IN_RANGE
+      Exit Function
+    End If
+  End If
+Else
+  If (estMinYOB < minYOB Or estMaxYOB > maxYOB) Then
+    cat_voldoet_est_bare_obs = CAT_NOT_IN_RANGE
+    Exit Function
+  End If
+  
+End If
+
+
+If (blLetOpLftBep) Then
+  If (wedLftMode = LFT_MODE_SZYR) Then
+    If (estMinAge < 11) Then
+      'leeftijd + geboortejaar clippen alsof het een vijfjarige betreft.
+      If (estMinAge < 5) Then
+        estMaxYOB = estMaxYOB + (5 - estMinAge)
+        estMinAge = 5
+      End If
+      'mag hooguit twee categorieen hoger zwemmen.
+      If (isYOBBased) Then
+        If maxYOB > estMaxYOB + 2 Then
+          cat_voldoet_est_bare_obs = CAT_AGE_RESTRICTION_ERROR
+          Exit Function
+        End If
+      Else
+        If maxAge > estMinAge + 2 Then
+          cat_voldoet_est_bare_obs = CAT_AGE_RESTRICTION_ERROR
+          Exit Function
+        End If
+      End If
+    End If
+  End If
+End If
+
+
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+
+
+Private Function catGetAge_obs(ByVal yob As Long, ByVal gebDatum As Date, ByVal lftMode As String, ByVal ageDate As Date) As Long
+
+On Error GoTo fout
+
+
+
+
+
+  catGetAge_obs = CAT_MAX_AGE
+  
+  Dim gebjaar As Integer, gebmonth As Integer, gebdag As Integer, leeftijd As Integer
+  Dim curDate As Date, curJaar As Integer, curMonth As Integer, curDay As Integer
+
+  
+  
+  gebjaar = yob
+  
+ 
+  
+  'Have to determine age.
+  curDate = Nz(ageDate, #1/1/1900#)
+  If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+    curDate = Now()
+  End If
+  curJaar = CInt(val(Format(curDate, "yyyy")))
+  curMonth = CInt(val(Format(curDate, "mm")))
+    
+  
+    If (lftMode = LFT_MODE_SZYR) Then
+      If (curMonth >= 8) Then
+        leeftijd = curJaar - gebjaar
+      Else
+        leeftijd = curJaar - gebjaar - 1
+      End If
+    ElseIf (lftMode = LFT_MODE_WEDYR_START) Then
+      leeftijd = curJaar - gebjaar - 1
+    ElseIf (lftMode = LFT_MODE_WEDYR_END) Then
+      leeftijd = curJaar - gebjaar
+    ElseIf (lftMode = LFT_MODE_WEDDAT) Then
+      curMonth = CInt(val(Format(curDate, "mm")))
+      curDay = CInt(val(Format(curDate, "dd")))
+  
+        If (CInt(val(Format(Nz(gebDatum, #1/1/1900#), "yyyy"))) = gebjaar) Then
+          'gebdatum may be valid.
+          gebmonth = CInt(val(Format(gebDatum, "mm")))
+          gebdag = CInt(val(Format(gebDatum, "dd")))
+        Else
+          gebmonth = 1
+          gebdag = 1
+        End If
+        If (gebmonth < curMonth Or (gebmonth = curMonth And gebdag <= curDay)) Then
+          'verjaardag is al geweest.
+          leeftijd = curJaar - gebjaar
+        Else
+          leeftijd = curJaar - gebjaar - 1
+        End If
+     End If
+     
+  catGetAge_obs = leeftijd
+     
+Exit Function
+
+fout:
+MsgBox Err & " catGetAge_obs" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function cat_voldoet_bare_obs(ByVal startnr As String, ByVal Categorie As String, ByVal Geslacht As String, ByVal gebDatum As Date, ByVal lftMode As String, ByVal blLetOpLftBep As Boolean, ByVal ageDate As Date) As Integer
+
+
+
+Dim gebjaar As Integer, gebmonth As Integer, gebdag As Integer, leeftijd As Integer
+Dim curDate As Date, curJaar As Integer, curMonth As Integer, curDay As Integer
+
+
+cat_voldoet_bare_obs = CAT_OK
+
+
+gebjaar = CInt(val(Left(startnr, 2))) + 1900
+
+'Voor nieuwe startnummers in het jaar 2000
+If gebjaar < 1920 Then
+  gebjaar = gebjaar + 100
+End If
+
+
+
+Dim isYOBBased As Boolean, isAgeBased As Boolean, isDutchDescription As Boolean, isEstafTotAge As Boolean
+Dim minYOB As Integer, maxYOB As Integer, minAge As Integer, maxAge As Integer
+Dim descr As String
+Dim allowedGes As String
+
+If (Not analyzeCategorie(Categorie, ageDate, isDutchDescription, isYOBBased, minYOB, maxYOB, isAgeBased, minAge, maxAge, descr, allowedGes, isEstafTotAge)) Then
+  Exit Function
+End If
+
+If Not Geslacht Like allowedGes Then
+  cat_voldoet_bare_obs = CAT_GES_ERROR
+  Exit Function
+End If
+
+If (isEstafTotAge) Then
+  cat_voldoet_bare_obs = CAT_OK
+  Exit Function
+End If
+
+
+
+If (isAgeBased Or isDutchDescription Or blLetOpLftBep) Then
+  'Have to determine age.
+  curDate = Nz(ageDate, #1/1/1900#)
+  If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+    curDate = Now()
+  End If
+  curJaar = CInt(val(Format(curDate, "yyyy")))
+  curMonth = CInt(val(Format(curDate, "mm")))
+    
+  
+    If (isDutchDescription Or lftMode = LFT_MODE_SZYR) Then
+      If (curMonth >= 8) Then
+        leeftijd = curJaar - gebjaar
+      Else
+        leeftijd = curJaar - gebjaar - 1
+      End If
+    ElseIf (lftMode = LFT_MODE_WEDYR_START) Then
+      leeftijd = curJaar - gebjaar - 1
+    ElseIf (lftMode = LFT_MODE_WEDYR_END) Then
+      leeftijd = curJaar - gebjaar
+    ElseIf (lftMode = LFT_MODE_WEDDAT) Then
+      curMonth = CInt(val(Format(curDate, "mm")))
+      curDay = CInt(val(Format(curDate, "dd")))
+  
+        If (CInt(val(Format(Nz(gebDatum, #1/1/1900#), "yyyy"))) = gebjaar) Then
+          'gebdatum may be valid.
+          gebmonth = CInt(val(Format(gebDatum, "mm")))
+          gebdag = CInt(val(Format(gebDatum, "dd")))
+        Else
+          gebmonth = 1
+          gebdag = 1
+        End If
+        If (gebmonth < curMonth Or (gebmonth = curMonth And gebdag <= curDay)) Then
+          'verjaardag is al geweest.
+          leeftijd = curJaar - gebjaar
+        Else
+          leeftijd = curJaar - gebjaar - 1
+        End If
+     End If
+ 
+End If
+
+If (isAgeBased Or isDutchDescription) Then
+  If (leeftijd < minAge Or leeftijd > maxAge) Then
+    cat_voldoet_bare_obs = CAT_NOT_IN_RANGE
+    Exit Function
+  End If
+Else
+  If (gebjaar < minYOB Or gebjaar > maxYOB) Then
+    cat_voldoet_bare_obs = CAT_NOT_IN_RANGE
+    Exit Function
+  End If
+End If
+
+
+If (blLetOpLftBep) Then
+  If (lftMode = LFT_MODE_SZYR And Categorie <> "MIX") Then
+    If (leeftijd < 11) Then
+      'leeftijd + geboortejaar clippen alsof het een vijfjarige betreft.
+      If (leeftijd < 5) Then
+        gebjaar = gebjaar + (5 - leeftijd)
+        leeftijd = 5
+      End If
+      'mag hooguit twee categorieen hoger zwemmen.
+      If (isYOBBased) Then
+        If minYOB + 2 < gebjaar Then
+          cat_voldoet_bare_obs = CAT_AGE_RESTRICTION_ERROR
+          Exit Function
+        End If
+      Else
+        If maxAge > leeftijd + 2 Then
+          cat_voldoet_bare_obs = CAT_AGE_RESTRICTION_ERROR
+          Exit Function
+        End If
+      End If
+    End If
+  End If
+End If
+
+
+
+
+
+  
+
+
+Exit Function
+err_cat_voldoet:
+If Err = 13 Then
+  curDate = Now()
+  curJaar = CInt(val(Format(Now(), "yyyy")))
+  curMonth = CInt(val(Format(Now(), "mm")))
+  Resume Next
+End If
+
+
+  
+  
+
+
+
+End Function
+
+
+
+
+
+
+Function catBeschrijving_obs(ByVal Categorie As String) As String
+On Error GoTo fout_upd
+Dim isYOBBased As Boolean, isAgeBased As Boolean, isDutchDescription As Boolean, isEstafTotAge As Boolean
+Dim minYOB As Integer, maxYOB As Integer, minAge As Integer, maxAge As Integer
+Dim allowedGes As String
+
+'The description is age-independent
+Dim dummyDate As Date
+dummyDate = #1/1/2000#
+
+If (Not analyzeCategorie(Categorie, dummyDate, isDutchDescription, isYOBBased, minYOB, maxYOB, isAgeBased, minAge, maxAge, catBeschrijving_obs, allowedGes, isEstafTotAge)) Then
+  catBeschrijving_obs = "Onbekend"
+  Exit Function
+End If
+
+fout_upd:
+Exit Function
+End Function
+
+Private Function analyzeCategorie(ByVal Categorie As String, ByVal ageDate As Date, ByRef isDutchAgeDescrBased, ByRef isYOBBased As Boolean, ByRef minAllowedYOB As Integer, ByRef maxAllowedYOB As Integer, ByRef isAgeBased As Boolean, ByRef minAllowedAge, ByRef maxAllowedAge, ByRef descr As String, ByRef ges As String, ByRef isEstafTotAge As Boolean) As Boolean
+analyzeCategorie = False
+
+Dim voorv As String
+Dim voorvOud As String
+Dim restStr As String
+
+Dim mJunBaseAge As Integer
+Dim yyyy As Long
+Dim mm As Long
+
+
+Dim curDate As Date
+   
+curDate = Nz(ageDate, #1/1/1900#)
+If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+  curDate = Now()
+End If
+
+yyyy = val(Format(curDate, "yyyy"))
+mm = val(Format(curDate, "mm"))
+
+mJunBaseAge = 11
+If (yyyy > 2007) Or (yyyy = 2007 And mm >= 8) Then
+  mJunBaseAge = 10
+End If
+
+
+
+
+Dim catIdx As Integer
+
+Dim y1 As Long
+Dim y2 As Long
+Dim age1 As Integer
+Dim age2 As Integer
+Dim tpAge As Integer
+
+isDutchAgeDescrBased = False
+isYOBBased = False
+isAgeBased = False
+
+Dim rgtPart As String
+rgtPart = Right(Categorie, 3)
+If (rgtPart = "EOT" Or rgtPart = "EJT" Or rgtPart = "JRT") Then
+  isEstafTotAge = True
+  Categorie = Left(Categorie, Len(Categorie) - 1)
+End If
+
+
+
+
+If (Categorie Like "*/*") Then
+  Dim posSlash As Integer
+  posSlash = InStr(1, Categorie, "/")
+  Dim leftStr As String
+  Dim rightStr As String
+  leftStr = Left(Categorie, posSlash - 1)
+  rightStr = Right(Categorie, Len(Categorie) - posSlash)
+  If (leftStr Like "*JUN*" Or leftStr Like "*MIN*" Or leftStr Like "*JEU*" Or leftStr Like "*SEN*") Then
+    If (rightStr Like "*JUN*" Or rightStr Like "*MIN*" Or rightStr Like "*JEU*" Or rightStr Like "*SEN*") Then
+        
+        
+        If (leftStr Like "MJ[!EU]*") Then
+          ges = "*"
+          voorv = "m./j. "
+          restStr = Right(leftStr, Len(leftStr) - 2)
+        ElseIf (leftStr Like "M*") Then
+          ges = "V"
+          voorv = "m. "
+          restStr = Right(leftStr, Len(leftStr) - 1)
+        ElseIf (Categorie Like "J*") Then
+          ges = "M"
+          voorv = "j. "
+          restStr = Right(leftStr, Len(leftStr) - 1)
+        Else
+          Exit Function
+        End If
+        Dim leftParsedString As String
+        Dim rightParsedString As String
+        
+        
+        If (restStr Like "MIN[0-9]") Then
+          catIdx = CInt(val(Right(restStr, 1)))
+          leftParsedString = "min. " & catIdx
+          If (catIdx = 1) Then
+            age1 = 5
+            'Min 1 is de enige uitzondering: mag zowel 6 als 7 jarigen aan meedoen.
+          Else
+            age1 = 5 + catIdx
+          End If
+        ElseIf (restStr Like "JUN[0-9]") Then
+          catIdx = CInt(Right(restStr, 1))
+          If (ges = "V") Then
+            age1 = mJunBaseAge + catIdx
+          Else
+            age1 = 11 + catIdx
+          End If
+          leftParsedString = "jun. " & catIdx
+        ElseIf (restStr Like "JEU[0-9]") Then
+          catIdx = CInt(Right(restStr, 1))
+          If (ges = "V") Then
+            age1 = 13 + catIdx
+          Else
+            age1 = 15 + catIdx
+          End If
+          leftParsedString = "jeugd " & catIdx
+        ElseIf (restStr Like "SEN[0-9]") Then
+          catIdx = CInt(Right(restStr, 1))
+          If (ges = "V") Then
+            age1 = 15 + catIdx
+          Else
+            age1 = 17 + catIdx
+          End If
+          leftParsedString = "sen. " & catIdx
+        Else
+          Exit Function
+        End If
+        
+        If (rightStr Like "MIN[0-9]") Then
+          catIdx = CInt(val(Right(rightStr, 1)))
+          rightParsedString = "min. " & catIdx
+          If (catIdx = 1) Then
+            age2 = 5
+            'Min 1 is de enige uitzondering: mag zowel 6 als 7 jarigen aan meedoen.
+          Else
+            age2 = 5 + catIdx
+          End If
+        ElseIf (rightStr Like "JUN[0-9]") Then
+          catIdx = CInt(val(Right(rightStr, 1)))
+          rightParsedString = "jun. " & catIdx
+          If (ges = "V") Then
+            age2 = mJunBaseAge + catIdx
+          Else
+            age2 = 11 + catIdx
+          End If
+        ElseIf (rightStr Like "JEU[0-9]") Then
+          catIdx = CInt(val(Right(rightStr, 1)))
+          rightParsedString = "jeugd " & catIdx
+          If (ges = "V") Then
+            age2 = 13 + catIdx
+          Else
+            age2 = 15 + catIdx
+          End If
+        ElseIf (rightStr Like "SEN[0-9]") Then
+          catIdx = CInt(val(Right(rightStr, 1)))
+          rightParsedString = "sen. " & catIdx
+          If (ges = "V") Then
+            age2 = 15 + catIdx
+          Else
+            age2 = 17 + catIdx
+          End If
+        Else
+          Exit Function
+        End If
+        
+        If (age2 < age1) Then
+          tpAge = age2
+          age2 = age1
+          age1 = tpAge
+        End If
+        
+        isDutchAgeDescrBased = True
+        minAllowedAge = age1
+        maxAllowedAge = age2
+       
+        descr = voorv & leftParsedString & " / " & rightParsedString
+        analyzeCategorie = True
+        Exit Function
+    End If
+  End If
+End If
+
+
+If Categorie = "JVAR" Then
+  descr = "heren mix"
+  ges = "M"
+  isYOBBased = True
+  minAllowedYOB = 0
+  maxAllowedYOB = 9999
+  analyzeCategorie = True
+  Exit Function
+ElseIf Categorie = "MVAR" Then
+  descr = "dames mix"
+  ges = "V"
+  isYOBBased = True
+  minAllowedYOB = 0
+  maxAllowedYOB = 9999
+  analyzeCategorie = True
+  Exit Function
+ElseIf Categorie = "MJVAR" Then
+  descr = "dames/heren mix"
+  ges = "*"
+  isYOBBased = True
+  minAllowedYOB = 0
+  maxAllowedYOB = 9999
+  analyzeCategorie = True
+  Exit Function
+End If
+
+If Categorie Like "*JR" Then
+  
+  If (Categorie Like "MJ*") Then
+    ges = "*"
+    voorv = "m./j. "
+    voorvOud = "d./h."
+    restStr = Right(Categorie, Len(Categorie) - 2)
+  ElseIf (Categorie Like "M*") Then
+    ges = "V"
+    voorv = "m. "
+    voorvOud = "d. "
+    restStr = Right(Categorie, Len(Categorie) - 1)
+  ElseIf (Categorie Like "J*") Then
+    ges = "M"
+    voorv = "j. "
+    voorvOud = "h. "
+    restStr = Right(Categorie, Len(Categorie) - 1)
+  Else
+    Exit Function
+  End If
+  
+  If (Categorie Like "*-*JR") Then
+    Dim partBefDash As String
+    Dim partAftDash As String
+    Dim posDash As Integer
+    posDash = InStr(1, restStr, "-")
+    partBefDash = Left(restStr, posDash - 1)
+    partAftDash = Mid(restStr, posDash + 1, Len(restStr) - posDash - 2)
+    Dim lftBef As Integer
+    Dim lftAft As Integer
+    lftBef = CInt(val(partBefDash))
+    lftAft = CInt(val(partAftDash))
+    If (lftBef = 0 Or lftAft = 0) Then
+      Exit Function
+    End If
+    
+     
+    age1 = lftBef
+    age2 = lftAft
+    
+    If (age2 < age1) Then
+      tpAge = age2
+      age2 = age1
+      age1 = tpAge
+    End If
+    
+    If (age2 > 18) Then
+      voorv = voorvOud
+    End If
+    
+    If (Not isEstafTotAge) Then
+      descr = voorv & age1 & " tot " & age2 & " jaar."
+    Else
+      descr = voorv & age1 & " tot " & age2 & " jr. tot."
+    End If
+    isAgeBased = True
+    minAllowedAge = age1
+    maxAllowedAge = age2
+    
+    analyzeCategorie = True
+    Exit Function
+  Else
+    Dim lft As Integer
+    lft = CInt(val(Left(restStr, Len(restStr) - 2)))
+    If (lft = 0) Then
+      Exit Function
+    Else
+      If (lft > 18) Then
+        voorv = voorvOud
+      End If
+      descr = voorv & lft & " jaar."
+      isAgeBased = True
+      minAllowedAge = lft
+      maxAllowedAge = lft
+      
+      analyzeCategorie = True
+      Exit Function
+    End If
+  End If
+    
+  
+   Exit Function
+End If
+
+
+Dim lcatIdx As Integer, rcatIdx As Integer
+
+'=============================================================
+'Aangepast dd 11 juli 2000 om ook nieuwe categoriën zoals
+'minioren / junioren / jeugd / senioren
+'in te kunnen voeren...
+'=============================================================
+
+If Categorie Like "*MIN*" Then
+  If Categorie Like "MJMin*" Then
+    ges = "*"
+    voorv = "m./j. "
+  ElseIf Categorie Like "MMin*" Then
+    ges = "V"
+    voorv = "m. "
+  ElseIf Categorie Like "JMin*" Then
+    ges = "M"
+    voorv = "j. "
+  End If
+   
+  If Categorie Like "*EL" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "minioren " & catIdx & " en later"
+    If (catIdx = 1) Then
+      age1 = 5
+    Else
+      age1 = catIdx + 5
+    End If
+    age2 = 0
+  ElseIf Categorie Like "*EE" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "minioren " & catIdx & " en eerder"
+    If (catIdx = 1) Then
+      age1 = 5
+    Else
+      age1 = catIdx + 5
+    End If
+    age2 = CAT_MAX_AGE
+  ElseIf Categorie Like "*[0-9]/[0-9]" Then
+    lcatIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    rcatIdx = CInt(val(Right(Categorie, 1)))
+    descr = voorv & "minioren " & lcatIdx & " / " & rcatIdx
+    If (lcatIdx = 1) Then
+      age1 = 5
+    Else
+      age1 = lcatIdx + 5
+    End If
+    If (rcatIdx = 1) Then
+      age2 = 5
+    Else
+      age2 = rcatIdx + 5
+    End If
+    
+  Else
+    catIdx = CInt(val(Right(Categorie, 1)))
+    descr = voorv & "minioren " & catIdx
+    If (catIdx = 1) Then
+      age1 = 5
+      age2 = 6
+    Else
+      age1 = catIdx + 5
+      age2 = age1
+    End If
+  End If
+  
+  
+  If (age2 < age1) Then
+      tpAge = age2
+      age2 = age1
+      age1 = tpAge
+    End If
+    
+    isDutchAgeDescrBased = True
+    minAllowedAge = age1
+    maxAllowedAge = age2
+      
+    analyzeCategorie = True
+
+  Exit Function
+End If
+  
+If Categorie Like "*JEU*" Then
+  If Categorie Like "MJJEU*" Then
+    ges = "*"
+    voorv = "m./j. "
+  ElseIf Categorie Like "MJEU*" Then
+    ges = "V"
+    voorv = "m. "
+  ElseIf Categorie Like "JJEU*" Then
+    ges = "M"
+    voorv = "j. "
+  End If
+   
+  If Categorie Like "*EL" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "jeugd " & catIdx & " en later"
+    If (ges = "V") Then
+      age1 = 13 + catIdx
+    Else
+      age1 = 15 + catIdx
+    End If
+    age2 = 0
+  ElseIf Categorie Like "*EE" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "jeugd " & catIdx & " en eerder"
+    If (ges = "V") Then
+      age1 = 13 + catIdx
+    Else
+      age1 = 15 + catIdx
+    End If
+    age2 = CAT_MAX_AGE
+  ElseIf Categorie Like "*[0-9]/[0-9]" Then
+    lcatIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    rcatIdx = CInt(val(Right(Categorie, 1)))
+    descr = voorv & "jeugd " & lcatIdx & " / " & rcatIdx
+    If (ges = "V") Then
+      age1 = 13 + lcatIdx
+      age2 = 13 + rcatIdx
+    Else
+      age1 = 15 + lcatIdx
+      age2 = 15 + rcatIdx
+    End If
+
+  Else
+    catIdx = CInt(val(Right(Categorie, 1)))
+    descr = voorv & "jeugd " & catIdx
+    If (ges = "V") Then
+      age1 = 13 + catIdx
+    Else
+      age1 = 15 + catIdx
+    End If
+    age2 = age1
+  End If
+  
+  If (age2 < age1) Then
+      tpAge = age2
+      age2 = age1
+      age1 = tpAge
+    End If
+    
+    isDutchAgeDescrBased = True
+    minAllowedAge = age1
+    maxAllowedAge = age2
+    
+    analyzeCategorie = True
+  
+  Exit Function
+End If
+  
+
+If Categorie Like "*JUN*" Then
+  If Categorie Like "MJJUN*" Then
+    ges = "*"
+    voorv = "m./j. "
+  ElseIf Categorie Like "MJUN*" Then
+   ges = "V"
+    voorv = "m. "
+  ElseIf Categorie Like "JJUN*" Then
+    ges = "M"
+    voorv = "j. "
+  End If
+  
+  Dim tpAgeBase As Integer
+  tpAgeBase = 11
+  If (ges = "V") Then
+    tpAgeBase = mJunBaseAge
+  End If
+   
+  If Categorie Like "*EL" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "junioren " & catIdx & " en later"
+    age1 = tpAgeBase + catIdx
+    age2 = 0
+  ElseIf Categorie Like "*EE" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "junioren " & catIdx & " en eerder"
+    age1 = tpAgeBase + catIdx
+    age2 = CAT_MAX_AGE
+  ElseIf Categorie Like "*[0-9]/[0-9]" Then
+    lcatIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    rcatIdx = CInt(val(Right(Categorie, 1)))
+    descr = voorv & "junioren " & lcatIdx & " / " & rcatIdx
+    age1 = tpAgeBase + lcatIdx
+    age2 = tpAgeBase + rcatIdx
+  Else
+    catIdx = CInt(val(Right(Categorie, 1)))
+    descr = voorv & "junioren " & catIdx
+    age1 = tpAgeBase + catIdx
+    age2 = age1
+  End If
+  
+    If (age2 < age1) Then
+      tpAge = age2
+      age2 = age1
+      age1 = tpAge
+    End If
+    
+    isDutchAgeDescrBased = True
+    minAllowedAge = age1
+    maxAllowedAge = age2
+    
+    analyzeCategorie = True
+  
+  Exit Function
+End If
+  
+If Categorie Like "*SEN*" Then
+  If Categorie = "JSENO" Or Categorie = "JSENOEE" Then
+    ges = "M"
+    descr = "senioren heren open"
+    isDutchAgeDescrBased = True
+    minAllowedAge = 20
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+    Exit Function
+  End If
+  
+  If (Categorie = "JSENOEL") Then
+    ges = "M"
+    descr = "senioren heren all-in"
+    isDutchAgeDescrBased = True
+    minAllowedAge = 0
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+    Exit Function
+  End If
+    
+  
+  If Categorie = "MSENO" Or Categorie = "MSENOEE" Then
+    ges = "V"
+    descr = "senioren dames open"
+    isDutchAgeDescrBased = True
+    minAllowedAge = 18
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+    Exit Function
+  End If
+  
+  If (Categorie = "MSENOEL") Then
+    ges = "V"
+    descr = "senioren dames all-in"
+    isDutchAgeDescrBased = True
+    minAllowedAge = 0
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+    Exit Function
+  End If
+  
+  If Categorie = "MJSENO" Or Categorie = "MJSENOEE" Then
+    ges = "*"
+    descr = "senioren mix open"
+    isDutchAgeDescrBased = True
+    minAllowedAge = 20
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+    Exit Function
+  End If
+  
+  If (Categorie = "MJSENOEL") Then
+    ges = "*"
+    descr = "senioren mix all-in"
+    isDutchAgeDescrBased = True
+    minAllowedAge = 0
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+    Exit Function
+  End If
+  
+  
+  If Categorie Like "MJSEN*" Then
+    ges = "*"
+    voorv = "m./j. "
+  ElseIf Categorie Like "MSEN*" Then
+    ges = "V"
+    voorv = "m. "
+  ElseIf Categorie Like "JSEN*" Then
+    ges = "M"
+    voorv = "j. "
+  End If
+   
+  If Categorie Like "*EL" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "senioren " & catIdx & " en later"
+    If (ges = "V") Then
+      age1 = 15 + catIdx
+    Else
+      age1 = 17 + catIdx
+    End If
+    age2 = 0
+  ElseIf Categorie Like "*EE" Then
+    catIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    descr = voorv & "senioren " & catIdx & " en eerder"
+    If (ges = "V") Then
+      age1 = 15 + catIdx
+    Else
+      age1 = 17 + catIdx
+    End If
+    age2 = CAT_MAX_AGE
+  ElseIf Categorie Like "*[0-9]/[0-9]" Then
+    lcatIdx = CInt(val(Left(Right(Categorie, 3), 1)))
+    rcatIdx = CInt(val(Right(Categorie, 1)))
+    descr = voorv & "senioren " & lcatIdx & " / " & rcatIdx
+    If (ges = "V") Then
+      age1 = 15 + lcatIdx
+    Else
+      age1 = 17 + lcatIdx
+    End If
+    If (ges = "V") Then
+      age2 = 15 + rcatIdx
+    Else
+      age2 = 17 + rcatIdx
+    End If
+  Else
+    catIdx = CInt(val(Right(Categorie, 1)))
+    If (ges = "V") Then
+      age1 = 15 + catIdx
+    Else
+      age1 = 17 + catIdx
+    End If
+    age2 = age1
+    descr = voorv & "senioren " & catIdx
+  End If
+  
+  
+   If (age2 < age1) Then
+      tpAge = age2
+      age2 = age1
+      age1 = tpAge
+    End If
+    
+    isDutchAgeDescrBased = True
+    minAllowedAge = age1
+    maxAllowedAge = age2
+    
+    analyzeCategorie = True
+  
+  Exit Function
+End If
+  
+
+
+
+Select Case Categorie
+    Case "Heren"
+        descr = "heren"
+        ges = "M"
+        isYOBBased = True
+        minAllowedYOB = 0
+        maxAllowedYOB = 9999
+        analyzeCategorie = True
+        Exit Function
+    Case "Dames"
+        descr = "dames"
+        ges = "V"
+        isYOBBased = True
+        minAllowedYOB = 0
+        maxAllowedYOB = 9999
+        analyzeCategorie = True
+        Exit Function
+    Case "Zweeds"
+        descr = "zweeds"
+        ges = "*"
+        isYOBBased = True
+        minAllowedYOB = 0
+        maxAllowedYOB = 9999
+        analyzeCategorie = True
+        Exit Function
+    Case "MJO00" To "MJO99"
+        catIdx = CInt(val(Right(Categorie, 2)))
+        descr = "m./j. 0/" & catIdx
+        ges = "*"
+        isAgeBased = True
+        minAllowedAge = 0
+        maxAllowedAge = catIdx
+        analyzeCategorie = True
+        Exit Function
+    Case "MO00" To "MO99"
+        catIdx = CInt(val(Right(Categorie, 2)))
+        descr = "m. 0/" & catIdx
+        ges = "V"
+        isAgeBased = True
+        minAllowedAge = 0
+        maxAllowedAge = catIdx
+        analyzeCategorie = True
+        Exit Function
+    
+    Case "JO00" To "JO99"
+        catIdx = CInt(val(Right(Categorie, 2)))
+        descr = "j. 0/" & catIdx
+        ges = "M"
+        isAgeBased = True
+        minAllowedAge = 0
+        maxAllowedAge = catIdx
+        analyzeCategorie = True
+        Exit Function
+   
+End Select
+
+If Categorie Like "*/*" Then
+    Select Case Categorie
+    
+    Case "MJ00/00" To "MJ99/99"
+        lcatIdx = 1900 + CInt(val(Mid(Categorie, 3, 2)))
+        rcatIdx = 1900 + CInt(val(Mid(Categorie, 6, 2)))
+        If (lcatIdx < 1920) Then
+          lcatIdx = lcatIdx + 100
+        End If
+        If (rcatIdx < 1920) Then
+          rcatIdx = rcatIdx + 100
+        End If
+        ges = "*"
+        descr = "m./j. " & lcatIdx & "/" & rcatIdx
+        isYOBBased = True
+        If (lcatIdx < rcatIdx) Then
+          minAllowedYOB = lcatIdx
+          maxAllowedYOB = rcatIdx
+        Else
+          minAllowedYOB = rcatIdx
+          maxAllowedYOB = lcatIdx
+        End If
+        analyzeCategorie = True
+        Exit Function
+        
+        
+    Case "M00/00" To "M99/99"
+        lcatIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+        rcatIdx = 1900 + CInt(val(Mid(Categorie, 5, 2)))
+        If (lcatIdx < 1920) Then
+          lcatIdx = lcatIdx + 100
+        End If
+        If (rcatIdx < 1920) Then
+          rcatIdx = rcatIdx + 100
+        End If
+        ges = "V"
+        descr = "Meisjes " & lcatIdx & "/" & rcatIdx
+        isYOBBased = True
+        If (lcatIdx < rcatIdx) Then
+          minAllowedYOB = lcatIdx
+          maxAllowedYOB = rcatIdx
+        Else
+          minAllowedYOB = rcatIdx
+          maxAllowedYOB = lcatIdx
+        End If
+        analyzeCategorie = True
+        Exit Function
+    Case "J00/00" To "J99/99"
+                lcatIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+        rcatIdx = 1900 + CInt(val(Mid(Categorie, 5, 2)))
+        If (lcatIdx < 1920) Then
+          lcatIdx = lcatIdx + 100
+        End If
+        If (rcatIdx < 1920) Then
+          rcatIdx = rcatIdx + 100
+        End If
+        ges = "M"
+        descr = "Jongens " & lcatIdx & "/" & rcatIdx
+        isYOBBased = True
+        If (lcatIdx < rcatIdx) Then
+          minAllowedYOB = lcatIdx
+          maxAllowedYOB = rcatIdx
+        Else
+          minAllowedYOB = rcatIdx
+          maxAllowedYOB = lcatIdx
+        End If
+        analyzeCategorie = True
+        Exit Function
+End Select
+End If
+
+
+
+
+If Categorie Like "MJ[0-9][0-9]" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 3, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "*"
+    descr = "m./j. " & catIdx
+    isYOBBased = True
+    minAllowedYOB = catIdx
+    maxAllowedYOB = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+
+If Categorie Like "MJ[0-9][0-9]EL" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 3, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "*"
+    descr = "m./j. " & catIdx & " en later"
+    isYOBBased = True
+    minAllowedYOB = catIdx
+    maxAllowedYOB = 9999
+    analyzeCategorie = True
+        Exit Function
+End If
+If (Categorie Like "MJ[0-9][0-9]EJ") Or (Categorie Like "MJ[0-9][0-9][0-9]EJ") Then
+    catIdx = CInt(val(Mid(Categorie, 3, Len(Categorie) - 4)))
+    ges = "*"
+    If (catIdx > 18) Then
+      voorv = "d./h. "
+    Else
+      voorv = "m./j. "
+    End If
+    If (isEstafTotAge) Then
+      descr = voorv & catIdx & " jr. en jonger tot."
+    Else
+      descr = voorv & catIdx & " jr. en jonger"
+    End If
+    isAgeBased = True
+    minAllowedAge = 0
+    maxAllowedAge = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+If (Categorie Like "MJ[0-9][0-9]EO") Or (Categorie Like "MJ[0-9][0-9][0-9]EO") Then
+    catIdx = CInt(val(Mid(Categorie, 3, Len(Categorie) - 4)))
+    ges = "*"
+    If (catIdx > 18) Then
+      voorv = "d./h. "
+    Else
+      voorv = "m./j. "
+    End If
+    If (isEstafTotAge) Then
+      descr = voorv & catIdx & " jr. en ouder tot."
+    Else
+      descr = voorv & catIdx & " jr. en ouder"
+    End If
+    
+    isAgeBased = True
+    minAllowedAge = catIdx
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+        Exit Function
+End If
+If Categorie Like "MJ[0-9][0-9]EE" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 3, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "*"
+    descr = "m./j. " & catIdx & " en eerder"
+    isYOBBased = True
+    minAllowedYOB = 0
+    maxAllowedYOB = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+
+
+If Categorie Like "M[0-9][0-9]" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "V"
+    descr = "m. " & catIdx
+    isYOBBased = True
+    minAllowedYOB = catIdx
+    maxAllowedYOB = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+
+If Categorie Like "M[0-9][0-9]EL" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "V"
+    descr = "m. " & catIdx & " en later"
+    isYOBBased = True
+    minAllowedYOB = catIdx
+    maxAllowedYOB = 9999
+    analyzeCategorie = True
+        Exit Function
+End If
+If (Categorie Like "M[0-9][0-9]EJ") Or (Categorie Like "M[0-9][0-9][0-9]EJ") Then
+    catIdx = CInt(val(Mid(Categorie, 2, Len(Categorie) - 3)))
+    ges = "V"
+    If (catIdx > 18) Then
+      voorv = "d. "
+    Else
+      voorv = "m. "
+    End If
+    If (isEstafTotAge) Then
+      descr = voorv & catIdx & " jr. en jonger tot."
+    Else
+      descr = voorv & catIdx & " jr. en jonger"
+    End If
+    isAgeBased = True
+    minAllowedAge = 0
+    maxAllowedAge = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+If (Categorie Like "M[0-9][0-9]EO") Or (Categorie Like "M[0-9][0-9][0-9]EO") Then
+    catIdx = CInt(val(Mid(Categorie, 2, Len(Categorie) - 3)))
+    ges = "V"
+    If (catIdx > 18) Then
+      voorv = "d. "
+    Else
+      voorv = "m. "
+    End If
+    If (isEstafTotAge) Then
+      descr = voorv & catIdx & " jr. en ouder tot."
+    Else
+      descr = voorv & catIdx & " jr. en ouder"
+    End If
+    isAgeBased = True
+    minAllowedAge = catIdx
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+        Exit Function
+End If
+If Categorie Like "M[0-9][0-9]EE" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "V"
+    descr = "m. " & catIdx & " en eerder"
+    isYOBBased = True
+    minAllowedYOB = 0
+    maxAllowedYOB = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+
+
+
+If Categorie Like "J[0-9][0-9]" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "M"
+    descr = "j. " & catIdx
+    isYOBBased = True
+    minAllowedYOB = catIdx
+    maxAllowedYOB = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+
+If Categorie Like "J[0-9][0-9]EL" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "M"
+    descr = "j. " & catIdx & " en later"
+    isYOBBased = True
+    minAllowedYOB = catIdx
+    maxAllowedYOB = 9999
+    analyzeCategorie = True
+        Exit Function
+End If
+If (Categorie Like "J[0-9][0-9]EJ") Or (Categorie Like "J[0-9][0-9][0-9]EJ") Then
+    catIdx = CInt(val(Mid(Categorie, 2, Len(Categorie) - 3)))
+    ges = "m"
+    If (catIdx > 18) Then
+      voorv = "h. "
+    Else
+      voorv = "j. "
+    End If
+    If (isEstafTotAge) Then
+      descr = voorv & catIdx & " jr. en jonger tot."
+    Else
+      descr = voorv & catIdx & " jr. en jonger"
+    End If
+    isAgeBased = True
+    minAllowedAge = 0
+    maxAllowedAge = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+If (Categorie Like "J[0-9][0-9]EO") Or (Categorie Like "J[0-9][0-9][0-9]EO") Then
+    catIdx = CInt(val(Mid(Categorie, 2, Len(Categorie) - 3)))
+    ges = "M"
+    If (catIdx > 18) Then
+      voorv = "h. "
+    Else
+      voorv = "j. "
+    End If
+    If (isEstafTotAge) Then
+      descr = voorv & catIdx & " jr. en ouder tot."
+    Else
+      descr = voorv & catIdx & " jr. en ouder"
+    End If
+    isAgeBased = True
+    minAllowedAge = catIdx
+    maxAllowedAge = CAT_MAX_AGE
+    analyzeCategorie = True
+        Exit Function
+End If
+If Categorie Like "J[0-9][0-9]EE" Then
+    catIdx = 1900 + CInt(val(Mid(Categorie, 2, 2)))
+    If (catIdx < 1920) Then
+      catIdx = catIdx + 100
+    End If
+    ges = "M"
+    descr = "j. " & catIdx & " en eerder"
+    isYOBBased = True
+    minAllowedYOB = 0
+    maxAllowedYOB = catIdx
+    analyzeCategorie = True
+        Exit Function
+End If
+
+
+
+If Categorie = "MIX" Then
+    isYOBBased = True
+    minAllowedYOB = 0
+    maxAllowedYOB = 9999
+    ges = "*"
+    descr = "Mix"
+    analyzeCategorie = True
+        Exit Function
+End If
+
+
+End Function
+
+
+
+Private Function lenGetDutchBareCatForAge_obs(ByVal age As Integer, ges As String, ageDate As Date, ByRef blIsExactMatch As Boolean) As String
+On Error Resume Next
+
+Dim mJunBaseAge As Integer
+Dim yyyy As Long
+Dim mm As Long
+
+Dim curDate As Date
+   
+curDate = Nz(ageDate, #1/1/1900#)
+If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+  curDate = Now()
+End If
+
+yyyy = val(Format(curDate, "yyyy"))
+mm = val(Format(curDate, "mm"))
+
+mJunBaseAge = 11
+If (yyyy > 2007) Or (yyyy = 2007 And mm >= 8) Then
+  mJunBaseAge = 10
+End If
+
+blIsExactMatch = True
+
+Dim tpS As String
+tpS = ""
+If (ges = "M" Or ges = "*") Then
+    Select Case age
+      Case Is <= 6
+        tpS = "MIN1"
+      Case 7
+        tpS = "MIN2"
+      Case 8
+        tpS = "MIN3"
+      Case 9
+        tpS = "MIN4"
+      Case 10
+        tpS = "MIN5"
+      Case 11
+        tpS = "MIN6"
+      Case 12
+        tpS = "JUN1"
+      Case 13
+        tpS = "JUN2"
+      Case 14
+        tpS = "JUN3"
+      Case 15
+        tpS = "JUN4"
+      Case 16
+        tpS = "JEU1"
+      Case 17
+        tpS = "JEU2"
+      Case 18
+        tpS = "SEN1"
+      Case 19
+        tpS = "SEN2"
+      Case 20
+        tpS = "SENO"
+      Case Is >= 21
+        tpS = "SENO"
+        blIsExactMatch = False
+    End Select
+Else
+  Select Case age
+      Case Is <= 6
+        tpS = "MIN1"
+      Case 7
+        tpS = "MIN2"
+      Case 8
+        tpS = "MIN3"
+      Case 9
+        tpS = "MIN4"
+      Case 10
+        tpS = "MIN5"
+      Case 11
+        If (mJunBaseAge = 10) Then
+          tpS = "JUN1"
+        Else
+          tpS = "MIN6"
+        End If
+      Case 12
+        If (mJunBaseAge = 10) Then
+          tpS = "JUN2"
+        Else
+          tpS = "JUN1"
+        End If
+      Case 13
+        If (mJunBaseAge = 10) Then
+          tpS = "JUN3"
+        Else
+          tpS = "JUN2"
+        End If
+      Case 14
+        tpS = "JEU1"
+      Case 15
+        tpS = "JEU2"
+      Case 16
+        tpS = "SEN1"
+      Case 17
+        tpS = "SEN2"
+      Case 18
+        tpS = "SENO"
+      Case Is >= 19
+        blIsExactMatch = False
+        tpS = "SENO"
+    End Select
+End If
+lenGetDutchBareCatForAge_obs = tpS
+End Function
+
+
+
+
+Private Function lenParseAgeGroup_obs(ByVal lftModeBep As String, ByVal ageDate As Date, ByVal lenGender As String, ByVal ageMin As Integer, ByVal ageMax As Integer, ByVal isTotAge As Boolean, Optional isMCat As Boolean = False) As String
+On Error Resume Next
+
+
+Dim ageMinValid As Boolean
+Dim ageMaxValid As Boolean
+ageMinValid = ageMin <> -1
+ageMaxValid = ageMax <> -1
+
+Dim voorv As String
+Dim ges As String
+
+ges = IIf(lenGender = "M", "M", IIf(lenGender = "F", "V", "*"))
+
+If (ges = "M") Then
+  voorv = "J"
+ElseIf (ges = "V") Then
+  voorv = "M"
+Else
+  voorv = "MJ"
+End If
+
+If (isMCat) Then
+  lenParseAgeGroup_obs = voorv & "VAR"
+  Exit Function
+End If
+
+
+Dim blUseDutchCats As Boolean
+blUseDutchCats = True
+
+If (lftModeBep <> LFT_MODE_SZYR) Or (isTotAge) Then
+  blUseDutchCats = False
+End If
+
+If (blUseDutchCats) Then
+  If (ageMaxValid And ageMax >= 22) Then
+    blUseDutchCats = False
+  ElseIf (ageMinValid And ageMin >= 22) Then
+    blUseDutchCats = False
+  End If
+End If
+
+If (blUseDutchCats) Then
+  Dim bareMinCat As String, bareMinCatExactMatch As Boolean
+  Dim bareMaxCat As String, bareMaxCatExactMatch As Boolean
+  bareMinCat = ""
+  bareMaxCat = ""
+  If (ageMinValid) Then
+    bareMinCat = lenGetDutchBareCatForAge_obs(ageMin, ges, ageDate, bareMinCatExactMatch)
+  End If
+  If (ageMaxValid) Then
+    bareMaxCat = lenGetDutchBareCatForAge_obs(ageMax, ges, ageDate, bareMaxCatExactMatch)
+  End If
+  
+  If (ageMaxValid And bareMaxCat = "SENO") Then
+    blUseDutchCats = False
+  ElseIf (ageMaxValid And (Not bareMaxCatExactMatch)) Then
+    blUseDutchCats = False
+  ElseIf (ageMinValid And (Not bareMinCatExactMatch)) Then
+    blUseDutchCats = False
+  End If
+  
+End If 'if blUseDutchCats
+  
+
+
+If (blUseDutchCats) Then
+  'Have to convert to minioren etc.
+    
+  'test to see if the minimum age is also (smaller or equal to) the minimum allowed age using age restrictions!!!
+  'If so, dump the minimum age.
+  If (ageMinValid And ageMaxValid) Then
+     If ageMin <= catGetMinAllowedAgeLftBep(ageMax) Then
+       ageMinValid = False
+     End If
+  End If
+  
+  
+  If (ageMinValid And ageMaxValid) Then
+    If (bareMinCat = bareMaxCat) Then
+      lenParseAgeGroup_obs = voorv & bareMinCat
+    ElseIf (Left(bareMinCat, 3) = Left(bareMaxCat, 3)) Then
+      lenParseAgeGroup_obs = voorv & Left(bareMinCat, 4) & "/" & Right(bareMaxCat, 1)
+    Else
+      lenParseAgeGroup_obs = voorv & bareMinCat & "/" & bareMaxCat
+    End If
+  ElseIf (ageMinValid) Then
+    If (bareMinCat = "SENO") Then
+      lenParseAgeGroup_obs = voorv & bareMinCat
+    Else
+      lenParseAgeGroup_obs = voorv & bareMinCat & "EE"
+    End If
+  ElseIf (ageMaxValid) Then
+    lenParseAgeGroup_obs = voorv & bareMaxCat & "EL"
+  Else
+    If (ges = "M") Then
+      lenParseAgeGroup_obs = "HEREN"
+    ElseIf (ges = "V") Then
+      lenParseAgeGroup_obs = "DAMES"
+    Else
+      lenParseAgeGroup_obs = "MIX"
+    End If
+  End If
+Else
+  'Use "JR" notation
+  If (ageMinValid And ageMaxValid) Then
+    If (ageMin = ageMax) Then
+      lenParseAgeGroup_obs = voorv & ageMin & "JR"
+    Else
+      lenParseAgeGroup_obs = voorv & ageMin & "-" & ageMax & "JR"
+    End If
+  ElseIf (ageMinValid) Then
+    lenParseAgeGroup_obs = voorv & ageMin & "EO"
+  ElseIf (ageMaxValid) Then
+    lenParseAgeGroup_obs = voorv & ageMax & "EJ"
+  Else
+    If (ges = "M") Then
+      lenParseAgeGroup_obs = "HEREN"
+    ElseIf (ges = "V") Then
+      lenParseAgeGroup_obs = "DAMES"
+    Else
+      lenParseAgeGroup_obs = "MIX"
+    End If
+    
+  End If
+  
+  If ((ageMinValid Or ageMaxValid) And isTotAge) Then
+    lenParseAgeGroup_obs = lenParseAgeGroup_obs & "T"
+  End If
+  
+End If
+
+
+End Function
+
+
+
+
+
+'Test function
+Public Function ctxTestCat(ByVal sCat As String) As Boolean
+On Error GoTo fout
+
+ctxTestCat = False
+
+If (catIsEstafTotalAge(sCat)) Then
+  ctxTestCat = True
+  Exit Function
+End If
+
+Dim tpPrsCatInf As CAT_PARSED_INFO
+
+Dim blDummy As Boolean
+
+If Not ctxParseCat(sCat, blDummy, tpPrsCatInf) Then
+  Exit Function
+End If
+
+If (tpPrsCatInf.sCatDes <> catBeschrijving_obs(sCat)) Then
+  Err.Raise 1, , "Descriptions do not match for " & sCat & ": " & tpPrsCatInf.sCatDes & " <> " & catBeschrijvingMooi(sCat)
+  Exit Function
+End If
+
+'now check age ranges
+Dim sLftMode(0 To 3) As String
+sLftMode(0) = LFT_MODE_SZYR
+sLftMode(1) = LFT_MODE_WEDYR_END
+sLftMode(2) = LFT_MODE_WEDYR_START
+sLftMode(3) = LFT_MODE_WEDDAT
+
+Dim dDates(0 To 3) As Date
+  dDates(0) = #1/1/2009#
+  dDates(1) = #4/2/2006#
+  dDates(2) = #12/31/2009#
+  dDates(3) = #8/12/2010#
+
+Dim i As Integer, j As Integer, k As Integer
+
+For i = 0 To 3
+  For j = 0 To 3
+    For k = 0 To 3
+      Dim tpMinAgePrv As Integer, tpMaxAgePrv As Integer, tpMinAgeNew As Integer, tpMaxAgeNew As Integer
+      
+      If Not catGetAllowedAgeRange_bare_obs(sCat, tpMinAgePrv, tpMaxAgePrv, dDates(k), sLftMode(i), sLftMode(j), False) Then
+        Exit Function
+      End If
+      If Not ctxGetAgeRange_bare(sCat, dDates(k), sLftMode(i), False, dDates(k), sLftMode(j), tpMinAgeNew, tpMaxAgeNew) Then
+        Exit Function
+      End If
+      If (tpMinAgePrv <> tpMinAgeNew) Then
+        If (tpMinAgePrv = 1) And (tpMinAgeNew = 0) Then
+          'silently ignore
+        Else
+          If (sLftMode(i) = LFT_MODE_WEDDAT) Or (sLftMode(j) = LFT_MODE_WEDDAT) Then
+            'silently ignore
+          Else
+            Debug.Print , , "Min age (no lft bep) does not match for " & sCat & ": " & tpMinAgePrv & " <> " & tpMinAgeNew & "( " & sLftMode(i) & ", " & sLftMode(j) & ", " & dDates(k)
+          End If
+        End If
+      End If
+      If (tpMaxAgePrv <> tpMaxAgeNew) Then
+        If (tpMaxAgePrv = 9999) And (tpMaxAgeNew = CAT_MAX_AGE) Then
+          'Silently ignore
+        Else
+          If (sLftMode(i) = LFT_MODE_WEDDAT) Or (sLftMode(j) = LFT_MODE_WEDDAT) Then
+            'silently ignore
+          Else
+            Debug.Print 1, , "Max age (no lft bep) does not match for " & sCat & ": " & tpMaxAgePrv & " <> " & tpMaxAgeNew & "( " & sLftMode(i) & ", " & sLftMode(j) & ", " & dDates(k)
+          End If
+        End If
+      End If
+      
+      
+      'This is not supported
+      'If Not catGetAllowedAgeRange_bare(sCat, tpMinAgePrv, tpMaxAgePrv, dDates(k), sLftMode(i), sLftMode(j), True) Then
+      '  Exit Function
+      'End If
+      'If Not ctxGetAgeRange_bare(sCat, dDates(k), sLftMode(i), True, dDates(k), sLftMode(j), tpMinAgeNew, tpMaxAgeNew) Then
+      '  Exit Function
+      'End If
+      'If (tpMinAgePrv <> tpMinAgeNew) Then
+      '  Err.Raise 1, , "Min age (with lft bep) does not match for " & sCat & ": " & tpMinAgePrv & " <> " & tpMinAgeNew
+      'End If
+      'If (tpMaxAgePrv <> tpMaxAgeNew) Then
+      '  Err.Raise 1, , "Max age (with lft bep) does not match for " & sCat & ": " & tpMaxAgePrv & " <> " & tpMaxAgeNew
+      'End If
+    Next k
+  Next j
+Next i
+      
+      
+      
+      
+      
+'now check whether startnummers match
+Dim sStarts(0 To 99) As String
+Dim sGes(0 To 1) As String
+Dim iGebMonth(0 To 3) As String
+
+For i = 0 To 99
+  If (i >= 6) And (i <= 20) Then
+    sStarts(i) = "01-abcde"
+  Else
+    sStarts(i) = Format(i, "00") & "-abcde"
+  End If
+Next i
+
+sGes(0) = "M"
+sGes(1) = "V"
+
+iGebMonth(0) = 1
+iGebMonth(1) = 3
+iGebMonth(2) = 7
+iGebMonth(3) = 10
+
+Dim l As Integer, m As Integer
+
+For i = 0 To 99 'startnr
+  For j = 0 To 1 'ges
+    For k = 0 To 3 'geb month
+      For l = 0 To 3 'lftmode
+        For m = 0 To 3 'age date
+          Dim catStatusPrv As Integer, catStatusNew As Integer
+          
+          Dim tpCmpCatInfNoLftRes As CAT_COMPILED_INFO
+          Dim tpCmpCatInfWithLftRes As CAT_COMPILED_INFO
+  
+          If Not ctxCompileCat(sCat, dDates(m), sLftMode(l), False, blDummy, tpCmpCatInfNoLftRes) Then
+            Exit Function
+          End If
+          
+          If Not ctxCompileCat(sCat, dDates(m), sLftMode(l), True, blDummy, tpCmpCatInfWithLftRes) Then
+            Exit Function
+          End If
+  
+          
+          
+          catStatusPrv = cat_voldoet_bare_obs(sStarts(i), sCat, sGes(j), DateSerial(stnrExtractYOB(sStarts(i), #1/1/1900#, #1/1/1900#), iGebMonth(k), 2), sLftMode(l), False, dDates(m))
+          If Not ctxCheckCat(sStarts(i), DateSerial(stnrExtractYOB(sStarts(i), #1/1/1900#, #1/1/1900#), iGebMonth(k), 2), sGes(j), tpCmpCatInfNoLftRes, catStatusNew) Then
+            Exit Function
+          End If
+          
+          If (catStatusPrv <> catStatusNew) Then
+            Debug.Print 1, , "Cat status (no lft bep) for " & sCat & " does not match"
+          End If
+          
+          
+          catStatusPrv = cat_voldoet_bare_obs(sStarts(i), sCat, sGes(j), DateSerial(stnrExtractYOB(sStarts(i), #1/1/1900#, #1/1/1900#), iGebMonth(k), 2), sLftMode(l), True, dDates(m))
+          If Not ctxCheckCat(sStarts(i), DateSerial(stnrExtractYOB(sStarts(i), #1/1/1900#, #1/1/1900#), iGebMonth(k), 2), sGes(j), tpCmpCatInfWithLftRes, catStatusNew) Then
+            Exit Function
+          End If
+          
+          If (catStatusPrv <> catStatusNew) Then
+            If (sLftMode(l) <> LFT_MODE_SZYR) And (catStatusNew = CAT_AGE_RESTRICTION_ERROR) And (catStatusPrv = CAT_OK) Then
+              'silently ignore
+            ElseIf (sCat = "ZWEEDS") And (catStatusPrv = CAT_AGE_RESTRICTION_ERROR) And (catStatusNew = CAT_OK) Then
+              'silently ignore
+            ElseIf (catIsMCat(sCat) And (catStatusPrv = CAT_AGE_RESTRICTION_ERROR) And (catStatusNew = CAT_OK)) Then
+                'silently ignore
+            Else
+              Debug.Print 1, , "Cat status (with lft bep) for " & sCat & " does not match"
+            End If
+          End If
+        Next m
+      Next l
+    Next k
+  Next j
+Next i
+
+
+
+
+
+ctxTestCat = True
+
+Exit Function
+
+fout:
+MsgBox Err & " ctxTestCat" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function ctxTestBuild(ByVal blConv As Boolean, ByVal blIsEstTotAge As Boolean, ByVal ges As String, ByVal minAge As Integer, ByVal maxAge As Integer) As Boolean
+On Error GoTo fout
+ctxTestBuild = False
+
+
+Dim catPrsInfo As CAT_PARSED_INFO
+
+catPrsInfo.blHasAgeRestriction = True
+catPrsInfo.blIsAgeBased = True
+catPrsInfo.sGes = ges
+
+catPrsInfo.blIsEstSumAges = blIsEstTotAge
+
+catPrsInfo.iYngAge = minAge
+catPrsInfo.iOldAge = maxAge
+
+
+
+
+'now check age ranges
+Dim sLftMode(0 To 3) As String
+sLftMode(0) = LFT_MODE_SZYR
+sLftMode(1) = LFT_MODE_WEDYR_END
+sLftMode(2) = LFT_MODE_WEDYR_START
+sLftMode(3) = LFT_MODE_WEDDAT
+
+Dim dDates(0 To 3) As Date
+dDates(0) = #1/1/2009#
+dDates(1) = #4/2/2006#
+dDates(2) = #12/31/2009#
+dDates(3) = #8/12/2010#
+
+
+Dim i As Integer, j As Integer
+For i = 0 To 3
+  For j = 0 To 3
+
+    Dim sCatNew As String, sCatPrv As String
+    
+    If Not ctxBuildCat(blConv, True, dDates(j), sLftMode(i), catPrsInfo, sCatNew) Then
+      Exit Function
+    End If
+    
+    sCatPrv = lenParseAgeGroup_obs(sLftMode(i), dDates(j), IIf(ges = "m", "M", IIf(ges = "*", "x", "F")), minAge, maxAge, blIsEstTotAge)
+     
+    If (sCatPrv <> sCatNew) Then
+      If (sCatPrv = "JMIN6EE") And (sCatNew = "JSENOEL") Then
+      ElseIf (sCatPrv = "MJUN1EE") And (sCatNew = "MSENOEL") Then
+      ElseIf (sCatPrv = "MMIN6EE") And (sCatNew = "MSENOEL") Then
+      ElseIf (sCatPrv = "MJMIN6EE") And (sCatNew = "MJSENOEL") Then
+      Else
+        Debug.Print "cat new: " & sCatNew & "; cat old: " & sCatPrv
+      End If
+    End If
+  Next j
+Next i
+ 
+
+ctxTestBuild = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxTestBuild" & vbCrLf & Error$, 16
+Exit Function
+End Function

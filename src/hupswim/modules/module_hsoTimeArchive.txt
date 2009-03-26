@@ -1,0 +1,400 @@
+Option Compare Database
+Option Explicit
+
+Public Function tmaOutputToLenex(ByVal fName As String, ByVal blOnlyFastest As Boolean, ByVal startDate As Date, ByVal blRestrictLS As Boolean, ByVal sRestrictStart As String, ByVal blRestrictOnlyActive As Boolean, ByVal lRestrictLSCode As Long) As Boolean
+
+End Function
+
+Private Function tmaWriteSwimmer(ByVal lZwmID As Long, ByVal lVerID As Long, ByVal sStartnr As String, ByRef skZwm As Recordset, ByRef rsZwm As Recordset) As Boolean
+On Error GoTo fout
+tmaWriteSwimmer = False
+
+
+
+tmaWriteSwimmer = True
+Exit Function
+fout:
+MsgBox Err & " tmaWriteSwimmer" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function tmaWritePloeg(ByRef muPllID As Long, ByVal lPlgID As Long, ByVal lVerID As Long, ByVal lEstGUID As Long, ByRef dsData As DIR_SERVER_DATA, ByRef skEst As Recordset, ByRef skZwm As Recordset, ByRef rsPlg As Recordset, ByRef rsPll As Recordset) As Boolean
+On Error GoTo fout
+tmaWritePloeg = False
+
+
+
+tmaWritePloeg = True
+Exit Function
+fout:
+MsgBox Err & " tmaWritePloeg" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function tmaWriteVer(ByVal lVerID As Long, ByVal blIsMainVer As Boolean, ByVal skVer As Recordset, ByVal rsVer As Recordset) As Boolean
+On Error GoTo fout
+tmaWriteVer = False
+
+If (blIsMainVer) Then
+
+Else
+
+End If
+
+
+tmaWriteVer = True
+Exit Function
+fout:
+MsgBox Err & " tmaWriteVer" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function tmaExpFillLenTransTables_handleTimeList(ByRef rs As Recordset, ByRef dsData As DIR_SERVER_DATA, _
+ ByRef muZwmID As Long, ByRef muPlgID As Long, ByRef muPllID As Long, ByRef muVerID As Long, _
+ ByVal blRestrictLS As Boolean, ByVal blRestrictOnlyActive As Boolean, ByVal lRestrictLSCode As Long) As Boolean
+On Error GoTo fout
+tmaExpFillLenTransTables_handleTimeList = False
+
+
+Dim rsTma As Recordset
+Dim rsZwm As Recordset
+Dim rsVer As Recordset
+Dim rsWed As Recordset
+Dim rsPlg As Recordset
+Dim rsPll As Recordset
+
+Set rsTma = CurrentDb().OpenRecordset("gIMP_LEN_ArchiefTijden")
+Set rsZwm = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+Set rsVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+Set rsWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+rsWed.Index = "PrimaryKey"
+Set rsPlg = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+Set rsPll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+
+
+Dim skZwm As Recordset
+Dim skVer As Recordset
+Dim skWed As Recordset
+Dim skEst As Recordset
+
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+Set skVer = CurrentDb().OpenRecordset("dtVerenigingen")
+skVer.Index = "PrimaryKey"
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+Set skEst = CurrentDb().OpenRecordset("dtEstafettes")
+skEst.Index = "PrimaryKey"
+
+
+
+Dim curStart As String
+Dim curIsEstaf As Boolean
+
+Dim curZwmID As Long
+Dim curVerID As Long
+Dim curPlgID As Long
+Dim curDlnValid As Boolean
+
+
+
+curStart = ""
+curDlnValid = False
+
+
+Dim isMultipleVer As Boolean
+isMultipleVer = dbIsMultipleVer()
+
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim blOutputVer As Boolean
+  Dim blOutputZwm As Boolean
+  
+  blOutputVer = False
+  blOutputZwm = False
+
+  Dim tpStart As String
+  tpStart = Nz(rs("start nr"))
+  
+  
+  If ((tpStart = "00-000") Or (tpStart = "") Or (tpStart <> curStart)) Then
+      
+    'Initialize new swimmer.
+    curStart = tpStart
+    curIsEstaf = (tpStart = "00-000")
+    curDlnValid = False
+    
+    Dim tpVer As String, tpVerIsMain As Boolean
+    tpVer = ""
+    tpVerIsMain = False
+    
+    If (Not curIsEstaf) And (tpStart <> "") Then
+      skZwm.Seek "=", curStart
+      If (skZwm.NoMatch) Then
+        Err.Raise 1, , "internal error"
+      End If
+      
+      tpVer = Nz(skZwm("vereniging"))
+      
+      curDlnValid = True
+      If (blRestrictLS) Then
+        Dim tpOpm As Long
+        Dim tpActief As Boolean
+        tpOpm = Nz(skZwm("opm"))
+        tpActief = Nz(skZwm("actief lid"))
+        If (blRestrictOnlyActive And (Not tpActief)) Then
+          curDlnValid = False
+        End If
+        If (curDlnValid) Then
+          If Not lsIsMatch(tpOpm, lRestrictLSCode) Then
+            curDlnValid = False
+          End If
+        End If
+      End If 'if blRestrictLS
+    ElseIf curIsEstaf Then
+      curDlnValid = True
+      tpVer = Nz(rs("EST_Vereniging"))
+    End If
+    
+    If (curDlnValid) Then
+      If (Not isMultipleVer) Then
+        tpVer = ver()
+        tpVerIsMain = True
+      Else
+        If (tpVer = "") Then
+          tpVer = ver()
+          tpVerIsMain = True
+        Else
+          skVer.Seek "=", tpVer
+          If (skVer.NoMatch) Then
+            tpVer = ver()
+            tpVerIsMain = True
+          End If
+        End If
+      End If
+    End If
+    
+    
+    If (curDlnValid) Then
+      'First need to get an id for the vereniging
+      Dim tpS As String
+      tpS = dsGetString(dsData, "VERS\" & GoedTekens(tpVer))
+      If (tpS = "") Then
+        curVerID = muVerID + 1
+        muVerID = curVerID
+        
+        'Need to write the vereniging
+        If Not tmaWriteVer(curVerID, tpVerIsMain, skVer, rsVer) Then
+          Exit Function
+        End If
+        
+        dsSetLong dsData, "VERS\" & GoedTekens(tpVer), curVerID
+      Else
+        curVerID = CLng(tpS)
+      End If
+
+
+      If (curIsEstaf) Then
+      
+        'Need to create a plgID and output the plg
+        Dim tpEstGUID As Long
+        tpEstGUID = Nz(rs("EST_GUID"), -1)
+        
+        curPlgID = muPlgID + 1
+        muPlgID = curPlgID
+        
+        If Not tmaWritePloeg(muPllID, curPlgID, curVerID, tpEstGUID, dsData, skEst, skZwm, rsPlg, rsPll) Then
+          Exit Function
+        End If
+      
+      
+      Else
+        'Need to create a swmID
+        curZwmID = muZwmID + 1
+        muZwmID = curZwmID
+        
+        If Not tmaWriteSwimmer(curZwmID, curVerID, curStart, skZwm, rsZwm) Then
+          Exit Function
+        End If
+        
+        dsSetLong dsData, "ZWMS\" & curStart, curZwmID
+      
+      End If
+    
+    End If 'if curDlnValid
+    
+    
+  End If 'if tpStart = 00-000 or tpStart ="" or  tpStart <> curStart
+    
+    
+    
+  If (curDlnValid) Then
+  
+  
+    'Need to export the match
+    
+  
+  
+    'export the time
+    Dim tpTimeID As Long
+    'tpTimeID = mu
+  
+  End If
+    
+    
+      
+    
+    
+  
+  rs.MoveNext
+Loop
+
+
+
+
+
+
+
+
+appCleanRS rsTma
+appCleanRS rsZwm
+appCleanRS rsVer
+appCleanRS rsWed
+appCleanRS rsPlg
+appCleanRS rsPll
+
+appCleanRS skZwm
+appCleanRS skVer
+appCleanRS skWed
+appCleanRS skEst
+
+
+tmaExpFillLenTransTables_handleTimeList = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " tmaExpFillLenTransTables_handleTimeList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function tmaExpFillLenTransTables(ByVal blOnlyFastest As Boolean, ByVal startDate As Date, ByVal blIncludeEstafs As Boolean, ByVal blRestrictLS As Boolean, ByVal sRestrictStart As String, ByVal blRestrictOnlyActive As Boolean, ByVal lRestrictLSCode As Long) As Boolean
+On Error GoTo fout
+
+tmaExpFillLenTransTables = False
+
+If Not lenCleanTransferTables() Then
+  Exit Function
+End If
+
+Dim sqlWhere As String
+sqlWhere = ""
+If (blOnlyFastest) Then
+  If Not prsMarkPRs(startDate, #1/1/2099#, -1) Then
+    Exit Function
+  End If
+  sqlWhere = "where (isMarked =true)"
+Else
+  sqlWhere = "where [dtWedstrijden].datum>=#" & Format(startDate, "mm\-dd\-yyyy") & "#"
+End If
+
+If (blRestrictLS) And (sRestrictStart <> "") Then
+  sqlWhere = sqlWhere & " and [start nr] = """ & sRestrictStart & """"
+Else
+  sqlWhere = sqlWhere & " and [start nr] <> ""00-000"""
+End If
+
+
+'For relay swimmers, need to remember the zw_id
+'with which they are added to the table.
+'Perhaps use the directory server for this? These lookups are fast.
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, True, "__temp__tma_swimmers") Then
+  Exit Function
+End If
+
+
+
+Dim muZwmID As Long, muPlgID As Long, muPllID As Long, muVerID As Long
+
+muZwmID = 0
+muPlgID = 0
+muPllID = 0
+muVerID = 0
+
+
+Dim rs As Recordset
+
+Dim sql As String
+
+sql = "select [dtTijden].*, [dtWedstrijden].datum, [dtWedstrijden].plaats, [dtWedstrijden].baanlengte, [dtWedstrijden].beschrijving " & _
+"from [dtTijden] inner join [dtWedstrijden] on " & _
+ "[dtTijden].[wedstr nr] = [dtWedstrijden].[wedstrijd nummer] " & sqlWhere & " Order by [start nr], [datum]"
+
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+If Not tmaExpFillLenTransTables_handleTimeList(rs, dsData, muZwmID, muPlgID, muPllID, muVerID, _
+  blRestrictLS, blRestrictOnlyActive, lRestrictLSCode) Then
+  Exit Function
+End If
+
+appCleanRS rs
+
+
+If (blIncludeEstafs) Then
+
+  sqlWhere = "where [dtWedstrijden].datum>=#" & Format(startDate, "mm\-dd\-yyyy") & "# and [start nr]=""00-000"" "
+
+  sql = "select [dtTijden].*, [dtWedstrijden].datum, [dtWedstrijden].plaats, [dtWedstrijden].baanlengte, [dtWedstrijden].beschrijving " & _
+  "from [dtTijden] inner join [dtWedstrijden] on " & _
+  "[dtTijden].[wedstr nr] = [dtWedstrijden].[wedstrijd nummer] " & sqlWhere & " order by [datum]"
+ 
+  Set rs = CurrentDb().OpenRecordset(sql)
+  
+  If Not tmaExpFillLenTransTables_handleTimeList(rs, dsData, muZwmID, muPlgID, muPllID, muVerID, _
+    blRestrictLS, blRestrictOnlyActive, lRestrictLSCode) Then
+    Exit Function
+  End If
+  
+  appCleanRS rs
+ 
+End If
+
+
+
+Dim fName As String
+
+If Not (gXMLWriter.exportTableToXML("hsoWAS_XML_KRTY_OUT", fName, "kringty", True)) Then
+  Exit Function
+End If
+MsgBox "De tijden zijn geëxporteerd als: " & vbCrLf & fName, vbInformation
+
+
+
+dsClean dsData
+
+tmaExpFillLenTransTables = True
+
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " tmaExpFillLenTransTables" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function

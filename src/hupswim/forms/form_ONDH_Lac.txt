@@ -1,0 +1,328 @@
+Version =20
+VersionRequired =20
+Checksum =-436959390
+Begin Form
+    AutoResize = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =0
+    GridX =5
+    GridY =5
+    Width =8503
+    ItemSuffix =70
+    Left =3000
+    Top =15
+    Right =8115
+    Bottom =4560
+    RecSrcDt = Begin
+        0x4d2ff6f41874e140
+    End
+    Caption ="Lac"
+    OnOpen ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin Rectangle
+            SpecialEffect =3
+            BackStyle =0
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            Width =1701
+            Height =1701
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ListBox
+            SpecialEffect =2
+            Width =1701
+            Height =1417
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =65280
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =5103
+            BackColor =16776960
+            Name ="Detail0"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =93
+                    AccessKey =87
+                    TextFontFamily =34
+                    Left =226
+                    Top =785
+                    Width =1071
+                    Height =358
+                    FontSize =8
+                    Name ="btnWijzig"
+                    Caption ="&Wijzigen..."
+                    OnClick ="[Event Procedure]"
+                    FontName ="Arial"
+                End
+                Begin Label
+                    OverlapFlags =93
+                    Left =1358
+                    Top =787
+                    Width =2370
+                    Height =405
+                    Name ="Label60"
+                    Caption ="(Lidsoorten die aan het LAC meedoen)"
+                End
+                Begin Label
+                    OverlapFlags =93
+                    Left =226
+                    Top =445
+                    Width =4650
+                    Height =210
+                    FontWeight =700
+                    Name ="Label61"
+                    Caption ="Zwemmers die voor het LAC in aanmerking komen:"
+                End
+                Begin ComboBox
+                    LimitToList = NotDefault
+                    RowSourceTypeInt =1
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ListWidth =1440
+                    Left =1360
+                    Top =1466
+                    TabIndex =1
+                    Name ="per"
+                    RowSourceType ="Value List"
+                    RowSource ="1;2;3"
+                    ColumnWidths ="1440"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =226
+                            Top =1471
+                            Width =1035
+                            Height =240
+                            Name ="Col1_Label"
+                            Caption ="Kies periode: "
+                        End
+                    End
+                End
+                Begin Rectangle
+                    SpecialEffect =0
+                    OverlapFlags =215
+                    Left =113
+                    Top =340
+                    Width =4861
+                    Height =1014
+                    Name ="Box64"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =226
+                    Top =2259
+                    Width =8160
+                    Height =1185
+                    Name ="Label66"
+                    Caption ="NB: alleen actieve leden worden opgenomen in het overzicht. \015\012Met behulp v"
+                        "an de knop <Wijzigen> geeft u op welke lidsoorten meedoen aan het LAC. \015\012\015"
+                        "\012Het handigst is om een aparte categorie \"LAC zwemmers\" te maken  en alle L"
+                        "AC-zwemmers in deze categorie onder te bregen."
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =226
+                    Top =1833
+                    TabIndex =2
+                    Name ="blTweeKeer"
+                    DefaultValue ="True"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =247
+                            Left =450
+                            Top =1806
+                            Width =4215
+                            Height =240
+                            Name ="Label69"
+                            Caption ="Zwemmers die 2x niet zijn gestart in deze periode weglaten"
+                        End
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =680
+            BackColor =16776960
+            Name ="FormFooter2"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =80
+                    Left =113
+                    Top =113
+                    Width =2841
+                    Height =448
+                    Name ="btnBekijk"
+                    Caption ="&Periodeformulier bekijken"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =88
+                    Left =6689
+                    Top =113
+                    Height =463
+                    TabIndex =1
+                    Name ="btnExport"
+                    Caption ="E&xporteren"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+Private lsCode As Long
+Private lsDetermined As Boolean
+
+Private Sub init()
+On Error Resume Next
+lsCode = 0
+lsDetermined = False
+End Sub
+
+Private Function calc() As Boolean
+On Error GoTo fout
+calc = False
+
+
+
+If Nz(Me.per, "") = "" Then
+  MsgBox "Kies een periode.", 16
+  Me.per.SetFocus
+  Exit Function
+End If
+  
+If Not lsDetermined Then
+  MsgBox "Kies eerst de lidsoorten die voor het LAC in aanmerking komen.", 16
+  Me.btnWijzig.SetFocus
+  Exit Function
+End If
+  
+  
+If Not lacTijdenExport(Nz(Me.per), lsCode, Nz(Me.blTweeKeer)) Then
+  Exit Function
+End If
+    
+    
+calc = True
+Exit Function
+fout:
+MsgBox Err & " calc" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Sub btnWijzig_Click()
+On Error GoTo fout
+
+Dim lkpCode As Long, isOK As Boolean
+
+If Not lsPromptUser(True, lsCode, isOK, lkpCode) Then
+  Exit Sub
+End If
+
+If (isOK) Then
+  lsCode = lkpCode
+  lsDetermined = True
+End If
+
+
+
+Exit Sub
+fout:
+MsgBox Err & " btnWijzig_click" & vbCrLf & Error$, 16
+Exit Sub
+
+End Sub
+
+
+
+
+
+Private Sub btnBekijk_Click()
+On Error Resume Next
+
+If Not calc() Then
+  Exit Sub
+End If
+
+
+Dim vDummy(0 To 0) As Variant
+
+rptHandle False, REP_LAC, RPT_MODE_PREVIEW, -1, -1, 0, vDummy
+
+      
+  
+  
+    
+End Sub
+
+Private Sub btnExport_Click()
+On Error Resume Next
+
+
+If Not calc() Then
+  Exit Sub
+End If
+
+If Not lacExportFile(Nz(Me.per)) Then
+  Exit Sub
+End If
+
+
+
+
+End Sub
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+
+lsDetermined = False
+
+setBackground Me
+
+End Sub

@@ -1,0 +1,64 @@
+Option Compare Database
+Option Explicit
+
+Public Function dbGetSettingString(ByVal sSettingName As String) As String
+On Error Resume Next
+dbGetSettingString = ""
+dbGetSettingString = Nz(DLookup(sSettingName, "dtSettings"))
+End Function
+
+Public Function dbGetSettingBoolean(ByVal sSettingName As String) As Boolean
+On Error Resume Next
+dbGetSettingBoolean = False
+dbGetSettingBoolean = Nz(DLookup(sSettingName, "dtSettings"), False)
+End Function
+
+Public Function dbGetSettingLong(ByVal sSettingName As String) As Long
+On Error Resume Next
+dbGetSettingLong = 0
+dbGetSettingLong = Nz(DLookup(sSettingName, "dtSettings"), 0)
+End Function
+
+Public Function dbGetSettingDouble(ByVal sSettingName As String) As Double
+On Error Resume Next
+dbGetSettingDouble = 0
+dbGetSettingDouble = Nz(DLookup(sSettingName, "dtSettings"), 0)
+End Function
+
+Public Function dbGetSettingDate(ByVal sSettingName As String) As Date
+On Error Resume Next
+dbGetSettingDate = #1/1/1900#
+dbGetSettingDate = Nz(DLookup(sSettingName, "dtSettings"), #1/1/1900#)
+End Function
+
+
+
+
+
+Public Function dbHtmlAchtergrond() As String
+On Error Resume Next
+dbHtmlAchtergrond = dbGetSettingString("achtergrond")
+End Function
+
+
+Public Function dbUseCss() As Boolean
+On Error Resume Next
+dbUseCss = dbGetSettingBoolean("blUseCSS")
+End Function
+
+Public Function dbCssFileName() As String
+On Error Resume Next
+dbCssFileName = dbGetSettingString("cssFileName")
+End Function
+
+
+
+Public Function dbBlockAutoVerCheck() As Boolean
+On Error Resume Next
+dbBlockAutoVerCheck = dbGetSettingBoolean("blBlockAutoVerCheck")
+End Function
+
+Public Function dbManVerCheckItv() As Long
+On Error Resume Next
+dbManVerCheckItv = dbGetSettingLong("iManVerCheckInterval")
+End Function

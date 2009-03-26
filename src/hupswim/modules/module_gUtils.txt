@@ -1,0 +1,538 @@
+Option Compare Database
+Option Explicit
+
+
+Declare Function GetDirNaam Lib "hupswim.dll" Alias "#1" (ByVal dir As String) As Integer
+Declare Function GetPictureNaam Lib "huptel.dll" Alias "#4" (ByRef picture As T_Picture) As Integer
+Declare Function GetFileName Lib "huptel.dll" Alias "#5" (ByRef file As T_OpenSaveGegevens) As Integer
+
+
+Declare Function countZip Lib "hupswim.dll" Alias "#2" (ByVal zipFName As String) As Integer
+Declare Function unzipAll Lib "hupswim.dll" Alias "#3" (ByVal zipFName As String, ByVal unpackDir As String) As Boolean
+Declare Function unzipFile Lib "hupswim.dll" Alias "#4" (ByVal zipFName As String, ByVal unpackDir As String, ByVal fName As String) As Boolean
+
+Declare Function zipFile Lib "hupswim.dll" Alias "#5" (ByVal zipFName As String, ByVal fName As String) As Boolean
+
+
+Global Const FILE_DLG_OPEN As Integer = 0
+Global Const FILE_DLG_SAVE As Integer = 1
+
+Type T_OpenSaveGegevens
+  gegevens(0 To 767) As Byte
+End Type
+
+Type T_Picture
+    gegevens(0 To 512) As Byte
+End Type
+
+
+
+
+Public Sub appCleanRS(ByRef rs As Recordset)
+On Error Resume Next
+
+If Not rs Is Nothing Then
+  rs.Close
+  Set rs = Nothing
+End If
+
+End Sub
+
+Public Function changeProperty(strPropName As String, varPropType As Variant, varPropValue As Variant) As Boolean
+On Error GoTo fout
+
+changeProperty = False
+
+Dim dbs As Database, prp As Property
+
+Const conPropNotFoundError = 3270
+
+Set dbs = CurrentDb
+    
+dbs.Properties(strPropName) = varPropValue
+    
+changeProperty = True
+
+Exit Function
+
+fout:
+If Err = conPropNotFoundError Then  ' Property not found.
+  Set prp = dbs.CreateProperty(strPropName, varPropType, varPropValue)
+  dbs.Properties.Append prp
+  Resume Next
+Else
+  MsgBox Err & " changeProperty" & vbCrLf & Error$, 16
+  Exit Function
+End If
+End Function
+
+
+
+Public Function tableExists(tableName As String) As Boolean
+On Error GoTo fout
+Dim db As Database
+Dim tbl As TableDef
+Set db = CurrentDb()
+Set tbl = db.TableDefs(tableName)
+tableExists = True
+Exit Function
+fout:
+tableExists = False
+Exit Function
+End Function
+
+Public Function fieldExistsInTD(ByRef tbDef As TableDef, fName As String) As Boolean
+On Error GoTo fout
+fieldExistsInTD = False
+Dim fld As Field
+Set fld = tbDef.Fields(fName)
+fieldExistsInTD = True
+Exit Function
+fout:
+Exit Function
+End Function
+
+
+
+
+Public Function extractFilePath(ByVal fName As String) As String
+On Error Resume Next
+Dim path As String, file As String
+fileNameSplit fName, path, file
+
+extractFilePath = path
+
+End Function
+
+Public Function extractFileName(ByVal fName As String) As String
+On Error Resume Next
+Dim path As String, file As String
+fileNameSplit fName, path, file
+
+extractFileName = file
+
+End Function
+
+Private Sub fileNameSplit(ByVal fName As String, ByRef dir As String, ByRef file As String)
+On Error Resume Next
+dir = ""
+file = fName
+
+Dim curPos As Long
+curPos = Len(fName)
+Dim curChar As String
+Do Until curPos <= 0
+  curChar = Mid(fName, curPos, 1)
+  If (curChar = "\") Then
+    dir = Left(fName, curPos - 1)
+    file = Right(fName, Len(fName) - curPos)
+    Exit Sub
+  End If
+  
+  curPos = curPos - 1
+Loop
+
+Exit Sub
+
+
+End Sub
+
+Public Function DirectoryExists(sDirName As String) As Boolean
+On Error Resume Next
+If (sDirName = "") Then
+  DirectoryExists = False
+  Exit Function
+End If
+If dir(directory_goedmaak(sDirName), vbDirectory) = "" Then
+  DirectoryExists = False
+Else
+  DirectoryExists = True
+End If
+End Function
+
+Public Function FileExists(sFileName As String) As Boolean
+On Error Resume Next
+If (sFileName = "") Then
+  FileExists = False
+  Exit Function
+End If
+If dir(sFileName) = "" Then
+  FileExists = False
+Else
+  FileExists = True
+End If
+End Function
+
+Public Function FileDateStr(sFileName As String) As String
+On Error Resume Next
+FileDateStr = Format(Nz(FileDateTime(sFileName), #1/1/1900#), "dd\-mm\-yyyy")
+End Function
+Public Function FileTimeStr(sFileName As String) As String
+On Error Resume Next
+FileTimeStr = Format(Nz(FileDateTime(sFileName), #1/1/1900#), "hh\:nn")
+End Function
+
+Public Function directory_goedmaak(ByVal directory As String) As String
+On Error Resume Next
+directory = Trim(directory)
+If Right(directory, 1) = "\" Then
+    directory_goedmaak = Left(directory, Len(directory) - 1)
+Else
+    directory_goedmaak = directory
+End If
+End Function
+
+
+
+Public Function fileNamePromptUser(ByVal mode As Integer, ByRef dlgTitle As String, filter As String, ByRef fName As String, Optional blUseCurFName As Boolean = False, Optional forceFileNameOnError As Boolean = True) As Boolean
+On Error GoTo fout
+
+fileNamePromptUser = False
+
+
+Dim tpFile As T_OpenSaveGegevens
+Dim i As Integer
+
+tpFile.gegevens(0) = CByte(mode)
+
+
+For i = 1 To Len(dlgTitle) - 1
+  tpFile.gegevens(i) = CByte(Asc(Mid(dlgTitle, i, 1)))
+Next i
+tpFile.gegevens(i) = 0
+
+
+
+If Not blUseCurFName Then
+  For i = 256 To 512
+    tpFile.gegevens(i) = 0
+  Next i
+Else
+  For i = 256 To (Len(fName) - 1) + 256
+    tpFile.gegevens(i) = CByte(Asc(Mid(fName, (i - 256) + 1, 1)))
+  Next i
+  tpFile.gegevens(i) = 0
+End If
+
+For i = 512 To Len(filter) - 1 + 512
+  tpFile.gegevens(i) = CByte(Asc(Mid(filter, (i - 512) + 1, 1)))
+Next i
+tpFile.gegevens(i) = 0
+
+
+
+Dim intResult
+intResult = GetFileName(tpFile)
+
+If intResult = 1 Then
+  Dim sNewName As String
+  sNewName = ""
+    
+  For i = 0 To 257
+    If tpFile.gegevens(i) = 0 Then
+      Exit For
+    End If
+    sNewName = sNewName & Chr(tpFile.gegevens(i))
+  Next i
+  fName = sNewName
+Else
+  Exit Function
+End If
+
+fileNamePromptUser = True
+
+Exit Function
+
+fout:
+
+If (Err = 53) Then
+  MsgBox "De dll files hupswim.dll en/of huptel.dll konden niet gevonden worden in c:\windows\system. Ga naar " & _
+  "http://home.wxs.nl/~wimhupke/hupsoft/downl.htm (onderaan) voor instructies om ze te downloaden.", 16
+Else
+  MsgBox Err & " fileNamePromptUser" & vbCrLf & Error$
+End If
+
+If forceFileNameOnError Then
+  On Error Resume Next
+  fName = InputBox("Voer bestandsnaam in:", "Fout tijdens openen dialoogvenster voor ophalen bestandsnaam.")
+  If (Len(fName) > 0) Then
+    fileNamePromptUser = True
+  End If
+End If
+
+Exit Function
+
+End Function
+
+
+
+
+
+
+Public Function fileNamePicturePromptUser(ByRef fName As String, Optional blUseCurName As Boolean = False, Optional forceFileNameOnError As Boolean = True) As Boolean
+On Error GoTo fout
+
+fileNamePicturePromptUser = False
+
+Dim tpPicture As T_Picture
+Dim i As Integer
+
+Dim dlgName As String
+
+dlgName = "Hupswim"
+
+For i = 0 To Len(dlgName) - 1
+  tpPicture.gegevens(i) = CByte(Asc(Mid(dlgName, i + 1, 1)))
+Next i
+tpPicture.gegevens(i) = 0
+
+
+
+If Not blUseCurName Then
+  For i = 256 To 512
+    tpPicture.gegevens(i) = 0
+  Next i
+Else
+  For i = 256 To (Len(fName) - 1) + 256
+    tpPicture.gegevens(i) = CByte(Asc(Mid(fName, (i - 256) + 1, 1)))
+  Next i
+  tpPicture.gegevens(i) = 0
+End If
+
+
+
+Dim intResult
+intResult = GetPictureNaam(tpPicture)
+
+If intResult = 1 Then
+  Dim sNewName As String
+  sNewName = ""
+    
+  For i = 0 To 257
+    If tpPicture.gegevens(i) = 0 Then
+      Exit For
+    End If
+    
+    sNewName = sNewName & Chr(tpPicture.gegevens(i))
+  Next i
+  fName = sNewName
+Else
+  Exit Function
+End If
+
+
+
+fileNamePicturePromptUser = True
+
+
+Exit Function
+
+fout:
+
+If (Err = 53) Then
+  MsgBox "De dll files hupswim.dll en/of huptel.dll konden niet gevonden worden in c:\windows\system. Ga naar " & _
+  "http://home.wxs.nl/~wimhupke/hupsoft/downl.htm (onderaan) voor instructies om ze te downloaden.", 16
+Else
+  MsgBox Err & " fileNamePicturePromptUser" & vbCrLf & Error$
+End If
+
+If forceFileNameOnError Then
+  On Error Resume Next
+   
+  fName = InputBox("Voer bestandsnaam in:", "Fout tijdens openen dialoogvenster voor ophalen bestandsnaam.")
+  If (Len(fName) > 0) Then
+    fileNamePicturePromptUser = True
+  End If
+End If
+
+Exit Function
+
+
+
+
+
+End Function
+
+
+
+Public Function GetDir() As String
+On Error Resume Next
+Dim a
+Dim dirName As String
+dirName = String(255, 0)
+Dim sNewName As String
+
+    GetDirNaam (dirName)
+
+sNewName = CStr(dirName)
+Dim pos As Long
+pos = InStr(1, sNewName, Chr(0)) - 1
+sNewName = Left(sNewName, pos)
+GetDir = sNewName
+
+End Function
+
+Function goed_naam(x As String) As String
+On Error GoTo fout
+Dim y, z, u As String
+y = Left(x, 1)
+z = IIf(Len(x) = 1, "", Right(Left(x, 2), 1))
+u = IIf(Len(x) <= 2, "", Right(x, 1))
+If y = "." Or y = "/" Or y = "\" Or y = "[" Or y = "]" Or y = ":" Or y = ";" Or y = "|" Or y = "=" Or y = "," Or y = " " Then
+         y = "_"
+End If
+If z = "." Or z = "/" Or z = "\" Or z = "[" Or z = "]" Or z = ":" Or z = ";" Or z = "|" Or z = "=" Or z = "," Or z = " " Then
+         z = "_"
+End If
+If u = "." Or u = "/" Or u = "\" Or u = "[" Or u = "]" Or u = ":" Or u = ";" Or u = "|" Or u = "=" Or u = "," Or u = " " Then
+         u = "_"
+End If
+
+goed_naam = y & z & u
+Exit Function
+fout:
+goed_naam = "___"
+Exit Function
+
+End Function
+
+
+
+Public Function fltExtractFieldNames(geg As Recordset) As Boolean
+'Deze functie haalt de veldnamen uit een zekere recordset en voegt deze toe in een nieuwe tabel.
+On Error GoTo fout
+
+DoCmd.DeleteObject acTable, "~FLTFieldNames"
+DoCmd.DeleteObject acTable, "~FLTData"
+
+Dim mydb As Database, tbl As TableDef, tbl2 As TableDef
+Set mydb = CurrentDb()
+Set tbl = mydb.CreateTableDef("~FLTFieldNames")
+Set tbl2 = mydb.CreateTableDef("~FLTData")
+
+tbl.Fields.Append tbl.CreateField("FieldName", dbText, 100)
+tbl.Fields.Append tbl.CreateField("FieldType", dbInteger)
+
+tbl2.Fields.Append tbl2.CreateField("FieldName", dbText, 100)
+tbl2.Fields.Append tbl2.CreateField("FieldType", dbInteger)
+tbl2.Fields.Append tbl2.CreateField("Nr", dbInteger)
+tbl2.Fields.Append tbl2.CreateField("OrderBy", dbInteger)
+tbl2.Fields.Append tbl2.CreateField("Criteria", dbText, 255)
+mydb.TableDefs.Append tbl
+mydb.TableDefs.Append tbl2
+
+'Nieuwe tabel gemaakt.
+
+Dim uitv As Recordset
+Set uitv = mydb.OpenRecordset("~FLTFieldNames", dbOpenDynaset)
+
+Dim fld As Field
+For Each fld In geg.Fields
+  uitv.AddNew
+  uitv("FieldName") = fld.name
+  uitv("FieldType") = fld.Type
+  uitv.Update
+Next fld
+
+fltExtractFieldNames = True
+Exit Function
+fout:
+
+If Err = 3011 Or Err = 7874 Then 'could not find object to delete
+  Resume Next
+End If
+
+MsgBox Err & " fltExtractFieldName" & vbCrLf & Error$, 16
+Exit Function
+
+
+
+
+
+
+End Function
+
+
+
+
+
+Function hzn(s)
+If IsNull(s) Or Nz(s, "") = "" Then
+ hzn = Null
+Else
+ hzn = s
+End If
+End Function
+
+
+
+Public Function GoedTekens(s As String) As String
+On Error GoTo fout
+Dim i As Integer
+Dim tpS As String
+tpS = ""
+Dim y
+For i = 1 To Len(s)
+  y = Mid(s, i, 1)
+  If y = "." Or y = "/" Or y = "\" Or y = "[" Or y = "]" Or y = ":" Or y = ";" Or y = "|" Or y = "=" Or y = "," Or y = " " Or y = "?" Or y = "<" Or y = ">" Or y = "*" Or y = "#" Then
+    y = "_"
+  End If
+  tpS = tpS & y
+Next i
+
+GoedTekens = tpS
+Exit Function
+fout:
+GoedTekens = "_"
+Exit Function
+End Function
+
+
+Public Function selGetNewStatus(blCurSel As Boolean, blIsValid As Boolean, blSelOverwrite As Boolean, blSelExtend As Boolean, blSelRestrict As Boolean, blUseValid As Boolean) As Boolean
+On Error GoTo fout
+
+'Vervelende logica...
+If (blSelOverwrite) Then
+  If (blUseValid) Then
+    selGetNewStatus = blIsValid
+  Else
+    selGetNewStatus = Not blIsValid
+  End If
+ElseIf (blSelExtend) Then
+  If (blCurSel) Then
+    selGetNewStatus = True
+  ElseIf (blUseValid) Then
+    selGetNewStatus = blIsValid
+  Else
+    selGetNewStatus = Not blIsValid
+  End If
+ElseIf (blSelRestrict) Then
+  If (Not blCurSel) Then
+    selGetNewStatus = False
+  ElseIf (blUseValid) Then
+    selGetNewStatus = blIsValid
+  Else
+    selGetNewStatus = Not blIsValid
+  End If
+End If
+
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function lenDateIsValid(dt As Date) As Boolean
+On Error Resume Next
+lenDateIsValid = False
+Dim yr As Double
+yr = val(Format(dt, "yyyy"))
+If (yr > 1900 And yr < 2098) Then
+  lenDateIsValid = True
+End If
+
+End Function

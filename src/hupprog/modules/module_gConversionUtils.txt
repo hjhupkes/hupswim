@@ -1,0 +1,235 @@
+Option Compare Database
+Option Explicit
+Public Function startnr_to_was(ByVal startnr As String)
+On Error Resume Next
+startnr_to_was = Left(startnr, 2) & Right(startnr, Len(startnr) - 3)
+End Function
+
+Public Function startnr_from_was(ByVal startnr As String)
+On Error Resume Next
+If Len(startnr) > 8 Then
+    startnr = Left(startnr, 7)
+End If
+startnr_from_was = Left(startnr, 2) & "-" & Right(startnr, Len(startnr) - 2)
+
+End Function
+
+Public Function ges_to_was(ByVal ges As String)
+On Error Resume Next
+If (ges = "M") Then
+ges_to_was = "j"
+Else
+  ges_to_was = "m"
+End If
+
+End Function
+
+Public Function ges_from_was(ByVal ges As String)
+On Error Resume Next
+If (ges = "mix") Then
+  ges_from_was = "*"
+Else
+  If (ges = "j") Or (ges = "jongens") Then
+    ges_from_was = "M"
+  Else
+    ges_from_was = "V"
+  End If
+End If
+
+End Function
+
+Public Function prognr_to_was(pr)
+Dim pos
+pos = InStr(1, Nz(pr), ".")
+If pos > 0 Then
+  prognr_to_was = val(Left(Nz(pr), pos - 1))
+Else
+  prognr_to_was = val(Nz(pr))
+End If
+
+End Function
+
+Public Function ab_to_was(pr)
+Dim pos
+pos = InStr(1, Nz(pr), ".")
+If pos > 0 Then
+  ab_to_was = Right(Nz(pr), Len(Nz(pr)) - pos + 1)
+Else
+   ab_to_was = IIf(IsNull(CStr(Right(Nz(pr), (Len(Nz(pr)) - Len(CStr(val(Nz(pr)))))))), "", CStr(Right(Nz(pr), (Len(Nz(pr)) - Len(CStr(val(Nz(pr))))))))
+End If
+
+If Nz(ab_to_was) <> "" And (Len(ab_to_was) > 2) Then
+  ab_to_was = Left(ab_to_was, 2)
+End If
+  
+  
+
+
+End Function
+
+Public Function prog_from_was(pr, ab)
+On Error Resume Next
+prog_from_was = Nz(pr) & Nz(ab)
+End Function
+
+
+
+Function slag_from_was(slag) As String
+'WAS slag goed maken
+On Error GoTo fout
+If IsNull(slag) Then
+    slag_from_was = "RUG"
+    Exit Function
+End If
+Dim x As String
+Select Case slag
+    Case "w"
+        x = "WISSEL"
+    Case "wi"
+        x = "WISSEL"
+    Case "ws"
+        x = "WISSEL"
+    Case "vr"
+        x = "VRIJ"
+    Case "ss"
+        x = "SCHOOL"
+    Case "s"
+        x = "SCHOOL"
+    Case "sc"
+        x = "SCHOOL"
+    Case "ru"
+        x = "RUG"
+    Case "r"
+        x = "RUG"
+    Case "rs"
+        x = "RUG"
+    Case "vl"
+        x = "VLINDER"
+    Case "rugslag"
+        x = "RUG"
+    Case "schoolslag"
+        x = "SCHOOL"
+    Case "vlinderslag"
+        x = "VLINDER"
+    Case "vrije slag"
+        x = "VRIJ"
+    Case "wisselslag"
+        x = "WISSEL"
+    Case Else
+        x = "RUG"
+End Select
+slag_from_was = x
+Exit Function
+
+fout:
+slag = ""
+Exit Function
+        
+End Function
+
+Public Function slag_to_was(x) As String
+On Error GoTo fout
+Select Case Nz(x, "")
+Case "Vlinder"
+    slag_to_was = "vl"
+Case "rug"
+    slag_to_was = "ru"
+Case "school"
+    slag_to_was = "ss"
+Case "vrij"
+    slag_to_was = "vr"
+Case "wissel"
+    slag_to_was = "wi"
+End Select
+Exit Function
+
+fout:
+slag_to_was = ""
+Exit Function
+
+End Function
+
+Function afstand_ind_part(x As String) As String
+On Error Resume Next
+Dim aantal As Integer      'Bijvoorbeeld 4x100m = 400 , 100m = 100
+Dim afst As Integer
+
+If x Like "*x*" Then
+  afst = val(Right(x, (Len(x) - InStr(1, x, "x"))))
+  afstand_ind_part = afst
+Else
+  afstand_ind_part = val(x)
+End If
+Exit Function
+End Function
+
+Function afstand_n_zwemmers(x As String) As Integer
+On Error Resume Next
+Dim aantal As Integer      'Bijvoorbeeld 4x100m = 400 , 100m = 100
+Dim afst As Integer
+
+If x Like "*x*" Then
+  aantal = val(Left(x, InStr(1, x, "x") - 1))
+  afstand_n_zwemmers = aantal
+Else
+  afstand_n_zwemmers = 1
+End If
+Exit Function
+
+End Function
+
+Public Function afstand_tot_distance(x As String) As Long  'Geeft de totale afstand weer, waarop gesorteerd kan worden.
+On Error Resume Next
+Dim nSwm As Long      'Bijvoorbeeld 4x100m = 400 , 100m = 100
+Dim indAf As Long
+
+If x Like "*x*" Then
+  nSwm = CLng(val(Left(x, (InStr(1, x, "x") - 1))))
+  indAf = CLng(val(Right(x, (Len(x) - InStr(1, x, "x")))))
+  afstand_tot_distance = nSwm * indAf
+Else
+  afstand_tot_distance = val(x)
+End If
+Exit Function
+
+End Function
+
+
+
+Function tijd_inschrijf_to_was(x As Double) As String
+  If Not swtIsValid(x) Then
+    tijd_inschrijf_to_was = "o.oo.oo"
+  Else
+    tijd_inschrijf_to_was = Trim(fmtSwimTime(x))
+  End If
+End Function
+
+
+Function tijd_uitslag_to_was(x As Double) As String
+  If Not swtIsValid(x) Then
+    tijd_uitslag_to_was = ""
+  Else
+    tijd_uitslag_to_was = fmtSwimTime(x)
+  End If
+
+End Function
+
+Function tijd_from_was(x) As Double
+  If Nz(x, "") = "" Then
+    tijd_from_was = 0
+  Else
+    tijd_from_was = parseTijd(Nz(x))
+  End If
+  
+End Function
+
+Function jaar_to_was(s) As Integer
+Dim st As String
+st = Nz(s, "")
+If (Len(st) > 2) Then
+  jaar_to_was = CInt(val(Left(st, 2)))
+Else
+  jaar_to_was = 0
+End If
+
+End Function
