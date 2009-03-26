@@ -1,0 +1,652 @@
+Option Compare Database
+Option Explicit
+
+
+Global Const SPL_VALID = -1
+Global Const SPL_UNKNOWN_FILE = 0
+Global Const SPL_UZIP_FAILURE = 1
+Global Const SPL_INVALID_ZIP_CNT = 2
+Global Const SPL_MDB_OPEN_FAILURE = 3
+Global Const SPL_INVALID_MDB_CONTENT = 4
+Global Const SPL_NOT_ZIP_FILE = 5
+
+
+
+
+Public Function splAnalyzeBackup(ByVal fName As String, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckClub As String, ByRef bckNTimes As Long) As Boolean
+On Error GoTo fout
+splAnalyzeBackup = False
+
+If Not splAnalyzeBackup_Perform(fName, False, False, False, bckValid, bckInvalidReason, bckInvalidString, bckDateS, bckTimeS, bckClub, bckNTimes) Then
+  Exit Function
+End If
+
+splAnalyzeBackup = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+Private Function splAnalyzeBackup_Perform(ByVal fName As String, ByVal blExtractTables As Boolean, ByVal blAlleenZwms As Boolean, ByVal blDisplayErrDlg As Boolean, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckClub As String, ByRef bckNTimes As Long) As Boolean
+On Error GoTo fout
+splAnalyzeBackup_Perform = False
+
+bckValid = False
+bckInvalidString = ""
+bckTimeS = ""
+bckDateS = ""
+
+
+If fName = "" Or Not FileExists(fName) Then
+  bckInvalidReason = SPL_UNKNOWN_FILE
+  bckInvalidString = "Het bestand: " & vbCrLf & fName & vbCrLf & "kon niet worden gevonden."
+  Err.Raise 1, , bckInvalidString
+End If
+
+
+If Not Right(fName, 3) = "zip" Then
+  bckInvalidReason = SPL_NOT_ZIP_FILE
+  bckInvalidString = "Expected zip file. Found: " & vbCrLf & fName
+  
+  Err.Raise 1, , bckInvalidString
+End If
+
+
+Dim splMDBFileName As String
+
+
+Dim cnt As Long
+cnt = countZip(fName)
+  
+If cnt <> 1 Then
+  If (cnt >= 0) Then
+    bckInvalidReason = SPL_INVALID_ZIP_CNT
+    bckInvalidString = "Invalid Splash backup file. Archive was expected to contain 1 file: team.mdb. Found: " & cnt & " file(s)" & vbCrLf & "U dient de automatisch-gegenereerde backups van Splash te gebruiken, met namen die lijken op: 2007_02_08_team.zip"
+  Else
+    bckInvalidReason = SPL_UZIP_FAILURE
+    bckInvalidString = "Error accessing zip file: " + fName
+  End If
+  Err.Raise 1, , bckInvalidString
+End If
+  
+  Dim upackDir As String
+  upackDir = directory_goedmaak(extractFilePath(fName)) & "\__hupswim__unzip__volatile"
+  'Now need to unpack file.
+  
+  On Error Resume Next
+  If (Not DirectoryExists(upackDir)) Then
+    FileSystem.MkDir (upackDir)
+  End If
+  
+  If (Not DirectoryExists(upackDir)) Then
+    bckInvalidReason = SPL_UZIP_FAILURE
+    bckInvalidString = "Error creating temporary unpack directory: " & upackDir
+    
+    Err.Raise 1, , bckInvalidString
+  End If
+ 
+  Dim fToUnzip As String
+  fToUnzip = "team.mdb"
+ 
+  
+  splMDBFileName = upackDir & "\" & fToUnzip
+ 
+  If (FileExists(splMDBFileName)) Then
+    FileSystem.Kill (splMDBFileName)
+  End If
+  
+  If (FileExists(splMDBFileName)) Then
+    bckInvalidReason = SPL_UZIP_FAILURE
+    bckInvalidString = "Error deleting existing file: " & splMDBFileName
+    
+    Err.Raise 1, , bckInvalidString
+  End If
+  
+  
+  
+  
+  On Error GoTo fout_cleanup
+  
+  Dim okk As Boolean
+  okk = unzipFile(fName, upackDir, fToUnzip)
+  'This weird construction is necessary due to a bug in dll boolean extraction.
+  Dim okkk As Boolean
+  okkk = False
+  If okk Then
+    okkk = True
+  End If
+  'End if.
+   
+  If Not okkk Then
+    bckInvalidReason = SPL_UZIP_FAILURE
+    bckInvalidString = "There was an error extracting the file: team.mdb from the archive: " & vbCrLf & fName
+    Err.Raise 1, , bckInvalidString
+  End If
+  
+  
+  
+  
+  bckDateS = FileDateStr(splMDBFileName)
+  bckTimeS = FileTimeStr(splMDBFileName)
+  
+  
+  
+  'try to open the MDB file and extract some properties.
+  Dim splDB As Database
+  Set splDB = DBEngine.Workspaces(0).OpenDatabase(splMDBFileName)
+  
+  If (splDB Is Nothing) Then
+     bckInvalidReason = SPL_MDB_OPEN_FAILURE
+     bckInvalidString = "Splash werkt met het file-formaat van Office2000. " & vbCrLf & _
+     "U krijgt deze foutmelding waarschijnlijk te zien omdat u Office97 gebruikt." & _
+     "Upgrade naar de Office2000 of Office2003 versie van Hupswim " & _
+     "of stuur de splash backup naar hjhupkes AT gmail.com voor omzetting naar " & _
+     "Office97 formaat."
+     
+     Err.Raise 1, , bckInvalidString
+  End If
+  
+
+    
+    Dim rs As Recordset
+    Set rs = splDB.OpenRecordset("RESULTS")
+    
+    If (rs Is Nothing) Then
+      bckInvalidReason = SPL_INVALID_MDB_CONTENT
+      bckInvalidString = "De Splash backup bevat niet de juiste gegevens." & vbCrLf & _
+      "De tabel: <Results> kon niet worden gevonden."
+      
+      splDB.Close
+      Set splDB = Nothing
+      
+      Err.Raise 1, , bckInvalidString
+    End If
+    
+    rs.MoveLast
+    bckNTimes = Nz(rs.RecordCount)
+    
+    appCleanRS rs
+        
+    Set rs = splDB.OpenRecordset("CLUBS")
+    
+    If (rs Is Nothing) Then
+      bckInvalidReason = SPL_INVALID_MDB_CONTENT
+      bckInvalidString = "De Splash backup bevat niet de juiste gegevens." & vbCrLf & _
+      "De tabel: <Clubs> kon niet worden gevonden."
+      
+      splDB.Close
+      Set splDB = Nothing
+      Err.Raise 1, , bckInvalidString
+    End If
+    
+    bckClub = ""
+    rs.MoveFirst
+    If Not rs.EOF Then
+      bckClub = Nz(rs("Name"))
+    End If
+    
+    appCleanRS rs
+    
+    splDB.Close
+    Set splDB = Nothing
+    
+  
+  
+  If (blExtractTables) Then
+    'Transfer the tables.
+    DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "MEMBERS", "splMembers"
+    DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "CLUBS", "splClubs"
+    If Not blAlleenZwms Then
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "MEETS", "splMeets"
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "STYLES", "splStyles"
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "RESULTS", "splResults"
+    End If
+  End If
+
+  splKillTemp upackDir, splMDBFileName
+   
+  On Error GoTo fout
+
+
+  bckValid = True
+  bckInvalidReason = SPL_VALID
+
+
+  splAnalyzeBackup_Perform = True
+  Exit Function
+
+fout:
+
+If (Err = 3078) Then Resume Next ' RESULTS niet gevonden.
+If (Err = 3343) Then Resume Next ' unrecognized database format
+If (Err = 3021) Then Resume Next ' no current record.
+
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " " & Error$
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splAnalyzeBackup_Perform = True
+'ElseIf (errCode = 3343) Then
+'  msg = "Splash werkt met het file-formaat van Office2000. " & Chr(13) & _
+'  "U krijgt deze foutmelding waarschijnlijk te zien omdat u Office97 gebruikt." & _
+'  "Upgrade naar de Office2000 of Office2003 versie van Hupswim " & _
+'  "of stuur de splash backup naar hjhupkes AT gmail.com voor omzetting naar " & _
+'  "Office97 formaat." & Chr(13) & "De fout die dit bericht veroorzaakte staat hieronder weergegeven: " & Chr(13) & msg
+'  MsgBox msg, 16
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+
+fout_cleanup:
+
+If (Err = 3078) Then Resume Next ' RESULTS niet gevonden.
+If (Err = 3343) Then Resume Next ' unrecognized database format
+If (Err = 3021) Then Resume Next ' no current record.
+
+errCode = Err
+
+msg = errCode & " " & Error$
+
+splKillTemp upackDir, splMDBFileName
+
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splAnalyzeBackup_Perform = True
+'ElseIf (errCode = 3343) Then
+'  msg = "Splash werkt met het file-formaat van Office2000. " & Chr(13) & _
+'  "U krijgt deze foutmelding waarschijnlijk te zien omdat u Office97 gebruikt." & _
+'  "Upgrade naar de Office2000 of Office2003 versie van Hupswim " & _
+'  "of stuur de splash backup naar hjhupkes AT gmail.com voor omzetting naar " & _
+'  "Office97 formaat." & Chr(13) & "De fout die dit bericht veroorzaakte staat hieronder weergegeven: " & Chr(13) & msg
+'  MsgBox msg, 16
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+
+Exit Function
+End Function
+
+Public Function splExtractZipData(fName As String, blAlleenZwms As Boolean) As Boolean
+On Error GoTo fout
+splExtractZipData = False
+
+Dim bckValid As Boolean, bckInvalidReason As Integer, bckInvalidString As String
+Dim bckTimeS As String, bckDateS As String, bckClub As String, bckNTimes As Long
+
+
+If Not splAnalyzeBackup_Perform(fName, True, blAlleenZwms, True, bckValid, bckInvalidReason, bckInvalidString, bckDateS, bckTimeS, bckClub, bckNTimes) Then
+  Exit Function
+End If
+
+If Not bckValid Then
+  Err.Raise 1, , "Er waren problemen bij het inlezen van de Splash backup (zie hieronder)." & vbCrLf & vbCrLf & bckInvalidString
+End If
+
+
+splExtractZipData = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+Public Function splFillKringty2005(fName As String) As Boolean
+On Error GoTo fout
+splFillKringty2005 = False
+
+'First empty table.
+DoCmd.SetWarnings False
+Dim sql As String
+sql = "Delete * from [hsoWAS_XML_KRTY_IN];"
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+DoCmd.DeleteObject acTable, "splMeets"
+DoCmd.DeleteObject acTable, "splStyles"
+DoCmd.DeleteObject acTable, "splResults"
+'DoCmd.DeleteObject acTable, "splSplits"
+
+
+If Not splExtractZipData(fName, False) Then
+  Exit Function
+End If
+
+
+Dim tbDef As TableDef
+
+Dim mydb As Database
+Set mydb = CurrentDb
+
+Set tbDef = mydb.TableDefs("splResults")
+tbDef.Fields.Append tbDef.CreateField("INT_AFSTAND", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_SLAG", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_USE", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_TIME", dbText, 10)
+
+
+Set tbDef = Nothing
+
+Set tbDef = mydb.TableDefs("splMembers")
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_MJ", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Depotnummer", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Vereniging", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voornaam", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voegsel", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Achternaam", dbText, 255)
+
+Set tbDef = Nothing
+
+Set tbDef = mydb.TableDefs("splMeets")
+tbDef.Fields.Append tbDef.CreateField("INT_BAAN", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("INT_WED_NAAM", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WED_PLAATS", dbText, 255)
+
+Set mydb = Nothing
+
+
+sql = "UPDATE splMembers LEFT JOIN splClubs ON splMembers.CLUBSID1 = " & _
+   "splClubs.CLUBSID SET splMembers.INT_WAS_Depotnummer = [code], " & _
+   "[INT_WAS_Vereniging] = [name];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "update splResults set int_use = false;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "UPDATE (splResults INNER JOIN splStyles ON splResults.STYLESID = splStyles.STYLESID) INNER JOIN fdtgSplashStyleConversionInd ON splStyles.FSNID = fdtgSplashStyleConversionInd.FSNID SET splResults.INT_WAS_SLAG = slag_to_was([slag]), splResults.INT_AFSTAND = [afstand], splResults.INT_USE = True;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splResults set [int_was_time] = tijd_uitslag_to_was(splReadTime(nz([totaltime]))) where nz([int_use]);"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_startnummer]=splReadStartAsWas(nz([registrationid]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_mj]=splReadSexAsWas(nz([sex]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_voornaam]=hzn(nz([firstname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_voegsel]=hzn(nz([nameprefix]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_achternaam]=hzn(nz([lastname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMeets set [int_baan] = iif(nz([pool]) = 1,50,25);"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMeets set [int_wed_naam] = hzn(nz([name]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMeets set [int_wed_plaats] = hzn(nz([place]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+
+sql = "INSERT INTO hsoWAS_XML_KRTY_IN ( tijd, slag, afstand, achtern, voorn, tusvoegsel, startno, mj, soort, baan, datum, plaats,depotno,verenig ) " & _
+      "SELECT splResults.INT_WAS_TIME, splResults.INT_WAS_SLAG, splResults.INT_AFSTAND, splMembers.int_was_achternaam, splMembers.int_was_voornaam, splMembers.int_was_voegsel, splMembers.INT_WAS_Startnummer, splMembers.INT_WAS_MJ, splMeets.int_wed_naam AS splMeets, splMeets.INT_BAAN, splResults.EVENTDATE, splMeets.int_wed_plaats, splMembers.INT_WAS_Depotnummer, splMembers.INT_WAS_Vereniging " & _
+      "FROM (splResults INNER JOIN splMembers ON splResults.MEMBERSID = splMembers.MEMBERSID) INNER JOIN splMeets ON splResults.MEETSID = splMeets.MEETSID " & _
+      "WHERE (((splResults.INT_USE)=True));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+'Kill the splash tables.
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+DoCmd.DeleteObject acTable, "splMeets"
+DoCmd.DeleteObject acTable, "splStyles"
+DoCmd.DeleteObject acTable, "splResults"
+
+'DoCmd.DeleteObject acTable, "splSplits"
+
+
+
+splFillKringty2005 = True
+Exit Function
+fout:
+
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+Public Function splFillZwemmers(fName As String) As Boolean
+On Error GoTo fout
+splFillZwemmers = False
+
+DoCmd.DeleteObject acTable, "__was2005_zwemmers_inlees"
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+
+
+If Not splExtractZipData(fName, True) Then
+  Exit Function
+End If
+
+
+Dim tbDef As TableDef
+
+Dim mydb As Database
+Set mydb = CurrentDb
+
+
+Set tbDef = mydb.TableDefs("splMembers")
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Depotnummer", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Vereniging", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_MJ", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_GEBDAT", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voornaam", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voegsel", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Achternaam", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_telefoon", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_straat", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_postcode", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_plaats", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_fax", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_email", dbText, 255)
+
+
+
+Set tbDef = Nothing
+
+'Build the table.
+Set tbDef = mydb.CreateTableDef("__was2005_zwemmers_inlees")
+tbDef.Fields.Append tbDef.CreateField("STARTNO", dbText, 7)
+tbDef.Fields.Append tbDef.CreateField("VOORN", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("TUSVOEGSEL", dbText, 15)
+tbDef.Fields.Append tbDef.CreateField("ACHTERN", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("MJ", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("GEBDAT", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TELEFOON", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("ADRES", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("HUISNO", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("POSTCODE", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("WOONPLAATS", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("FAXNO", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("EMAIL", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("DEPOTNO", dbText, 10)
+mydb.TableDefs.Append tbDef
+
+Set tbDef = Nothing
+
+Dim sql As String
+
+
+sql = "UPDATE splMembers LEFT JOIN splClubs ON splMembers.CLUBSID1 = " & _
+   "splClubs.CLUBSID SET splMembers.INT_WAS_Depotnummer = [code], " & _
+   "[INT_WAS_Vereniging] = [name];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_startnummer]=splReadStartAsWas(nz([registrationid]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_mj]=splReadSexAsWas(nz([sex]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_gebdat]=format(nz([birthdate],#01-01-1900#),""dd\-mm\-yyyy"");"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_voornaam]=hzn(nz([firstname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_voegsel]=hzn(nz([nameprefix]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_achternaam]=hzn(nz([lastname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_telefoon]=hzn(nz([phonep]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_straat]=hzn(nz([street]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_postcode]=hzn(nz([zip]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_plaats]=hzn(nz([place]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_fax]=hzn(nz([fax]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_email]=hzn(nz([email]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+ 
+
+sql = "INSERT INTO __was2005_zwemmers_inlees ( ACHTERN, STARTNO, VOORN, TUSVOEGSEL, MJ, GEBDAT, TELEFOON, ADRES, POSTCODE, WOONPLAATS, FAXNO, EMAIL, DEPOTNO ) " & _
+      "SELECT splMembers.int_was_achternaam, splMembers.INT_WAS_Startnummer, splMembers.int_was_voornaam, splMembers.int_was_voegsel, splMembers.INT_WAS_MJ, splMembers.INT_WAS_GEBDAT, splMembers.int_was_telefoon, splMembers.int_was_straat, splMembers.int_was_postcode, splMembers.int_was_plaats, splMembers.int_was_fax, splMembers.int_was_email, splMembers.INT_WAS_Depotnummer " & _
+      "FROM splMembers;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+'Kill the splash tables.
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+
+
+
+splFillZwemmers = True
+Exit Function
+fout:
+
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+
+End Function

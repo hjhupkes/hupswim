@@ -1,0 +1,455 @@
+Version =20
+VersionRequired =20
+Checksum =-1360007781
+Begin Form
+    AutoResize = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    ScrollBars =2
+    GridX =15
+    GridY =15
+    Width =11422
+    ItemSuffix =56
+    Left =165
+    Right =11925
+    Bottom =8475
+    Toolbar ="gFrmToolbar"
+    RecSrcDt = Begin
+        0x54815974805fe340
+    End
+    RecordSource ="SELECT [~UpdateInsTimes].*, [dtProgrammanummers].*, [dtWedstrijden].*, fmtName(n"
+        "z([voornaam]),nz([voegsel]),nz([achternaam])) AS naam FROM ([dtWedstrijden] INNE"
+        "R JOIN ([~UpdateInsTimes] INNER JOIN [dtProgrammanummers] ON ([~UpdateInsTimes]."
+        "IT_Wedstrijdnummer = [dtProgrammanummers].Wedstrijdnr) AND ([~UpdateInsTimes].IT"
+        "_Programmanummer = [dtProgrammanummers].Programmanummer)) ON [dtWedstrijden].[We"
+        "dstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN [dtLeden] ON [~Up"
+        "dateInsTimes].IT_Startnummer = [dtLeden].Startnummer ORDER BY [~UpdateInsTimes]."
+        "IT_Wedstrijdnummer, Val([it_programmanummer]), [~UpdateInsTimes].IT_Programmanum"
+        "mer;"
+    Caption ="Inschrijftijden bijwerken"
+    OnOpen ="[Event Procedure]"
+    MenuBar ="gMnBasic"
+    OnActivate ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =566
+            BackColor =12632256
+            Name ="FormHeader1"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Top =151
+                    Width =11325
+                    Height =300
+                    FontSize =10
+                    FontWeight =700
+                    Name ="Label53"
+                    Caption ="Inschrijftijden bijwerken"
+                    GUID = Begin
+                        0xfe7862935c796c489a45cc2525d48e66
+                    End
+                End
+            End
+        End
+        Begin Section
+            CanShrink = NotDefault
+            Height =1965
+            BackColor =12632256
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =1020
+                    Top =377
+                    Width =3816
+                    Name ="pr"
+                    ControlSource ="=nz([IT_Programmanummer]) & \": \" & fmtProgDes(nz([Type]),nz([beschrijving_afwi"
+                        "jkend]),nz([afstand]),nz([slag]),nz([beschrijving categorie]))"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =1020
+                    Top =680
+                    Width =4461
+                    TabIndex =1
+                    Name ="nm"
+                    ControlSource ="=[it_startnummer] & \" - \" & [Naam]"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =9184
+                    Top =944
+                    Height =195
+                    TabIndex =2
+                    Name ="toev"
+                    ControlSource ="IT_Update"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =1020
+                    Top =75
+                    Width =10326
+                    TabIndex =3
+                    Name ="Text40"
+                    ControlSource ="=[it_wedstrijdnummer] & \": \" & Format(nz([datum]),\"dd-mm-yyyy\") & \" - (\" &"
+                        " [baanlengte] & \"m) - \" & [plaats] & \" - \" & [beschrijving]"
+                    GUID = Begin
+                        0xd5e215e7edd8794eae89d028b29ce052
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =151
+                            Top =75
+                            Width =780
+                            Height =240
+                            Name ="Label41"
+                            Caption ="Wedstrijd:"
+                            GUID = Begin
+                                0x85beb080bdc00c4186dd3bf1c89b64de
+                            End
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =151
+                    Top =377
+                    Width =495
+                    Height =240
+                    Name ="Label42"
+                    Caption ="Prog: "
+                    GUID = Begin
+                        0x30665d2174cb1f45ae230ef52418c9cb
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =151
+                    Top =680
+                    Width =855
+                    Height =240
+                    Name ="Label43"
+                    Caption ="Zwemmer: "
+                    GUID = Begin
+                        0xf682a749301bf642b8d20e1b45a7dcd3
+                    End
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =1927
+                    Top =1059
+                    Width =861
+                    TabIndex =4
+                    Name ="curTime"
+                    ControlSource ="=fmtSwimTime([it_curInsTime])"
+                    GUID = Begin
+                        0x22baf98d7566f94f96ff2af94accd7fa
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =151
+                            Top =1059
+                            Width =1440
+                            Height =240
+                            Name ="Label45"
+                            Caption ="Huidige Inschrijftijd:"
+                            GUID = Begin
+                                0x7f46c45ee24ed14e9f788002d5ae63da
+                            End
+                        End
+                    End
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    BackStyle =0
+                    IMESentenceMode =3
+                    Left =2947
+                    Top =1059
+                    Width =3786
+                    TabIndex =5
+                    Name ="curTimeDes"
+                    ControlSource ="=Format(nz([it_curInsWedDatum]),\"dd-mm-yyyy\") & \" - (\" & [it_curInsWedBaan] "
+                        "& \"m) - \" & [it_curInsWedPlaats]"
+                    GUID = Begin
+                        0xba6e5dd3b2e5d040a0165d16ef5c099b
+                    End
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =1927
+                    Top =1361
+                    Width =861
+                    TabIndex =6
+                    Name ="newTime"
+                    ControlSource ="=fmtSwimTime([it_newInsTime])"
+                    GUID = Begin
+                        0xbd3c0a30d3b4fa4881197f29c1cd8ae2
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =151
+                            Top =1361
+                            Width =1485
+                            Height =240
+                            Name ="Label49"
+                            Caption ="Nieuwe Inschrijftijd:"
+                            GUID = Begin
+                                0xdcca4b5e21633b42937de0fcced84e58
+                            End
+                        End
+                    End
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    BackStyle =0
+                    IMESentenceMode =3
+                    Left =2947
+                    Top =1361
+                    Width =3786
+                    TabIndex =7
+                    Name ="newTimeDes"
+                    ControlSource ="=Format(nz([it_newInsWedDatum]),\"dd-mm-yyyy\") & \" - (\" & [it_newInsWedBaan] "
+                        "& \"m) - \" & [it_newInsWedPlaats]"
+                    GUID = Begin
+                        0x72b9eed53de3964c98b89ccb0f3c1289
+                    End
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    BackStyle =0
+                    IMESentenceMode =3
+                    Left =151
+                    Top =1663
+                    Width =11271
+                    FontWeight =700
+                    TabIndex =8
+                    ForeColor =255
+                    Name ="IT_QuestionableReason"
+                    ControlSource ="IT_QuestionableReason"
+                    GUID = Begin
+                        0x769866616849d340908ecffc2e8da0ee
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =8356
+                    Top =570
+                    Width =1980
+                    Height =285
+                    FontSize =10
+                    Name ="Label52"
+                    Caption ="Inschrijftijd bijwerken: "
+                    GUID = Begin
+                        0xb5dfc7f2447020419dc3d97b59568afe
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =1171
+            BackColor =12632256
+            Name ="FormFooter2"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    TextFontFamily =34
+                    Left =151
+                    Top =75
+                    Height =298
+                    FontSize =8
+                    FontWeight =400
+                    ForeColor =-2147483630
+                    Name ="btnDeselecteren"
+                    Caption ="Alles &deselecteren"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    TextFontFamily =34
+                    Left =1965
+                    Top =75
+                    Height =298
+                    FontSize =8
+                    FontWeight =400
+                    TabIndex =1
+                    ForeColor =-2147483630
+                    Name ="btnSelecteren"
+                    Caption ="Alles &selecteren"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =151
+                    Top =642
+                    Width =1095
+                    Height =378
+                    TabIndex =2
+                    Name ="btnCancel"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x05cffc33dd3b6340aa09f0913f77277f
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =9977
+                    Top =642
+                    Width =1134
+                    Height =378
+                    TabIndex =3
+                    Name ="btnOK"
+                    Caption ="OK"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xca07ee50c6bf5d44806ee1430685725c
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+Me.RecordSource = ""
+DoCmd.Close
+End Sub
+
+Private Sub btnDeselecteren_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+
+Dim rs As Recordset
+Set rs = Me.RecordsetClone
+rs.MoveFirst
+Do Until rs.EOF
+  rs.Edit
+  rs("IT_Update") = False
+  rs.Update
+  rs.MoveNext
+Loop
+Me.Requery
+End Sub
+
+Private Sub btnOK_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+If Not insImproveInsTimes_ApplyToProgs() Then
+  Exit Sub
+End If
+
+
+Me.RecordSource = ""
+DoCmd.Close
+
+End Sub
+
+Private Sub btnSelecteren_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+
+Dim rs As Recordset
+Set rs = Me.RecordsetClone
+rs.MoveFirst
+Do Until rs.EOF
+  rs.Edit
+  rs("IT_Update") = True
+  rs.Update
+  rs.MoveNext
+Loop
+Me.Requery
+
+End Sub
+
+
+
+
+
+
+Private Sub Form_Activate()
+On Error Resume Next
+Me.OrderBy = ""
+
+End Sub
+
+
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

@@ -1,0 +1,271 @@
+Version =20
+VersionRequired =20
+Checksum =-1532857794
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    ScrollBars =2
+    ViewsAllowed =1
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =20
+    Width =8050
+    DatasheetFontHeight =10
+    ItemSuffix =21
+    Left =75
+    Top =195
+    Right =9645
+    Bottom =6585
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0xbb3a15e5181be340
+    End
+    RecordSource ="~imp_tijden_was2005_vers"
+    Caption ="Verenigingen importeren"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =266
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Top =56
+                    Width =630
+                    Height =210
+                    Name ="Label10"
+                    Caption ="Depot  "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =963
+                    Top =56
+                    Width =630
+                    Height =210
+                    Name ="Label11"
+                    Caption ="Naam   "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =4251
+                    Top =56
+                    Width =915
+                    Height =210
+                    Name ="Label13"
+                    Caption ="Importeren: "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =5325
+                    Top =56
+                    Width =1155
+                    Height =210
+                    Name ="lbImpAls"
+                    Caption ="Importeren als: "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =7200
+                    Top =56
+                    Width =750
+                    Height =210
+                    Name ="lbImpCode"
+                    Caption ="Afkorting:"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Width =801
+                    Name ="depot"
+                    ControlSource ="wasDepot"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =963
+                    Width =2436
+                    TabIndex =1
+                    Name ="nm"
+                    ControlSource ="wasNaam"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =4591
+                    Top =28
+                    Height =165
+                    TabIndex =2
+                    Name ="importeren"
+                    ControlSource ="importeren"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3514
+                    Width =846
+                    TabIndex =3
+                    Name ="Text8"
+                    ControlSource ="=IIf([bekend],\"Bekend\",\"Onbekend\")"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ListWidth =1800
+                    Left =5329
+                    TabIndex =4
+                    ColumnInfo ="\"\";\"\";\"10\";\"100\""
+                    Name ="cmdImpAls"
+                    ControlSource ="impNaam"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [dtVerenigingen].[V_Naam] FROM [dtVerenigingen];"
+                    ColumnWidths ="1800"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =7200
+                    Width =456
+                    TabIndex =5
+                    Name ="fldImpCode"
+                    ControlSource ="impCode"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =510
+            BackColor =12632256
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    Left =2948
+                    Top =56
+                    Height =358
+                    Name ="btnDeselAll"
+                    Caption ="Alles &deselecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    Left =4762
+                    Top =56
+                    Height =358
+                    TabIndex =1
+                    Name ="btnSelAll"
+                    Caption ="Alles &selecteren"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub updateView()
+On Error Resume Next
+Dim isMultiVer As Boolean
+isMultiVer = dbIsMultipleVer()
+
+Me.fldImpCode.Visible = isMultiVer
+Me.lbImpCode.Visible = isMultiVer
+Me.cmdImpAls.Visible = isMultiVer
+Me.lbImpAls.Visible = isMultiVer
+End Sub
+
+Private Sub btnDeselAll_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim geg As Recordset
+Set geg = Me.Form.RecordsetClone
+geg.MoveFirst
+Do Until geg.EOF
+    geg.Edit
+    geg("importeren") = False
+    geg.Update
+    geg.MoveNext
+Loop
+Me.Form.Requery
+End Sub
+
+
+
+
+
+Private Sub btnSelAll_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim geg As Recordset
+Set geg = Me.Form.RecordsetClone
+geg.MoveFirst
+Do Until geg.EOF
+    geg.Edit
+    geg("importeren") = True
+    geg.Update
+    geg.MoveNext
+Loop
+Me.Form.Requery
+End Sub
+
+
+Private Sub Form_Load()
+On Error Resume Next
+updateView
+End Sub

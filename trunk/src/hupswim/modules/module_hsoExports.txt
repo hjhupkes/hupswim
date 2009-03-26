@@ -1,0 +1,406 @@
+Option Compare Database
+Option Explicit
+
+
+
+
+Public Function rxpSetVerPntUitslagOptions(ByVal singleProg As String, ByVal startProg As String, ByVal endprog As String, ByVal isEindUitslag As Boolean, ByVal singleVer As String) As Boolean
+On Error GoTo fout
+rxpSetVerPntUitslagOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("__punten_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("PT_OPT_IsEindUitslag") = isEindUitslag
+    rs("PT_OPT_ProgSingle") = hzn(singleProg)
+    rs("PT_OPT_ProgStart") = hzn(startProg)
+    rs("PT_OPT_ProgEnd") = hzn(endprog)
+    rs("PT_OPT_VerSingle") = hzn(singleVer)
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetVerPntUitslagOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetVerPntUitslagOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpSetPRCompOptions(ByVal iSortMode As Integer, ByVal blShowDetails As Boolean) As Boolean
+On Error GoTo fout
+rxpSetPRCompOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~PRCompetitie_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("PRS_SorteerMode") = iSortMode
+    rs("PRS_ShowDetails") = blShowDetails
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetPRCompOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetPRCompOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function rxpSetVooruitgangOptions(ByVal sTitle As String) As Boolean
+On Error GoTo fout
+ rxpSetVooruitgangOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~Vooruitgang_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("VRT_Title") = hzn(sTitle)
+  rs.Update
+End If
+
+appCleanRS rs
+
+ rxpSetVooruitgangOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & "  rxpSetVooruitgangOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function rxpSetRnkOptions(ByVal sTitle As String, blShowLevel As Boolean, iMaxRnk As Integer, blSortAchternaam As Boolean) As Boolean
+On Error GoTo fout
+rxpSetRnkOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~Ranglijst_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("RA_Title") = hzn(sTitle)
+    rs("RA_ShowLevel") = blShowLevel
+    rs("RA_MaxNSwimmers") = iMaxRnk
+    rs("RA_SortAchternaam") = blSortAchternaam
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetRnkOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & "  rxpSetRnkOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function rxpSetTimeListOptions(blShowLevel As Boolean, iMaxRnk As Integer, blSortAchternaam As Boolean, blShowBoth25And50m As Boolean, blSuppMultiPagePrompt As Boolean) As Boolean
+On Error GoTo fout
+rxpSetTimeListOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~Timelist_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("TM_ShowLevel") = blShowLevel
+    rs("TM_MaxNTimes") = iMaxRnk
+    rs("TM_SortAchternaam") = blSortAchternaam
+    rs("TM_ShowBoth25And50m") = blShowBoth25And50m
+    rs("TM_SuppressMultiPagePrompt") = blSuppMultiPagePrompt
+  rs.Update
+End If
+
+appCleanRS rs
+
+
+rxpSetTimeListOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & "  rxpSetRnkOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function rxpSetCmpFastTimesOptions() As Boolean
+On Error GoTo fout
+rxpSetCmpFastTimesOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~SeasonFast_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetCmpFastTimesOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & "  rxpSetCmpFastTimesOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpSetRecListOptions(sAfstand As String, sSlag As String, sCategorie As String, blSplitList As Boolean) As Boolean
+On Error GoTo fout
+rxpSetRecListOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRecListDisplay_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("RL_Afstand") = hzn(sAfstand)
+    rs("RL_Slag") = hzn(sSlag)
+    rs("RL_Categorie") = hzn(sCategorie)
+    rs("RL_SplitList") = blSplitList
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetRecListOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & "  rxpSetRecListOptions " & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rxpSetRecHoldersOptions(ByVal blIsM As Boolean, ByVal blIsV As Boolean, ByVal blIncludeMV As Boolean, _
+ByVal blLandscape As Boolean, ByVal blInclude25And50m As Boolean, blSmall As Boolean, blSortPerSlag As Boolean) As Boolean
+On Error GoTo fout
+rxpSetRecHoldersOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRecHoldersDisplay_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("RH_IsM") = blIsM
+    rs("RH_IsV") = blIsV
+    rs("RH_IncludeMV") = blIncludeMV
+    rs("RH_Landscape") = blLandscape
+    rs("RH_Include25And50m") = blInclude25And50m
+    rs("RH_Small") = blSmall
+    rs("RH_SortPerSlag") = blSortPerSlag
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetRecHoldersOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetRecHoldersOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function rxpSetAanschrijvingOptions(ByVal blDisplayLines As Boolean, ByVal blSortPerDln As Boolean, ByVal blSmall As Boolean, ByVal blHideStartnummer As Boolean, ByVal blHideFooterText) As Boolean
+On Error GoTo fout
+rxpSetAanschrijvingOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~Opstelling_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("OP_OPT_DisplayLines") = blDisplayLines
+    rs("OP_OPT_SortPerDln") = blSortPerDln
+    rs("OP_OPT_SMALL") = blSmall
+    rs("OP_OPT_HideStartnummer") = blHideStartnummer
+    rs("OP_OPT_HideFooterText") = blHideFooterText
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetAanschrijvingOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetAanschrijvingOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function rxpSetUitMultiOptions() As Boolean
+On Error GoTo fout
+rxpSetUitMultiOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~TimeBijzList_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetUitMultiOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetUitMultiOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function rxpSetSwmListOptions(ByVal blSortBirthDay As Boolean, blSortYear As Boolean, ByVal blIncludeDates As Boolean, ByVal blIncludeEmail As Boolean) As Boolean
+On Error GoTo fout
+rxpSetSwmListOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~SwimList_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("SL_SortYear") = blSortYear
+    rs("SL_SortBirthday") = blSortBirthDay
+    rs("SL_IncludeDates") = blIncludeDates
+    rs("SL_IncludeEmail") = blIncludeEmail
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetSwmListOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetSwmListOptions" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Public Function rxpStandardHTMLs(ByVal dat1 As Date, ByVal dat2 As Date) As Boolean
+On Error GoTo fout
+rxpStandardHTMLs = False
+
+
+
+If Not recBuildList("CR", dat1, dat2) Then
+  Exit Function
+End If
+
+If Not rxpSetRecListOptions("", "", "", False) Then
+  Exit Function
+End If
+
+If Not expRepRecords(dbdir_hp() & "\r1.htm", RXP_RCX_TYPE_LIST, RXP_FORMAT_HTM) Then
+  Exit Function
+End If
+
+
+
+If Not recBuildHolders("CR", #1/1/2099#) Then
+  Exit Function
+End If
+
+
+'Clubrecords heren
+If Not rxpSetRecHoldersOptions(True, False, True, False, True, False, True) Then
+  Exit Function
+End If
+
+If Not expRepRecords(dbdir_hp() & "\r3.htm", RXP_RCX_TYPE_HOLDERS_TABLE, RXP_FORMAT_HTM) Then
+  Exit Function
+End If
+
+
+'Clubrecords dames
+If Not rxpSetRecHoldersOptions(False, True, True, False, True, False, True) Then
+  Exit Function
+End If
+
+If Not expRepRecords(dbdir_hp() & "\r4.htm", RXP_RCX_TYPE_HOLDERS_TABLE, RXP_FORMAT_HTM) Then
+  Exit Function
+End If
+
+
+'record houders
+If Not rxpSetRecHoldersOptions(False, False, False, False, True, False, True) Then
+  Exit Function
+End If
+
+If Not expRepRecords(dbdir_hp() & "\r2.htm", RXP_RCX_TYPE_HOLDERS, RXP_FORMAT_HTM) Then
+  Exit Function
+End If
+
+
+'snelste tijden
+Dim sDummy(0 To 0) As String
+Dim lDummy(0 To 0) As Long
+
+If Not timBuildList(True, #1/1/1900#, #1/1/2099#, "", True, #1/1/1900#, #1/1/1900#, ssGetCurSeason, False, -1, sDummy, sDummy, _
+  False, -1, False, "", False, -1, lDummy, False, False) Then
+  Exit Function
+End If
+
+If Not rxpSetTimeListOptions(True, -1, True, True, False) Then
+  Exit Function
+End If
+
+
+If Not expRepTimes(dbdir_hp() & "\r5.htm", RXP_TMX_TYPE_FSTT, RXP_FORMAT_HTM, False, True) Then
+  Exit Function
+End If
+
+
+
+rxpStandardHTMLs = True
+Exit Function
+
+fout:
+MsgBox Err & " rxpStandardHTMLs" & vbCrLf & Error$, 16
+Exit Function
+End Function

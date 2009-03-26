@@ -1,0 +1,5878 @@
+Option Compare Database
+Option Explicit
+
+
+'Only support 99 export lists
+Private Const MAX_N_EXP_LISTS = 99
+Private Const MAX_N_RPT_CFGS = 99
+
+Private Const MAX_N_EXP_WEDS_OP = 1000
+Private Const MAX_N_EXP_WEDS_UIT = 1000
+
+
+
+Public Const RXL_PAR_TYPE_STRING = 1
+Public Const RXL_PAR_TYPE_BOOLEAN = 2
+Public Const RXL_PAR_TYPE_LONG = 3
+Public Const RXL_PAR_TYPE_DATE = 4
+
+
+Public Type RXC_STAT_OV_SN_OPTS
+  dPrimStartDate As Date
+  dPrimEndDate As Date
+  sPrimSeason As String
+  blUseSecondary As Boolean
+  dSecStartDate As Date
+  dSecEndDate As Date
+  sSecSeason As String
+  blRestrictAfSl As Boolean
+  blRestrictLS As Boolean
+  lsCode As Long
+  blOnlyActive As Boolean
+  sStartnummer As String
+  blRestrictWed As Boolean
+  blExcludeDis As Boolean
+  blExcludeTst As Boolean
+  blShowLevel As Boolean
+  blSortAchternaam As Boolean
+  blBoth25And50m As Boolean
+End Type
+
+
+Public Type RXC_STAT_OV_GT_OPTS
+  dAllStartdate As Date
+  dAllEnddate As Date
+  iMaxCnt As Integer
+  blRestrictAfSl As Boolean
+  blRestrictLS As Boolean
+  lsCode As Long
+  blOnlyActive As Boolean
+  sStartnummer As String
+  blRestrictWed As Boolean
+  blExcludeDis As Boolean
+  blExcludeTst As Boolean
+  blShowLevel As Boolean
+  blSortAchternaam As Boolean
+End Type
+
+
+Public Type RXC_STAT_RNK_OPTS
+  dStartDate As Date
+  dEndDate As Date
+  
+  blRnkSmall As Boolean
+  blRnkShowLevel As Boolean
+  blRnkRestrictLevel As Boolean
+  sRnkMinLevel As String
+  sRnkMaxLevel As String
+  dRnkLimit As Double
+  
+  iMaxRnk As Integer
+  
+  blInclude25m As Boolean
+  blInclude50m As Boolean
+  blIncludeM As Boolean
+  blIncludeV As Boolean
+  blExcludeTst As Boolean
+  blExcludeDis As Boolean
+  blRestrictLS As Boolean
+  lsCode As Long
+  blOnlyActive As Boolean
+  blRestrictAfSl As Boolean
+  blRestrictWed As Boolean
+  blUseLft As Boolean
+End Type
+
+
+Public Type RXC_STAT_SO_OPTS
+  dStartDate As Date
+  dEndDate As Date
+  
+  iSOPntMode As Integer
+  sSOTitle As String
+  blSoSortAchternaam As Boolean
+  
+  iMaxRnk As Integer
+  
+  blInclude25m As Boolean
+  blInclude50m As Boolean
+  blIncludeM As Boolean
+  blIncludeV As Boolean
+  blExcludeTst As Boolean
+  blExcludeDis As Boolean
+  blRestrictLS As Boolean
+  lsCode As Long
+  blOnlyActive As Boolean
+  blRestrictAfSl As Boolean
+  blRestrictWed As Boolean
+  blUseLft As Boolean
+End Type
+
+
+Public Type RXC_STAT_PRC_OPTS
+  dStartDate As Date
+  dEndDate As Date
+  
+  blSepRecords50m As Boolean
+  blRestrictAfSl As Boolean
+  
+  iSortOrder As Integer
+  
+End Type
+
+
+Public Type RXC_STAT_VRT_OPTS
+  dRefdate As Date
+  dStartDate As Date
+  dEndDate As Date
+  iVrtMode As Integer
+  blRestrictLS As Boolean
+  lsCode As Long
+  blUseLft As Boolean
+  blRestrictAfSl As Boolean
+  sTitle As String
+End Type
+
+
+
+
+
+
+
+'These constants should remain fixed, as they are used to store and retrieve export lists
+'from the directory server
+
+Public Const RXL_TYPE_LISTS As Long = 1
+  Private Const RXL_OBJ_LIST_START_ID = 10000
+  
+
+
+Public Const RXL_TYPE_EXP_FORMATS As Long = 2
+
+  Private Const RXL_OBJ_EXP_FMT_RTF  As Long = 1000 + 20 + 1
+  Private Const RXL_OBJ_EXP_FMT_XLS  As Long = 1000 + 20 + 2
+  Private Const RXL_OBJ_EXP_FMT_TXT  As Long = 1000 + 20 + 3
+  Private Const RXL_OBJ_EXP_FMT_HTM  As Long = 1000 + 20 + 4
+  Private Const RXL_OBJ_EXP_FMT_XML  As Long = 1000 + 20 + 5
+  Private Const RXL_OBJ_EXP_FMT_PDF As Long = 1000 + 20 + 6
+  Private Const RXL_OBJ_EXP_FMT_RTF_X  As Long = 1000 + 20 + 7
+
+
+Public Const RXL_TYPE_REC_EXPORTS As Long = 10
+
+
+  Private Const RXL_OBJ_RPT_TYPE_REC_LIST As Long = 1000 + 40 + 1
+    Private Const RXL_PAR_REC_LIST_START_DAT As Long = 2000 + 40 + 1
+    Private Const RXL_PAR_REC_LIST_END_DAT As Long = 2000 + 40 + 2
+    Private Const RXL_PAR_REC_LIST_AFST As Long = 2000 + 40 + 3
+    Private Const RXL_PAR_REC_LIST_SLAG As Long = 2000 + 40 + 4
+    Private Const RXL_PAR_REC_LIST_CAT As Long = 2000 + 40 + 5
+    Private Const RXL_PAR_REC_LIST_SPLIT As Long = 2000 + 40 + 6
+    
+
+  Private Const RXL_OBJ_RPT_TYPE_REC_TB_HEREN As Long = 1000 + 40 + 2
+    Private Const RXL_PAR_REC_TB_HEREN_INC_MV As Long = 2000 + 50 + 1
+    Private Const RXL_PAR_REC_TB_HEREN_LANDSCAPE As Long = 2000 + 50 + 2
+    Private Const RXL_PAR_REC_TB_HEREN_COMBINE_25_50 As Long = 2000 + 50 + 3
+    Private Const RXL_PAR_REC_TB_HEREN_MARK_DATE As Long = 2000 + 50 + 4
+  
+  Private Const RXL_OBJ_RPT_TYPE_REC_TB_DAMES As Long = 1000 + 40 + 3
+    Private Const RXL_PAR_REC_TB_DAMES_INC_MV As Long = 2000 + 60 + 1
+    Private Const RXL_PAR_REC_TB_DAMES_LANDSCAPE As Long = 2000 + 60 + 2
+    Private Const RXL_PAR_REC_TB_DAMES_COMBINE_25_50 As Long = 2000 + 60 + 3
+    Private Const RXL_PAR_REC_TB_DAMES_MARK_DATE As Long = 2000 + 60 + 4
+  
+  Private Const RXL_OBJ_RPT_TYPE_REC_HLD As Long = 1000 + 40 + 4
+    Private Const RXL_PAR_REC_HLD_SORT_SLAG As Long = 2000 + 70 + 1
+    Private Const RXL_PAR_REC_HLD_SMALL_FONT As Long = 2000 + 70 + 2
+    Private Const RXL_PAR_REC_HLD_TWO_COLS As Long = 2000 + 70 + 3
+    Private Const RXL_PAR_REC_HLD_MARK_DATE As Long = 2000 + 70 + 4
+    
+  Private Const RXL_OBJ_RPT_TYPE_REC_HLD_CMP As Long = 1000 + 40 + 5
+    Private Const RXL_PAR_REC_HLD_CMP_MARK_DATE As Long = 2000 + 80 + 1
+    
+'We split wed in wed_uit and wed_op because there is difference in logic
+Public Const RXL_TYPE_WED_UIT_EXPORTS As Long = 20
+  Private Const RXL_OBJ_RPT_TYPE_WED_UIT_GLB = 1000 + 60 + 1
+    Private Const RXL_PAR_WED_UIT_GLB_ENTIRE_MEET = 2000 + 160 + 1
+    Private Const RXL_PAR_WED_UIT_GLB_INC_NG = 2000 + 160 + 2
+    Private Const RXL_PAR_WED_UIT_GLB_INC_NGZA = 2000 + 160 + 3
+    
+  Private Const RXL_OBJ_RPT_TYPE_WED_UIT_PP = 1000 + 60 + 2
+    Private Const RXL_PAR_WED_UIT_PP_ENTIRE_MEET = 2000 + 180 + 1
+    Private Const RXL_PAR_WED_UIT_PP_INC_NG = 2000 + 180 + 2
+    Private Const RXL_PAR_WED_UIT_PP_INC_NGZA = 2000 + 180 + 3
+
+Public Const RXL_TYPE_WED_OP_EXPORTS As Long = 30
+  Private Const RXL_OBJ_RPT_TYPE_WED_OP_AAN = 1000 + 80 + 1
+    Private Const RXL_PAR_WED_OP_AAN_PER_DLN = 2000 + 260 + 1
+    Private Const RXL_PAR_WED_OP_AAN_SMALL_FONT = 2000 + 260 + 2
+    Private Const RXL_PAR_WED_OP_AAN_TWO_COLS = 2000 + 260 + 3
+    Private Const RXL_PAR_WED_OP_AAN_HIDE_STARTNR = 2000 + 260 + 4
+    
+    
+'Combine all stat exports
+Public Const RXL_TYPE_STAT_EXPORTS As Long = 40
+  Public Const RXL_OBJ_RPT_TYPE_STAT_OV_SN As Long = 1000 + 100 + 1
+  Public Const RXL_OBJ_RPT_TYPE_STAT_OV_GT As Long = 1000 + 100 + 2
+  Public Const RXL_OBJ_RPT_TYPE_STAT_RNK As Long = 1000 + 100 + 3
+  Public Const RXL_OBJ_RPT_TYPE_STAT_SO As Long = 1000 + 100 + 4
+  Public Const RXL_OBJ_RPT_TYPE_STAT_PRC As Long = 1000 + 100 + 5
+    Private Const RXL_PAR_STAT_PRC_SHOW_DETAIL = 2000 + 360 + 1
+  Public Const RXL_OBJ_RPT_TYPE_STAT_VRT As Long = 1000 + 100 + 6
+    Private Const RXL_PAR_STAT_VRT_SHOW_DETAIL = 2000 + 380 + 1
+  
+
+
+Private Const RXL_OBJ_CFG_START_ID = 20000
+
+  
+
+
+
+
+Public Function rxlIsParOK(ByVal sValue As String, lParType As Long, blParReq As Boolean, ByRef sInvMsg As String) As Boolean
+On Error GoTo fout
+rxlIsParOK = False
+
+
+
+If (blParReq) And (sValue = "") Then
+  sInvMsg = "Parameter mag niet leeg zijn"
+  Exit Function
+End If
+
+Dim blConvFlag As Boolean
+
+
+'Need to check if the parameter is acceptable
+Select Case lParType
+  Case RXL_PAR_TYPE_STRING
+    
+  Case RXL_PAR_TYPE_BOOLEAN
+    If (LCase(sValue) <> "true") And (LCase(sValue) <> "false") Then
+      sInvMsg = "Keuze uit true / false"
+      Exit Function
+    End If
+  Case RXL_PAR_TYPE_DATE
+    If (sValue <> "") Then
+      Dim tpDat As Date
+      tpDat = rxlProcessExpList_resolveDatePar(sValue)
+      If (Not lenDateIsValid(tpDat)) Then
+        sInvMsg = "De volgende tekst kon niet als datum worden geinterpreteerd: " & sValue
+        Exit Function
+      End If
+    End If
+  Case RXL_PAR_TYPE_LONG
+    blConvFlag = False
+    Dim tpL As Long
+    tpL = CLng(sValue)
+    If (blConvFlag) Then
+      sInvMsg = "De volgende tekst kon niet als getal worden geinterpreteerd: " & sValue
+    End If
+End Select
+
+
+rxlIsParOK = True
+Exit Function
+
+fout:
+
+'Trap type conversion error
+If (Err = 13) Then
+  blConvFlag = True
+  Resume Next
+End If
+
+'Pass error up the chain
+sInvMsg = Err & " rxlIsParOK" & vbCrLf & Error$
+Exit Function
+End Function
+
+
+Public Function rxlGetExtension(ByVal expFmtObjID As Long) As String
+On Error Resume Next
+
+Select Case expFmtObjID
+  Case RXL_OBJ_EXP_FMT_RTF
+    rxlGetExtension = "rtf"
+  Case RXL_OBJ_EXP_FMT_XLS
+    rxlGetExtension = "xls"
+  Case RXL_OBJ_EXP_FMT_TXT
+    rxlGetExtension = "txt"
+  Case RXL_OBJ_EXP_FMT_HTM
+    rxlGetExtension = "htm"
+  Case RXL_OBJ_EXP_FMT_XML
+    rxlGetExtension = "xml"
+  Case RXL_OBJ_EXP_FMT_PDF
+    rxlGetExtension = "pdf"
+  Case RXL_OBJ_EXP_FMT_RTF_X
+    rxlGetExtension = "rtf"
+  Case Else
+    rxlGetExtension = ""
+End Select
+End Function
+
+Private Function rxlGetExportFormat(ByVal expFmtObjID As Long) As Integer
+On Error Resume Next
+
+Select Case expFmtObjID
+  Case RXL_OBJ_EXP_FMT_RTF
+    rxlGetExportFormat = RXP_FORMAT_RTF
+  Case RXL_OBJ_EXP_FMT_XLS
+    rxlGetExportFormat = RXP_FORMAT_XLS
+  Case RXL_OBJ_EXP_FMT_TXT
+    rxlGetExportFormat = RXP_FORMAT_TXT
+  Case RXL_OBJ_EXP_FMT_HTM
+    rxlGetExportFormat = RXP_FORMAT_HTM
+  Case RXL_OBJ_EXP_FMT_XML
+    rxlGetExportFormat = RXP_FORMAT_XML
+  Case RXL_OBJ_EXP_FMT_PDF
+    rxlGetExportFormat = RXP_FORMAT_PDF
+  Case RXL_OBJ_EXP_FMT_RTF_X
+    rxlGetExportFormat = RXP_FORMAT_RTF_X
+  Case Else
+    rxlGetExportFormat = -1
+End Select
+End Function
+
+
+
+
+Private Sub rxlGenerateStructure_addObject(ByRef rsObjs As Recordset, ByVal objType As Long, ByVal objID As Long, ByVal objDes As String, ByVal blObjNeedsRcs As Boolean, blObjNeedsCfg As Boolean)
+rsObjs.AddNew
+  rsObjs("RO_ID") = objID
+  rsObjs("RO_TYPE_ID") = objType
+  rsObjs("RO_Description") = hzn(objDes)
+  rsObjs("RO_NeedsRcs") = blObjNeedsRcs
+  rsObjs("RO_NeedsCfg") = blObjNeedsCfg
+rsObjs.Update
+End Sub
+
+Private Sub rxlGenerateStructure_addParam(ByRef rsPars As Recordset, ByVal lParID As Long, ByVal lParObjID As Long, ByVal lParType As Long, ByVal blParReq As Boolean, sParDefValue As String, lParOrder As Long, sParDes As String)
+rsPars.AddNew
+  rsPars("P_ID") = lParID
+  rsPars("P_OBJ_ID") = lParObjID
+  rsPars("P_Description") = hzn(sParDes)
+  rsPars("P_Type") = lParType
+  rsPars("P_Required") = blParReq
+  rsPars("P_DefaultValue") = hzn(sParDefValue)
+  rsPars("P_Order") = lParOrder
+rsPars.Update
+End Sub
+
+
+
+
+Private Function rxlGenerateStructure_addReportTypes(ByRef rsObjs As Recordset, ByRef rsPars As Recordset) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addReportTypes = False
+
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_REC_EXPORTS, RXL_OBJ_RPT_TYPE_REC_LIST, "Lijst met gezwommen records", True, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_LIST_START_DAT, RXL_OBJ_RPT_TYPE_REC_LIST, RXL_PAR_TYPE_DATE, True, "", -1, "Startdatum voor lijst (dd-mm-yyyy)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_LIST_END_DAT, RXL_OBJ_RPT_TYPE_REC_LIST, RXL_PAR_TYPE_DATE, True, "", -1, "Einddatum voor lijst (dd-mm-yyyy)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_LIST_AFST, RXL_OBJ_RPT_TYPE_REC_LIST, RXL_PAR_TYPE_STRING, False, "", -1, "Beperk afstand (optioneel)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_LIST_SLAG, RXL_OBJ_RPT_TYPE_REC_LIST, RXL_PAR_TYPE_STRING, False, "", -1, "Beperk slag (optioneel)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_LIST_CAT, RXL_OBJ_RPT_TYPE_REC_LIST, RXL_PAR_TYPE_STRING, False, "", -1, "Beperk categorie (optioneel)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_LIST_SPLIT, RXL_OBJ_RPT_TYPE_REC_LIST, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Lijst uitsplitsen per afstand/slag (true/false)"
+
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_REC_EXPORTS, RXL_OBJ_RPT_TYPE_REC_TB_HEREN, "Recordstand heren", True, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_HEREN_INC_MV, RXL_OBJ_RPT_TYPE_REC_TB_HEREN, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Zweedse en m/j estafettes opnemen (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_HEREN_LANDSCAPE, RXL_OBJ_RPT_TYPE_REC_TB_HEREN, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Landscape overzicht gebruiken (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_HEREN_COMBINE_25_50, RXL_OBJ_RPT_TYPE_REC_TB_HEREN, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Records 25m-baan en 50m-baan op een pagina combineren (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_HEREN_MARK_DATE, RXL_OBJ_RPT_TYPE_REC_TB_HEREN, RXL_PAR_TYPE_DATE, False, "", -1, "Stand records per (dd-mm-yyyy) (optioneel)"
+    
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_REC_EXPORTS, RXL_OBJ_RPT_TYPE_REC_TB_DAMES, "Recordstand dames", True, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_DAMES_INC_MV, RXL_OBJ_RPT_TYPE_REC_TB_DAMES, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Zweedse en m/j estafettes opnemen (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_DAMES_LANDSCAPE, RXL_OBJ_RPT_TYPE_REC_TB_DAMES, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Landscape overzicht gebruiken (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_DAMES_COMBINE_25_50, RXL_OBJ_RPT_TYPE_REC_TB_DAMES, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Records 25m-baan en 50m-baan op een pagina combineren (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_TB_DAMES_MARK_DATE, RXL_OBJ_RPT_TYPE_REC_TB_DAMES, RXL_PAR_TYPE_DATE, False, "", -1, "Stand records per (dd-mm-yyyy) (optioneel)"
+  
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_REC_EXPORTS, RXL_OBJ_RPT_TYPE_REC_HLD, "Recordhouders", True, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_HLD_SORT_SLAG, RXL_OBJ_RPT_TYPE_REC_HLD, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Sorteren per slag (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_HLD_SMALL_FONT, RXL_OBJ_RPT_TYPE_REC_HLD, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Klein lettertype (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_HLD_TWO_COLS, RXL_OBJ_RPT_TYPE_REC_HLD, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Twee kolommen (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_HLD_MARK_DATE, RXL_OBJ_RPT_TYPE_REC_HLD, RXL_PAR_TYPE_DATE, False, "", -1, "Stand records per (dd-mm-yyyy) (optioneel)"
+
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_REC_EXPORTS, RXL_OBJ_RPT_TYPE_REC_HLD_CMP, "Recordhouders compact", True, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_REC_HLD_CMP_MARK_DATE, RXL_OBJ_RPT_TYPE_REC_HLD_CMP, RXL_PAR_TYPE_DATE, False, "", -1, "Stand records per (dd-mm-yyyy) (optioneel)"
+  
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_WED_UIT_EXPORTS, RXL_OBJ_RPT_TYPE_WED_UIT_GLB, "Uitslag", False, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_UIT_GLB_ENTIRE_MEET, RXL_OBJ_RPT_TYPE_WED_UIT_GLB, RXL_PAR_TYPE_BOOLEAN, False, "true", -1, "Gehele meerdaagse wedstrijd (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_UIT_GLB_INC_NG, RXL_OBJ_RPT_TYPE_WED_UIT_GLB, RXL_PAR_TYPE_BOOLEAN, False, "true", -1, "Zwemmers met NG dis opnemen (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_UIT_GLB_INC_NGZA, RXL_OBJ_RPT_TYPE_WED_UIT_GLB, RXL_PAR_TYPE_BOOLEAN, False, "true", -1, "Zwemmers met NGZA dis opnemen (true/false)"
+      
+     
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_WED_UIT_EXPORTS, RXL_OBJ_RPT_TYPE_WED_UIT_PP, "Uitslag per programmanummer", False, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_UIT_PP_ENTIRE_MEET, RXL_OBJ_RPT_TYPE_WED_UIT_PP, RXL_PAR_TYPE_BOOLEAN, False, "true", -1, "Gehele meerdaagse wedstrijd (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_UIT_PP_INC_NG, RXL_OBJ_RPT_TYPE_WED_UIT_PP, RXL_PAR_TYPE_BOOLEAN, False, "true", -1, "Zwemmers met NG dis opnemen (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_UIT_PP_INC_NGZA, RXL_OBJ_RPT_TYPE_WED_UIT_PP, RXL_PAR_TYPE_BOOLEAN, False, "true", -1, "Zwemmers met NGZA dis opnemen (true/false)"
+      
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_WED_OP_EXPORTS, RXL_OBJ_RPT_TYPE_WED_OP_AAN, "Aanschrijving", False, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_OP_AAN_PER_DLN, RXL_OBJ_RPT_TYPE_WED_OP_AAN, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Groeperen per zwemmers (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_OP_AAN_SMALL_FONT, RXL_OBJ_RPT_TYPE_WED_OP_AAN, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Klein lettertype (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_OP_AAN_TWO_COLS, RXL_OBJ_RPT_TYPE_WED_OP_AAN, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Twee kolommen (true/false)"
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_WED_OP_AAN_HIDE_STARTNR, RXL_OBJ_RPT_TYPE_WED_OP_AAN, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Startnummer verbergen (twee kolommen) (true/false)"
+  
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_STAT_OV_SN, "Snelste tijden per zwemmer", False, True
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_STAT_OV_GT, "Gezwommen tijden per zwemmer", False, True
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_STAT_RNK, "Ranglijst", False, True
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_STAT_SO, "Speciaal overzicht (tabelvormige ranglijst)", False, True
+
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_STAT_PRC, "PR Competitie", False, True
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_STAT_PRC_SHOW_DETAIL, RXL_OBJ_RPT_TYPE_STAT_PRC, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Details weergeven (true/false)"
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_STAT_VRT, "Vooruitgangs Competitie", False, True
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_STAT_VRT_SHOW_DETAIL, RXL_OBJ_RPT_TYPE_STAT_VRT, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Details weergeven (true/false)"
+
+      
+
+rxlGenerateStructure_addReportTypes = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addExports" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function rxlGenerateStructure_addExportFormats(ByRef rsObjs As Recordset) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addExportFormats = False
+
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_RTF, "RTF", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_XLS, "XLS", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_TXT, "TXT", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_HTM, "HTM", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_XML, "XML", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_PDF, "PDF", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_RTF_X, "RTF-X", False, False
+
+
+
+rxlGenerateStructure_addExportFormats = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addExportFormats" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+Private Function rxlGenerateStructure_addExpLists(ByRef ds As DIR_SERVER_DATA, ByRef rsObjs As Recordset) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addExpLists = False
+
+
+Dim nLists As Integer
+Dim sOrdListNames(0 To MAX_N_EXP_LISTS) As String
+
+If Not rxliExpListLookup(ds, nLists, sOrdListNames) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nLists - 1
+  rxlGenerateStructure_addObject rsObjs, RXL_TYPE_LISTS, RXL_OBJ_LIST_START_ID + i + 1, sOrdListNames(i), False, False
+Next i
+
+
+rxlGenerateStructure_addExpLists = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addExpLists" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function rxlGenerateStructure_addRptCfgs_processCfgType(ByRef ds As DIR_SERVER_DATA, ByRef rsObjs As Recordset, ByVal lCfgTypeID As Long, ByRef maxUsedID As Long) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addRptCfgs_processCfgType = False
+
+
+Dim nCfgs As Integer
+Dim sOrdCfgNames(0 To MAX_N_RPT_CFGS) As String
+
+If Not rxciCfgLookup(ds, lCfgTypeID, nCfgs, sOrdCfgNames) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nCfgs - 1
+  maxUsedID = maxUsedID + 1
+  rxlGenerateStructure_addObject rsObjs, lCfgTypeID, maxUsedID, sOrdCfgNames(i), False, False
+Next i
+
+
+rxlGenerateStructure_addRptCfgs_processCfgType = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addRptCfgs_processCfgType" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlGenerateStructure_addRptCfgs(ByRef ds As DIR_SERVER_DATA, ByRef rsObjs As Recordset) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addRptCfgs = False
+
+
+Dim maxUsedID As Long
+maxUsedID = RXL_OBJ_CFG_START_ID
+
+'Process all RPT_TYPEs that use a RPT_CFG object
+
+If Not rxlGenerateStructure_addRptCfgs_processCfgType(ds, rsObjs, RXL_OBJ_RPT_TYPE_STAT_OV_SN, maxUsedID) Then
+  Exit Function
+End If
+
+If Not rxlGenerateStructure_addRptCfgs_processCfgType(ds, rsObjs, RXL_OBJ_RPT_TYPE_STAT_OV_GT, maxUsedID) Then
+  Exit Function
+End If
+
+If Not rxlGenerateStructure_addRptCfgs_processCfgType(ds, rsObjs, RXL_OBJ_RPT_TYPE_STAT_RNK, maxUsedID) Then
+  Exit Function
+End If
+
+If Not rxlGenerateStructure_addRptCfgs_processCfgType(ds, rsObjs, RXL_OBJ_RPT_TYPE_STAT_SO, maxUsedID) Then
+  Exit Function
+End If
+
+If Not rxlGenerateStructure_addRptCfgs_processCfgType(ds, rsObjs, RXL_OBJ_RPT_TYPE_STAT_PRC, maxUsedID) Then
+  Exit Function
+End If
+
+If Not rxlGenerateStructure_addRptCfgs_processCfgType(ds, rsObjs, RXL_OBJ_RPT_TYPE_STAT_VRT, maxUsedID) Then
+  Exit Function
+End If
+
+
+
+
+rxlGenerateStructure_addRptCfgs = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addRptCfgs" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxlGenerateStructure() As Boolean
+rxlGenerateStructure = rxliGenerateStructure(False)
+End Function
+
+
+
+Private Function rxliGenerateStructure(ByVal blCnfOnly As Boolean) As Boolean
+On Error GoTo fout
+rxliGenerateStructure = False
+
+Dim sql As String
+sql = "delete * from hsoRptExpListObjects;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "delete * from hsoRptExpListPars;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rsObjs As Recordset
+Set rsObjs = CurrentDb().OpenRecordset("hsoRptExpListObjects")
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("hsoRptExpListPars")
+
+
+'Allow report types even if blCnfOnly, so we can get a description for the report type
+If Not rxlGenerateStructure_addReportTypes(rsObjs, rsPars) Then
+  Exit Function
+End If
+
+If Not blCnfOnly Then
+  If Not rxlGenerateStructure_addExportFormats(rsObjs) Then
+    Exit Function
+  End If
+End If
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If Not blCnfOnly Then
+  If Not rxlGenerateStructure_addExpLists(dsData, rsObjs) Then
+    Exit Function
+  End If
+End If
+
+If Not rxlGenerateStructure_addRptCfgs(dsData, rsObjs) Then
+  Exit Function
+End If
+
+dsClean dsData
+
+
+
+appCleanRS rsObjs
+appCleanRS rsPars
+
+rxliGenerateStructure = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " rxliGenerateStructure" & vbCrLf & Error$
+
+dsClean dsData
+DoCmd.SetWarnings True
+
+MsgBox msg, 16
+
+Exit Function
+
+End Function
+
+Public Function rxcGenerateStructure() As Boolean
+rxcGenerateStructure = rxliGenerateStructure(True)
+End Function
+
+
+
+
+
+Public Function rxlModifyParams(ByVal expID As Long, expRptObjID As Long)
+On Error GoTo fout
+rxlModifyParams = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from hsoRptExpListPars where p_obj_id = " & expRptObjID)
+
+Dim skPars As Recordset
+Set skPars = CurrentDb().OpenRecordset("hsoRptExpListCurPars")
+skPars.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpParID As Long, tpDefValue As String
+  tpParID = Nz(rs("P_ID"))
+  tpDefValue = Nz(rs("P_DefaultValue"))
+  
+  skPars.Seek "=", tpParID, expID
+  
+  If skPars.NoMatch Then
+    'have to add
+    skPars.AddNew
+      skPars("SP_P_ID") = tpParID
+      skPars("SP_EXP_ID") = expID
+      skPars("SP_Value") = hzn(tpDefValue)
+    skPars.Update
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skPars
+
+'Now the other way round
+Set rs = CurrentDb().OpenRecordset("select * from hsoRptExpListCurPars where sp_exp_id = " & expID)
+
+Set skPars = CurrentDb().OpenRecordset("hsoRptExpListPars")
+skPars.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  tpParID = Nz(rs("SP_P_ID"))
+  
+  skPars.Seek "=", tpParID
+  
+  Dim blIsOK As Boolean
+  blIsOK = True
+  
+  If (skPars.NoMatch) Then
+    blIsOK = False
+  Else
+    Dim tpParRptObjID As Long
+    tpParRptObjID = Nz(skPars("P_OBJ_ID"), -1)
+    
+    If (tpParRptObjID <> expRptObjID) Then
+      blIsOK = False
+    End If
+  End If
+  
+  If (Not blIsOK) Then
+    rs.Delete
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skPars
+
+DoCmd.OpenForm "RPT_EXP_LST_DLG_Pars", , , , , acDialog, expID
+
+
+rxlModifyParams = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxlModifyParams" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlLoadExpList_clean() As Boolean
+On Error GoTo fout
+rxlLoadExpList_clean = False
+
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "delete * from hsoRptExpListCurGlbSettings;"
+DoCmd.RunSQL sql
+
+sql = "delete * from hsoRptExpListCurExports;"
+DoCmd.RunSQL sql
+
+sql = "delete * from hsoRptExpListCurPars;"
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+
+
+
+
+
+rxlLoadExpList_clean = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " rxlLoadExpList_clean" & vbCrLf & Error$
+
+DoCmd.SetWarnings True
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+Private Function rxlLoadExpList_loadGlbSettings(ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlLoadExpList_loadGlbSettings = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRptExpListCurGlbSettings")
+
+rs.AddNew
+  rs("EL_Name") = hzn(sExpListName)
+  rs("EL_CurSavedName") = hzn(sExpListName)
+
+  Dim blIsPresent As Boolean, sPropValue As String, lPropID As Long
+  
+  'wed_uit_startDate
+
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_UIT_START_DATE", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  Dim tpDat As Date
+  tpDat = rxpParseDateNL(sPropValue)
+  
+  If (lenDateIsValid(tpDat)) Then
+    rs("EL_WED_UIT_StartDate") = tpDat
+  End If
+  
+  
+  'wed_uit_endDate
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_UIT_END_DATE", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpDat = rxpParseDateNL(sPropValue)
+  
+  If (lenDateIsValid(tpDat)) Then
+    rs("EL_WED_UIT_EndDate") = tpDat
+  End If
+  
+  
+  'wed_op_startDate
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_OP_START_DATE", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpDat = rxpParseDateNL(sPropValue)
+  
+  If (lenDateIsValid(tpDat)) Then
+    rs("EL_WED_OP_StartDate") = tpDat
+  End If
+  
+  'wed_op_endDate
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_OP_END_DATE", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpDat = rxpParseDateNL(sPropValue)
+  
+  If (lenDateIsValid(tpDat)) Then
+    rs("EL_WED_OP_EndDate") = tpDat
+  End If
+  
+rs.Update
+
+appCleanRS rs
+
+
+rxlLoadExpList_loadGlbSettings = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlLoadExpList_loadGlbSettings" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function rxlLoadExpList_loadExports(ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlLoadExpList_loadExports = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRptExpListCurExports")
+
+Dim rsObjs As Recordset
+Set rsObjs = CurrentDb().OpenRecordset("hsoRptExpListObjects", dbOpenDynaset)
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("hsoRptExpListCurPars")
+
+Dim blIsPresent As Boolean, sPropValue As String, lPropID As Long
+
+If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\N_EXPORTS", blIsPresent, sPropValue, lPropID) Then
+  Exit Function
+End If
+
+Dim nExports As Long
+nExports = CLng(val(sPropValue))
+
+Dim i As Integer
+
+
+Dim maxUsedExpID As Long
+maxUsedExpID = 0
+
+For i = 0 To nExports - 1
+  Dim tpRptObjID As Long
+  Dim tpFmtObjID As Long
+  
+  Dim tpFileName As String
+  Dim tpRcsCode As String
+  Dim tpCfgName As String
+  
+  Dim tpNPars As String
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\RPT_OBJ_ID", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpRptObjID = CLng(val(sPropValue))
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\FMT_OBJ_ID", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpFmtObjID = CLng(val(sPropValue))
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\FileName", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpFileName = sPropValue
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\RECSET_CODE", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpRcsCode = sPropValue
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\CFG_NAME", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpCfgName = sPropValue
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\N_PARS", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpNPars = CLng(val(sPropValue))
+  
+  
+ 
+   
+  rs.AddNew
+    
+    maxUsedExpID = maxUsedExpID + 1
+    
+    rs("EXP_ID") = maxUsedExpID
+    rs("EXP_RPT_OBJ_ID") = tpRptObjID
+    rs("EXP_FMT_OBJ_ID") = tpFmtObjID
+    rs("EXP_FileName") = hzn(tpFileName)
+    rs("EXP_Recordset") = hzn(tpRcsCode)
+    
+    
+    rs("EXP_CfgName") = hzn(tpCfgName)
+    
+  rs.Update
+  
+  
+  Dim j As Integer
+  
+  For j = 0 To tpNPars - 1
+    Dim tpParID As Long
+    Dim tpParValue As String
+    
+    If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PAR_" & j & "\PAR_ID", blIsPresent, sPropValue, lPropID) Then
+      Exit Function
+    End If
+  
+    tpParID = CLng(val(sPropValue))
+    
+    
+    If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PAR_" & j & "\PAR_VALUE", blIsPresent, sPropValue, lPropID) Then
+      Exit Function
+    End If
+  
+    tpParValue = sPropValue
+    
+    
+    rsPars.AddNew
+      rsPars("SP_P_ID") = tpParID
+      rsPars("SP_EXP_ID") = maxUsedExpID
+      rsPars("SP_Value") = hzn(tpParValue)
+    rsPars.Update
+    
+    
+  Next j ' loop over pars
+  
+  
+  
+Next i ' loop over exports
+
+
+
+appCleanRS rs
+appCleanRS rsObjs
+appCleanRS rsPars
+
+  
+rxlLoadExpList_loadExports = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlLoadExpList_loadExports" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+'This function loads the specified export list from the directory server into the tables
+'Caller is required to ensure that rxlGenerateStructure has been called
+Public Function rxlLoadExpList(ByVal sExpListName As String) As Boolean
+On Error GoTo fout
+rxlLoadExpList = False
+
+If Not rxlLoadExpList_clean() Then
+  Exit Function
+End If
+
+
+
+
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+
+Dim blExists As Boolean
+If Not rxliExpListExists(sExpListName, dsData, blExists) Then
+  Exit Function
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende export-lijst niet vinden: " & vbCrLf & sExpListName
+End If
+
+If Not rxlLoadExpList_loadGlbSettings(sExpListName, dsData) Then
+  Exit Function
+End If
+
+If Not rxlLoadExpList_loadExports(sExpListName, dsData) Then
+  Exit Function
+End If
+
+
+dsClean dsData
+
+
+
+rxlLoadExpList = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " rxlLoadExpList" & vbCrLf & Error$
+
+DoCmd.SetWarnings True
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Private Function rxliExpListExists(ByVal expListName As String, ByRef dsData As DIR_SERVER_DATA, ByRef blExists As Boolean) As Boolean
+On Error GoTo fout
+rxliExpListExists = False
+
+Dim blIsPresent As Boolean, sDummy As String, lDummy As Long
+
+If Not dsLookupPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & expListName, blIsPresent, sDummy, lDummy) Then
+  Exit Function
+End If
+
+blExists = blIsPresent
+
+
+rxliExpListExists = True
+Exit Function
+
+fout:
+MsgBox Err & " rxliExpListExists" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function rxliExpListDelete(ByRef dsData As DIR_SERVER_DATA, ByVal sExpListName As String) As Boolean
+On Error GoTo fout
+rxliExpListDelete = False
+
+
+Dim blDummy As Boolean, sDummy As String
+
+If Not dsDeletePropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+Dim nLists As Integer
+Dim sOrdListNames(0 To MAX_N_EXP_LISTS) As String
+
+If Not rxliExpListLookup(dsData, nLists, sOrdListNames) Then
+  Exit Function
+End If
+
+Dim lkpPos As Integer
+lkpPos = bSearchString(sExpListName, nLists, sOrdListNames)
+
+If (lkpPos >= 0) Then
+  
+  'destroy ordering of list, but this does not matter
+  sOrdListNames(lkpPos) = sOrdListNames(nLists - 1)
+  nLists = nLists - 1
+  
+  If Not rxliExpListSaveList(dsData, nLists, sOrdListNames) Then
+    Exit Function
+  End If
+
+End If
+
+
+
+rxliExpListDelete = True
+Exit Function
+
+fout:
+MsgBox Err & " rxliExpListDelete" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function rxliExpListAdd(ByRef dsData As DIR_SERVER_DATA, ByVal sExpListName As String) As Boolean
+On Error GoTo fout
+rxliExpListAdd = False
+
+
+Dim nLists As Integer
+Dim sOrdListNames(0 To MAX_N_EXP_LISTS) As String
+
+If Not rxliExpListLookup(dsData, nLists, sOrdListNames) Then
+  Exit Function
+End If
+
+Dim lkpPos As Integer
+lkpPos = bSearchString(sExpListName, nLists, sOrdListNames)
+
+If (lkpPos >= 0) Then
+  Err.Raise 1, , "Deze export-lijst bestaat reeds: " & sExpListName
+End If
+
+
+If (nLists = MAX_N_EXP_LISTS) Then
+  Err.Raise 1, , "Er zijn al teveel export-lijsten gedefinieerd."
+End If
+
+insString sExpListName, nLists, sOrdListNames
+
+
+If Not rxliExpListSaveList(dsData, nLists, sOrdListNames) Then
+  Exit Function
+End If
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName, "", lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+rxliExpListAdd = True
+Exit Function
+
+fout:
+MsgBox Err & " rxliExpListAdd" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+'Save the list to the directory server.
+'sListNames does not have to be ordered.
+Private Function rxliExpListSaveList(ByRef dsData As DIR_SERVER_DATA, ByVal nLists As Integer, ByRef sListNames() As String)
+On Error GoTo fout
+rxliExpListSaveList = False
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\N_LISTS", CStr(nLists), lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+Dim i As Integer
+
+For i = 0 To nLists - 1
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LIST_NAME_" & i, sListNames(i), lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+Next i
+
+rxliExpListSaveList = True
+
+Exit Function
+
+fout:
+
+MsgBox Err & " rxliExpListSaveList" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+
+Private Function rxliExpListLookup(ByRef ds As DIR_SERVER_DATA, ByRef nLists As Integer, ByRef sOrdListNames() As String)
+On Error GoTo fout
+rxliExpListLookup = False
+
+Dim blPropIsPresent As Boolean, sPropValue As String, lPropID As Long
+If Not dsLookupPropertyByName(ds, "HUPSWIM\EXP_LISTS\N_LISTS", blPropIsPresent, sPropValue, lPropID) Then
+  Exit Function
+End If
+
+Dim nLkpLists As Long
+
+nLkpLists = 0
+If (blPropIsPresent) Then
+  nLkpLists = CLng(val(sPropValue))
+End If
+
+If (nLkpLists > 99) Then
+  nLkpLists = 99
+End If
+
+Dim i As Integer
+
+nLists = 0
+For i = 0 To nLkpLists - 1
+  If Not dsLookupPropertyByName(ds, "HUPSWIM\EXP_LISTS\LIST_NAME_" & i, blPropIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  If (blPropIsPresent) And (sPropValue <> "") Then
+    Dim lkpPos As Integer
+    'Check if list is already present (this should not be the case)
+    lkpPos = bSearchString(sPropValue, nLists, sOrdListNames)
+    If (lkpPos < 0) Then
+      'add the list to the array
+      insString sPropValue, nLists, sOrdListNames
+    Else
+      Err.Raise 1, , "Internal error"
+    End If
+  End If
+Next i
+
+rxliExpListLookup = True
+
+Exit Function
+
+fout:
+
+MsgBox Err & " rxliExpListLookup" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+
+
+
+
+Private Function rxciCfgExists(ByVal lCfgType As Long, sCfgName As String, ByRef dsData As DIR_SERVER_DATA, ByRef blExists As Boolean) As Boolean
+On Error GoTo fout
+rxciCfgExists = False
+
+Dim blIsPresent As Boolean, sDummy As String, lDummy As Long
+If Not dsLookupPropertyByName(dsData, "HUPSWIM\RPT_CONFIGS\TYPE_" & lCfgType & "\CONFIGS\" & sCfgName, blIsPresent, sDummy, lDummy) Then
+  Exit Function
+End If
+
+blExists = blIsPresent
+
+
+rxciCfgExists = True
+Exit Function
+
+fout:
+MsgBox Err & " rxciCfgExists" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function rxciCfgDelete(ByRef dsData As DIR_SERVER_DATA, ByVal lCfgType As Long, ByVal sCfgName As String) As Boolean
+On Error GoTo fout
+rxciCfgDelete = False
+
+
+Dim blDummy As Boolean, sDummy As String
+If Not dsDeletePropertyByName(dsData, "HUPSWIM\RPT_CONFIGS\TYPE_" & lCfgType & "\CONFIGS\" & sCfgName, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+Dim nCfgs As Integer
+Dim sOrdCfgNames(0 To MAX_N_EXP_LISTS) As String
+
+If Not rxciCfgLookup(dsData, lCfgType, nCfgs, sOrdCfgNames) Then
+  Exit Function
+End If
+
+Dim lkpPos As Integer
+lkpPos = bSearchString(sCfgName, nCfgs, sOrdCfgNames)
+
+If (lkpPos >= 0) Then
+  
+  'destroy ordering of list, but this does not matter
+  sOrdCfgNames(lkpPos) = sOrdCfgNames(nCfgs - 1)
+  nCfgs = nCfgs - 1
+  
+  If Not rxciCfgSaveList(dsData, lCfgType, nCfgs, sOrdCfgNames) Then
+    Exit Function
+  End If
+
+End If
+
+
+
+rxciCfgDelete = True
+Exit Function
+
+fout:
+MsgBox Err & " rxciCfgDelete" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function rxciCfgAdd(ByRef dsData As DIR_SERVER_DATA, ByVal lCfgType As Long, ByVal sCfgName As String) As Boolean
+On Error GoTo fout
+rxciCfgAdd = False
+
+
+Dim nCfgs As Integer
+Dim sOrdCfgNames(0 To MAX_N_RPT_CFGS) As String
+
+If Not rxciCfgLookup(dsData, lCfgType, nCfgs, sOrdCfgNames) Then
+  Exit Function
+End If
+
+Dim lkpPos As Integer
+lkpPos = bSearchString(sCfgName, nCfgs, sOrdCfgNames)
+
+If (lkpPos >= 0) Then
+  Err.Raise 1, , "Deze configuratie bestaat reeds: " & sCfgName
+End If
+
+
+If (nCfgs = MAX_N_RPT_CFGS) Then
+  Err.Raise 1, , "Er zijn al teveel configuraties gedefinieerd."
+End If
+
+insString sCfgName, nCfgs, sOrdCfgNames
+
+
+If Not rxciCfgSaveList(dsData, lCfgType, nCfgs, sOrdCfgNames) Then
+  Exit Function
+End If
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsSetPropertyByName(dsData, "HUPSWIM\RPT_CONFIGS\TYPE_" & lCfgType & "\CONFIGS\" & sCfgName, "", lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+rxciCfgAdd = True
+Exit Function
+
+fout:
+MsgBox Err & " rxciCfgAdd" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+'Save the list to the directory server.
+'sListNames does not have to be ordered.
+Private Function rxciCfgSaveList(ByRef dsData As DIR_SERVER_DATA, ByVal lCfgType As Long, ByVal nCfgs As Integer, ByRef sCfgNames() As String)
+On Error GoTo fout
+rxciCfgSaveList = False
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsSetPropertyByName(dsData, "HUPSWIM\RPT_CONFIGS\TYPE_" & lCfgType & "\N_CFGS", CStr(nCfgs), lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+Dim i As Integer
+
+For i = 0 To nCfgs - 1
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\RPT_CONFIGS\TYPE_" & lCfgType & "\CFG_NAME_" & i, sCfgNames(i), lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+Next i
+
+rxciCfgSaveList = True
+
+Exit Function
+
+fout:
+
+MsgBox Err & " rxciCfgSaveList" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+
+Private Function rxciCfgLookup(ByRef ds As DIR_SERVER_DATA, ByVal lCfgType As Long, ByRef nCfgs As Integer, ByRef sOrdCfgNames() As String)
+On Error GoTo fout
+rxciCfgLookup = False
+
+
+
+Dim blPropIsPresent As Boolean, sPropValue As String, lPropID As Long
+If Not dsLookupPropertyByName(ds, "HUPSWIM\RPT_CONFIGS\TYPE_" & lCfgType & "\N_CFGS", blPropIsPresent, sPropValue, lPropID) Then
+  Exit Function
+End If
+
+Dim nLkpCfgs As Long
+
+nLkpCfgs = 0
+If (blPropIsPresent) Then
+  nLkpCfgs = CLng(val(sPropValue))
+End If
+
+If (nLkpCfgs > 99) Then
+  nLkpCfgs = 99
+End If
+
+Dim i As Integer
+
+nCfgs = 0
+For i = 0 To nLkpCfgs - 1
+  If Not dsLookupPropertyByName(ds, "HUPSWIM\RPT_CONFIGS\TYPE_" & lCfgType & "\CFG_NAME_" & i, blPropIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  If (blPropIsPresent) And (sPropValue <> "") Then
+    Dim lkpPos As Integer
+    'Check if list is already present (this should not be the case)
+    lkpPos = bSearchString(sPropValue, nCfgs, sOrdCfgNames)
+    If (lkpPos < 0) Then
+      'add the list to the array
+      insString sPropValue, nCfgs, sOrdCfgNames
+    Else
+      Err.Raise 1, , "Internal error"
+    End If
+  End If
+Next i
+
+
+
+rxciCfgLookup = True
+Exit Function
+
+fout:
+MsgBox Err & " rxciCfgLookup" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlSaveExpList_saveGlbSettings(ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlSaveExpList_saveGlbSettings = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRptExpListCurGlbSettings")
+
+rs.MoveFirst
+
+If (rs.EOF) Then
+  Err.Raise 1, , "Internal error: table is empty"
+End If
+
+
+'Update the current saved name
+
+rs.Edit
+  rs("EL_Name") = hzn(sExpListName)
+  rs("EL_CurSavedName") = hzn(sExpListName)
+rs.Update
+
+
+rs.MoveFirst
+  
+Dim blDummy As Boolean, lDummy As Long, sDummy As String
+Dim sPropValue As String
+
+Dim tpDat As Date
+
+
+'wed_uit_startDate
+
+tpDat = Nz(rs("EL_WED_UIT_StartDate"), #1/1/1900#)
+
+sPropValue = ""
+If (lenDateIsValid(tpDat)) Then
+  sPropValue = rxpFormatDateNL(tpDat)
+End If
+
+If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_UIT_START_DATE", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+  
+  
+'wed_uit_startDate
+
+tpDat = Nz(rs("EL_WED_UIT_EndDate"), #1/1/1900#)
+
+sPropValue = ""
+If (lenDateIsValid(tpDat)) Then
+  sPropValue = rxpFormatDateNL(tpDat)
+End If
+
+If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_UIT_END_DATE", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+'wed_op_startDate
+
+tpDat = Nz(rs("EL_WED_OP_StartDate"), #1/1/1900#)
+
+sPropValue = ""
+If (lenDateIsValid(tpDat)) Then
+  sPropValue = rxpFormatDateNL(tpDat)
+End If
+
+If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_OP_START_DATE", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+'wed_op_endDate
+
+tpDat = Nz(rs("EL_WED_OP_EndDate"), #1/1/1900#)
+
+sPropValue = ""
+If (lenDateIsValid(tpDat)) Then
+  sPropValue = rxpFormatDateNL(tpDat)
+End If
+
+If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_OP_END_DATE", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+  
+
+appCleanRS rs
+
+
+rxlSaveExpList_saveGlbSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxlSaveExpList_saveGlbSettings" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function rxlSaveExpList_saveExports(ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlSaveExpList_saveExports = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from hsoRptExpListCurExports order by exp_id")
+
+Dim skObjs As Recordset
+Set skObjs = CurrentDb().OpenRecordset("hsoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("select * from hsoRptExpListCurPars order by SP_EXP_ID")
+
+
+Dim blDummy As Boolean, lDummy As Long, sDummy As String
+
+
+Dim nExports As Long
+nExports = 0
+
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpExpID As Long
+  Dim tpRptObjID As Long
+  Dim tpFmtObjID As Long
+  
+  Dim tpFileName As String
+  Dim tpRcsCode As String
+  Dim tpCfgName As String
+  
+  tpExpID = Nz(rs("EXP_ID"))
+  tpRptObjID = Nz(rs("EXP_RPT_OBJ_ID"))
+  tpFmtObjID = Nz(rs("EXP_FMT_OBJ_ID"))
+  tpFileName = Nz(rs("EXP_FileName"))
+  tpRcsCode = Nz(rs("EXP_Recordset"))
+    
+  tpCfgName = Nz(rs("EXP_CfgName"))
+    
+  Dim sPropValue As String
+  
+  sPropValue = CStr(tpRptObjID)
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\RPT_OBJ_ID", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  
+  sPropValue = CStr(tpFmtObjID)
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\FMT_OBJ_ID", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  sPropValue = tpFileName
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\FileName", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  sPropValue = tpRcsCode
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\RECSET_CODE", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  sPropValue = tpCfgName
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\CFG_NAME", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+    
+    
+  Dim tpNPars As Long
+  
+  tpNPars = 0
+  
+  rsPars.FindFirst "SP_EXP_ID = " & tpExpID
+  
+  If (Not rsPars.NoMatch) Then
+    Dim blDone As Boolean
+    blDone = False
+    Do Until blDone
+    
+      Dim tpParID As Long
+      Dim tpParValue As String
+      
+      tpParID = Nz(rsPars("SP_P_ID"))
+      tpParValue = Nz(rsPars("SP_Value"))
+      
+      sPropValue = CStr(tpParID)
+      If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PAR_" & tpNPars & "\PAR_ID", sPropValue, lDummy, blDummy, sDummy) Then
+        Exit Function
+      End If
+    
+      sPropValue = tpParValue
+      If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PAR_" & tpNPars & "\PAR_VALUE", sPropValue, lDummy, blDummy, sDummy) Then
+        Exit Function
+      End If
+      
+      tpNPars = tpNPars + 1
+  
+    
+      
+      rsPars.MoveNext
+      If (rsPars.EOF) Then
+        blDone = True
+      Else
+        If (Nz(rsPars("SP_EXP_ID")) <> tpExpID) Then
+          blDone = True
+        End If
+      End If
+    Loop
+  End If 'if not rsPars.nomatch
+  
+  
+  sPropValue = CStr(tpNPars)
+  
+  If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\N_PARS", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  
+  
+  nExports = nExports + 1
+  
+  
+  rs.MoveNext
+Loop
+
+
+
+sPropValue = CStr(nExports)
+If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\N_EXPORTS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+
+appCleanRS rs
+appCleanRS skObjs
+appCleanRS rsPars
+
+  
+rxlSaveExpList_saveExports = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxlSaveExpList_saveExports" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+'This function saves the export list currently in the hso* tables into the directory server.
+'Behaviour depends on the pair (EL_CurSavedName, EL_Name) in the hsoRptExpListCurGlbSettings table.
+'If (EL_CurSavedName <> EL_Name), then a failure will occur if EL_CurSavedName already exists
+'EL_CurSavedName will be updated to reflect the new name.
+Public Function rxlSaveExpList() As Boolean
+On Error GoTo fout
+rxlSaveExpList = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim curSavedName As String
+curSavedName = Nz(DLookup("EL_CurSavedName", "hsoRptExpListCurGlbSettings"))
+
+Dim sExpListName As String
+sExpListName = Nz(DLookup("EL_Name", "hsoRptExpListCurGlbSettings"))
+
+If (sExpListName = "") Then
+  Err.Raise 1, , "Geef een naam op voor de export-lijst"
+End If
+
+If (sExpListName <> curSavedName) Then
+  'Need to check if there currently is a export list with the new name.
+  Dim blExists As Boolean
+  If Not rxliExpListExists(sExpListName, dsData, blExists) Then
+    Exit Function
+  End If
+  
+  If (blExists) Then
+    Err.Raise 1, , "Er bestaat al een export-lijst met de naam: " & sExpListName
+  End If
+  
+  
+End If
+
+If (curSavedName <> "") Then
+  'Delete the old list
+  If Not rxliExpListDelete(dsData, curSavedName) Then
+    Exit Function
+  End If
+End If
+
+
+'Now add this  list
+If Not rxliExpListAdd(dsData, sExpListName) Then
+  Exit Function
+End If
+
+
+
+If Not rxlSaveExpList_saveGlbSettings(sExpListName, dsData) Then
+  Exit Function
+End If
+
+If Not rxlSaveExpList_saveExports(sExpListName, dsData) Then
+  Exit Function
+End If
+
+
+
+dsClean dsData
+
+
+rxlSaveExpList = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " rxlSaveExpList" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, vbCritical
+Exit Function
+End Function
+
+Public Function rxlDeleteExpList() As Boolean
+On Error GoTo fout
+rxlDeleteExpList = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim curSavedName As String
+curSavedName = Nz(DLookup("EL_CurSavedName", "hsoRptExpListCurGlbSettings"))
+
+
+If (curSavedName <> "") Then
+  'Delete the old list
+  If Not rxliExpListDelete(dsData, curSavedName) Then
+    Exit Function
+  End If
+End If
+
+
+
+dsClean dsData
+
+
+rxlDeleteExpList = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " rxlDeleteExpList" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, vbCritical
+Exit Function
+End Function
+
+
+
+
+
+
+Private Function rxliPromptUserObject(ByRef isOK As Boolean, ByRef isNewName As Boolean, ByRef lObjID As Long, ByRef sObjDes As String, ByVal lObjTypeID, ByVal blAllowNew As Boolean, ByVal lCurObjID As Long, ByVal sCurObjDes As String, ByVal sDlgTitle As String) As Boolean
+On Error GoTo fout
+rxliPromptUserObject = False
+
+
+Dim sql As String
+sql = "Delete * from hsoRxlOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRxlOpzoek")
+
+rs.AddNew
+  rs("RXLO_ARG_AllowNewName") = blAllowNew
+  If (lCurObjID >= 0) Then
+    rs("RXLO_ARG_UseCurObjID") = True
+    rs("RXLO_ARG_UseCurObjID") = lCurObjID
+  Else
+    rs("RXLO_ARG_UseCurObjID") = False
+    If (sCurObjDes <> "") Then
+      rs("RXLO_ARG_UseCurObjDes") = True
+      rs("RXLO_ARG_CurObjDes") = hzn(sCurObjDes)
+    Else
+      rs("RXLO_ARG_UseCurObjDes") = False
+    End If
+  End If
+  rs("RXLO_ARG_DlgTitle") = hzn(sDlgTitle)
+  rs("RXLO_ARG_ObjTypeID") = lObjTypeID
+  rs("RXLO_OK") = False
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "hsoRxlOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hsoRxlOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hsoRxlOpzoek is leeg."
+End If
+
+isOK = Nz(rs("RXLO_OK"))
+isNewName = Nz(rs("RXLO_IsNew"))
+lObjID = Nz(rs("RXLO_ObjID"))
+sObjDes = Nz(rs("RXLO_ObjDes"))
+
+appCleanRS rs
+
+rxliPromptUserObject = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " rxliPromptUserObject" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+
+End Function
+
+
+Public Function rxlPromptUser(ByRef isOK As Boolean, ByRef lkpExpListName As String) As Boolean
+On Error GoTo fout
+rxlPromptUser = False
+
+Dim lDummy As Long, blDummy As Boolean
+
+If Not rxliPromptUserObject(isOK, blDummy, lDummy, lkpExpListName, RXL_TYPE_LISTS, False, -1, "", "Kies export-lijst") Then
+  Exit Function
+End If
+
+rxlPromptUser = True
+Exit Function
+fout:
+MsgBox Err & " rxlPromptUser" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function rxcPromptUser(ByVal blAllowNewName As Boolean, ByVal sCurName As String, ByVal lCfgType As Long, ByRef isOK As Boolean, ByRef lkpCfgName As String) As Boolean
+On Error GoTo fout
+rxcPromptUser = False
+
+Dim lDummy As Long, blDummy As Boolean
+
+If Not rxliPromptUserObject(isOK, blDummy, lDummy, lkpCfgName, lCfgType, blAllowNewName, -1, sCurName, "Kies configuratie") Then
+  Exit Function
+End If
+
+rxcPromptUser = True
+Exit Function
+fout:
+MsgBox Err & " rxcPromptUser" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function rxlLookup(ByVal sCurName As String, ByRef isFound As Boolean, ByRef sFndName As String, ByRef lFndObjID As Long) As Boolean
+rxlLookup = rxlLookup_Perform(sCurName, 0, isFound, sFndName, lFndObjID)
+End Function
+Public Function rxlLookupNext(ByVal sCurName As String, ByRef isFound As Boolean, ByRef sFndName As String, ByRef lFndObjID As Long) As Boolean
+rxlLookupNext = rxlLookup_Perform(sCurName, 1, isFound, sFndName, lFndObjID)
+End Function
+
+Public Function rxlLookupPrevious(ByVal sCurName As String, ByRef isFound As Boolean, ByRef sFndName As String, lFndObjID As Long) As Boolean
+rxlLookupPrevious = rxlLookup_Perform(sCurName, -1, isFound, sFndName, lFndObjID)
+End Function
+
+Private Function rxlLookup_Perform(ByVal sCurName As String, ByVal direction As Integer, ByRef isFnd As Boolean, ByRef sFndName As String, ByRef lFndObjID As Long) As Boolean
+On Error GoTo fout
+rxlLookup_Perform = False
+
+isFnd = False
+
+Dim rs As Recordset
+
+Dim sql As String
+
+
+If (direction = 0) Then
+  sql = "select * from hsoRptExpListObjects where ro_type_id = " & RXL_TYPE_LISTS & " and ro_description = """ & sCurName & """;"
+Else
+  sql = "select * from hsoRptExpListObjects where ro_type_id = " & RXL_TYPE_LISTS & ";"
+End If
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+If (direction = 0) Then
+  rs.MoveFirst
+  If Not rs.EOF Then
+    sFndName = Nz(rs("RO_Description"))
+    lFndObjID = Nz(rs("RO_ID"))
+    isFnd = True
+  End If
+Else
+  rs.FindFirst "ro_description = """ & sCurName & """"
+  If Not rs.NoMatch Then
+    If (direction < 0) Then
+      rs.MovePrevious
+    Else
+      rs.MoveNext
+    End If
+    If (Not rs.BOF) And (Not rs.EOF) Then
+      sFndName = Nz(rs("RO_Description"))
+      lFndObjID = Nz(rs("RO_ID"))
+      isFnd = True
+    End If
+  End If
+End If
+
+appCleanRS rs
+
+rxlLookup_Perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxlLookup_Perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+
+Private Function rxlCreateNew_addStandardExports() As Boolean
+On Error GoTo fout
+rxlCreateNew_addStandardExports = False
+
+
+'Need to add standard exports
+Dim rsExps As Recordset, rsPars As Recordset
+Set rsExps = CurrentDb().OpenRecordset("hsoRptExpListCurExports")
+Set rsPars = CurrentDb().OpenRecordset("hsoRptExpListCurPars")
+
+Dim muID As Long
+muID = 0
+
+muID = muID + 1
+rsExps.AddNew
+  rsExps("EXP_ID") = muID
+  rsExps("EXP_RPT_OBJ_ID") = RXL_OBJ_RPT_TYPE_REC_LIST
+  rsExps("EXP_FMT_OBJ_ID") = RXL_OBJ_EXP_FMT_HTM
+  rsExps("EXP_FileName") = dbdir_hp() & "\r1.htm"
+  rsExps("EXP_Recordset") = "CR"
+rsExps.Update
+
+  rsPars.AddNew
+    rsPars("SP_EXP_ID") = muID
+    rsPars("SP_P_ID") = RXL_PAR_REC_LIST_START_DAT
+    Dim curYear As Long
+    curYear = CLng(val(Format(Now(), "yyyy")))
+    rsPars("SP_Value") = rxpFormatDateNL(DateSerial(curYear, 1, 1))
+  rsPars.Update
+  
+  rsPars.AddNew
+    rsPars("SP_EXP_ID") = muID
+    rsPars("SP_P_ID") = RXL_PAR_REC_LIST_END_DAT
+    rsPars("SP_Value") = "<Vandaag>"
+  rsPars.Update
+    
+    
+
+
+muID = muID + 1
+rsExps.AddNew
+  rsExps("EXP_ID") = muID
+  rsExps("EXP_RPT_OBJ_ID") = RXL_OBJ_RPT_TYPE_REC_HLD
+  rsExps("EXP_FMT_OBJ_ID") = RXL_OBJ_EXP_FMT_HTM
+  rsExps("EXP_FileName") = dbdir_hp() & "\r2.htm"
+  rsExps("EXP_Recordset") = "CR"
+rsExps.Update
+
+muID = muID + 1
+rsExps.AddNew
+  rsExps("EXP_ID") = muID
+  rsExps("EXP_RPT_OBJ_ID") = RXL_OBJ_RPT_TYPE_REC_TB_HEREN
+  rsExps("EXP_FMT_OBJ_ID") = RXL_OBJ_EXP_FMT_HTM
+  rsExps("EXP_FileName") = dbdir_hp() & "\r3.htm"
+  rsExps("EXP_Recordset") = "CR"
+rsExps.Update
+
+muID = muID + 1
+rsExps.AddNew
+  rsExps("EXP_ID") = muID
+  rsExps("EXP_RPT_OBJ_ID") = RXL_OBJ_RPT_TYPE_REC_TB_DAMES
+  rsExps("EXP_FMT_OBJ_ID") = RXL_OBJ_EXP_FMT_HTM
+  rsExps("EXP_FileName") = dbdir_hp() & "\r4.htm"
+  rsExps("EXP_Recordset") = "CR"
+rsExps.Update
+
+
+Dim tpSNOptsName As String
+tpSNOptsName = "__std_configuratie__snt__wordt__overschreven"
+muID = muID + 1
+rsExps.AddNew
+  rsExps("EXP_ID") = muID
+  rsExps("EXP_RPT_OBJ_ID") = RXL_OBJ_RPT_TYPE_STAT_OV_SN
+  rsExps("EXP_FMT_OBJ_ID") = RXL_OBJ_EXP_FMT_HTM
+  rsExps("EXP_FileName") = dbdir_hp() & "\r5.htm"
+  rsExps("EXP_CfgName") = hzn(tpSNOptsName)
+rsExps.Update
+
+
+appCleanRS rsExps
+appCleanRS rsPars
+
+'Have to build default settings for snt export
+Dim rxcOpts As RXC_STAT_OV_SN_OPTS
+
+rxcOpts.dPrimStartDate = #1/1/1900#
+rxcOpts.dPrimEndDate = #1/1/2099#
+rxcOpts.sPrimSeason = ""
+rxcOpts.blUseSecondary = True
+rxcOpts.dSecStartDate = #1/1/1900#
+rxcOpts.dSecEndDate = #1/1/1900#
+rxcOpts.sSecSeason = ssGetCurSeason()
+rxcOpts.blRestrictAfSl = False
+rxcOpts.blRestrictLS = False
+rxcOpts.lsCode = -1
+rxcOpts.blOnlyActive = True
+rxcOpts.sStartnummer = ""
+rxcOpts.blRestrictWed = False
+rxcOpts.blExcludeDis = False
+rxcOpts.blExcludeTst = False
+rxcOpts.blShowLevel = True
+rxcOpts.blSortAchternaam = True
+rxcOpts.blBoth25And50m = True
+
+Dim sDummy(0 To 0) As String, lDummy(0 To 0) As Long
+If Not rxcStoreStatOVSNOpts(tpSNOptsName, rxcOpts, 0, sDummy, sDummy, 0, lDummy) Then
+  Exit Function
+End If
+
+
+rxlCreateNew_addStandardExports = True
+Exit Function
+fout:
+MsgBox Err & " rxlCreateNew_addStandardExports" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function rxlCreateNew_perform(ByVal sNewName As String, ByVal blCreateStandard As Boolean, ByVal blDuplicate As Boolean, ByVal sDupName As String) As Boolean
+On Error GoTo fout
+rxlCreateNew_perform = False
+
+If (sNewName = "") Then
+  Err.Raise 1, , "Nieuwe naam is leeg"
+End If
+
+If (InStr(1, sNewName, "\") > 0) Then
+  Err.Raise 1, , "Naam mag geen \ bevatten"
+End If
+
+If (Len(sNewName) > 30) Then
+  Err.Raise 1, , "Naam is te lang"
+End If
+
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+Dim blExists As Boolean
+If Not rxliExpListExists(sNewName, dsData, blExists) Then
+  Exit Function
+End If
+
+If (blExists) Then
+  Err.Raise 1, , "De naam: " & sNewName & " bestaat al"
+End If
+
+If (blDuplicate) Then
+  If Not rxlLoadExpList(sDupName) Then
+    Exit Function
+  End If
+ElseIf (blCreateStandard) Then
+  If Not rxlLoadExpList_clean() Then
+    Exit Function
+  End If
+  If Not rxlCreateNew_addStandardExports() Then
+    Exit Function
+  End If
+Else
+  If Not rxlLoadExpList_clean() Then
+    Exit Function
+  End If
+End If
+  
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRptExpListCurGlbSettings")
+rs.MoveFirst
+
+If (rs.EOF) Then
+  rs.AddNew
+Else
+  rs.Edit
+End If
+
+rs("EL_Name") = hzn(sNewName)
+rs("EL_CurSavedName") = Null
+
+
+rs.Update
+
+appCleanRS rs
+
+If Not rxlSaveExpList() Then
+  Exit Function
+End If
+
+
+rxlCreateNew_perform = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxlCreateNew_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxlCreateNew(ByRef isOK As Boolean, ByRef sNewName As String) As Boolean
+On Error GoTo fout
+rxlCreateNew = False
+
+
+Dim sql As String
+sql = "Delete * from hsoRxlNew;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRxlNew")
+
+rs.AddNew
+  rs("RXLN_OK") = False
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "RPT_EXP_LST_DLG_NEW", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hsoRxlNew")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hsoRxlNew is leeg."
+End If
+
+Dim tpIsOK As Boolean
+tpIsOK = Nz(rs("RXLN_OK"))
+
+
+
+If (tpIsOK) Then
+
+  Dim tpNewName As String
+  Dim tpCreateStandard As Boolean
+  Dim tpDuplicate As Boolean
+  Dim tpDupListName As String
+  
+  tpNewName = Nz(rs("RXLN_Newname"))
+  tpCreateStandard = Nz(rs("RXLN_CreateStandard"))
+  tpDuplicate = Nz(rs("RXLN_Duplicate"))
+  tpDupListName = Nz(rs("RXLN_DuplicateListName"))
+  
+Else
+  isOK = False
+End If
+
+appCleanRS rs
+
+
+If (tpIsOK) Then
+
+  If Not rxlCreateNew_perform(tpNewName, tpCreateStandard, tpDuplicate, tpDupListName) Then
+    Exit Function
+  End If
+  
+  isOK = True
+  sNewName = tpNewName
+
+End If
+
+rxlCreateNew = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " rxlCreateNew" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+
+End Function
+
+
+Private Function rxlProcessExpList_handleExport(ByVal rptName As String, ByVal fName As String, iRXPFormat As Integer) As Boolean
+On Error GoTo fout
+rxlProcessExpList_handleExport = False
+
+
+Dim vDummy(0 To 0) As Variant
+If Not rptHandle(False, rptName, RPT_MODE_EXPORT, -1, iRXPFormat, 0, vDummy, True, fName) Then
+  Exit Function
+End If
+
+
+rxlProcessExpList_handleExport = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_handleExport" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlProcessExpList_resolveDatePar(ByVal sParValue) As Date
+If sParValue = "<Vandaag>" Then
+  rxlProcessExpList_resolveDatePar = Now()
+Else
+  rxlProcessExpList_resolveDatePar = rxpParseDateNL(sParValue)
+End If
+End Function
+
+
+Private Function rxlProcessExpList_getParam(ByVal lPID As Long, ByVal nPars As Integer, ByRef lParIDS() As Long, sParValues() As String) As String
+Dim fndPos As Integer
+fndPos = bSearchLong(lPID, nPars, lParIDS)
+If (fndPos < 0) Then
+  rxlProcessExpList_getParam = ""
+Else
+  rxlProcessExpList_getParam = sParValues(fndPos)
+End If
+End Function
+
+
+
+
+
+
+Private Function rxlProcessExpList_processExportWed(ByVal nWeds As Integer, ByRef lWedNrs() As Long, ByRef lMainWedNrs() As Long, blWedHasProp() As Boolean, blWedSubHasProp() As Boolean, ByVal lRptObjID As Long, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+  ByVal sCfgName As String, ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExportWed = False
+
+
+Dim tpFNameBase As String
+tpFNameBase = Left(sFileName, Len(sFileName) - 4)
+
+Dim tpFNameExt As String
+tpFNameExt = Right(sFileName, 3)
+
+
+Dim i As Integer
+For i = 0 To nWeds - 1
+  Dim tpWedNr As Long, tpMainWedNr As Long, tpWedHasProp As Boolean, tpWedSubHasProp As Boolean
+  tpWedNr = lWedNrs(i)
+  tpMainWedNr = lMainWedNrs(i)
+  tpWedHasProp = blWedHasProp(i)
+  tpWedSubHasProp = blWedSubHasProp(i)
+  
+  Dim tpFName As String
+  tpFName = tpFNameBase & "_" & tpWedNr & "." & tpFNameExt
+  
+  Select Case lRptObjID
+    Case RXL_OBJ_RPT_TYPE_WED_UIT_GLB
+      If Not rxlProcessExpList_processExport_WedUitGlb(tpWedNr, tpMainWedNr, tpWedHasProp, tpWedSubHasProp, _
+        tpFName, iRXPFormat, nPars, lParIDS, sParValues) Then
+        Exit Function
+      End If
+    Case RXL_OBJ_RPT_TYPE_WED_UIT_PP
+      If Not rxlProcessExpList_processExport_WedUitPP(tpWedNr, tpMainWedNr, tpWedHasProp, tpWedSubHasProp, _
+        tpFName, iRXPFormat, nPars, lParIDS, sParValues) Then
+        Exit Function
+      End If
+    Case RXL_OBJ_RPT_TYPE_WED_OP_AAN
+      If Not rxlProcessExpList_processExport_WedOp(tpWedNr, tpMainWedNr, tpWedHasProp, tpWedSubHasProp, _
+        tpFName, iRXPFormat, nPars, lParIDS, sParValues) Then
+        Exit Function
+      End If
+  End Select
+  
+Next i
+
+rxlProcessExpList_processExportWed = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlProcessExpList_processExportWed" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function rxlProcessExpList_processExport(ByVal lRptObjID As Long, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+  ByVal sCfgName As String, ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport = False
+
+
+Select Case lRptObjID
+  Case RXL_OBJ_RPT_TYPE_REC_LIST
+    If Not rxlProcessExpList_processExport_RecList(sFileName, iRXPFormat, sRcsCode, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_REC_TB_HEREN
+    If Not rxlProcessExpList_processExport_RecTableM(sFileName, iRXPFormat, sRcsCode, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_REC_TB_DAMES
+    If Not rxlProcessExpList_processExport_RecTableV(sFileName, iRXPFormat, sRcsCode, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_REC_HLD
+    If Not rxlProcessExpList_processExport_RecHolders(sFileName, iRXPFormat, sRcsCode, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_REC_HLD_CMP
+    If Not rxlProcessExpList_processExport_RecHoldersCmp(sFileName, iRXPFormat, sRcsCode, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_STAT_OV_SN
+    If Not rxlProcessExpList_processExport_StatOVSN(sCfgName, sFileName, iRXPFormat, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_STAT_OV_GT
+    If Not rxlProcessExpList_processExport_StatOVGT(sCfgName, sFileName, iRXPFormat, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_STAT_RNK
+    If Not rxlProcessExpList_processExport_StatRnk(sCfgName, sFileName, iRXPFormat, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_STAT_SO
+    If Not rxlProcessExpList_processExport_StatSO(sCfgName, sFileName, iRXPFormat, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_STAT_PRC
+    If Not rxlProcessExpList_processExport_StatPRC(sCfgName, sFileName, iRXPFormat, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  Case RXL_OBJ_RPT_TYPE_STAT_VRT
+    If Not rxlProcessExpList_processExport_StatVRT(sCfgName, sFileName, iRXPFormat, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+
+End Select
+
+rxlProcessExpList_processExport = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlProcessExpList_processExport" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function rxlProcessExpList_findWedsUit(ByRef nUitWeds As Integer, ByRef lUitWedNrs() As Long, ByRef lUitMainWedNrs() As Long, ByRef blUitHasResults() As Boolean, ByRef blUitSubHasResults() As Boolean) As Boolean
+On Error GoTo fout
+rxlProcessExpList_findWedsUit = False
+
+nUitWeds = 0
+
+Dim dStartDate As Date, dEndDate As Date
+dStartDate = Nz(DLookup("EL_WED_UIT_StartDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+dEndDate = Nz(DLookup("EL_WED_UIT_EndDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+
+If Not lenDateIsValid(dStartDate) Then
+  Err.Raise 1, , "Startdatum voor uitslagen is ongeldig"
+End If
+
+If Not lenDateIsValid(dEndDate) Then
+  Err.Raise 1, , "Einddatum voor uitslagen is ongeldig"
+End If
+
+
+
+Dim rsWeds As Recordset
+Set rsWeds = CurrentDb().OpenRecordset("select * from dtWedstrijden where [datum] >=#" & fmtDateSQL(dStartDate) & "# and [datum] <=#" & fmtDateSQL(dEndDate) & "#;")
+
+rsWeds.MoveFirst
+Do Until rsWeds.EOF
+
+  Dim tpWedNr As Long, tpMainWedNr As Long, tpIsMeet As Boolean
+  tpWedNr = Nz(rsWeds("wedstrijd nummer"))
+  tpMainWedNr = Nz(rsWeds("MainWedstrijdNummer"), -1)
+  tpIsMeet = Nz(rsWeds("IsPartOfMeet"))
+  
+  If (Not tpIsMeet) Then
+    tpMainWedNr = tpWedNr
+  ElseIf (tpMainWedNr <= 0) Then
+    tpIsMeet = False
+    tpMainWedNr = tpWedNr
+  End If
+  
+  Dim blIsValid As Boolean
+  blIsValid = False
+  
+  'Need to check if there is a valid result
+  
+  If (Not blIsValid) Then
+    Dim tpStart As String
+    tpStart = Nz(DFirst("TY_Startnummer", "dtUitslagenPers", "ty_wedstrijdnummer=" & tpWedNr))
+    If (tpStart <> "") Then
+      blIsValid = True
+    End If
+  End If
+  
+  If (Not blIsValid) Then
+    Dim tpProg As String
+    tpProg = Nz(DFirst("TY_Programmanummer", "dtUitslagenEst", "ty_wedstrijdnummer=" & tpWedNr))
+    If (tpProg <> "") Then
+      blIsValid = True
+    End If
+  End If
+  
+  If (blIsValid) Then
+    'check to see if the wedstrijd is already present
+    Dim lkpPos As Integer
+    lkpPos = bSearchLong(tpWedNr, nUitWeds, lUitWedNrs)
+    If (lkpPos < 0) Then
+      'Need to add
+      If (nUitWeds > MAX_N_EXP_WEDS_UIT) Then
+        Err.Raise 1, , "Te veel wedstrijden met uitslagen. Verklein datum bereik"
+      End If
+      lkpPos = insLong(tpWedNr, nUitWeds, lUitWedNrs)
+      
+      shiftRightLong lkpPos, 1, (nUitWeds - 1), lUitMainWedNrs
+      shiftRightBoolean lkpPos, 1, (nUitWeds - 1), blUitHasResults
+      shiftRightBoolean lkpPos, 1, (nUitWeds - 1), blUitSubHasResults
+      
+      lUitMainWedNrs(lkpPos) = tpMainWedNr
+      blUitHasResults(lkpPos) = False
+      blUitSubHasResults(lkpPos) = False
+    End If
+    'Mark that this match has results
+    blUitHasResults(lkpPos) = False
+    
+    If (tpMainWedNr <> tpWedNr) Then
+      'Need to mark that main wed nr has dependents that do admit deelnemers
+      lkpPos = bSearchLong(tpMainWedNr, nUitWeds, lUitWedNrs)
+      If (lkpPos < 0) Then
+        If (nUitWeds > MAX_N_EXP_WEDS_UIT) Then
+          Err.Raise 1, , "Te veel wedstrijden met uitslagen. Verklein datum bereik"
+        End If
+        lkpPos = insLong(tpMainWedNr, nUitWeds, lUitWedNrs)
+        
+        shiftRightLong lkpPos, 1, (nUitWeds - 1), lUitMainWedNrs
+        shiftRightBoolean lkpPos, 1, (nUitWeds - 1), blUitHasResults
+        shiftRightBoolean lkpPos, 1, (nUitWeds - 1), blUitSubHasResults
+        
+        lUitMainWedNrs(lkpPos) = tpMainWedNr
+        blUitHasResults(lkpPos) = False
+        blUitSubHasResults(lkpPos) = False
+      End If
+      'Mark that the main match has dependents with results
+      blUitSubHasResults(lkpPos) = True
+    End If
+  End If
+
+  rsWeds.MoveNext
+Loop
+
+
+
+appCleanRS rsWeds
+
+
+rxlProcessExpList_findWedsUit = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " rxlProcessExpList_findWedsUit" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_findWedsOp(ByRef nOpWeds As Integer, ByRef lOpWedNrs() As Long, ByRef lOpMainWedNrs() As Long, ByRef blOpHasDln() As Boolean, ByRef blOpSubHasDln() As Boolean) As Boolean
+On Error GoTo fout
+rxlProcessExpList_findWedsOp = False
+
+nOpWeds = 0
+
+Dim dStartDate As Date, dEndDate As Date
+dStartDate = Nz(DLookup("EL_WED_OP_StartDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+dEndDate = Nz(DLookup("EL_WED_OP_EndDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+
+If Not lenDateIsValid(dStartDate) Then
+  Err.Raise 1, , "Startdatum voor opstellingen is ongeldig"
+End If
+
+If Not lenDateIsValid(dEndDate) Then
+  Err.Raise 1, , "Einddatum voor opstellingen is ongeldig"
+End If
+
+
+
+Dim rsWeds As Recordset
+Set rsWeds = CurrentDb().OpenRecordset("select * from dtWedstrijden where [datum] >=#" & fmtDateSQL(dStartDate) & "# and [datum] <=#" & fmtDateSQL(dEndDate) & "#;")
+
+rsWeds.MoveFirst
+Do Until rsWeds.EOF
+
+  Dim tpWedNr As Long, tpMainWedNr As Long, tpIsMeet As Boolean
+  tpWedNr = Nz(rsWeds("wedstrijd nummer"))
+  tpMainWedNr = Nz(rsWeds("MainWedstrijdNummer"), -1)
+  tpIsMeet = Nz(rsWeds("IsPartOfMeet"))
+  
+  If (Not tpIsMeet) Then
+    tpMainWedNr = tpWedNr
+  ElseIf (tpMainWedNr <= 0) Then
+    tpIsMeet = False
+    tpMainWedNr = tpWedNr
+  End If
+  
+  'Need to check if there is a valid opstelling
+  
+  Dim blIsValid As Boolean
+  blIsValid = False
+  
+  
+  If (Not blIsValid) Then
+    Dim tpStart As String
+    tpStart = Nz(DFirst("Startnummer", "dtDeelnemers", "wedstrijdnr=" & tpWedNr))
+    If (tpStart <> "") Then
+      blIsValid = True
+    End If
+  End If
+  
+  
+  If (blIsValid) Then
+    'check to see if the wedstrijd is already present
+    Dim lkpPos As Integer
+    lkpPos = bSearchLong(tpWedNr, nOpWeds, lOpWedNrs)
+    If (lkpPos < 0) Then
+      'Need to add
+      If (nOpWeds > MAX_N_EXP_WEDS_OP) Then
+        Err.Raise 1, , "Te veel wedstrijden met opstellingen. Verklein datum bereik"
+      End If
+      lkpPos = insLong(tpWedNr, nOpWeds, lOpWedNrs)
+      
+      shiftRightLong lkpPos, 1, (nOpWeds - 1), lOpMainWedNrs
+      shiftRightBoolean lkpPos, 1, (nOpWeds - 1), blOpHasDln
+      shiftRightBoolean lkpPos, 1, (nOpWeds - 1), blOpSubHasDln
+      
+      lOpMainWedNrs(lkpPos) = tpMainWedNr
+      blOpHasDln(lkpPos) = False
+      blOpSubHasDln(lkpPos) = False
+    End If
+    'Mark that this match has deelnemers
+    blOpHasDln(lkpPos) = True
+    
+    If (tpMainWedNr <> tpWedNr) Then
+      'Need to mark that main wed nr has dependents that do admit deelnemers
+      lkpPos = bSearchLong(tpMainWedNr, nOpWeds, lOpWedNrs)
+      If (lkpPos < 0) Then
+        If (nOpWeds > MAX_N_EXP_WEDS_OP) Then
+          Err.Raise 1, , "Te veel wedstrijden met opstellingen. Verklein datum bereik"
+        End If
+        lkpPos = insLong(tpMainWedNr, nOpWeds, lOpWedNrs)
+        
+        shiftRightLong lkpPos, 1, (nOpWeds - 1), lOpMainWedNrs
+        shiftRightBoolean lkpPos, 1, (nOpWeds - 1), blOpHasDln
+        shiftRightBoolean lkpPos, 1, (nOpWeds - 1), blOpSubHasDln
+        
+        lOpMainWedNrs(lkpPos) = tpMainWedNr
+        blOpHasDln(lkpPos) = False
+        blOpSubHasDln(lkpPos) = False
+      End If
+      'Mark that the main match has dependents with deelnemers
+      blOpSubHasDln(lkpPos) = True
+    End If
+  End If
+    
+      
+  rsWeds.MoveNext
+Loop
+
+
+
+appCleanRS rsWeds
+
+rxlProcessExpList_findWedsOp = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " rxlProcessExpList_findWedsOp"
+Exit Function
+End Function
+
+
+Public Function rxlProcessExpList() As Boolean
+On Error GoTo fout
+rxlProcessExpList = False
+
+
+If Not rxlValidateExpList() Then
+  Exit Function
+End If
+
+
+If (MsgBox("Waarschuwing: Bij het exporteren van de rapporten in deze export-lijst kunnen er bestaande bestanden worden overschreven. " & vbCrLf & "Wilt u doorgaan?  ", vbOKCancel + vbQuestion) = vbCancel) Then
+  Exit Function
+End If
+
+
+
+Dim nOpWeds As Integer
+Dim lOpWedNrs(0 To MAX_N_EXP_WEDS_OP) As Long
+Dim lOpMainWedNrs(0 To MAX_N_EXP_WEDS_OP) As Long
+Dim blOpHasDlns(0 To MAX_N_EXP_WEDS_OP) As Boolean
+Dim blOpSubHasDlns(0 To MAX_N_EXP_WEDS_OP) As Boolean
+Dim blOpWedsFnd As Boolean
+
+Dim nUitWeds As Integer
+Dim lUitWedNrs(0 To MAX_N_EXP_WEDS_UIT) As Long
+Dim lUitMainWedNrs(0 To MAX_N_EXP_WEDS_UIT) As Long
+Dim blUitHasResults(0 To MAX_N_EXP_WEDS_UIT) As Boolean
+Dim blUitSubHasResults(0 To MAX_N_EXP_WEDS_UIT) As Boolean
+Dim blUitWedsFnd As Boolean
+
+blOpWedsFnd = False
+blUitWedsFnd = False
+
+
+
+
+'This function will process the stored export list.
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRptExpListCurExports")
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("select * from hsoRptExpListPars order by p_obj_id, p_id;")
+
+
+Dim skObjs As Recordset
+Dim skPars As Recordset
+
+Set skObjs = CurrentDb().OpenRecordset("hsoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+Set skPars = CurrentDb().OpenRecordset("hsoRptExpListCurPars")
+skPars.Index = "PrimaryKey"
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpExpID As Long
+  Dim tpRptObjID As Long
+  
+  Dim tpRcs As String, tpCnfName As String
+  Dim tpFmtObjID As Long, tpRXPFormat As Integer
+  Dim tpFName As String
+  
+  tpExpID = Nz(rs("EXP_ID"))
+  tpRptObjID = Nz(rs("EXP_RPT_OBJ_ID"), -1)
+  tpFmtObjID = Nz(rs("EXP_FMT_OBJ_ID"), -1)
+  tpFName = Nz(rs("EXP_FileName"))
+  tpRcs = Nz(rs("EXP_Recordset"))
+  tpCnfName = Nz(rs("EXP_CfgName"))
+  
+  
+  Dim tpRptObjTypeID As Long
+  tpRptObjTypeID = -1
+  
+  skObjs.Seek "=", tpRptObjID
+  If (Not skObjs.NoMatch) Then
+    tpRptObjTypeID = Nz(skObjs("RO_TYPE_ID"))
+  End If
+  
+  
+  
+  tpRXPFormat = rxlGetExportFormat(tpFmtObjID)
+  
+  Dim tpExtension As String
+  tpExtension = rxlGetExtension(tpFmtObjID)
+  If (Right(tpFName, 4) <> "." & tpExtension) Then
+    tpFName = tpFName & "." & tpExtension
+  End If
+  
+    
+  
+  
+  Dim nPars As Integer
+  Dim lParIDS(0 To 100) As Long
+  Dim sParValues(0 To 100) As String
+  
+  nPars = 0
+  
+   
+  'Now check the parameters
+  rsPars.FindFirst "P_OBJ_ID = " & tpRptObjID
+  
+  If (Not rsPars.NoMatch) Then
+    Dim blDone As Boolean
+    blDone = False
+    Do Until blDone
+    
+      Dim tpParID As Long
+      Dim tpParDefValue As String
+           
+      
+      tpParID = Nz(rsPars("P_ID"))
+      tpParDefValue = Nz(rsPars("P_DefaultValue"))
+            
+      skPars.Seek "=", tpParID, tpExpID
+      
+      Dim tpParValue As String
+      tpParValue = tpParDefValue
+      
+      If (Not skPars.NoMatch) Then
+        tpParValue = Nz(skPars("SP_Value"))
+      End If
+      
+      lParIDS(nPars) = tpParID
+      sParValues(nPars) = tpParValue
+      nPars = nPars + 1
+      
+      rsPars.MoveNext
+      If (rsPars.EOF) Then
+        blDone = True
+      Else
+        If (Nz(rsPars("P_OBJ_ID")) <> tpRptObjID) Then
+          blDone = True
+        End If
+      End If
+    Loop
+  End If 'if not rsPars.nomatch
+  
+  
+  'We now have all the information to process the report
+  
+  If (tpRptObjTypeID = RXL_TYPE_WED_OP_EXPORTS) Then
+    If (Not blOpWedsFnd) Then
+      If Not rxlProcessExpList_findWedsOp(nOpWeds, lOpWedNrs, lOpMainWedNrs, blOpHasDlns, blOpSubHasDlns) Then
+        Exit Function
+      End If
+      blOpWedsFnd = True
+    End If
+    
+    If Not rxlProcessExpList_processExportWed(nOpWeds, lOpWedNrs, lOpMainWedNrs, blOpHasDlns, blOpSubHasDlns, tpRptObjID, tpFName, tpRXPFormat, _
+      tpCnfName, tpRcs, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+    
+    
+  ElseIf (tpRptObjTypeID = RXL_TYPE_WED_UIT_EXPORTS) Then
+    If (Not blUitWedsFnd) Then
+      If Not rxlProcessExpList_findWedsUit(nUitWeds, lUitWedNrs, lUitMainWedNrs, blUitHasResults, blUitSubHasResults) Then
+        Exit Function
+      End If
+      blUitWedsFnd = True
+    End If
+    
+    If Not rxlProcessExpList_processExportWed(nUitWeds, lUitWedNrs, lUitMainWedNrs, blUitHasResults, blUitSubHasResults, tpRptObjID, tpFName, tpRXPFormat, _
+      tpCnfName, tpRcs, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+    
+  Else
+    If Not rxlProcessExpList_processExport(tpRptObjID, tpFName, tpRXPFormat, _
+      tpCnfName, tpRcs, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
+  End If
+
+
+  rs.MoveNext
+Loop
+
+
+
+
+rxlProcessExpList = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxlProcessExpList" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Private Function rxlValidateCheckFormat(ByVal rptObjID As Long, ByVal fmtObjID As Long, ByRef sInvMsg As String) As Boolean
+On Error GoTo fout
+rxlValidateCheckFormat = False
+Dim rxpFormat As Integer
+rxpFormat = rxlGetExportFormat(fmtObjID)
+
+Select Case rptObjID
+  Case RXL_OBJ_RPT_TYPE_STAT_SO
+    If (rxpFormat = RXP_FORMAT_XML) Then
+      Err.Raise 1, , "Xml wordt niet ondersteund voor dit object"
+    End If
+  Case RXL_OBJ_RPT_TYPE_STAT_VRT
+    If (rxpFormat = RXP_FORMAT_XML) Then
+      Err.Raise 1, , "Xml wordt niet ondersteund voor dit object"
+    End If
+
+End Select
+
+
+rxlValidateCheckFormat = True
+Exit Function
+
+fout:
+sInvMsg = Err & " rxlValidateCheckFormat" & vbCrLf & Error$
+Exit Function
+End Function
+
+
+Public Function rxlValidateExpList() As Boolean
+On Error GoTo fout
+rxlValidateExpList = False
+
+'This function will validate the stored export list.
+'It will check if all the arguments and parameters are present.
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRptExpListCurExports")
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("select * from hsoRptExpListPars order by p_obj_id;")
+
+
+Dim skObjs As Recordset
+Dim skPars As Recordset
+
+Set skObjs = CurrentDb().OpenRecordset("hsoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+Set skPars = CurrentDb().OpenRecordset("hsoRptExpListCurPars")
+skPars.Index = "PrimaryKey"
+
+Dim blWedOpDataChecked As Boolean
+Dim blWedUitDataChecked As Boolean
+
+blWedOpDataChecked = False
+blWedUitDataChecked = False
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpExpID As Long
+  Dim tpRptObjID As Long
+  
+  Dim tpRcs As String, tpCnfName As String
+  Dim tpFmtObjID As Long
+  Dim tpFName As String
+  
+  tpExpID = Nz(rs("EXP_ID"))
+  tpRptObjID = Nz(rs("EXP_RPT_OBJ_ID"), -1)
+  tpFmtObjID = Nz(rs("EXP_FMT_OBJ_ID"), -1)
+  tpFName = Nz(rs("EXP_FileName"))
+  tpRcs = Nz(rs("EXP_Recordset"))
+  tpCnfName = Nz(rs("EXP_CfgName"))
+  
+  
+  
+  If (tpFName = "") Then
+    Err.Raise 1, , "Er is een export zonder bestandsnaam."
+  End If
+  
+  If tpFmtObjID <= 0 Then
+    Err.Raise 1, , "Er is een ongeldig export formaat gekozen voor export-bestand: " & vbCrLf & tpFName
+  End If
+  
+  Dim sInvMsg As String
+  If Not rxlValidateCheckFormat(tpRptObjID, tpFmtObjID, sInvMsg) Then
+    Err.Raise 1, , "Er is een probleem opgetreden bij het export-bestand: " & vbCrLf & tpFName & vbCrLf & vbCrLf & sInvMsg
+  End If
+  
+  skObjs.Seek "=", tpRptObjID
+  
+  If (skObjs.NoMatch) Then
+    Err.Raise 1, , "Er is een ongeldig rapport-type gevonden voor export-bestand: " & vbCrLf & tpFName
+  End If
+  
+  Dim tpRptTypeID As Long
+  Dim tpRptNeedsRcs As Boolean, tpRptNeedsCfg As Boolean
+  tpRptNeedsRcs = Nz(skObjs("RO_NeedsRcs"))
+  tpRptNeedsCfg = Nz(skObjs("RO_NeedsCfg"))
+  tpRptTypeID = Nz(skObjs("RO_TYPE_ID"))
+  
+  
+  
+  If (tpRptNeedsRcs) And (tpRcs = "") Then
+    Err.Raise 1, , "Er is geen record-type geselecteerd voor export-bestand: " & vbCrLf & tpFName
+  End If
+  
+  If (tpRptNeedsCfg) Then
+    If (tpCnfName = "") Then
+      Err.Raise 1, , "Er is geen configuratie aangetroffen voor export-bestand: " & vbCrLf & tpFName
+    End If
+    Dim tpCfgObjID As Long
+    tpCfgObjID = Nz(DLookup("RO_Id", "hsoRptExpListObjects", "ro_description=""" & tpCnfName & """ and ro_type_id = " & tpRptObjID), -1)
+    If (tpCfgObjID = -1) Then
+      Err.Raise 1, , "Er is een onbekende configuratie aangetroffen voor export-bestand: " & vbCrLf & tpFName
+    End If
+  End If
+  
+  
+  If (tpRptTypeID = RXL_TYPE_WED_OP_EXPORTS) Then
+    If (Not blWedOpDataChecked) Then
+      Dim dOpStartDate As Date
+      Dim dOpEndDate As Date
+      dOpStartDate = Nz(DLookup("EL_WED_OP_StartDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+      dOpEndDate = Nz(DLookup("EL_WED_OP_EndDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+      
+      If (Not lenDateIsValid(dOpStartDate)) Then
+        Err.Raise 1, , "Startdatum voor opstellingen is ongeldig."
+      End If
+      
+      If (Not lenDateIsValid(dOpEndDate)) Then
+        Err.Raise 1, , "Einddatum voor opstellingen is ongeldig."
+      End If
+      
+      blWedOpDataChecked = True
+      
+    End If
+  ElseIf (tpRptTypeID = RXL_TYPE_WED_UIT_EXPORTS) Then
+   If (Not blWedUitDataChecked) Then
+      Dim dUitStartDate As Date
+      Dim dUitEndDate As Date
+      dUitStartDate = Nz(DLookup("EL_WED_UIT_StartDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+      dUitEndDate = Nz(DLookup("EL_WED_UIT_EndDate", "hsoRptExpListCurGlbSettings"), #1/1/1900#)
+      
+      If (Not lenDateIsValid(dUitStartDate)) Then
+        Err.Raise 1, , "Startdatum voor uitslagen is ongeldig."
+      End If
+      
+      If (Not lenDateIsValid(dUitEndDate)) Then
+        Err.Raise 1, , "Einddatum voor uitslagen is ongeldig."
+      End If
+      
+      blWedUitDataChecked = True
+      
+    End If
+  End If
+  
+  
+  
+  'Now check the parameters
+  rsPars.FindFirst "P_OBJ_ID = " & tpRptObjID
+  
+  If (Not rsPars.NoMatch) Then
+    Dim blDone As Boolean
+    blDone = False
+    Do Until blDone
+    
+      Dim tpParID As Long
+      Dim tpParType As Long
+      Dim tpParReq As Boolean
+      Dim tpParDefValue As String
+      Dim tpParDes As String
+      
+      
+      tpParID = Nz(rsPars("P_ID"))
+      tpParType = Nz(rsPars("P_Type"))
+      tpParReq = Nz(rsPars("P_Required"))
+      tpParDefValue = Nz(rsPars("P_DefaultValue"))
+      tpParDes = Nz(rsPars("P_Description"))
+      
+      
+      Dim tpParValue As String
+      tpParValue = ""
+      
+      skPars.Seek "=", tpParID, tpExpID
+      
+      If (skPars.NoMatch) Then
+        If (tpParReq And tpParDefValue = "") Then
+          Err.Raise 1, , "Parameter: " & vbCrLf & tpParDes & vbCrLf & "werd niet aangetroffen voor export-bestand: " & vbCrLf & tpFName
+        End If
+        tpParValue = tpParDefValue
+      Else
+        tpParValue = Nz(skPars("SP_Value"))
+      End If
+      
+      
+      
+      
+      If Not rxlIsParOK(tpParValue, tpParType, tpParReq, sInvMsg) Then
+        Err.Raise 1, , "De parameter: " & vbCrLf & tpParDes & vbCrLf & "voor export-bestand:" & vbCrLf & tpFName & vbCrLf & "is ongeldig om onderstaande reden: " & vbCrLf & vbCrLf & sInvMsg
+      End If
+      
+      rsPars.MoveNext
+      If (rsPars.EOF) Then
+        blDone = True
+      Else
+        If (Nz(rsPars("P_OBJ_ID")) <> tpRptObjID) Then
+          blDone = True
+        End If
+      End If
+    Loop
+  End If 'if not rsPars.nomatch
+
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS rsPars
+
+appCleanRS skObjs
+appCleanRS skPars
+
+
+
+rxlValidateExpList = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim msg As String
+msg = Err & " rxlValidateExpList" & vbCrLf & Error$
+
+appCleanRS rs
+appCleanRS rsPars
+
+appCleanRS skObjs
+appCleanRS skPars
+
+
+MsgBox msg, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+Private Function rxlProcessExpList_processExport_RecList(ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_RecList = False
+
+Dim dStartDate As Date, dEndDate As Date
+dStartDate = rxlProcessExpList_resolveDatePar(rxlProcessExpList_getParam(RXL_PAR_REC_LIST_START_DAT, nPars, lParIDS, sParValues))
+dEndDate = rxlProcessExpList_resolveDatePar(rxlProcessExpList_getParam(RXL_PAR_REC_LIST_END_DAT, nPars, lParIDS, sParValues))
+
+If (Not lenDateIsValid(dStartDate)) Then
+  Err.Raise 1, , "Startdatum ongeldig voor export-bestand: " & vbCrLf & sFileName
+End If
+
+If (Not lenDateIsValid(dEndDate)) Then
+  Err.Raise 1, , "Einddatum ongeldig voor export-bestand: " & vbCrLf & sFileName
+End If
+    
+If Not recBuildList(sRcsCode, dStartDate, dEndDate) Then
+  Exit Function
+End If
+
+Dim sListAf As String, sListSlag As String, sListCat As String, blSplitList As Boolean
+sListAf = rxlProcessExpList_getParam(RXL_PAR_REC_LIST_AFST, nPars, lParIDS, sParValues)
+sListSlag = rxlProcessExpList_getParam(RXL_PAR_REC_LIST_SLAG, nPars, lParIDS, sParValues)
+sListCat = rxlProcessExpList_getParam(RXL_PAR_REC_LIST_CAT, nPars, lParIDS, sParValues)
+blSplitList = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_LIST_SPLIT, nPars, lParIDS, sParValues))
+
+If Not rxpSetRecListOptions(sListAf, sListSlag, sListCat, blSplitList) Then
+  Exit Function
+End If
+
+
+If Not rxlProcessExpList_handleExport(REP_REC_LST, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_RecList = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_RecList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlProcessExpList_processExport_RecTableM(ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_RecTableM = False
+
+Dim dMarkDate As Date
+dMarkDate = rxlProcessExpList_resolveDatePar(rxlProcessExpList_getParam(RXL_PAR_REC_TB_HEREN_MARK_DATE, nPars, lParIDS, sParValues))
+
+Dim blIncludeMV As Boolean, blLandscape As Boolean, bl25And50 As Boolean
+
+blIncludeMV = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_HEREN_INC_MV, nPars, lParIDS, sParValues))
+blLandscape = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_HEREN_LANDSCAPE, nPars, lParIDS, sParValues))
+bl25And50 = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_HEREN_COMBINE_25_50, nPars, lParIDS, sParValues))
+
+
+If Not recBuildHolders(sRcsCode, dMarkDate) Then
+  Exit Function
+End If
+
+If Not rxpSetRecHoldersOptions(True, False, blIncludeMV, blLandscape, bl25And50, False, False) Then
+  Exit Function
+End If
+    
+Dim rptName As String
+
+If (blLandscape) Then
+  rptName = REP_REC_HLD_TAB_L
+Else
+  rptName = REP_REC_HLD_TAB
+End If
+
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_RecTableM = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_RecTableM" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function rxlProcessExpList_processExport_RecTableV(ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_RecTableV = False
+
+Dim dMarkDate As Date
+dMarkDate = rxlProcessExpList_resolveDatePar(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_MARK_DATE, nPars, lParIDS, sParValues))
+
+Dim blIncludeMV As Boolean, blLandscape As Boolean, bl25And50 As Boolean
+
+blIncludeMV = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_INC_MV, nPars, lParIDS, sParValues))
+blLandscape = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_LANDSCAPE, nPars, lParIDS, sParValues))
+bl25And50 = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_COMBINE_25_50, nPars, lParIDS, sParValues))
+
+
+If Not recBuildHolders(sRcsCode, dMarkDate) Then
+  Exit Function
+End If
+
+If Not rxpSetRecHoldersOptions(False, True, blIncludeMV, blLandscape, bl25And50, False, False) Then
+  Exit Function
+End If
+    
+Dim rptName As String
+
+If (blLandscape) Then
+  rptName = REP_REC_HLD_TAB_L
+Else
+  rptName = REP_REC_HLD_TAB
+End If
+
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_RecTableV = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_RecTableV" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlProcessExpList_processExport_RecHolders(ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_RecHolders = False
+
+Dim dMarkDate As Date
+dMarkDate = rxlProcessExpList_resolveDatePar(rxlProcessExpList_getParam(RXL_PAR_REC_HLD_MARK_DATE, nPars, lParIDS, sParValues))
+
+Dim blSortSlag As Boolean, blSmall As Boolean, blTwoCols As Boolean
+
+blSortSlag = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_HLD_SORT_SLAG, nPars, lParIDS, sParValues))
+blSmall = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_HLD_SMALL_FONT, nPars, lParIDS, sParValues))
+blTwoCols = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_HLD_TWO_COLS, nPars, lParIDS, sParValues))
+
+
+If Not recBuildHolders(sRcsCode, dMarkDate) Then
+  Exit Function
+End If
+
+If Not rxpSetRecHoldersOptions(False, False, False, False, False, blSmall, blSortSlag) Then
+  Exit Function
+End If
+    
+Dim rptName As String
+If (blSortSlag) Then
+  If (blTwoCols) Then
+    rptName = REP_REC_HLD_AFL_SMALL
+  Else
+    rptName = REP_REC_HLD_AFL
+  End If
+Else
+  rptName = REP_REC_HLD_CAT
+End If
+
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_RecHolders = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_RecHolders" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_processExport_RecHoldersCmp(ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_RecHoldersCmp = False
+
+Dim dMarkDate As Date
+dMarkDate = rxlProcessExpList_resolveDatePar(rxlProcessExpList_getParam(RXL_PAR_REC_HLD_MARK_DATE, nPars, lParIDS, sParValues))
+
+
+If Not recBuildHolders(sRcsCode, dMarkDate) Then
+  Exit Function
+End If
+
+    
+If Not rxlProcessExpList_handleExport(REP_REC_HLD_CMP, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_RecHoldersCmp = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_RecHoldersCmp" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_processExport_WedUitGlb(ByVal lWedNr As Long, ByVal lWedMainNr As Long, ByVal blWedHasRes As Boolean, ByVal blWedSubHasRes As Boolean, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_WedUitGlb = False
+
+Dim optUitEntireMeet As Boolean, optUitShowNG As Boolean, optUitShowNGZA As Boolean
+optUitEntireMeet = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_UIT_GLB_ENTIRE_MEET, nPars, lParIDS, sParValues))
+optUitShowNG = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_UIT_GLB_INC_NG, nPars, lParIDS, sParValues))
+optUitShowNGZA = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_UIT_GLB_INC_NGZA, nPars, lParIDS, sParValues))
+
+Dim blShouldProcess As Boolean
+blShouldProcess = True
+If (optUitEntireMeet And (lWedNr <> lWedMainNr)) Then
+  blShouldProcess = False
+ElseIf (Not optUitEntireMeet) And (Not blWedHasRes) Then
+  blShouldProcess = False
+End If
+
+    
+If (blShouldProcess) Then
+  If Not uitCreate(lWedNr, lWedMainNr, optUitEntireMeet, optUitShowNG, optUitShowNGZA) Then
+    Exit Function
+  End If
+  
+  If Not rxlProcessExpList_handleExport(REP_UIT, sFileName, iRXPFormat) Then
+    Exit Function
+  End If
+End If
+
+
+rxlProcessExpList_processExport_WedUitGlb = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_WedUitGlb" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlProcessExpList_processExport_WedUitPP(ByVal lWedNr As Long, ByVal lWedMainNr As Long, ByVal blWedHasRes As Boolean, ByVal blWedSubHasRes As Boolean, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_WedUitPP = False
+
+Dim optUitEntireMeet As Boolean, optUitShowNG As Boolean, optUitShowNGZA As Boolean
+optUitEntireMeet = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_UIT_PP_ENTIRE_MEET, nPars, lParIDS, sParValues))
+optUitShowNG = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_UIT_PP_INC_NG, nPars, lParIDS, sParValues))
+optUitShowNGZA = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_UIT_PP_INC_NGZA, nPars, lParIDS, sParValues))
+
+Dim blShouldProcess As Boolean
+blShouldProcess = True
+If (optUitEntireMeet And (lWedNr <> lWedMainNr)) Then
+  blShouldProcess = False
+ElseIf (Not optUitEntireMeet) And (Not blWedHasRes) Then
+  blShouldProcess = False
+End If
+
+    
+If (blShouldProcess) Then
+  If Not uitCreate(lWedNr, lWedMainNr, optUitEntireMeet, optUitShowNG, optUitShowNGZA) Then
+    Exit Function
+  End If
+  
+  If Not rxlProcessExpList_handleExport(REP_UIT_PP, sFileName, iRXPFormat) Then
+    Exit Function
+  End If
+End If
+
+
+rxlProcessExpList_processExport_WedUitPP = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_WedUitPP" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlProcessExpList_processExport_WedOp(ByVal lWedNr As Long, ByVal lWedMainNr As Long, ByVal blWedHasDlns As Boolean, ByVal blWedSubHasDlns As Boolean, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_WedOp = False
+
+
+    
+    
+Dim optSmallFont As Boolean, optHideStart As Boolean
+Dim optGrpDln As Boolean, optTwoCols As Boolean
+
+
+optGrpDln = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_OP_AAN_PER_DLN, nPars, lParIDS, sParValues))
+optSmallFont = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_OP_AAN_SMALL_FONT, nPars, lParIDS, sParValues))
+optTwoCols = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_OP_AAN_TWO_COLS, nPars, lParIDS, sParValues))
+optHideStart = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_WED_OP_AAN_HIDE_STARTNR, nPars, lParIDS, sParValues))
+
+If Not rxpSetAanschrijvingOptions(False, False, optSmallFont, optHideStart, False) Then
+  Exit Function
+End If
+
+
+If Not opBuildOpstelling(False, #1/1/1900#, #1/1/1900#, lWedNr, False, False) Then
+  Exit Function
+End If
+
+Dim rptName As String
+
+If optTwoCols Then
+  rptName = REP_AAN_SMALL
+ElseIf optGrpDln Then
+  rptName = REP_AAN_PER_DEELN
+Else
+  rptName = REP_AAN
+End If
+    
+
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_WedOp = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_WedOp" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_processExport_StatOVSN(ByVal sCfgName As String, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_StatOVSN = False
+
+Dim nAfSl As Integer
+Dim ordAf(0 To MAX_N_REC_AFSL) As String
+Dim ordSl(0 To MAX_N_REC_AFSL) As String
+Dim nWeds As Integer
+Dim ordWed(0 To 10000) As Long
+
+
+Dim snOpts As RXC_STAT_OV_SN_OPTS
+
+If Not rxcLoadStatOVSNOpts(sCfgName, snOpts, nAfSl, ordAf, ordSl, nWeds, ordWed) Then
+  Exit Function
+End If
+
+
+Dim rptName As String
+
+If Not timBuildList(True, snOpts.dPrimStartDate, snOpts.dPrimEndDate, snOpts.sPrimSeason, _
+  snOpts.blUseSecondary, snOpts.dSecStartDate, snOpts.dSecEndDate, snOpts.sSecSeason, _
+  snOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
+  snOpts.blRestrictLS, snOpts.lsCode, snOpts.blOnlyActive, snOpts.sStartnummer, snOpts.blRestrictWed, _
+  nWeds, ordWed, snOpts.blExcludeDis, snOpts.blExcludeTst) Then
+    Exit Function
+End If
+    
+'Now prepare the report
+    
+rptName = REP_SN
+ 
+If Not rxpSetTimeListOptions(snOpts.blShowLevel, -1, snOpts.blSortAchternaam, snOpts.blBoth25And50m, True) Then
+  Exit Function
+End If
+   
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_StatOVSN = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_StatOVSN" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_processExport_StatOVGT(ByVal sCfgName As String, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_StatOVGT = False
+
+Dim nAfSl As Integer
+Dim ordAf(0 To MAX_N_REC_AFSL) As String
+Dim ordSl(0 To MAX_N_REC_AFSL) As String
+Dim nWeds As Integer
+Dim ordWed(0 To 10000) As Long
+
+
+Dim snOpts As RXC_STAT_OV_GT_OPTS
+
+If Not rxcLoadStatOVGTOpts(sCfgName, snOpts, nAfSl, ordAf, ordSl, nWeds, ordWed) Then
+  Exit Function
+End If
+
+
+Dim rptName As String
+
+If Not timBuildList(False, snOpts.dAllStartdate, snOpts.dAllEnddate, "", False, #1/1/1900#, #1/1/1900#, "", _
+  snOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
+  snOpts.blRestrictLS, snOpts.lsCode, snOpts.blOnlyActive, snOpts.sStartnummer, snOpts.blRestrictWed, _
+  nWeds, ordWed, snOpts.blExcludeDis, snOpts.blExcludeTst) Then
+    Exit Function
+End If
+    
+'Now prepare the report
+    
+rptName = REP_GT
+ 
+If Not rxpSetTimeListOptions(snOpts.blShowLevel, snOpts.iMaxCnt, snOpts.blSortAchternaam, False, True) Then
+  Exit Function
+End If
+   
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_StatOVGT = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_StatOVGT" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_processExport_StatRnk(ByVal sCfgName As String, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_StatRnk = False
+
+Dim nAfSl As Integer
+Dim ordAf(0 To MAX_N_REC_AFSL) As String
+Dim ordSl(0 To MAX_N_REC_AFSL) As String
+Dim nWeds As Integer
+Dim ordWeds(0 To 10000) As Long
+Dim nLftCats As Integer
+Dim lftCats(0 To MAX_N_REC_AGES) As CAT_INFO
+
+
+Dim rnkOpts As RXC_STAT_RNK_OPTS
+
+If Not rxcLoadStatRnkOpts(sCfgName, rnkOpts, nAfSl, ordAf, ordSl, nWeds, ordWeds, nLftCats, lftCats) Then
+  Exit Function
+End If
+
+If Not rnkBuildRanking(rnkOpts.dStartDate, rnkOpts.dEndDate, rnkOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
+  rnkOpts.blUseLft, nLftCats, lftCats, rnkOpts.blRestrictLS, rnkOpts.lsCode, rnkOpts.blOnlyActive, rnkOpts.blRestrictWed, _
+  nWeds, ordWeds, _
+  rnkOpts.blInclude25m, rnkOpts.blInclude50m, PNT_VRT_MODE_NONE, rnkOpts.blExcludeTst, rnkOpts.blExcludeDis, _
+  rnkOpts.dRnkLimit, rnkOpts.blIncludeM, rnkOpts.blIncludeV, rnkOpts.blRnkRestrictLevel, rnkOpts.sRnkMinLevel, rnkOpts.sRnkMaxLevel) Then
+    Exit Function
+End If
+    
+    
+If Not rxpSetRnkOptions("", rnkOpts.blRnkShowLevel, rnkOpts.iMaxRnk, False) Then
+  Exit Function
+End If
+    
+    
+Dim rptName As String
+'Now prepare the report
+If (rnkOpts.blRnkSmall) Then
+  rptName = REP_RNK_SMALL
+Else
+  rptName = REP_RNK
+End If
+
+
+
+  
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_StatRnk = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_StatRnk" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_processExport_StatSO(ByVal sCfgName As String, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_StatSO = False
+
+Dim nAfSl As Integer
+Dim ordAf(0 To MAX_N_REC_AFSL) As String
+Dim ordSl(0 To MAX_N_REC_AFSL) As String
+Dim nWeds As Integer
+Dim ordWeds(0 To 10000) As Long
+Dim nLftCats As Integer
+Dim lftCats(0 To MAX_N_REC_AGES) As CAT_INFO
+
+
+Dim soOpts As RXC_STAT_SO_OPTS
+
+If Not rxcLoadStatSOOpts(sCfgName, soOpts, nAfSl, ordAf, ordSl, nWeds, ordWeds, nLftCats, lftCats) Then
+  Exit Function
+End If
+
+If Not rnkBuildRanking(soOpts.dStartDate, soOpts.dEndDate, soOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
+  soOpts.blUseLft, nLftCats, lftCats, soOpts.blRestrictLS, soOpts.lsCode, soOpts.blOnlyActive, soOpts.blRestrictWed, _
+  nWeds, ordWeds, _
+  soOpts.blInclude25m, soOpts.blInclude50m, soOpts.iSOPntMode, soOpts.blExcludeTst, soOpts.blExcludeDis, _
+  0, soOpts.blIncludeM, soOpts.blIncludeV, False, "", "") Then
+    Exit Function
+End If
+    
+    
+If Not rxpSetRnkOptions(soOpts.sSOTitle, False, soOpts.iMaxRnk, soOpts.blSoSortAchternaam) Then
+  Exit Function
+End If
+    
+    
+Dim rptName As String
+'Now prepare the report
+rptName = REP_SO
+
+
+
+  
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_StatSO = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_StatSO" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxlProcessExpList_processExport_StatPRC(ByVal sCfgName As String, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_StatPRC = False
+
+Dim nAfSl As Integer
+Dim ordAf(0 To MAX_N_REC_AFSL) As String
+Dim ordSl(0 To MAX_N_REC_AFSL) As String
+
+Dim prcOpts As RXC_STAT_PRC_OPTS
+
+If Not rxcLoadStatPRCOpts(sCfgName, prcOpts, nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+
+
+
+If Not lenDateIsValid(prcOpts.dStartDate) Then
+  Err.Raise 1, , "Fout bij exporteren van pr competitie naar " & vbCrLf & sFileName & vbCrLf & vbCrLf & "Startdatum niet ingevuld."
+End If
+
+If Not lenDateIsValid(prcOpts.dEndDate) Then
+  Err.Raise 1, , "Fout bij exporteren van pr competitie naar " & vbCrLf & sFileName & vbCrLf & vbCrLf & "Einddatum niet ingevuld."
+End If
+
+If Not prCount(prcOpts.dStartDate, prcOpts.dEndDate, prcOpts.blSepRecords50m, prcOpts.blRestrictAfSl, nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+    
+Dim blShowDetails As Boolean
+blShowDetails = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_STAT_PRC_SHOW_DETAIL, nPars, lParIDS, sParValues))
+    
+If Not rxpSetPRCompOptions(prcOpts.iSortOrder, blShowDetails) Then
+  Exit Function
+End If
+    
+    
+Dim rptName As String
+rptName = REP_PRs
+
+
+
+  
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_StatPRC = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_StatPRC" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxlProcessExpList_processExport_StatVRT(ByVal sCfgName As String, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_StatVRT = False
+
+Dim nAfSl As Integer
+Dim ordAf(0 To MAX_N_REC_AFSL) As String
+Dim ordSl(0 To MAX_N_REC_AFSL) As String
+
+Dim nLftCats As Integer
+Dim lftCats(0 To MAX_N_REC_AGES) As CAT_INFO
+
+Dim vrtOpts As RXC_STAT_VRT_OPTS
+
+If Not rxcLoadStatVRTOpts(sCfgName, vrtOpts, nAfSl, ordAf, ordSl, nLftCats, lftCats) Then
+  Exit Function
+End If
+
+
+
+If Not lenDateIsValid(vrtOpts.dStartDate) Then
+  Err.Raise 1, , "Fout bij exporteren van vooruitgangs competitie naar " & vbCrLf & sFileName & vbCrLf & vbCrLf & "Startdatum niet ingevuld."
+End If
+
+If Not lenDateIsValid(vrtOpts.dEndDate) Then
+  Err.Raise 1, , "Fout bij exporteren van vooruitgangs competitie naar " & vbCrLf & sFileName & vbCrLf & vbCrLf & "Einddatum niet ingevuld."
+End If
+
+
+Dim blApart50m As Boolean
+blApart50m = False
+
+If Not timCalcVooruitgang(vrtOpts.dRefdate, vrtOpts.dStartDate, vrtOpts.dEndDate, blApart50m, vrtOpts.iVrtMode, _
+  vrtOpts.blUseLft, nLftCats, lftCats, vrtOpts.blRestrictLS, vrtOpts.lsCode, _
+  vrtOpts.blRestrictAfSl, nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxpSetVooruitgangOptions(vrtOpts.sTitle) Then
+  Exit Function
+End If
+  
+  
+Dim blShowDetails As Boolean
+blShowDetails = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_STAT_PRC_SHOW_DETAIL, nPars, lParIDS, sParValues))
+    
+   
+Dim rptName As String
+If (blShowDetails) Then
+  rptName = REP_VrtDet
+Else
+  rptName = REP_Vrt
+End If
+  
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_StatVRT = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_StatVRT" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+Private Function rxcReadOrdWedList(ByRef dsData As DIR_SERVER_DATA, ByVal sListBase As String, ByRef nWeds As Integer, ByRef lOrdWed() As Long) As Boolean
+On Error GoTo fout
+rxcReadOrdWedList = False
+
+
+Dim sPropValue As String
+Dim blExists As Boolean, lDummy As Long
+
+nWeds = 0
+
+If Not dsLookupPropertyByName(dsData, sListBase & "\N_WEDS", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+
+If (blExists) Then
+  nWeds = CInt(sPropValue)
+  
+  Dim i As Integer
+  For i = 0 To nWeds - 1
+    If Not dsLookupPropertyByName(dsData, sListBase & "\WED_" & i & "_NR", blExists, sPropValue, lDummy) Then
+      Exit Function
+    End If
+    If (blExists) Then
+      lOrdWed(i) = CLng(sPropValue)
+    End If
+    
+  Next i
+  
+End If 'if blExists
+
+
+rxcReadOrdWedList = True
+Exit Function
+
+fout:
+MsgBox Err & " rxcReadOrdWedList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxcWriteOrdWedList(ByRef dsData As DIR_SERVER_DATA, ByVal sListBase As String, ByVal nWeds As Integer, ByRef lOrdWed() As Long) As Boolean
+On Error GoTo fout
+rxcWriteOrdWedList = False
+
+
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+
+sPropValue = CStr(nWeds)
+If Not dsSetPropertyByName(dsData, sListBase & "\N_WEDS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nWeds - 1
+  sPropValue = CStr(lOrdWed(i))
+  If Not dsSetPropertyByName(dsData, sListBase & "\WED_" & i & "_NR", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+Next i
+
+rxcWriteOrdWedList = True
+Exit Function
+
+fout:
+MsgBox Err & " rxcWriteOrdWedList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxcReadCatList(ByRef dsData As DIR_SERVER_DATA, ByVal sListBase As String, ByRef nLftCats As Integer, ByRef lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcReadCatList = False
+
+
+Dim sPropValue As String
+Dim blExists As Boolean, lDummy As Long
+
+nLftCats = 0
+
+If Not dsLookupPropertyByName(dsData, sListBase & "\N_CATS", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+
+If (blExists) Then
+  nLftCats = CInt(sPropValue)
+  
+  Dim i As Integer
+  For i = 0 To nLftCats - 1
+    If Not dsLookupPropertyByName(dsData, sListBase & "\CAT_" & i & "_CAT", blExists, sPropValue, lDummy) Then
+      Exit Function
+    End If
+    If (blExists) Then
+      lftCats(i).cat = sPropValue
+    End If
+    
+    If Not dsLookupPropertyByName(dsData, sListBase & "\CAT_" & i & "_DES", blExists, sPropValue, lDummy) Then
+      Exit Function
+    End If
+    If (blExists) Then
+      lftCats(i).bescat = sPropValue
+    End If
+  Next i
+
+  
+End If 'if blExists
+
+
+rxcReadCatList = True
+Exit Function
+
+fout:
+MsgBox Err & " rxcReadCatList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxcWriteCatList(ByRef dsData As DIR_SERVER_DATA, ByVal sListBase As String, ByVal nLftCats As Integer, ByRef lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcWriteCatList = False
+
+
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+
+sPropValue = CStr(nLftCats)
+If Not dsSetPropertyByName(dsData, sListBase & "\N_CATS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nLftCats - 1
+  sPropValue = Trim(lftCats(i).cat)
+  If Not dsSetPropertyByName(dsData, sListBase & "\CAT_" & i & "_CAT", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  sPropValue = Trim(lftCats(i).bescat)
+  If Not dsSetPropertyByName(dsData, sListBase & "\CAT_" & i & "_DES", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+Next i
+
+rxcWriteCatList = True
+Exit Function
+
+fout:
+MsgBox Err & " rxcWriteCatList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function rxcReadOrdAfSlList(ByRef dsData As DIR_SERVER_DATA, ByVal sListBase As String, ByRef nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String) As Boolean
+On Error GoTo fout
+rxcReadOrdAfSlList = False
+
+
+Dim sPropValue As String
+Dim blExists As Boolean, lDummy As Long
+
+nAfSl = 0
+
+If Not dsLookupPropertyByName(dsData, sListBase & "\N_AFSL", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+
+If (blExists) Then
+  nAfSl = CInt(sPropValue)
+  
+  Dim i As Integer
+  For i = 0 To nAfSl - 1
+    If Not dsLookupPropertyByName(dsData, sListBase & "\AFSL_" & i & "_AF", blExists, sPropValue, lDummy) Then
+      Exit Function
+    End If
+    If (blExists) Then
+      ordAf(i) = sPropValue
+    End If
+    
+    If Not dsLookupPropertyByName(dsData, sListBase & "\AFSL_" & i & "_SL", blExists, sPropValue, lDummy) Then
+      Exit Function
+    End If
+    If (blExists) Then
+      ordSl(i) = sPropValue
+    End If
+  Next i
+
+  
+End If 'if blExists
+
+
+rxcReadOrdAfSlList = True
+Exit Function
+
+fout:
+MsgBox Err & " rxcReadOrdAfSlList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function rxcWriteOrdAfSlList(ByRef dsData As DIR_SERVER_DATA, ByVal sListBase As String, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String) As Boolean
+On Error GoTo fout
+rxcWriteOrdAfSlList = False
+
+
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+
+sPropValue = CStr(nAfSl)
+If Not dsSetPropertyByName(dsData, sListBase & "\N_AFSL", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nAfSl - 1
+  sPropValue = ordAf(i)
+  If Not dsSetPropertyByName(dsData, sListBase & "\AFSL_" & i & "_AF", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  sPropValue = ordSl(i)
+  If Not dsSetPropertyByName(dsData, sListBase & "\AFSL_" & i & "_SL", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+Next i
+
+rxcWriteOrdAfSlList = True
+Exit Function
+
+fout:
+MsgBox Err & " rxcWriteOrdAfSlList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+Public Function rxcMayDeleteMultiple(ByRef cfgNames() As String, ByRef cfgTypeIDs() As Long, ByRef cfgDelete() As Boolean, ByVal nCfgs As Integer) As Boolean
+On Error GoTo fout
+rxcMayDeleteMultiple = False
+
+
+'Handle multiple deletions
+
+
+
+
+
+
+Dim blIsFirstDeletion As Boolean
+Dim blDeleteIsCancelled As Boolean
+
+blIsFirstDeletion = True
+blDeleteIsCancelled = False
+
+
+
+Dim i As Integer
+For i = 0 To nCfgs - 1
+
+  cfgDelete(i) = True
+
+  If (blIsFirstDeletion) Then
+  
+    blIsFirstDeletion = False
+    If (MsgBox("Geselecteerde configuratie(s) verwijderen?", vbOKCancel + vbQuestion) = vbCancel) Then
+      blDeleteIsCancelled = True
+    End If
+  End If
+
+  If (blDeleteIsCancelled) Then
+    cfgDelete(i) = False
+  End If 'if blDeleteIsCancelled
+  
+Next i
+
+
+
+
+
+rxcMayDeleteMultiple = True
+Exit Function
+fout:
+MsgBox Err & " rxcMayDeleteMultiple " & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxcDeleteConfig(sCfgName As String, lCfgType As Long) As Boolean
+On Error GoTo fout
+rxcDeleteConfig = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If Not rxciCfgDelete(dsData, lCfgType, sCfgName) Then
+  Exit Function
+End If
+
+dsClean dsData
+
+rxcDeleteConfig = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " rxcDeleteConfig" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+Public Function rxcStoreStatOVSNOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_OV_SN_OPTS, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByVal nWeds As Integer, ByRef ordWed() As Long) As Boolean
+On Error GoTo fout
+rxcStoreStatOVSNOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If (sOptsName = "") Then
+  Err.Raise 1, , "Kies een naam"
+End If
+
+
+If Not rxciCfgDelete(dsData, RXL_OBJ_RPT_TYPE_STAT_OV_SN, sOptsName) Then
+  Exit Function
+End If
+
+
+If Not rxciCfgAdd(dsData, RXL_OBJ_RPT_TYPE_STAT_OV_SN, sOptsName) Then
+  Exit Function
+End If
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_OV_SN & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to store the data
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+
+
+sPropValue = rxpFormatDateNL(rxcOpts.dPrimStartDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dPrimStartDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dPrimEndDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dPrimEndDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sPrimSeason
+If Not dsSetPropertyByName(dsData, sBaseName & "sPrimSeason", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blUseSecondary)
+If Not dsSetPropertyByName(dsData, sBaseName & "blUseSecondary", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dSecStartDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dSecStartDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dSecEndDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dSecEndDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sSecSeason
+If Not dsSetPropertyByName(dsData, sBaseName & "sSecSeason", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictAfSl)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictAfSl", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictLS)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictLS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.lsCode)
+If Not dsSetPropertyByName(dsData, sBaseName & "lsCode", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blOnlyActive)
+If Not dsSetPropertyByName(dsData, sBaseName & "blOnlyActive", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sStartnummer
+If Not dsSetPropertyByName(dsData, sBaseName & "sStartnummer", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictWed)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictWed", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeDis)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeDis", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeTst)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeTst", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blShowLevel)
+If Not dsSetPropertyByName(dsData, sBaseName & "blShowLevel", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blSortAchternaam)
+If Not dsSetPropertyByName(dsData, sBaseName & "blSortAchternaam", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blBoth25And50m)
+If Not dsSetPropertyByName(dsData, sBaseName & "blBoth25And50m", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+  
+  
+If Not rxcWriteOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcWriteOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+  
+dsClean dsData
+
+rxcStoreStatOVSNOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcStoreStatOVSNOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Public Function rxcLoadStatOVSNOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_OV_SN_OPTS, ByRef nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByRef nWeds As Integer, ByRef ordWed() As Long) As Boolean
+On Error GoTo fout
+rxcLoadStatOVSNOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim blExists As Boolean
+If Not rxciCfgExists(RXL_OBJ_RPT_TYPE_STAT_OV_SN, sOptsName, dsData, blExists) Then
+  Exit Function
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende opties niet vinden: " & vbCrLf & sOptsName
+End If
+
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_OV_SN & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to store the data
+Dim sPropValue As String
+Dim lDummy As Long
+
+
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dPrimStartDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dPrimStartDate = rxpParseDateNL(sPropValue)
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dPrimEndDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dPrimEndDate = rxpParseDateNL(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sPrimSeason", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sPrimSeason = sPropValue
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blUseSecondary", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blUseSecondary = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dSecStartDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dSecStartDate = rxpParseDateNL(sPropValue)
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dSecEndDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dSecEndDate = rxpParseDateNL(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sSecSeason", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sSecSeason = sPropValue
+
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictAfSl", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictAfSl = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictLS", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictLS = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "lsCode", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.lsCode = CLng(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blOnlyActive", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blOnlyActive = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sStartnummer", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sStartnummer = sPropValue
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictWed", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictWed = rxpParseBoolean(sPropValue)
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeDis", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeDis = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeTst", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeTst = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blShowLevel", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blShowLevel = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blSortAchternaam", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blSortAchternaam = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blBoth25And50m", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blBoth25And50m = rxpParseBoolean(sPropValue)
+
+
+  
+  
+If Not rxcReadOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcReadOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+
+
+
+
+
+dsClean dsData
+
+rxcLoadStatOVSNOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcLoadStatOVSNOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+
+Public Function rxcStoreStatOVGTOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_OV_GT_OPTS, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByVal nWeds As Integer, ByRef ordWed() As Long) As Boolean
+On Error GoTo fout
+rxcStoreStatOVGTOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If (sOptsName = "") Then
+  Err.Raise 1, , "Kies een naam"
+End If
+
+
+If Not rxciCfgDelete(dsData, RXL_OBJ_RPT_TYPE_STAT_OV_GT, sOptsName) Then
+  Exit Function
+End If
+
+
+If Not rxciCfgAdd(dsData, RXL_OBJ_RPT_TYPE_STAT_OV_GT, sOptsName) Then
+  Exit Function
+End If
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_OV_GT & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to store the data
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+
+
+sPropValue = rxpFormatDateNL(rxcOpts.dAllStartdate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dAllStartDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dAllEnddate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dAllEndDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.iMaxCnt)
+If Not dsSetPropertyByName(dsData, sBaseName & "iMaxCnt", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictAfSl)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictAfSl", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictLS)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictLS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.lsCode)
+If Not dsSetPropertyByName(dsData, sBaseName & "lsCode", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blOnlyActive)
+If Not dsSetPropertyByName(dsData, sBaseName & "blOnlyActive", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sStartnummer
+If Not dsSetPropertyByName(dsData, sBaseName & "sStartnummer", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictWed)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictWed", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeDis)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeDis", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeTst)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeTst", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blShowLevel)
+If Not dsSetPropertyByName(dsData, sBaseName & "blShowLevel", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blSortAchternaam)
+If Not dsSetPropertyByName(dsData, sBaseName & "blSortAchternaam", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+  
+  
+If Not rxcWriteOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcWriteOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+  
+dsClean dsData
+
+rxcStoreStatOVGTOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcStoreStatOVGTOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Public Function rxcLoadStatOVGTOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_OV_GT_OPTS, ByRef nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByRef nWeds As Integer, ByRef ordWed() As Long) As Boolean
+On Error GoTo fout
+rxcLoadStatOVGTOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim blExists As Boolean
+If Not rxciCfgExists(RXL_OBJ_RPT_TYPE_STAT_OV_GT, sOptsName, dsData, blExists) Then
+  Exit Function
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende opties niet vinden: " & vbCrLf & sOptsName
+End If
+
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_OV_GT & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to load the data
+Dim sPropValue As String
+Dim lDummy As Long
+
+
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dAllStartDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dAllStartdate = rxpParseDateNL(sPropValue)
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dAllEndDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dAllEnddate = rxpParseDateNL(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "iMaxCnt", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.iMaxCnt = CInt(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictAfSl", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictAfSl = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictLS", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictLS = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "lsCode", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.lsCode = CLng(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blOnlyActive", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blOnlyActive = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sStartnummer", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sStartnummer = sPropValue
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictWed", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictWed = rxpParseBoolean(sPropValue)
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeDis", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeDis = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeTst", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeTst = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blShowLevel", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blShowLevel = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blSortAchternaam", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blSortAchternaam = rxpParseBoolean(sPropValue)
+
+
+ 
+  
+If Not rxcReadOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcReadOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+
+
+
+
+
+dsClean dsData
+
+rxcLoadStatOVGTOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcLoadStatOVGTOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+
+
+Public Function rxcStoreStatRnkOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_RNK_OPTS, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByVal nWeds As Integer, ByRef ordWed() As Long, ByVal nLftCat As Integer, ByRef lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcStoreStatRnkOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If (sOptsName = "") Then
+  Err.Raise 1, , "Kies een naam"
+End If
+
+
+If Not rxciCfgDelete(dsData, RXL_OBJ_RPT_TYPE_STAT_RNK, sOptsName) Then
+  Exit Function
+End If
+
+
+If Not rxciCfgAdd(dsData, RXL_OBJ_RPT_TYPE_STAT_RNK, sOptsName) Then
+  Exit Function
+End If
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_RNK & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to store the data
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+  
+  
+
+
+sPropValue = rxpFormatDateNL(rxcOpts.dStartDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dStartDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dEndDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dEndDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRnkSmall)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRnkSmall", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRnkShowLevel)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRnkShowLevel", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRnkRestrictLevel)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRnkRestrictLevel", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sRnkMinLevel
+If Not dsSetPropertyByName(dsData, sBaseName & "sRnkMinLevel", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sRnkMaxLevel
+If Not dsSetPropertyByName(dsData, sBaseName & "sRnkMaxLevel", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+ 
+sPropValue = fmtSwimTime(rxcOpts.dRnkLimit)
+If Not dsSetPropertyByName(dsData, sBaseName & "dRnkLimit", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = CStr(rxcOpts.iMaxRnk)
+If Not dsSetPropertyByName(dsData, sBaseName & "iMaxRnk", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blInclude25m)
+If Not dsSetPropertyByName(dsData, sBaseName & "blInclude25m", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blInclude50m)
+If Not dsSetPropertyByName(dsData, sBaseName & "blInclude50m", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blIncludeM)
+If Not dsSetPropertyByName(dsData, sBaseName & "blIncludeM", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blIncludeV)
+If Not dsSetPropertyByName(dsData, sBaseName & "blIncludeV", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeTst)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeTst", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeDis)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeDis", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictLS)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictLS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.lsCode)
+If Not dsSetPropertyByName(dsData, sBaseName & "lsCode", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blOnlyActive)
+If Not dsSetPropertyByName(dsData, sBaseName & "blOnlyActive", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictAfSl)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictAfSl", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictWed)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictWed", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blUseLft)
+If Not dsSetPropertyByName(dsData, sBaseName & "blUseLft", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+  
+  
+If Not rxcWriteOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcWriteOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+
+If Not rxcWriteCatList(dsData, sBaseName & "CatList", nLftCat, lftCats) Then
+  Exit Function
+End If
+
+
+  
+dsClean dsData
+
+rxcStoreStatRnkOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcStoreStatRnkOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Public Function rxcLoadStatRnkOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_RNK_OPTS, ByRef nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByRef nWeds As Integer, ByRef ordWed() As Long, ByRef nLftCats As Integer, ByRef lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcLoadStatRnkOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim blExists As Boolean
+If Not rxciCfgExists(RXL_OBJ_RPT_TYPE_STAT_RNK, sOptsName, dsData, blExists) Then
+  Exit Function
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende opties niet vinden: " & vbCrLf & sOptsName
+End If
+
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_RNK & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to load the data
+Dim sPropValue As String
+Dim lDummy As Long
+
+
+
+
+
+  
+
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "dStartDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dStartDate = rxpParseDateNL(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dEndDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dEndDate = rxpParseDateNL(sPropValue)
+
+
+
+
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRnkSmall", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRnkSmall = rxpParseBoolean(sPropValue)
+  
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRnkShowLevel", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRnkShowLevel = rxpParseBoolean(sPropValue)
+  
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRnkRestrictLevel", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRnkRestrictLevel = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sRnkMinLevel", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sRnkMinLevel = sPropValue
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sRnkMaxLevel", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sRnkMaxLevel = sPropValue
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dRnkLimit", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dRnkLimit = parseTijd(sPropValue)
+
+
+
+  
+
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "iMaxRnk", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.iMaxRnk = CInt(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blInclude25m", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blInclude25m = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blInclude50m", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blInclude50m = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blIncludeM", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blIncludeM = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blIncludeV", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blIncludeV = rxpParseBoolean(sPropValue)
+
+
+  
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeTst", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeTst = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeDis", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeDis = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictLS", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictLS = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "lsCode", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.lsCode = CLng(sPropValue)
+
+
+ 
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blOnlyActive", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blOnlyActive = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictAfSl", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictAfSl = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictWed", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictWed = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blUseLft", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blUseLft = rxpParseBoolean(sPropValue)
+
+ 
+  
+If Not rxcReadOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcReadOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+
+If Not rxcReadCatList(dsData, sBaseName & "CatList", nLftCats, lftCats) Then
+  Exit Function
+End If
+
+
+
+
+
+dsClean dsData
+
+rxcLoadStatRnkOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcLoadStatRnkOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+
+
+Public Function rxcStoreStatSOOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_SO_OPTS, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByVal nWeds As Integer, ByRef ordWed() As Long, ByVal nLftCat As Integer, ByRef lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcStoreStatSOOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If (sOptsName = "") Then
+  Err.Raise 1, , "Kies een naam"
+End If
+
+
+If Not rxciCfgDelete(dsData, RXL_OBJ_RPT_TYPE_STAT_SO, sOptsName) Then
+  Exit Function
+End If
+
+
+If Not rxciCfgAdd(dsData, RXL_OBJ_RPT_TYPE_STAT_SO, sOptsName) Then
+  Exit Function
+End If
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_SO & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to store the data
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+  
+  
+
+
+sPropValue = rxpFormatDateNL(rxcOpts.dStartDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dStartDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dEndDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dEndDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.iSOPntMode)
+If Not dsSetPropertyByName(dsData, sBaseName & "iSOPntMode", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sSOTitle
+If Not dsSetPropertyByName(dsData, sBaseName & "sSOTitle", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blSoSortAchternaam)
+If Not dsSetPropertyByName(dsData, sBaseName & "blSOSortAchternaam", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+
+sPropValue = CStr(rxcOpts.iMaxRnk)
+If Not dsSetPropertyByName(dsData, sBaseName & "iMaxRnk", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blInclude25m)
+If Not dsSetPropertyByName(dsData, sBaseName & "blInclude25m", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blInclude50m)
+If Not dsSetPropertyByName(dsData, sBaseName & "blInclude50m", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blIncludeM)
+If Not dsSetPropertyByName(dsData, sBaseName & "blIncludeM", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blIncludeV)
+If Not dsSetPropertyByName(dsData, sBaseName & "blIncludeV", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeTst)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeTst", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blExcludeDis)
+If Not dsSetPropertyByName(dsData, sBaseName & "blExcludeDis", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictLS)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictLS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.lsCode)
+If Not dsSetPropertyByName(dsData, sBaseName & "lsCode", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blOnlyActive)
+If Not dsSetPropertyByName(dsData, sBaseName & "blOnlyActive", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictAfSl)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictAfSl", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictWed)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictWed", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blUseLft)
+If Not dsSetPropertyByName(dsData, sBaseName & "blUseLft", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+  
+  
+If Not rxcWriteOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcWriteOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+
+If Not rxcWriteCatList(dsData, sBaseName & "CatList", nLftCat, lftCats) Then
+  Exit Function
+End If
+
+
+  
+dsClean dsData
+
+rxcStoreStatSOOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcStoreStatSOOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Public Function rxcLoadStatSOOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_SO_OPTS, ByRef nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByRef nWeds As Integer, ByRef ordWed() As Long, ByRef nLftCats As Integer, ByRef lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcLoadStatSOOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim blExists As Boolean
+If Not rxciCfgExists(RXL_OBJ_RPT_TYPE_STAT_SO, sOptsName, dsData, blExists) Then
+  Exit Function
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende opties niet vinden: " & vbCrLf & sOptsName
+End If
+
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_SO & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to load the data
+Dim sPropValue As String
+Dim lDummy As Long
+
+
+
+
+
+  
+
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "dStartDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dStartDate = rxpParseDateNL(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dEndDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dEndDate = rxpParseDateNL(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "iSOPntMode", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.iSOPntMode = CInt(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sSOTitle", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sSOTitle = sPropValue
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blSOSortAchternaam", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blSoSortAchternaam = rxpParseBoolean(sPropValue)
+
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "iMaxRnk", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.iMaxRnk = CInt(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blInclude25m", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blInclude25m = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blInclude50m", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blInclude50m = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blIncludeM", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blIncludeM = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blIncludeV", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blIncludeV = rxpParseBoolean(sPropValue)
+
+
+  
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeTst", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeTst = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blExcludeDis", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blExcludeDis = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictLS", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictLS = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "lsCode", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.lsCode = CLng(sPropValue)
+
+
+ 
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blOnlyActive", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blOnlyActive = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictAfSl", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictAfSl = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictWed", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictWed = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blUseLft", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blUseLft = rxpParseBoolean(sPropValue)
+
+ 
+  
+If Not rxcReadOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+If Not rxcReadOrdWedList(dsData, sBaseName & "WedList", nWeds, ordWed) Then
+  Exit Function
+End If
+
+If Not rxcReadCatList(dsData, sBaseName & "CatList", nLftCats, lftCats) Then
+  Exit Function
+End If
+
+dsClean dsData
+
+rxcLoadStatSOOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcLoadStatSOOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+
+Public Function rxcStoreStatPRCOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_PRC_OPTS, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String) As Boolean
+On Error GoTo fout
+rxcStoreStatPRCOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If (sOptsName = "") Then
+  Err.Raise 1, , "Kies een naam"
+End If
+
+
+If Not rxciCfgDelete(dsData, RXL_OBJ_RPT_TYPE_STAT_PRC, sOptsName) Then
+  Exit Function
+End If
+
+
+If Not rxciCfgAdd(dsData, RXL_OBJ_RPT_TYPE_STAT_PRC, sOptsName) Then
+  Exit Function
+End If
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_PRC & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to store the data
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+
+sPropValue = rxpFormatDateNL(rxcOpts.dStartDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dStartDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dEndDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dEndDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.iSortOrder)
+If Not dsSetPropertyByName(dsData, sBaseName & "iSortOrder", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blSepRecords50m)
+If Not dsSetPropertyByName(dsData, sBaseName & "blSepRecords50m", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictAfSl)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictAfSl", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+  
+If Not rxcWriteOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+  
+dsClean dsData
+
+rxcStoreStatPRCOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcStoreStatPRCOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Public Function rxcLoadStatPRCOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_PRC_OPTS, ByRef nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String) As Boolean
+On Error GoTo fout
+rxcLoadStatPRCOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim blExists As Boolean
+If Not rxciCfgExists(RXL_OBJ_RPT_TYPE_STAT_PRC, sOptsName, dsData, blExists) Then
+  Exit Function
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende opties niet vinden: " & vbCrLf & sOptsName
+End If
+
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_PRC & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to load the data
+Dim sPropValue As String
+Dim lDummy As Long
+
+
+
+
+
+  
+
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "dStartDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dStartDate = rxpParseDateNL(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dEndDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dEndDate = rxpParseDateNL(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "iSortOrder", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.iSortOrder = CInt(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blSepRecords50m", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blSepRecords50m = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictAfSl", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictAfSl = rxpParseBoolean(sPropValue)
+
+
+  
+If Not rxcReadOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+  
+dsClean dsData
+
+rxcLoadStatPRCOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcLoadStatPRCOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Public Function rxcStoreStatVRTOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_VRT_OPTS, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+  ByVal nLftCats As Integer, lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcStoreStatVRTOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If (sOptsName = "") Then
+  Err.Raise 1, , "Kies een naam"
+End If
+
+
+If Not rxciCfgDelete(dsData, RXL_OBJ_RPT_TYPE_STAT_VRT, sOptsName) Then
+  Exit Function
+End If
+
+
+If Not rxciCfgAdd(dsData, RXL_OBJ_RPT_TYPE_STAT_VRT, sOptsName) Then
+  Exit Function
+End If
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_VRT & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to store the data
+Dim sPropValue As String
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+
+sPropValue = rxpFormatDateNL(rxcOpts.dRefdate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dRefDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+sPropValue = rxpFormatDateNL(rxcOpts.dStartDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dStartDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatDateNL(rxcOpts.dEndDate)
+If Not dsSetPropertyByName(dsData, sBaseName & "dEndDate", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.iVrtMode)
+If Not dsSetPropertyByName(dsData, sBaseName & "iVrtMode", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictLS)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictLS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = CStr(rxcOpts.lsCode)
+If Not dsSetPropertyByName(dsData, sBaseName & "lsCode", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blUseLft)
+If Not dsSetPropertyByName(dsData, sBaseName & "blUseLft", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxpFormatBoolean(rxcOpts.blRestrictAfSl)
+If Not dsSetPropertyByName(dsData, sBaseName & "blRestrictAfSl", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+sPropValue = rxcOpts.sTitle
+If Not dsSetPropertyByName(dsData, sBaseName & "sTitle", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+  
+If Not rxcWriteOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+
+If Not rxcWriteCatList(dsData, sBaseName & "CatList", nLftCats, lftCats) Then
+  Exit Function
+End If
+
+  
+  
+dsClean dsData
+
+rxcStoreStatVRTOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcStoreStatVRTOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Public Function rxcLoadStatVRTOpts(sOptsName As String, ByRef rxcOpts As RXC_STAT_VRT_OPTS, ByRef nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+ByRef nLftCats As Integer, ByRef lftCats() As CAT_INFO) As Boolean
+On Error GoTo fout
+rxcLoadStatVRTOpts = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+
+Dim blExists As Boolean
+If Not rxciCfgExists(RXL_OBJ_RPT_TYPE_STAT_VRT, sOptsName, dsData, blExists) Then
+  Exit Function
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende opties niet vinden: " & vbCrLf & sOptsName
+End If
+
+
+
+Dim sBaseName As String
+sBaseName = "HUPSWIM\RPT_CONFIGS\TYPE_" & RXL_OBJ_RPT_TYPE_STAT_VRT & "\CONFIGS\" & sOptsName & "\"
+
+'Now need to load the data
+Dim sPropValue As String
+Dim lDummy As Long
+
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "dRefDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dRefdate = rxpParseDateNL(sPropValue)
+
+  
+If Not dsLookupPropertyByName(dsData, sBaseName & "dStartDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dStartDate = rxpParseDateNL(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "dEndDate", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.dEndDate = rxpParseDateNL(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "iVrtMode", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.iVrtMode = CInt(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictLS", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictLS = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "lsCode", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.lsCode = CLng(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blUseLft", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blUseLft = rxpParseBoolean(sPropValue)
+
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blRestrictAfSl", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blRestrictAfSl = rxpParseBoolean(sPropValue)
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "sTitle", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.sTitle = sPropValue
+
+  
+If Not rxcReadOrdAfSlList(dsData, sBaseName & "AfSlList", nAfSl, ordAf, ordSl) Then
+  Exit Function
+End If
+
+If Not rxcReadCatList(dsData, sBaseName & "CatList", nLftCats, lftCats) Then
+  Exit Function
+End If
+  
+  
+dsClean dsData
+
+rxcLoadStatVRTOpts = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " rxcLoadStatVRTOpts" & vbCrLf & Error$
+
+dsClean dsData
+
+MsgBox msg, 16
+Exit Function
+End Function

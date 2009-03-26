@@ -1,0 +1,159 @@
+Version =20
+VersionRequired =20
+Checksum =-1478177555
+Begin Report
+    LayoutForPrint = NotDefault
+    DefaultView =0
+    DateGrouping =1
+    GrpKeepTogether =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =9694
+    DatasheetFontHeight =10
+    ItemSuffix =5
+    Left =1350
+    Top =300
+    Right =13065
+    Bottom =5145
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    ShortcutMenuBar ="gShortcutRpt"
+    Toolbar ="gRptToolbar"
+    RecSrcDt = Begin
+        0xe315fe703d5fe340
+    End
+    RecordSource ="SELECT * FROM dtDeelnemendeVerenigingen WHERE dv_wedstrijdnummer = waarde()"
+    MenuBar ="gMnBasic"
+    DatasheetFontName ="Arial"
+    PrtMip = Begin
+        0x5303000053030000dd0000005303000000000000ef1300001e01000000000000 ,
+        0x020000006801000000000000a20700000100000001000000
+    End
+    PrtDevMode = Begin
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x010402059c00c4020366000401000900ea0a6f086400010007002c0101000100 ,
+        0x2c01010001004c65747465720000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000010000000000000001000000 ,
+        0x0200000001000000000000000000000000000000000000000000000050524956 ,
+        0xe230000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000180000000000102710271027 ,
+        0x0000102700000000000000008800c40200000000000000000100000000000000 ,
+        0x000000000000000003000000000000000000100072bf030072bf030000000000 ,
+        0x000000000000010000000000000000000000000000000000e7b14b4c03000000 ,
+        0x05000000ff000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000
+    End
+    PrtDevNames = Begin
+        0x080013001e000100000000000000000000000000000000000000000000005044 ,
+        0x4643726561746f723a00
+    End
+    Begin
+        Begin Label
+            BackStyle =0
+            TextFontFamily =2
+            FontName ="Arial"
+        End
+        Begin TextBox
+            OldBorderStyle =0
+            TextFontFamily =2
+            Width =1701
+            LabelX =-1701
+            FontName ="Arial"
+        End
+        Begin BreakLevel
+            ControlSource ="DV_Naam"
+        End
+        Begin FormHeader
+            KeepTogether = NotDefault
+            Height =680
+            OnFormat ="[Event Procedure]"
+            Name ="ReportHeader"
+            Begin
+                Begin Label
+                    TextAlign =2
+                    TextFontFamily =34
+                    Top =113
+                    Width =9690
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    Name ="Label0"
+                    Caption ="Deelnemende Verenigingen"
+                End
+            End
+        End
+        Begin PageHeader
+            Height =0
+            Name ="PageHeader"
+        End
+        Begin Section
+            KeepTogether = NotDefault
+            Height =285
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    TextFontFamily =34
+                    Width =2376
+                    Height =285
+                    FontSize =10
+                    Name ="DV_Naam"
+                    ControlSource ="DV_Naam"
+                End
+                Begin TextBox
+                    TextFontFamily =34
+                    Left =2437
+                    Width =2091
+                    Height =285
+                    FontSize =10
+                    TabIndex =1
+                    Name ="DV_Plaats"
+                    ControlSource ="DV_Plaats"
+                End
+            End
+        End
+        Begin PageFooter
+            Height =0
+            Name ="PageFooter"
+        End
+        Begin FormFooter
+            KeepTogether = NotDefault
+            Height =0
+            Name ="ReportFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub ReportHeader_Format(Cancel As Integer, FormatCount As Integer)
+On Error Resume Next
+If db_narrow() Then
+  Dim ctl As Control
+  For Each ctl In Me.Section(acDetail).Controls
+    ctl.FontName = "Arial Narrow"
+  Next ctl
+End If
+
+
+End Sub

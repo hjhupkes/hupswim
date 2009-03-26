@@ -1,0 +1,259 @@
+Version =20
+VersionRequired =20
+Checksum =2005915563
+Begin Form
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =0
+    GridX =15
+    GridY =15
+    Width =9070
+    ItemSuffix =45
+    Left =4980
+    Top =270
+    Right =15495
+    Bottom =8010
+    RecSrcDt = Begin
+        0x5edd00f51874e140
+    End
+    Caption ="Onderhoud"
+    OnOpen ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin Rectangle
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =16776960
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =5103
+            BackColor =16776960
+            Name ="Detail0"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    Left =5329
+                    Top =604
+                    Width =1485
+                    Height =347
+                    Name ="btnMaintenance"
+                    Caption ="&Start"
+                    StatusBarText ="Alle tijden doorlopen op snelste tijden, clubrecords ed."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =1595
+                    Width =2310
+                    Height =240
+                    Name ="Text2"
+                    Caption ="Gezwommen tijden verwijderen:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2759
+                    Top =1588
+                    Width =915
+                    Height =240
+                    Name ="Text3"
+                    Caption ="Tijden voor:"
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =4211
+                    Top =1588
+                    Width =931
+                    TabIndex =2
+                    Name ="dateGZT"
+                    Format ="dd-mm-yyyy"
+                    OnLostFocus ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =86
+                    Left =5329
+                    Top =1512
+                    Width =1485
+                    Height =347
+                    TabIndex =1
+                    Name ="btnDeleteGzt"
+                    Caption ="&Verwijderen"
+                    StatusBarText ="Tijden verwijderen."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =2078
+                    Width =2325
+                    Height =240
+                    Name ="Text8"
+                    Caption ="Opstelling + Uitslag verwijderen:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2753
+                    Top =2078
+                    Width =1320
+                    Height =240
+                    Name ="Text9"
+                    Caption ="Wedstrijden voor:"
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =4211
+                    Top =2078
+                    Width =916
+                    TabIndex =3
+                    Name ="dateWed"
+                    Format ="dd-mm-yyyy"
+                    OnLostFocus ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =69
+                    Left =5329
+                    Top =2078
+                    Width =1485
+                    Height =347
+                    TabIndex =4
+                    Name ="btnDeleteOp"
+                    Caption ="V&erwijderen"
+                    StatusBarText ="Opstellingen/Uitslagen verwijderen."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =604
+                    Width =2070
+                    Height =345
+                    Name ="Text15"
+                    Caption ="Algemene onderhoudsbeurt:"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =16776960
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+
+
+Private Sub btnDeleteGzt_Click()
+On Error Resume Next
+Dim dEndDate As Date
+dEndDate = Nz(Me.dateGZT, #1/1/1900#)
+If dEndDate > clnPrvYear() Then
+  MsgBox "Datum is te recent!", vbCritical
+  Exit Sub
+End If
+
+If (MsgBox("Oude tijden daadwerkelijk verwijderen?", vbOKCancel + vbQuestion) = vbCancel) Then
+  Exit Sub
+End If
+
+
+If Not clnOldTimes(dEndDate) Then
+  Exit Sub
+End If
+
+
+End Sub
+
+Private Sub btnDeleteOp_Click()
+On Error Resume Next
+Dim dEndDate As Date
+dEndDate = Nz(Me.dateWed, #1/1/1900#)
+If dEndDate > clnPrvThreeMonth() Then
+  MsgBox "Datum is te recent!", vbCritical
+  Exit Sub
+End If
+
+If (MsgBox("Oude opstellingen en uitslagen daadwerkelijk verwijderen?", vbOKCancel + vbQuestion) = vbCancel) Then
+  Exit Sub
+End If
+
+
+If Not clnOldOpstelling(dEndDate) Then
+  Exit Sub
+End If
+
+
+End Sub
+
+Private Sub btnMaintenance_Click()
+On Error Resume Next
+
+'Need to rebuild.
+
+If Not clnPerformMaintenance() Then
+  Exit Sub
+End If
+
+MsgBox "Onderhoud succesvol uitgevoerd.", vbInformation
+Exit Sub
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.dateGZT = clnPrvYear()
+Me.dateWed = clnPrvThreeMonth()
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

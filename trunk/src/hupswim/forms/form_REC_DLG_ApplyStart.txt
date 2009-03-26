@@ -1,0 +1,271 @@
+Version =20
+VersionRequired =20
+Checksum =99423122
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =5850
+    DatasheetFontHeight =10
+    ItemSuffix =14
+    Left =6630
+    Top =1770
+    Right =12480
+    Bottom =5205
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x9ff7c5f8d21ae340
+    End
+    Caption ="Startwaarden instellen"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin FormHeader
+            Height =453
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =-15
+                    Top =60
+                    Width =5865
+                    Height =285
+                    FontSize =10
+                    FontWeight =700
+                    Name ="Label0"
+                    Caption ="Startwaarden instellen voor records "
+                End
+            End
+        End
+        Begin Section
+            Height =2494
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =340
+                    Top =875
+                    Name ="blDeleteAllInitVals"
+                    DefaultValue ="True"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =247
+                            Left =577
+                            Top =850
+                            Width =2775
+                            Height =240
+                            Name ="Label4"
+                            Caption ="Alle huidige startwaardes verwijderen  "
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =340
+                    Top =220
+                    Width =335
+                    Height =225
+                    TabIndex =1
+                    Name ="blDeleteAllRecords"
+                    DefaultValue ="False"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =247
+                            Left =570
+                            Top =165
+                            Width =3405
+                            Height =240
+                            Name ="Label6"
+                            Caption ="Alle huidige geregistreerde records verwijderen "
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =340
+                    Top =1557
+                    TabIndex =2
+                    Name ="blSetMissingAtZero"
+                    DefaultValue ="True"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =247
+                            Left =577
+                            Top =1530
+                            Width =4950
+                            Height =405
+                            Name ="Label8"
+                            Caption ="Alleen records erkennen voor afstand / slag / categorie combinaties die in deze "
+                                "lijst staan vermeld."
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =735
+                    Top =450
+                    Width =4230
+                    Height =210
+                    Name ="Label9"
+                    Caption ="(alle records met nummers > 1905-000 worden verwijderd)"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =735
+                    Top =1190
+                    Width =4140
+                    Height =210
+                    Name ="Label12"
+                    Caption ="(alle records met nummers < 1905-000 worden verwijderd)"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =735
+                    Top =1980
+                    Width =4905
+                    Height =405
+                    Name ="Label13"
+                    Caption ="(startwaardes voor records die NIET in de lijst staan worden op 0.00 gezet, zoda"
+                        "t ze nooit verbeterd kunnen worden.)"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =510
+            BackColor =-2147483633
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =56
+                    Top =56
+                    Width =1020
+                    Height =390
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnCancel"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =79
+                    Left =4535
+                    Top =56
+                    Width =1020
+                    Height =390
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnOK"
+                    Caption ="&OK"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+Private Function perform() As Boolean
+On Error GoTo fout
+perform = False
+
+
+
+
+Dim optDeleteAllRecords As Boolean, optDeleteAllInitVals As Boolean, optSetMissingAtZero As Boolean
+
+optDeleteAllRecords = Nz(Me.blDeleteAllRecords)
+optDeleteAllInitVals = Nz(Me.blDeleteAllInitVals)
+optSetMissingAtZero = Nz(Me.blSetMissingAtZero)
+
+
+Dim msgTxt As String
+If (optDeleteAllRecords) Then
+  msgTxt = "Startwaardes voor records instellen? " & vbCrLf & "Waarschuwing: alle huidige gezwommen records worden verwijderd."
+Else
+  msgTxt = "Startwaardes voor records instellen? "
+End If
+
+If MsgBox(msgTxt, vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Function
+End If
+
+
+If Not recivBuildInitValTable(waarde_rcs(), optDeleteAllInitVals, optDeleteAllRecords, optSetMissingAtZero) Then
+  Exit Function
+End If
+
+
+MsgBox "Startwaardes met succes aangepast!", vbInformation
+
+
+perform = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+DoCmd.Close
+
+End Sub
+
+Private Sub btnOK_Click()
+On Error Resume Next
+
+
+If (perform()) Then
+  DoCmd.Close
+End If
+
+End Sub

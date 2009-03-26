@@ -1,0 +1,1859 @@
+Option Explicit
+Option Compare Database
+
+
+Private Function verReadInfo(ByRef rs As Recordset, ByRef verInfo As VER_BASIC_INFO) As Boolean
+On Error GoTo fout
+verReadInfo = False
+
+verInfo.verName = Nz(rs("V_Naam"))
+verInfo.verDepot = Nz(rs("V_Depot"))
+verInfo.verPlaats = Nz(rs("V_Plaats"))
+
+verReadInfo = True
+Exit Function
+fout:
+MsgBox Err & " verReadInfo" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function verLookupNext(ByVal vName As String, ByRef isFound As Boolean, ByRef verInfo As VER_BASIC_INFO) As Boolean
+verLookupNext = verLookup_Perform(vName, 1, isFound, verInfo)
+End Function
+
+Public Function verLookupPrevious(ByVal vName, ByRef isFound As Boolean, ByRef verInfo As VER_BASIC_INFO) As Boolean
+verLookupPrevious = verLookup_Perform(vName, -1, isFound, verInfo)
+End Function
+
+Public Function verLookup(ByVal vName As String, ByRef isFound As Boolean, ByRef verInfo As VER_BASIC_INFO) As Boolean
+verLookup = verLookup_Perform(vName, 0, isFound, verInfo)
+End Function
+
+Private Function verLookup_Perform(ByVal vName As String, ByVal direction As Integer, ByRef isFound As Boolean, ByRef verInfo As VER_BASIC_INFO) As Boolean
+On Error GoTo fout
+verLookup_Perform = False
+
+isFound = False
+
+Dim rs As Recordset
+
+Dim sql As String
+
+If (direction = 0) Then
+  sql = "select * from [dtVerenigingen] where v_naam=""" & vName & """;"
+Else
+  sql = "select * from [dtVerenigingen] order by v_naam"
+End If
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+If (direction = 0) Then
+  rs.MoveFirst
+  If (Not rs.EOF) Then
+    If Not verReadInfo(rs, verInfo) Then
+      Exit Function
+    End If
+    isFound = True
+  End If
+Else
+  rs.FindFirst "[v_naam]=""" & vName & """"
+  If Not rs.NoMatch Then
+    If (direction < 0) Then
+      rs.MovePrevious
+    Else
+      rs.MoveNext
+    End If
+    If (Not rs.BOF) And (Not rs.EOF) Then
+      If Not verReadInfo(rs, verInfo) Then
+        Exit Function
+      End If
+      isFound = True
+    End If
+  End If
+End If
+
+  
+
+
+
+'Set rs = c
+
+
+
+verLookup_Perform = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " verLookup_Perform" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function verPromptUser(ByRef isOK As Boolean, ByRef lkpVName As String) As Boolean
+On Error GoTo fout
+verPromptUser = False
+
+
+Dim sql As String
+sql = "Delete * from hpoVerOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoVerOpzoek")
+
+rs.AddNew
+  rs("PO_OK") = False
+rs.Update
+
+rs.Close
+
+DoCmd.OpenForm "hpoVerOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoVerOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoVerOpzoek is leeg."
+End If
+
+isOK = Nz(rs("PO_OK"))
+
+lkpVName = Nz(rs("PO_Vereniging"))
+
+rs.Close
+
+verPromptUser = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " verPromptUser" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+Public Function waarde_ver() As String
+On Error Resume Next
+
+
+waarde_ver = Nz(Forms![ver_master]![V_NAAM])
+
+Exit Function
+End Function
+
+
+
+
+Public Function lsClean() As Boolean
+On Error GoTo fout
+lsClean = False
+DoCmd.DeleteObject acTable, "~LS_TEMP"
+lsClean = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then 'could not find object to delete
+  Resume Next
+End If
+MsgBox Err & " " & Error$, 16
+End Function
+Public Function lsBuildTable() As Boolean
+On Error GoTo fout
+lsBuildTable = False
+
+If Not lsClean Then Exit Function
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+Set tb = db.CreateTableDef("~LS_temp")
+
+tb.Fields.Append tb.CreateField("LS_Naam", dbText, 255)
+tb.Fields.Append tb.CreateField("LS_Vereniging", dbText, 50)
+tb.Fields.Append tb.CreateField("LS_CurCode", dbLong)
+tb.Fields.Append tb.CreateField("LS_Voldoet", dbBoolean)
+tb.Fields.Append tb.CreateField("LS_Voldoet_Org", dbBoolean)
+
+db.TableDefs.Append tb
+
+
+lsBuildTable = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lsApplySelection(blRestrictVer As Boolean, verString As String, blRestrictCode As Boolean, lMultiLSCode As Long, blSelOverwrite As Boolean, blSelExtend As Boolean, blSelRestrict As Boolean, blUseValid As Boolean) As Boolean
+On Error GoTo fout
+lsApplySelection = False
+
+
+
+
+
+'first have to parse ver string and build a table.
+Dim verNames(0 To 100) As String
+Dim nVers As Integer
+Dim verExclude As Boolean
+Dim verExcludeName As String
+nVers = 0
+verExclude = False
+
+Dim tpVerCode As String, tpVerName As String
+Dim blAllowed As Boolean
+tpVerCode = extractToken(verString, ",")
+While (nVers < 100 And tpVerCode <> "")
+
+ blAllowed = True
+ If Left(tpVerCode, 1) = "~" Then
+   blAllowed = False
+   tpVerName = Trim(Right(tpVerCode, Len(tpVerCode) - 1))
+ End If
+ 
+ If (Not blAllowed) Then
+   verExclude = True
+   verExcludeName = tpVerName
+ Else
+   Dim insPos As Integer
+   insPos = insString(tpVerName, nVers, verNames)
+   If (insPos = -1) Then
+     Err.Raise 1, , "Internal error. Error inserting string."
+   End If
+ End If
+ 
+ tpVerCode = extractToken(verString, ",")
+Wend
+
+'Finished parsing verString.
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [~LS_temp]")
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpLSCode As Long
+  Dim tpVer As String
+  
+  
+  tpLSCode = Nz(rs("LS_CurCode"))
+  tpVer = Nz(rs("LS_Vereniging"))
+  
+  'now check.
+  Dim blValid As Boolean
+  blValid = True
+  
+  
+  
+  If (blRestrictVer) Then
+    If (verExclude) Then
+      If (tpVer = verExcludeName) Then
+        blValid = False
+      End If
+    Else
+      Dim lkpPos As Integer
+      lkpPos = bSearchString(tpVer, nVers, verNames)
+      If (lkpPos < 0) Then
+        blValid = False
+      End If
+    End If
+  End If
+  
+  If (blRestrictCode) Then
+    If Not lsIsMatch(tpLSCode, lMultiLSCode) Then
+      blValid = False
+    End If
+  End If
+  
+  
+  Dim blCurSelStatus As Boolean
+  blCurSelStatus = Nz(rs("LS_Voldoet"))
+  Dim blNewSelStatus As Boolean
+  blNewSelStatus = selGetNewStatus(blCurSelStatus, blValid, blSelOverwrite, blSelExtend, blSelRestrict, blUseValid)
+  
+  If (blNewSelStatus <> blCurSelStatus) Then
+    rs.Edit
+    rs("LS_Voldoet") = blNewSelStatus
+    rs.Update
+  End If
+  
+  
+  rs.MoveNext
+Loop
+
+
+
+
+lsApplySelection = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next  ' no current record.
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lsApplyTable(isVer As Boolean, verName As String, lsSelectNr As Long) As Boolean
+On Error GoTo fout
+lsApplyTable = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [~ls_temp] where nz([ls_voldoet]) <> nz([ls_voldoet_org])")
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("dtContactpersonen")
+
+outp.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim nm As String, ver As String
+  
+  nm = Nz(rs("LS_Naam"))
+  ver = Nz(rs("LS_Vereniging"))
+  
+  outp.Seek "=", ver, nm
+  
+  If outp.NoMatch Then
+    Err.Raise 1, , "Could not find: (" & nm & ", " & ver & ")"
+  End If
+  
+  Dim blVal As Boolean
+  blVal = Nz(rs("LS_Voldoet"))
+  
+  Dim lsCode As Long
+  lsCode = Nz(rs("LS_CurCode"))
+  
+  outp.Edit
+    If (isVer) Then
+      Err.Raise 1, , "Internal error. This is not supported"
+      'If (blVal) Then
+      '  outp("v_naam") = hzn(verName)
+      'ElseIf (Nz(outp("v_naam")) = verName) Then
+      '  outp("vereniging") = Null
+      'End If
+    Else
+      Dim newLSCode As Long
+      newLSCode = lsModify(lsCode, lsSelectNr, blVal)
+      outp("cont_code") = newLSCode
+    End If
+  outp.Update
+  
+
+  rs.MoveNext
+Loop
+
+
+
+lsApplyTable = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function lsFillTable(isVer As Boolean, verName As String, lsSelectNr As Long) As Boolean
+On Error GoTo fout
+lsFillTable = False
+
+Dim rs As Recordset
+Dim sql As String
+
+sql = "SELECT * from [dtContactpersonen] " & _
+"ORDER BY v_naam, cont_naam;"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim vr As String, lsCode As Long, blValid As Boolean
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~LS_Temp")
+
+rs.MoveFirst
+Do Until rs.EOF
+  lsCode = Nz(rs("cont_code"))
+  vr = Nz(rs("v_naam"))
+  
+  blValid = False
+  If (isVer) Then
+    Err.Raise 1, , "Internal error. This is unsupported"
+    'If (vr = verName) Then
+    '   blValid = True
+    'End If
+  Else
+    If (lsIsMatchSingle(lsCode, lsSelectNr)) Then
+      blValid = True
+    End If
+  End If
+  
+  
+  outp.AddNew
+    outp("LS_Naam") = rs("cont_naam")
+    outp("LS_Vereniging") = rs("v_naam")
+    outp("LS_CurCode") = rs("cont_code")
+    outp("LS_Voldoet") = blValid
+    outp("LS_Voldoet_Org") = blValid
+  outp.Update
+
+  rs.MoveNext
+Loop
+
+lsFillTable = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function lsModify(lsOld As Long, nrModify As Long, blInclude As Boolean) As Long
+On Error GoTo fout
+'Dit was de oude manier die we nu nog willen behouden
+lsModify = lsOld
+
+
+'lidsoort = lidsoortnr van de zwemmer -> 2-macht gedoe etc
+'nr = lidsoortnr dat we willen hebben -> simpel
+
+If nrModify <= 0 Then
+  Exit Function
+End If
+
+
+If (lsModify = 0) Then
+  'Need to upgrade to ALL.
+  lsModify = 2 ^ 31 - 1
+End If
+
+If (lsModify < 0) Then
+  lsModify = 0
+End If
+
+
+
+Dim mask As Long
+mask = 2 ^ (nrModify - 1)
+
+Dim resAnd As Long
+resAnd = (lsModify And mask)
+
+If (resAnd > 0) And Not blInclude Then
+  lsModify = lsModify - mask
+ElseIf (resAnd = 0) And blInclude Then
+  lsModify = lsModify + mask
+End If
+
+
+
+
+If (lsModify = 0) Then
+  lsModify = -1
+End If
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+Public Function lsPromptUser_Simple(ByVal curCode As Long, ByRef isOK As Boolean, ByRef lkpCode As Long) As Boolean
+On Error GoTo fout
+lsPromptUser_Simple = False
+
+
+
+Dim sql As String
+sql = "Delete * from hpoLSSimpleOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoLSSimpleOpzoek")
+
+rs.AddNew
+  rs("LSS_OK") = False
+rs.Update
+
+appCleanRS rs
+
+sql = "Delete * from hpoLSSimpleOpzoekLS"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "insert into hpoLSSimpleOpzoekLS (LSS_Code, LSS_Description) select [cat_nr], [beschrijving] from [dtContactGroepen]"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+If Not lsWriteToTable_Simple(curCode) Then
+  Exit Function
+End If
+
+
+DoCmd.OpenForm "hpoLS_SimpleOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoLSSimpleOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoLSSimpeOpzoek is leeg."
+End If
+
+isOK = Nz(rs("LSS_OK"))
+
+appCleanRS rs
+
+If (isOK) Then
+  'Need to read from table
+  lkpCode = lsReadFromTable_Simple()
+End If
+
+lsPromptUser_Simple = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " lsPromptUser_simple" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+
+
+Public Function lsPromptUser(ByVal isSelectMode As Boolean, ByVal curCode As Long, ByRef isOK As Boolean, ByRef lkpCode As Long) As Boolean
+On Error GoTo fout
+lsPromptUser = False
+
+If (isSelectMode) Then
+  If (Not lsWriteToTable(curCode)) Then
+    Exit Function
+  End If
+End If
+
+Dim sql As String
+sql = "Delete * from hpoLSOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoLSOpzoek")
+
+rs.AddNew
+  rs("LS_IsSelectMode") = isSelectMode
+  rs("LS_OK") = False
+rs.Update
+
+rs.Close
+
+DoCmd.OpenForm "hpoLS_Master", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoLSOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoLSOpzoek is leeg."
+End If
+
+isOK = Nz(rs("LS_OK"))
+
+
+rs.Close
+
+appCleanRS rs
+
+If (isOK) Then
+  lkpCode = lsReadFromTable()
+End If
+
+lsPromptUser = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " lsPromptUser" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+Public Function lsMaxCode() As Long
+On Error Resume Next
+Dim mydb As Database, geg As Recordset
+Set mydb = CurrentDb()
+Set geg = mydb.OpenRecordset("dtContactGroepen")
+
+Dim tpResult As Long
+tpResult = 0
+
+geg.MoveFirst
+Do Until geg.EOF
+    tpResult = tpResult + (2 ^ (geg("Cat_nr") - 1))
+    geg.MoveNext
+Loop
+
+lsMaxCode = tpResult
+Exit Function
+
+End Function
+
+Private Function lsReadFromTable() As Long ' 0 betekent:=iedereen mag meedoen.
+On Error GoTo fout
+lsReadFromTable = -1
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("dtContactGroepen", dbOpenDynaset)
+
+Dim tpResult As Long
+tpResult = 0
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpResult = tpResult + (IIf(geg("Teltmee"), 1, 0)) * (2 ^ (geg("Cat_nr") - 1))
+  geg.MoveNext
+Loop
+
+lsReadFromTable = tpResult
+
+Exit Function
+
+fout:
+If Err = 3021 Or Err = 3022 Then 'no current record
+   Resume Next
+End If
+
+MsgBox Err & " lsReadFromTable" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+Private Function lsReadFromTable_Simple() As Long ' 0 betekent:=iedereen mag meedoen.
+On Error GoTo fout
+lsReadFromTable_Simple = -1
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("hpoLSSimpleOpzoekLS", dbOpenDynaset)
+
+Dim tpResult As Long
+tpResult = 0
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpResult = tpResult + (IIf(geg("LSS_IsSelected"), 1, 0)) * (2 ^ (geg("LSS_Code") - 1))
+  geg.MoveNext
+Loop
+
+appCleanRS geg
+
+lsReadFromTable_Simple = tpResult
+
+Exit Function
+
+fout:
+If Err = 3021 Or Err = 3022 Then 'no current record
+   Resume Next
+End If
+
+MsgBox Err & " lsReadFromTable_Simple" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+Private Function lsWriteToTable(ByVal Nr As Long) As Boolean
+On Error GoTo fout
+
+lsWriteToTable = False
+
+Dim geg As Recordset
+
+Set geg = CurrentDb().OpenRecordset("dtContactGroepen", dbOpenDynaset)
+
+Dim blAllesTrue As Boolean
+
+If Nr = 0 Then
+    blAllesTrue = True
+Else
+    blAllesTrue = False
+End If
+
+Dim tpGetal As Integer
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpGetal = geg("Cat_Nr")
+  geg.Edit
+  If blAllesTrue Or (Nr Mod 2 ^ tpGetal >= 2 ^ (tpGetal - 1)) Then
+    geg("Teltmee") = True
+  Else
+    geg("Teltmee") = False
+  End If
+  geg.Update
+  geg.MoveNext
+Loop
+
+appCleanRS geg
+
+lsWriteToTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lsWriteToTable" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function lsWriteToTable_Simple(ByVal Nr As Long) As Boolean
+On Error GoTo fout
+
+lsWriteToTable_Simple = False
+
+Dim geg As Recordset
+
+Set geg = CurrentDb().OpenRecordset("hpoLSSimpleOpzoekLS", dbOpenDynaset)
+
+Dim blAllesTrue As Boolean
+
+If Nr = 0 Then
+    blAllesTrue = True
+Else
+    blAllesTrue = False
+End If
+
+Dim tpGetal As Integer
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpGetal = geg("LSS_Code")
+  geg.Edit
+  If blAllesTrue Or (Nr Mod 2 ^ tpGetal >= 2 ^ (tpGetal - 1)) Then
+    geg("LSS_IsSelected") = True
+  Else
+    geg("LSS_IsSelected") = False
+  End If
+  geg.Update
+  geg.MoveNext
+Loop
+
+appCleanRS geg
+
+lsWriteToTable_Simple = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lsWriteToTable_Simple" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+'Check to see if lsCode matches lsMask
+Public Function lsIsMatch(lsCode As Long, lsMask As Long) As Boolean
+On Error Resume Next
+
+lsIsMatch = False
+'Dit was de oude manier
+
+'New addition.
+If (lsCode = -1) Then
+  Exit Function
+End If
+
+If lsCode <= 0 Or lsMask <= 0 Then
+    lsIsMatch = True
+    Exit Function
+End If
+
+
+If ((lsCode And lsMask) > 0) Then 'op een bit positie zijn beide 1 -> we hebben een geldige match
+    lsIsMatch = True
+End If
+
+End Function
+
+Public Function lsIsMatchSingle(lsCode As Long, lsSingleNr As Long)
+On Error Resume Next
+
+lsIsMatchSingle = False
+
+'New addition.
+If (lsCode = -1) Then
+  Exit Function
+End If
+
+
+
+If lsCode <= 0 Or lsSingleNr <= 0 Then
+    lsIsMatchSingle = True
+    Exit Function
+End If
+
+If lsCode Mod 2 ^ lsSingleNr >= 2 ^ (lsSingleNr - 1) Then
+    lsIsMatchSingle = True
+End If
+
+
+End Function
+
+
+
+
+Private Function cntBuildList_createTable(tbName As String) As Boolean
+On Error GoTo fout
+cntBuildList_createTable = False
+
+
+DoCmd.DeleteObject acTable, tbName
+DoCmd.DeleteObject acTable, tbName & "_stats"
+
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("CL_Naam", dbText, 255)
+tb.Fields.Append tb.CreateField("CL_Achternaam", dbText, 255)
+tb.Fields.Append tb.CreateField("CL_Vereniging", dbText, 50)
+tb.Fields.Append tb.CreateField("CL_GRP_CatCode", dbLong)
+tb.Fields.Append tb.CreateField("CL_GRP_CatDescription", dbText, 255)
+tb.Fields.Append tb.CreateField("CL_GRP_Vereniging", dbText, 255)
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Set tb = db.CreateTableDef(tbName & "_stats")
+
+tb.Fields.Append tb.CreateField("CL_GrpPerVer", dbBoolean)
+tb.Fields.Append tb.CreateField("CL_GrpPerLS", dbBoolean)
+tb.Fields.Append tb.CreateField("CL_RestrictVer", dbBoolean)
+tb.Fields.Append tb.CreateField("CL_RestrictLS", dbBoolean)
+tb.Fields.Append tb.CreateField("CL_RestrictLSCode", dbLong)
+tb.Fields.Append tb.CreateField("CL_IncludeEmail", dbBoolean)
+tb.Fields.Append tb.CreateField("CL_IncludeVerName", dbBoolean)
+
+db.TableDefs.Append tb
+Set tb = Nothing
+
+
+
+
+
+Set db = Nothing
+
+
+cntBuildList_createTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then
+  Resume Next
+End If
+MsgBox Err & " cntBuildList_createTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Sub cntBuildList_appendClause(ByRef sqlWhereClause As String, newCondition As String)
+If (Len(sqlWhereClause) > 0) Then
+  sqlWhereClause = sqlWhereClause & " and "
+Else
+  sqlWhereClause = sqlWhereClause & "WHERE "
+End If
+sqlWhereClause = sqlWhereClause & newCondition
+End Sub
+
+
+
+Private Function cntBuildList_outputStats(ByVal tbNameStats As String, ByVal blListPerLS As Boolean, ByVal blRestrictLS As Long, ByVal lsMask As Long, _
+  ByVal blListPerVer As Boolean, ByVal blRestrictVer As String) As Boolean
+
+On Error GoTo fout
+cntBuildList_outputStats = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(tbNameStats)
+rs.AddNew
+  rs("CL_GrpPerLS") = blListPerLS
+  rs("CL_GrpPerVer") = blListPerVer
+  rs("CL_RestrictLS") = blRestrictLS
+  rs("CL_RestrictLSCode") = lsMask
+  
+  rs("CL_RestrictVer") = blRestrictVer
+  
+  
+rs.Update
+
+cntBuildList_outputStats = True
+Exit Function
+
+fout:
+MsgBox Err & " cntBuildList_outputStats" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Function cntBuildList(ByVal blListPerLS As Boolean, ByVal blRestrictLS As Long, ByVal lsMask As Long, _
+  ByVal blListPerVer As Boolean, ByVal blRestrictVer As Boolean, ByVal nVers As Integer, ByRef verNames() As String) As Boolean
+On Error GoTo fout
+  
+If Not cntBuildList_createTable("~CntList") Then
+  Exit Function
+End If
+
+Dim catValidCodes(0 To 1000) As Long
+Dim catValidDes(0 To 1000) As String
+Dim nCatValidCodes As Integer
+nCatValidCodes = 0
+
+If (blListPerLS) Then
+  Dim rsCat As Recordset
+  Set rsCat = CurrentDb().OpenRecordset("dtContactGroepen")
+  rsCat.MoveFirst
+  Do Until rsCat.EOF
+    Dim tpCode As Long
+    tpCode = Nz(rsCat("Cat_nr"))
+    Dim blUseCode As Boolean
+    blUseCode = False
+    If (blRestrictLS) Then
+      If (lsIsMatchSingle(lsMask, tpCode)) Then
+        blUseCode = True
+      End If
+    Else
+      blUseCode = True
+    End If
+    If (blUseCode) Then
+      Dim tpDes As String
+      tpDes = Nz(rsCat("Beschrijving"))
+      catValidCodes(nCatValidCodes) = tpCode
+      catValidDes(nCatValidCodes) = tpDes
+      nCatValidCodes = nCatValidCodes + 1
+    End If
+    rsCat.MoveNext
+  Loop
+  
+  appCleanRS rsCat
+  
+End If
+
+
+Dim sqlWhereClause As String
+sqlWhereClause = ""
+
+
+'If (blRestrictVer) Then
+'  cntBuildList_appendClause sqlWhereClause, "[v_naam]=""" & sVer & """"
+'End If
+
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~CntList")
+
+Dim rsCnt As Recordset
+Set rsCnt = CurrentDb().OpenRecordset("select * from [dtContactpersonen] " & sqlWhereClause)
+
+rsCnt.MoveFirst
+Do Until rsCnt.EOF
+
+  Dim tpName As String, tpOpm As Long, tpVer As String, tpAchternaam As String
+  tpName = Nz(rsCnt("cont_naam"))
+  
+  tpAchternaam = Nz(rsCnt("cont_achternaam"))
+  If (tpAchternaam = "") Then
+    tpAchternaam = nmExtractAchternaam(tpName)
+  End If
+  
+  tpOpm = Nz(rsCnt("cont_code"))
+  tpVer = Nz(rsCnt("v_naam"))
+  
+  Dim tpValid As Boolean
+  tpValid = True
+  
+  If (tpValid) Then
+    If (blRestrictVer) Then
+      If bSearchString(tpVer, nVers, verNames) < 0 Then
+        tpValid = False
+      End If
+    End If
+  End If
+  
+ 
+  If (tpValid) Then
+    If (blRestrictLS) Then
+      If Not lsIsMatch(tpOpm, lsMask) Then
+        tpValid = False
+      End If
+    End If
+  End If
+  
+  
+  
+  If (tpValid) Then
+    If (blListPerLS) Then
+      Dim i As Integer
+      For i = 0 To nCatValidCodes - 1
+      
+        If (lsIsMatchSingle(tpOpm, catValidCodes(i))) Then
+          outp.AddNew
+            outp("CL_Naam") = hzn(tpName)
+            outp("CL_Achternaam") = hzn(tpAchternaam)
+            outp("CL_Vereniging") = hzn(tpVer)
+            If (blListPerVer) Then
+              outp("CL_GRP_Vereniging") = hzn(tpVer)
+            End If
+            outp("CL_GRP_CatCode") = catValidCodes(i)
+            outp("CL_GRP_CatDescription") = catValidDes(i)
+          outp.Update
+        End If
+      Next i
+    Else
+      outp.AddNew
+        outp("CL_Naam") = hzn(tpName)
+        outp("CL_Achternaam") = hzn(tpAchternaam)
+        outp("CL_Vereniging") = hzn(tpVer)
+        If (blListPerVer) Then
+          outp("CL_GRP_Vereniging") = hzn(tpVer)
+        End If
+      outp.Update
+    End If
+  End If 'if tpValid
+  
+  rsCnt.MoveNext
+Loop
+
+appCleanRS rsCnt
+appCleanRS outp
+
+If Not cntBuildList_outputStats("~CntList_Stats", blListPerLS, blRestrictLS, lsMask, blListPerVer, blRestrictVer) Then
+  Exit Function
+End If
+
+
+
+
+cntBuildList = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " cntBuildList" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+  
+  
+End Function
+
+Public Function cntListToMailMerge() As Boolean
+On Error GoTo fout
+cntListToMailMerge = False
+
+Dim skCnt As Recordset
+Set skCnt = CurrentDb().OpenRecordset("dtContactpersonen")
+skCnt.Index = "PrimaryKey"
+
+
+
+Dim sql As String
+sql = "Delete * from gMailMerge"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select cl_vereniging, cl_naam, cl_achternaam from [~cntList] group by cl_vereniging, cl_naam, cl_achternaam")
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gMailMerge")
+
+Dim curIdx As Long
+curIdx = 0
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpName As String, tpVer As String, tpANm
+  tpVer = Nz(rs("CL_Vereniging"))
+  tpName = Nz(rs("CL_Naam"))
+  tpANm = Nz(rs("CL_Achternaam"))
+  
+  
+  
+  skCnt.Seek "=", tpVer, tpName
+  If (skCnt.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  outp.AddNew
+    outp("MM_Name") = skCnt("cont_naam")
+    outp("MM_Adres1") = skCnt("cont_adres")
+    outp("MM_Postcode") = skCnt("cont_postcode")
+    outp("MM_City") = skCnt("cont_plaats")
+    outp("MM_Nation") = Null
+    outp("MM_Email") = skCnt("cont_email")
+    outp("MM_Sort_KEY") = hzn(tpANm)
+    outp("MM_Find_KEY") = hzn(tpANm)
+    outp("MM_IsSelected") = True
+    
+    outp("MM_Idx") = curIdx
+    curIdx = curIdx + 1
+  outp.Update
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS outp
+appCleanRS skCnt
+
+
+cntListToMailMerge = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " cntListToMailMerge" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function cntBuildListForWed(ByVal wednr As Long, ByVal blEntireMeet As Boolean, ByRef blNotAllVerMatched As Boolean) As Boolean
+On Error GoTo fout
+  
+  
+blNotAllVerMatched = False
+  
+If Not cntBuildList_createTable("~CntList") Then
+  Exit Function
+End If
+
+
+Dim lMainWedNr As Long
+lMainWedNr = wednr
+
+If (blEntireMeet) Then
+  Dim tpWedInf As WED_BASIC_INFO
+  Dim isFnd As Boolean
+  If Not wedLookup(wednr, isFnd, tpWedInf) Then
+    Exit Function
+  End If
+  If Not isFnd Then
+    Err.Raise 1, , "Could not find wedstrijd: " & wednr
+  End If
+  
+  lMainWedNr = tpWedInf.meetMainNr
+End If
+
+
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~CntList")
+
+Dim verSQL As String
+If (blEntireMeet) Then
+  verSQL = "SELECT DV_Naam, dv_cont_naam FROM dtWedstrijdGegevens INNER JOIN [dtDeelnemendeVerenigingen] " & _
+  "ON dtWedstrijdGegevens.WE_Wedstrijdnummer = [dtDeelnemendeVerenigingen].DV_Wedstrijdnummer " & _
+  "WHERE  ((([dtDeelnemendeVerenigingen].DV_Wedstrijdnummer) = " & lMainWedNr & ")) Or (((dtWedstrijdGegevens.WE_MainWedstrijdnummer) = " & lMainWedNr & ")) " & _
+  "GROUP BY [dtDeelnemendeVerenigingen].DV_Naam, [dtDeelnemendeVerenigingen].DV_cont_Naam ORDER BY [dtDeelnemendeVerenigingen].DV_Naam;"
+Else
+  verSQL = "Select DV_Naam, dv_cont_naam from [dtDeelnemendeVerenigingen] where dv_wedstrijdnummer= " & wednr & "  Order by dv_naam"
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(verSQL)
+
+Dim rsCnt As Recordset
+Set rsCnt = CurrentDb().OpenRecordset("dtContactpersonen")
+rsCnt.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpVer As String, tpName As String
+  tpVer = Nz(rs("DV_Naam"))
+  tpName = Nz(rs("DV_Cont_Naam"))
+  
+  rsCnt.Seek "=", tpVer, tpName
+  
+  If (Not rsCnt.NoMatch) Then
+
+    Dim tpAchternaam As String
+  
+    tpAchternaam = Nz(rsCnt("cont_achternaam"))
+    If (tpAchternaam = "") Then
+      tpAchternaam = nmExtractAchternaam(tpName)
+    End If
+  
+  
+    outp.AddNew
+      outp("CL_Naam") = hzn(tpName)
+      outp("CL_Achternaam") = hzn(tpAchternaam)
+      outp("CL_Vereniging") = hzn(tpVer)
+    outp.Update
+    
+  Else
+    
+    blNotAllVerMatched = True
+    
+  End If 'if not rsCnt.nomatch
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rsCnt
+appCleanRS outp
+
+If Not cntBuildList_outputStats("~CntList_Stats", False, False, -1, False, False) Then
+  Exit Function
+End If
+
+
+
+
+cntBuildListForWed = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " cntBuildListForWed" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+  
+  
+End Function
+
+
+
+
+
+
+
+Public Function bevPromptUser_Simple(ByVal curCode As Long, ByRef isOK As Boolean, ByRef lkpCode As Long) As Boolean
+On Error GoTo fout
+bevPromptUser_Simple = False
+
+
+
+Dim sql As String
+sql = "Delete * from hpoLSSimpleOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoLSSimpleOpzoek")
+
+rs.AddNew
+  rs("LSS_OK") = False
+rs.Update
+
+appCleanRS rs
+
+sql = "Delete * from hpoLSSimpleOpzoekLS"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "insert into hpoLSSimpleOpzoekLS (LSS_Code, LSS_Description, LSS_BevCode) select [bv_nr], [bv_omschrijving], [bv_code] from [dtBevoegdheden]"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+If Not lsWriteToTable_Simple(curCode) Then
+  Exit Function
+End If
+
+
+DoCmd.OpenForm "hpoBV_SimpleOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoLSSimpleOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoLSSimpleOpzoek is leeg."
+End If
+
+isOK = Nz(rs("LSS_OK"))
+
+appCleanRS rs
+
+If (isOK) Then
+  'Need to read from table
+  lkpCode = lsReadFromTable_Simple()
+End If
+
+bevPromptUser_Simple = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " bevPromptUser_simple" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+
+
+
+Private Function verBuildList_createTable(tbName As String) As Boolean
+On Error GoTo fout
+verBuildList_createTable = False
+
+
+DoCmd.DeleteObject acTable, tbName
+DoCmd.DeleteObject acTable, tbName & "_stats"
+
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("VL_Naam", dbText, 255)
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Set tb = db.CreateTableDef(tbName & "_stats")
+
+tb.Fields.Append tb.CreateField("VL_IncludeSwimmers", dbBoolean)
+
+db.TableDefs.Append tb
+Set tb = Nothing
+
+
+
+
+
+Set db = Nothing
+
+
+verBuildList_createTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then
+  Resume Next
+End If
+MsgBox Err & " verBuildList_createTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Sub verBuildList_appendClause(ByRef sqlWhereClause As String, newCondition As String)
+If (Len(sqlWhereClause) > 0) Then
+  sqlWhereClause = sqlWhereClause & " and "
+Else
+  sqlWhereClause = sqlWhereClause & "WHERE "
+End If
+sqlWhereClause = sqlWhereClause & newCondition
+End Sub
+
+
+
+Private Function verBuildList_outputStats(ByVal tbNameStats As String) As Boolean
+
+On Error GoTo fout
+verBuildList_outputStats = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(tbNameStats)
+
+rs.AddNew
+  
+rs.Update
+
+verBuildList_outputStats = True
+Exit Function
+
+fout:
+MsgBox Err & " verBuildList_outputStats" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+'Needs an ordered ver list as input.
+Public Function verBuildList(ByVal blRestrictVer As Boolean, ByVal nVers As Integer, ByRef verNames() As String) As Boolean
+On Error GoTo fout
+  
+verBuildList = False
+  
+If Not verBuildList_createTable("~VerList") Then
+  Exit Function
+End If
+
+
+Dim sqlWhereClause As String
+sqlWhereClause = ""
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~VerList")
+
+Dim rsVer As Recordset
+Set rsVer = CurrentDb().OpenRecordset("select * from [dtVerenigingen] " & sqlWhereClause)
+
+rsVer.MoveFirst
+Do Until rsVer.EOF
+
+  Dim tpVer As String
+  tpVer = Nz(rsVer("v_naam"))
+  
+  
+  Dim tpValid As Boolean
+  tpValid = True
+  
+ 
+  If (tpValid) Then
+    If (blRestrictVer) Then
+      If bSearchString(tpVer, nVers, verNames) < 0 Then
+        tpValid = False
+      End If
+    End If
+  End If
+  
+  
+  If (tpValid) Then
+    outp.AddNew
+      outp("VL_Naam") = hzn(tpVer)
+    outp.Update
+  End If 'if tpValid
+  
+  rsVer.MoveNext
+Loop
+
+
+appCleanRS rsVer
+appCleanRS outp
+
+If Not verBuildList_outputStats("~verList_Stats") Then
+  Exit Function
+End If
+
+
+
+
+verBuildList = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " verBuildList" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+  
+  
+End Function
+
+
+
+Public Function swmAddNew(ByVal newVer As String, ByVal newStart As String, ByVal newGes As String, ByRef isAdded As Boolean) As Boolean
+On Error GoTo fout
+swmAddNew = False
+
+
+Dim sql As String
+sql = "Delete * from hpoSwmEdit;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoSwmEdit")
+
+rs.AddNew
+  rs("SE_IsUpdated") = False
+  rs("SE_Vereniging") = hzn(newVer)
+  rs("SE_Startnummer") = hzn(newStart)
+  rs("SE_Geslacht") = hzn(newGes)
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "hpoSwimmerNew", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoSwmEdit")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoSwmEdit is leeg."
+End If
+
+isAdded = Nz(rs("SE_IsUpdated"))
+
+
+appCleanRS rs
+
+
+
+swmAddNew = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " swmAddNew" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function swmEdit(ByVal sVer As String, ByVal sStart As String, ByRef isEdited As Boolean) As Boolean
+On Error GoTo fout
+swmEdit = False
+
+
+If (sVer = "") Or (sStart = "") Then
+  Err.Raise 1, , "Must supply a valid vereniging and startnummer"
+End If
+
+
+Dim sql As String
+sql = "Delete * from hpoSwmEdit;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoSwmEdit")
+
+rs.AddNew
+  rs("SE_IsUpdated") = False
+  rs("SE_Vereniging") = hzn(sVer)
+  rs("SE_Startnummer") = hzn(sStart)
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "hpoSwimmerEdit", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoSwmEdit")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoSwmEdit is leeg."
+End If
+
+isEdited = Nz(rs("SE_IsUpdated"))
+
+
+appCleanRS rs
+
+If (isEdited) Then
+  'need to update names in ploegen and deelnemers table.
+  
+  DoCmd.SetWarnings False
+  
+  sql = "UPDATE DISTINCTROW dtNamen LEFT JOIN dtDeelnemers ON (dtNamen.NA_Startnummer = dtDeelnemers.DE_Startnummer) " & _
+    "AND (dtNamen.NA_Vereniging = dtDeelnemers.DE_Vereniging) SET dtDeelnemers.DE_Naam = [na_naam] " & _
+    "WHERE de_vereniging = """ & sVer & """ and de_startnummer = """ & sStart & """;"
+    
+  DoCmd.RunSQL sql
+    
+    'estafette
+  sql = "UPDATE DISTINCTROW dtNamen LEFT JOIN dtPloegen ON (dtNamen.NA_Startnummer = dtPloegen.PL_Startnummer) AND " & _
+    "(dtNamen.NA_Vereniging = dtPloegen.PL_Vereniging) SET dtPloegen.PL_Naam = [na_naam] " & _
+    "WHERE pl_vereniging = """ & sVer & """ and pl_startnummer = """ & sStart & """;"
+  
+  DoCmd.RunSQL sql
+  
+  DoCmd.SetWarnings True
+End If
+
+
+
+
+
+swmEdit = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " swmEdit" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+End Function
+
+
+
+
+
+Public Function verAddNew(ByVal newVer As String, ByRef isAdded As Boolean) As Boolean
+On Error GoTo fout
+verAddNew = False
+
+
+Dim sql As String
+sql = "Delete * from hpoVerEdit;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoVerEdit")
+
+rs.AddNew
+  rs("VE_IsUpdated") = False
+  rs("VE_Vereniging") = hzn(newVer)
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "hpoVerenigingNew", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoVerEdit")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoVerEdit is leeg."
+End If
+
+isAdded = Nz(rs("VE_IsUpdated"))
+
+
+appCleanRS rs
+
+
+
+verAddNew = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " verAddNew" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+Public Function verExportContacts(fName As String) As Boolean
+On Error GoTo fout
+verExportContacts = False
+
+
+
+If Not gXMLWriter.exportTableToXML("dtContactpersonen", fName, "CONTACT", True) Then
+  Exit Function
+End If
+
+'DoCmd.TransferDatabase acExport, "Dbase IV", extractFilePath(file), acTable, "dtContactpersonen", extractFileName(file)
+
+verExportContacts = True
+
+Exit Function
+fout:
+MsgBox Error$, 16
+Exit Function
+
+End Function
+
+Public Function verImportContacts(fName As String) As Boolean
+On Error GoTo fout
+verImportContacts = False
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL "delete * from hpoImpContactpersonen"
+DoCmd.SetWarnings True
+
+
+If Not gXMLReader.importXMLTable(fName, "hpoImpContactpersonen", True) Then
+  Exit Function
+End If
+
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+'============Nieuwe verenigingsnamen toevoegen (index verhindert dubbele namen)================
+sql = "INSERT INTO [dtVerenigingen] ( V_NAAM ) " & _
+    "SELECT hpoImpContactpersonen.V_NAAM FROM hpoImpContactpersonen GROUP BY hpoImpContactpersonen.V_NAAM;"    'Nieuwe verenigingsnamen toevoegen...
+DoCmd.RunSQL sql
+
+'=============Nieuwe contactpersonen toevoegen (index verhindert dubbele namen )==============
+sql = "INSERT INTO [dtContactpersonen] ( V_NAAM, cont_naam, cont_adres, cont_postcode, cont_plaats, cont_telefoon, cont_email, cont_Code ) " & _
+    "SELECT hpoImpContactpersonen.V_NAAM, hpoImpContactpersonen.CONT_NAAM, hpoImpContactpersonen.CONT_ADRES, hpoImpContactpersonen.CONT_POSTCode, hpoImpContactpersonen.CONT_PLAATs, hpoImpContactpersonen.CONT_TELEFOON, hpoImpContactpersonen.CONT_EMAIL, hpoImpContactpersonen.CONT_CODE FROM hpoImpContactpersonen;"
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL "delete * from hpoImpContactpersonen"
+DoCmd.SetWarnings True
+
+
+
+verImportContacts = True
+
+Exit Function
+
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+
+MsgBox Err & " verImportContacts" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+
+End Function
+
+
+
+Public Function swmAddAllOrphanedSwimmers() As Boolean
+On Error GoTo fout
+swmAddAllOrphanedSwimmers = False
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+'Persoonlijke starts:
+sql = "INSERT INTO dtNamen ( NA_Startnummer, NA_Vereniging, NA_Naam, NA_Geslacht ) " & _
+  "SELECT DISTINCTROW dtDeelnemers.DE_Startnummer, dtDeelnemers.DE_Vereniging, dtDeelnemers.DE_Naam, M_of_v([PR_Categorie]) AS Expr1 " & _
+  "from dtProgramma RIGHT JOIN (dtDeelnemers LEFT JOIN dtNamen ON (dtDeelnemers.DE_Vereniging = dtNamen.NA_Vereniging) AND " & _
+  "(dtDeelnemers.DE_Startnummer = dtNamen.NA_Startnummer)) ON (dtProgramma.PR_Programmanummer = dtDeelnemers.DE_Programmanummer) " & _
+  "AND (dtProgramma.PR_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer) " & _
+  "WHERE (((dtDeelnemers.DE_Startnummer) Is Not Null) AND ((dtNamen.NA_Startnummer) Is Null) AND ((dtNamen.NA_Vereniging) Is Null)); "
+
+DoCmd.RunSQL sql
+
+'Estafette starts:
+sql = "INSERT INTO dtNamen ( NA_Startnummer, NA_Vereniging, NA_Naam, NA_Geslacht ) " & _
+  "SELECT DISTINCTROW dtPloegen.PL_Startnummer, dtPloegen.PL_Vereniging, dtPloegen.PL_Naam, M_of_v([PR_Categorie]) AS Expr1 " & _
+  "from dtProgramma RIGHT JOIN (dtPloegen LEFT JOIN dtNamen ON (dtPloegen.PL_Startnummer = dtNamen.NA_Startnummer) AND " & _
+  "(dtPloegen.PL_Vereniging = dtNamen.NA_Vereniging)) ON (dtProgramma.PR_Programmanummer = dtPloegen.PL_Programmanummer) AND " & _
+  "(dtProgramma.PR_Wedstrijdnummer = dtPloegen.PL_Wedstrijdnummer) " & _
+  "WHERE (((dtPloegen.PL_Startnummer) Is Not Null) AND ((M_of_v([PR_Categorie]))<> ""*"") AND ((dtNamen.NA_Startnummer) Is Null) " & _
+  "AND ((dtNamen.NA_Vereniging) Is Null)); "
+
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+
+
+swmAddAllOrphanedSwimmers = True
+Exit Function
+
+fout:
+MsgBox Err & " swmAddAllOrphanedSwimmers" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
+
+Private Function swmSetGeslacht_calcGes(st As String) As String
+swmSetGeslacht_calcGes = "*"
+Dim Nr As String
+Nr = ""
+
+If Len(st) = 8 Then
+ Nr = Right(st, 5)
+End If
+If (val(Nr) > 0.5) Then
+  If (CInt((val(Nr)) Mod 2) = 0) Then
+    'even -> meisje
+    swmSetGeslacht_calcGes = "V"
+  Else
+    swmSetGeslacht_calcGes = "M"
+  End If
+End If
+  
+End Function
+
+Public Function swmSetGeslacht()
+On Error Resume Next
+Dim sql As String
+sql = "Select * from dtNamen where [na_geslacht] = ""*"";"
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+rs.MoveFirst
+Dim tpG As String
+
+Do Until rs.EOF
+  tpG = swmSetGeslacht_calcGes(Nz(rs("Na_startnummer")))
+  If (tpG <> "*") Then
+    rs.Edit
+      rs("na_geslacht") = hzn(tpG)
+    rs.Update
+  End If
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+End Function
+
+
+
+
+Public Function sqlSwmDisplayNameANFirst(ByVal sName As String, ByVal sVN As String, ByVal sVG As String, ByVal sAN As String) As String
+On Error Resume Next
+If (sAN <> "") Then
+  sqlSwmDisplayNameANFirst = Trim(sAN & ", " & sVN & " " & sVG)
+Else
+  sqlSwmDisplayNameANFirst = Trim(nmExtractAchternaam(sName) & ", " & nmExtractVoornaam(sName) & " " & nmExtractVoegsel(sName))
+End If
+End Function
+
+Public Function sqlSwmGetAN(ByVal sName As String, ByVal sAN As String) As String
+On Error Resume Next
+If sAN <> "" Then
+  sqlSwmGetAN = sAN
+Else
+ sqlSwmGetAN = nmExtractAchternaam(sName)
+End If
+End Function

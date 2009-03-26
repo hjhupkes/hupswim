@@ -1,0 +1,1975 @@
+Option Compare Database
+Option Explicit
+
+'Private Const RXP_EVT_GROUP_OPEN = 0
+'Private Const RXP_EVT_GROUP_CLOSE = 1
+Private Const RXP_EVT_BAND_OPEN = 2
+Private Const RXP_EVT_BAND_CLOSE = 3
+Private Const RXP_EVT_SET_PROP = 4
+
+Public Const RXP_BNDTYPE_GLOBAL = 3
+Public Const RXP_BNDTYPE_HEAD = 0
+Public Const RXP_BNDTYPE_TAIL = 1
+Public Const RXP_BNDTYPE_DETAIL = 2
+
+Private Const RXP_XML_BNDTYPE_HEAD_NAME = "head"
+Private Const RXP_XML_BNDTYPE_TAIL_NAME = "tail"
+Private Const RXP_XML_BNDTYPE_DETAIL_NAME = "detail"
+Private Const RXP_XML_BNDTYPE_GLOBAL_NAME = "global"
+
+
+Private Const RXP_MAX_DEPTH = 100
+Private Const RXP_MAX_BAND_TYPES_PER_LEVEL = 10
+
+
+
+Public Const RXP_FORMAT_RTF = 0
+Public Const RXP_FORMAT_XLS = 1
+Public Const RXP_FORMAT_TXT = 2
+Public Const RXP_FORMAT_HTM = 3
+Public Const RXP_FORMAT_XML = 4
+Public Const RXP_FORMAT_PDF = 5
+Public Const RXP_FORMAT_RTF_X = 6
+
+
+Private Const RXP_MAX_N_FIELDS = 1000
+Private Const RXP_MAX_N_ARGS = 100
+
+Private Const RXP_MAX_N_BAND_TYPES = 30
+Private Const RXP_MAX_N_BAND_COLS = 50
+
+Public Type RXP_Pointer
+  intInitialized As Boolean
+  intNFields As Integer
+  intFieldNames(0 To RXP_MAX_N_FIELDS) As String
+  intFieldBandNames(0 To RXP_MAX_N_FIELDS) As String
+  intFieldSet(0 To RXP_MAX_N_FIELDS) As Boolean
+  intFieldVals(0 To RXP_MAX_N_FIELDS) As String
+  intUserArgNames(0 To RXP_MAX_N_ARGS) As String
+  intUserArgVals(0 To RXP_MAX_N_ARGS) As String
+  intNUserArgs As Integer
+End Type
+
+
+Public Type RXP_HTML_BND_PROPS
+  sTbClassName As String
+  sTRClassName As String
+End Type
+Public Type RXP_HTML_COL_PROPS
+  sTDClassName As String
+End Type
+
+
+Private Sub rxpInitHtmlBndProps(ByRef htmlProps As RXP_HTML_BND_PROPS)
+  htmlProps.sTbClassName = ""
+  htmlProps.sTRClassName = ""
+End Sub
+Private Sub rxpInitHtmlColProps(ByRef htmlProps As RXP_HTML_COL_PROPS)
+  htmlProps.sTDClassName = ""
+End Sub
+
+
+
+Public Function rxpExportReport(ByVal fName As String, ByVal tbName As String, ByVal rxpFormat As Integer, ByVal blAllowMultiPage As Boolean, ByRef rxpPnt As RXP_Pointer, ByVal callBackID As Integer, ByVal rptXMLName As String) As Boolean
+On Error GoTo fout
+rxpExportReport = False
+
+If Not rxpPostProcessTable(tbName) Then
+  Exit Function
+End If
+
+Select Case rxpFormat
+  Case RXP_FORMAT_XML
+
+   SysCmd acSysCmdSetStatus, "Bezig met schrijven naar: " & fName
+  
+   Dim blOK As Boolean
+   blOK = False
+
+   blOK = rxpExportXML(fName, tbName, rptXMLName)
+   
+   SysCmd acSysCmdClearStatus
+   
+   If Not blOK Then
+     Exit Function
+   End If
+  
+  Case RXP_FORMAT_TXT, RXP_FORMAT_HTM
+  
+    SysCmd acSysCmdSetStatus, "Bezig met schrijven naar: " & fName
+  
+    blOK = False
+        
+    blOK = rxpExportDriver(fName, rxpFormat, blAllowMultiPage, tbName, callBackID, rxpPnt)
+  
+    SysCmd acSysCmdClearStatus
+    
+    If Not blOK Then
+      Exit Function
+    End If
+  
+  Case Else
+    Err.Raise 1, , "Internal error. Should use default formatter"
+End Select
+  
+
+
+rxpExportReport = True
+Exit Function
+fout:
+MsgBox Err & " rxpExportReport" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function rxpExportXML(ByVal fName As String, ByVal tbName As String, ByVal rptXMLName As String) As Boolean
+On Error GoTo fout
+rxpExportXML = False
+
+gXMLWriter.openXMLFile fName, False
+
+gXMLWriter.openDocument
+
+gXMLWriter.openNode rptXMLName
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [" & tbName & "] order by rxp_event_id;")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim evt As Integer
+  evt = Nz(rs("RXP_EVENT_TYPE"))
+  
+  
+    
+  Select Case evt
+    Case RXP_EVT_BAND_OPEN
+      Dim bNM As String
+      Dim isFirst As Boolean
+      Dim isLast As Boolean
+      Dim bt As Integer
+      bt = Nz(rs("RXP_BND_TYPE"))
+      bNM = Nz(rs("RXP_BND_XML_NAME"))
+      isFirst = Nz(rs("RXP_BND_ISFIRST"), False)
+      isLast = Nz(rs("RXP_BND_ISLAST"), False)
+      Dim sAttribs As String
+      Select Case bt
+        Case RXP_BNDTYPE_DETAIL
+          sAttribs = "type=""" & RXP_XML_BNDTYPE_DETAIL_NAME & """"
+        Case RXP_BNDTYPE_HEAD
+          sAttribs = "type=""" & RXP_XML_BNDTYPE_HEAD_NAME & """"
+        Case RXP_BNDTYPE_TAIL
+          sAttribs = "type=""" & RXP_XML_BNDTYPE_TAIL_NAME & """"
+        Case RXP_BNDTYPE_GLOBAL
+          sAttribs = "type=""" & RXP_XML_BNDTYPE_GLOBAL_NAME & """"
+          bNM = "GLOBAL_SETTINGS"
+      End Select
+      If (bt <> RXP_BNDTYPE_GLOBAL) Then
+        sAttribs = sAttribs & " isFirst=""" & rxpFormatBoolean(isFirst) & """ isLast=""" & rxpFormatBoolean(isLast) & """"
+      End If
+      gXMLWriter.openNodeAttributes bNM, sAttribs
+    Case RXP_EVT_BAND_CLOSE
+      gXMLWriter.closeNode
+    Case RXP_EVT_SET_PROP
+      gXMLWriter.openNodeData Nz(rs("RXP_PROP_NAME")), Nz(rs("RXP_PROP_VALUE"))
+  End Select
+
+
+  rs.MoveNext
+Loop
+
+
+
+appCleanRS rs
+
+
+
+gXMLWriter.closeNode
+
+gXMLWriter.closeDocument
+
+
+
+rxpExportXML = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " rxpExportXML" & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Function rxpProcessTableDirection(ByRef rs As Recordset, ByVal isForward As Boolean) As Boolean
+On Error GoTo fout
+rxpProcessTableDirection = False
+
+Dim sProcessedBandNames(0 To RXP_MAX_DEPTH * RXP_MAX_BAND_TYPES_PER_LEVEL) As String
+Dim iOpenGroupLastPBNIdx(0 To RXP_MAX_DEPTH) As Integer
+
+Dim pCurOpenGroup As Integer
+Dim pLastPBN As Integer
+
+pLastPBN = -1
+pCurOpenGroup = 0
+iOpenGroupLastPBNIdx(0) = -1
+
+
+Dim tGN(0 To RXP_MAX_DEPTH) As String
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim evt As Integer
+  Dim sBN As String
+  Dim bnt As Integer
+  
+  evt = Nz(rs("RXP_EVENT_TYPE"))
+  'We only process open events.
+  If (evt = RXP_EVT_BAND_OPEN) Then
+    bnt = Nz(rs("RXP_BND_TYPE"))
+    sBN = Nz(rs("RXP_BND_XML_NAME"))
+    
+    
+    Dim blIsOpenGroup As Boolean
+    Dim blIsCloseGroup As Boolean
+    
+    blIsOpenGroup = False
+    blIsCloseGroup = False
+    
+    
+    'We only mark the opening of bands.
+    If (isForward) Then
+      blIsOpenGroup = (bnt = RXP_BNDTYPE_HEAD)
+      blIsCloseGroup = (bnt = RXP_BNDTYPE_TAIL)
+    Else
+      blIsOpenGroup = (bnt = RXP_BNDTYPE_TAIL)
+      blIsCloseGroup = (bnt = RXP_BNDTYPE_HEAD)
+    End If
+    
+    
+    
+    
+    'If this is the close of a group, need to back up one level here.
+    If blIsCloseGroup Then
+      'Need to close group and move back pointer
+      
+      'debug
+      If (isForward) Then
+        If (Left(sBN, Len(sBN) - Len("staart")) <> tGN(pCurOpenGroup)) Then
+          Debug.Print "BOE"
+        End If
+      End If
+      
+      pLastPBN = iOpenGroupLastPBNIdx(pCurOpenGroup)
+      pCurOpenGroup = pCurOpenGroup - 1
+    End If
+    
+    
+    'First check if this is the first / last occurrence.
+    Dim fIdx As Integer
+    Dim lIdx As Integer
+    fIdx = iOpenGroupLastPBNIdx(pCurOpenGroup) + 1
+    lIdx = pLastPBN
+    
+    Dim i As Integer
+    Dim blFound As Boolean
+    blFound = False
+    For i = fIdx To lIdx
+      If (sProcessedBandNames(i) = sBN) Then
+        blFound = True
+        Exit For
+      End If
+    Next i
+    
+    If (Not blFound) Then
+      'Mark that first / last and add onto list.
+      rs.Edit
+      If (isForward) Then
+        rs("RXP_BND_IsFirst") = True
+      Else
+        rs("RXP_BND_ISLAST") = True
+      End If
+      rs.Update
+      pLastPBN = pLastPBN + 1
+      sProcessedBandNames(pLastPBN) = sBN
+    End If
+    
+
+    
+    
+    
+    If blIsOpenGroup Then
+      'Need to add a new group.
+      
+      
+      
+      pCurOpenGroup = pCurOpenGroup + 1
+      iOpenGroupLastPBNIdx(pCurOpenGroup) = pLastPBN
+      
+      'debug
+      If (isForward) Then
+        tGN(pCurOpenGroup) = Left(sBN, Len(sBN) - Len("kop"))
+      End If
+             
+    End If
+    
+    
+    
+  ElseIf (evt = RXP_EVT_SET_PROP) And (isForward) Then
+    rs.Edit
+      rs("RXP_BND_XML_NAME") = hzn(sBN)
+    rs.Update
+  End If
+
+
+  rs.MoveNext
+Loop
+
+
+rxpProcessTableDirection = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " rxpProcessTableDirection" & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Function rxpPostProcessTable(tbName As String) As Boolean
+On Error GoTo fout
+rxpPostProcessTable = False
+
+'This procedure will update the BND_IS_FIRST and BND_IS_LAST values.
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [" & tbName & "] order by rxp_event_id;")
+
+If Not rxpProcessTableDirection(rs, True) Then Exit Function
+
+appCleanRS rs
+
+Set rs = CurrentDb().OpenRecordset("select * from [" & tbName & "] order by rxp_event_id desc;")
+
+If Not rxpProcessTableDirection(rs, False) Then Exit Function
+
+appCleanRS rs
+
+rxpPostProcessTable = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " " & Error$, 16
+End Function
+Public Function rxpCleanReport(tbName As String) As Boolean
+On Error GoTo fout
+rxpCleanReport = False
+
+
+DoCmd.DeleteObject acTable, tbName
+
+rxpCleanReport = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'object to delete not found
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rxpPrepareReport(tbName As String) As Boolean
+On Error GoTo fout
+rxpPrepareReport = False
+
+
+DoCmd.DeleteObject acTable, tbName
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("RXP_EVENT_ID", dbLong)
+tb.Fields.Append tb.CreateField("RXP_EVENT_TYPE", dbInteger)
+tb.Fields.Append tb.CreateField("RXP_BND_XML_NAME", dbText, 50)
+'tb.Fields.Append tb.CreateField("RXP_GRP_XML_NAME", dbText, 50)
+tb.Fields.Append tb.CreateField("RXP_BND_TYPE", dbInteger)
+tb.Fields.Append tb.CreateField("RXP_BND_ISFIRST", dbBoolean)
+tb.Fields.Append tb.CreateField("RXP_BND_ISLAST", dbBoolean)
+tb.Fields.Append tb.CreateField("RXP_PROP_NAME", dbText, 50)
+tb.Fields.Append tb.CreateField("RXP_PROP_VALUE", dbMemo)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("RXP_EVENT_ID", dbLong)
+idx.Primary = True
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+
+
+
+
+rxpPrepareReport = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'object to delete not found
+
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Sub rxpOpenCloseBand(ByVal bandXMLName As String, ByVal bandType As Integer, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long)
+rxpOpenBand bandXMLName, bandType, rxpRS, maxUsedRXID
+rxpCloseBand bandXMLName, bandType, rxpRS, maxUsedRXID
+End Sub
+
+
+
+
+'Private Sub rxpOpenGroup(ByVal grpXMLName As String, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long)
+'rxpRS.AddNew
+'  rxpRS("RXP_EVENT_ID") = maxUsedRXID
+'  rxpRS("RXP_EVENT_TYPE") = RXP_EVT_GROUP_OPEN
+'  rxpRS("RXP_GRP_XML_NAME") = hzn(grpXMLName)
+'rxpRS.Update
+'End Sub
+
+'Private Sub rxpCloseGroup(ByVal grpXMLName As String, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long)
+'rxpRS.AddNew
+'  rxpRS("RXP_EVENT_ID") = maxUsedRXID
+'  rxpRS("RXP_EVENT_TYPE") = RXP_EVT_GROUP_CLOSE
+'  rxpRS("RXP_GRP_XML_NAME") = hzn(grpXMLName)
+'rxpRS.Update
+'End Sub
+
+
+Public Sub rxpOpenBand(ByVal bandXMLName As String, ByVal bandType As Integer, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long)
+If (bandType = RXP_BNDTYPE_GLOBAL) Then
+  If (maxUsedRXID > 0) Then
+    Err.Raise 1, , "The global band must be the first band"
+  End If
+  If (bandXMLName <> "") Then
+    Err.Raise 1, , "The global band may not have a name"
+  End If
+End If
+
+rxpRS.AddNew
+  maxUsedRXID = maxUsedRXID + 1
+  rxpRS("RXP_EVENT_ID") = maxUsedRXID
+  rxpRS("RXP_EVENT_TYPE") = RXP_EVT_BAND_OPEN
+  rxpRS("RXP_BND_XML_NAME") = hzn(bandXMLName)
+  rxpRS("RXP_BND_TYPE") = bandType
+rxpRS.Update
+End Sub
+Public Sub rxpCloseBand(ByVal bandXMLName As String, ByVal bandType As Integer, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long)
+rxpRS.AddNew
+  maxUsedRXID = maxUsedRXID + 1
+  rxpRS("RXP_EVENT_ID") = maxUsedRXID
+  rxpRS("RXP_EVENT_TYPE") = RXP_EVT_BAND_CLOSE
+  rxpRS("RXP_BND_XML_NAME") = hzn(bandXMLName)
+  rxpRS("RXP_BND_TYPE") = bandType
+rxpRS.Update
+
+
+End Sub
+
+Public Function rxpFormatBoolean(ByVal B As Boolean) As String
+If (B) Then
+  rxpFormatBoolean = "true"
+Else
+  rxpFormatBoolean = "false"
+End If
+End Function
+Public Function rxpParseBoolean(ByVal s As String) As Boolean
+rxpParseBoolean = False
+If (s = "true") Then
+  rxpParseBoolean = True
+End If
+End Function
+Public Function rxpParseDateNL(ByVal sDate As String) As Date
+If sDate = "" Then
+  rxpParseDateNL = #1/1/1900#
+Else
+  Dim nDay As Integer, nMonth As Integer, nYear As Integer
+  nDay = CInt(val(Mid(sDate, 1, 2)))
+  nMonth = CInt(val(Mid(sDate, 4, 2)))
+  nYear = CInt(val(Mid(sDate, 7, 4)))
+  
+  If (nDay = 0) Or (nMonth = 0) Or (nYear = 0) Then
+    rxpParseDateNL = #1/1/1900#
+  Else
+    rxpParseDateNL = DateSerial(nYear, nMonth, nDay)
+  End If
+End If
+
+End Function
+
+Public Function rxpFormatDateNL(ByVal dDate As Date) As String
+If Not lenDateIsValid(dDate) Then
+  rxpFormatDateNL = ""
+Else
+  rxpFormatDateNL = Format(dDate, "dd\-mm\-yyyy")
+End If
+End Function
+
+Public Function rxpFormatDateInt(ByVal dDate As Date) As String
+If Not lenDateIsValid(dDate) Then
+  rxpFormatDateInt = ""
+Else
+  rxpFormatDateInt = Format(dDate, "yyyy\-mm\-dd")
+End If
+End Function
+
+
+
+Public Sub rxpSetProperty(ByVal propName As String, ByVal propValue As String, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long)
+
+rxpRS.AddNew
+  maxUsedRXID = maxUsedRXID + 1
+  rxpRS("RXP_EVENT_ID") = maxUsedRXID
+  rxpRS("RXP_EVENT_TYPE") = RXP_EVT_SET_PROP
+  rxpRS("RXP_PROP_NAME") = hzn(propName)
+  rxpRS("RXP_PROP_VALUE") = hzn(propValue)
+rxpRS.Update
+
+End Sub
+
+
+Public Function rxpSetUserArg(ByRef rxpPnt As RXP_Pointer, ByVal argName As String, ByVal argVal As String) As Boolean
+On Error GoTo fout
+rxpSetUserArg = False
+
+'First look for the argument
+Dim lkpPos As Integer
+lkpPos = bSearchString(argName, rxpPnt.intNUserArgs, rxpPnt.intUserArgNames)
+If (lkpPos < 0) Then
+  Dim insPos As Integer
+  Dim oldCnt As Integer
+  oldCnt = rxpPnt.intNUserArgs
+  insPos = insString(argName, rxpPnt.intNUserArgs, rxpPnt.intUserArgNames)
+  shiftRightString insPos, 1, oldCnt, rxpPnt.intUserArgVals
+  rxpPnt.intUserArgVals(insPos) = argVal
+Else
+  rxpPnt.intUserArgVals(lkpPos) = argVal
+End If
+
+rxpSetUserArg = True
+Exit Function
+fout:
+MsgBox Err & " rxpSetUserArg" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpGetUserArg(ByRef rxpPnt As RXP_Pointer, ByVal argName As String) As String
+On Error GoTo fout
+rxpGetUserArg = ""
+
+Dim lkpPos As Integer
+lkpPos = bSearchString(argName, rxpPnt.intNUserArgs, rxpPnt.intUserArgNames)
+
+If (lkpPos < 0) Then
+
+Else
+  rxpGetUserArg = rxpPnt.intUserArgVals(lkpPos)
+End If
+
+
+
+Exit Function
+fout:
+MsgBox Err & " rxpGetUserArg" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rxpInitPointer(ByRef rxpPnt As RXP_Pointer) As Boolean
+On Error GoTo fout
+rxpInitPointer = False
+
+rxpPnt.intNFields = 0
+rxpPnt.intNUserArgs = 0
+rxpPnt.intInitialized = True
+
+rxpInitPointer = True
+Exit Function
+fout:
+MsgBox Err & " rxpInitPointer" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function rxpExtractField_read(ByVal fldIdx As Integer, ByRef rxpPnt As RXP_Pointer, ByRef fldValue As String) As Boolean
+On Error GoTo fout
+rxpExtractField_read = False
+
+fldValue = ""
+
+If rxpPnt.intFieldSet(fldIdx) Then
+  fldValue = rxpPnt.intFieldVals(fldIdx)
+End If
+
+rxpExtractField_read = True
+Exit Function
+fout:
+MsgBox Err & " rxpExtractField_read" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function rxpExtractField_perform(ByVal fName As String, ByRef rxpPnt As RXP_Pointer, ByRef fldValue As String) As Boolean
+On Error GoTo fout
+rxpExtractField_perform = False
+
+Dim fldIdx As Integer
+fldIdx = bSearchString(fName, rxpPnt.intNFields, rxpPnt.intFieldNames)
+If (fldIdx < 0) Then
+  Err.Raise 1, , "Unknown field: " & fName
+End If
+If Not rxpExtractField_read(fldIdx, rxpPnt, fldValue) Then
+  Exit Function
+End If
+
+rxpExtractField_perform = True
+Exit Function
+
+fout:
+MsgBox Err & " rxpExtractField_perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Public Function rxpExtractField(ByVal fName As String, ByRef rxpPnt As RXP_Pointer) As String
+On Error Resume Next
+rxpExtractField = ""
+Dim tpVal As String
+tpVal = ""
+If Not rxpExtractField_perform(fName, rxpPnt, tpVal) Then
+  Exit Function
+End If
+rxpExtractField = tpVal
+End Function
+
+
+Private Function rxpExportDriver_Init(ByVal tbName As String, ByRef bndNames() As String, ByRef nBands As Integer, ByRef rxpPnt As RXP_Pointer) As Boolean
+On Error GoTo fout
+rxpExportDriver_Init = False
+
+
+
+Dim sql As String
+sql = "select RXP_BND_XML_NAME from [" & tbName & "] where nz([rxp_bnd_xml_name]) <> """" group by RXP_BND_XML_NAME  order by rxp_bnd_xml_name;"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpBndName As String
+  tpBndName = Nz(rs("RXP_BND_XML_NAME"))
+  
+  insString tpBndName, nBands, bndNames
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+'Now get the field names
+sql = "select RXP_BND_XML_NAME, RXP_PROP_NAME from [" & tbName & "] where nz([RXP_PROP_NAME]) <> """" group by RXP_BND_XML_NAME, RXP_PROP_NAME  order by RXP_PROP_NAME;"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpPropName As String
+  tpPropName = Nz(rs("RXP_PROP_NAME"))
+  tpBndName = Nz(rs("RXP_BND_XML_NAME"))
+  
+  If bSearchString(tpPropName, rxpPnt.intNFields, rxpPnt.intFieldNames) >= 0 Then
+    Err.Raise 1, , "Duplicate property name found: " & tpPropName
+  End If
+  
+  
+  Dim insPos As Integer
+  Dim oldCnt As Integer
+  oldCnt = rxpPnt.intNFields
+  insPos = insString(tpPropName, rxpPnt.intNFields, rxpPnt.intFieldNames)
+  shiftRightString insPos, 1, oldCnt, rxpPnt.intFieldBandNames
+  rxpPnt.intFieldBandNames(insPos) = tpBndName
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+Dim i As Integer
+For i = 0 To rxpPnt.intNFields - 1
+  rxpPnt.intFieldSet(i) = False
+  rxpPnt.intFieldVals(i) = ""
+Next i
+
+
+rxpExportDriver_Init = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpExportDriver_init" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Function rxpExportDriver_LoadBand(ByRef rs As Recordset, ByRef bndName As String, ByRef bndIsFirst As Boolean, ByRef bndIsLast As Boolean, ByRef rxpPnt As RXP_Pointer) As Boolean
+On Error GoTo fout
+rxpExportDriver_LoadBand = False
+
+If (rs.EOF) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+Dim tpEventType As Integer
+Dim tpBndName As String
+Dim tpBndIsFirst As Boolean
+Dim tpBndIsLast As Boolean
+Dim tpPropName As String
+Dim tpPropValue As String
+
+Dim done As Boolean
+done = False
+
+Dim blBandOpen As Boolean
+blBandOpen = False
+
+
+
+While Not done
+  tpEventType = Nz(rs("RXP_EVENT_TYPE"))
+  
+  If (tpEventType = RXP_EVT_BAND_OPEN) Then
+    If (blBandOpen) Then
+      Err.Raise 1, , "internal error"
+    End If
+    
+    tpBndName = Nz(rs("RXP_BND_XML_NAME"))
+    tpBndIsFirst = Nz(rs("RXP_BND_IsFirst"))
+    tpBndIsLast = Nz(rs("RXP_BND_IsLast"))
+    
+    
+    bndName = tpBndName
+    bndIsFirst = tpBndIsFirst
+    bndIsLast = tpBndIsLast
+    
+    'Mark that all the fields from a previous occurrence of this band are now no longer set
+    
+    Dim i As Integer
+    For i = 0 To rxpPnt.intNFields - 1
+      If rxpPnt.intFieldBandNames(i) = bndName Then
+        rxpPnt.intFieldSet(i) = False
+      End If
+    Next i
+    
+    blBandOpen = True
+    
+  ElseIf (tpEventType = RXP_EVT_BAND_CLOSE) Then
+    If (Not blBandOpen) Then
+      Err.Raise 1, , "internal error"
+    End If
+  ElseIf (tpEventType = RXP_EVT_SET_PROP) Then
+    If (Not blBandOpen) Then
+      Err.Raise 1, , "internal error"
+    End If
+    
+    tpPropName = Nz(rs("RXP_PROP_Name"))
+    tpPropValue = Nz(rs("RXP_PROP_Value"))
+    
+    Dim fldIdx As Integer
+    fldIdx = bSearchString(tpPropName, rxpPnt.intNFields, rxpPnt.intFieldNames)
+    If (fldIdx < 0) Then
+      Err.Raise 1, , "Internal error. Unknown field: " & tpPropName
+    End If
+    
+    rxpPnt.intFieldVals(fldIdx) = tpPropValue
+    rxpPnt.intFieldSet(fldIdx) = True
+    
+  End If
+  
+  
+  rs.MoveNext
+  If (tpEventType = RXP_EVT_BAND_CLOSE) Then
+    done = True
+  ElseIf (rs.EOF) Then
+    Err.Raise 1, , "Internal error"
+  End If
+    
+Wend
+
+rxpExportDriver_LoadBand = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpExportDriver_LoadBand" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function rxpTxtPadString(s As String, ln As Integer) As String
+Dim sln As Integer
+sln = Len(s)
+If (sln > ln) Then
+  rxpTxtPadString = Left(s, ln)
+Else
+  rxpTxtPadString = s & String(ln - sln, " ")
+End If
+Exit Function
+End Function
+
+Private Function rxpTxtCumWidth(colWidths() As Integer, startcol As Integer, colSpan As Integer) As Integer
+Dim j As Integer
+rxpTxtCumWidth = 0
+For j = startcol To startcol + colSpan - 1
+  rxpTxtCumWidth = rxpTxtCumWidth + colWidths(j)
+Next j
+End Function
+
+Public Function rxpTxtWriteLine(ByVal s As String, fileNr As Integer, maxLineLength As Integer, Optional offset As Integer = 0) As Boolean
+On Error GoTo fout
+rxpTxtWriteLine = False
+
+Dim firstLine As Boolean
+firstLine = True
+
+While (Len(s) > 0)
+  Dim curLine As String
+  If (maxLineLength <= 0) Then
+    curLine = s
+    s = ""
+  Else
+    curLine = rxpExtractTxtLine(s, maxLineLength - offset)
+  End If
+  If (firstLine Or offset = 0) Then
+    Print #fileNr, curLine
+    firstLine = False
+  Else
+    Print #fileNr, String(offset, " ") & curLine
+  End If
+Wend
+
+rxpTxtWriteLine = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+Private Function rxpExtractTxtLine(ByRef s As String, ByVal maxLen As Integer) As String
+On Error GoTo fout
+rxpExtractTxtLine = ""
+
+Dim lastSpacePos As Integer
+Dim curPos As Integer
+Dim curChar As String
+
+lastSpacePos = 0
+curPos = 1
+
+Dim totLen As Integer
+totLen = Len(s)
+
+If (totLen = 0) Then
+  Exit Function
+End If
+
+Dim done As Boolean
+done = False
+
+Dim blIsEOL As Boolean
+blIsEOL = False
+Dim eolPos As Integer
+eolPos = 0
+
+While Not done
+  curChar = Mid(s, curPos, 1)
+  'Need to ensure that we get #13#10 EOL sequences right.
+  If (curChar = " ") Then
+    lastSpacePos = curPos
+  ElseIf (curChar = Chr(13)) Then
+    If (curPos + 1 <= totLen) Then
+      If (Mid(s, curPos + 1, 1) = Chr(10)) Then
+        blIsEOL = True
+        eolPos = curPos
+      End If
+    End If
+  End If
+  
+  curPos = curPos + 1
+  
+  If blIsEOL Then
+    done = True
+  Else
+    If (lastSpacePos > 0) Then
+      done = (curPos > maxLen)
+    Else
+      done = curPos > totLen
+    End If
+  End If
+Wend
+
+If (curPos > totLen) Then
+  rxpExtractTxtLine = s
+  s = ""
+  Exit Function
+End If
+
+If (blIsEOL) Then
+  rxpExtractTxtLine = Left(s, eolPos - 1)
+  s = Mid(s, eolPos + 2, totLen - eolPos - 1)
+Else
+  If (lastSpacePos > 0) Then
+    If (lastSpacePos > 1) Then
+      rxpExtractTxtLine = Left(s, lastSpacePos - 1)
+      s = Mid(s, lastSpacePos + 1, totLen - lastSpacePos)
+    Else
+      rxpExtractTxtLine = ""
+    End If
+    Exit Function
+  Else
+    rxpExtractTxtLine = s
+    s = ""
+    Exit Function
+  End If
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rxpHTMLWriteHeader(ByVal fNr As Integer, ByVal txtHeader As String) As Boolean
+On Error GoTo fout
+rxpHTMLWriteHeader = False
+
+If (txtHeader <> "") Then
+  Print #fNr, "<H1 align=""center"">" & gXMLWriter.convertToUTF(txtHeader, True) & "</H1>"
+End If
+
+rxpHTMLWriteHeader = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLWriteHeader" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpHTMLWriteSubHeader(ByVal fNr As Integer, ByVal txtHeader As String) As Boolean
+On Error GoTo fout
+rxpHTMLWriteSubHeader = False
+
+If (txtHeader <> "") Then
+  Print #fNr, "<H2 align=""center"">" & gXMLWriter.convertToUTF(txtHeader, True) & "</H2>"
+End If
+
+rxpHTMLWriteSubHeader = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLWriteSubHeader" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rxpHTMLOpenTable(ByVal fNr As Integer, ByVal sTbClassName As String) As Boolean
+On Error GoTo fout
+rxpHTMLOpenTable = False
+
+Print #fNr, "<CENTER>"
+
+If (sTbClassName = "") Then
+  Print #fNr, "<TABLE Border = ""0"">"
+Else
+  Print #fNr, "<TABLE class=""" & sTbClassName & """ Border = ""0"">"
+End If
+
+
+rxpHTMLOpenTable = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLOpenTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpHTMLCloseTable(ByVal fNr As Integer) As Boolean
+On Error GoTo fout
+rxpHTMLCloseTable = False
+
+'Print #fNr, "</CENTER>"
+Print #fNr, "</TABLE>"
+Print #fNr, "</CENTER>"
+
+
+rxpHTMLCloseTable = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLCloseTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpHTMLOpenTableRow(ByVal fNr As Integer) As Boolean
+rxpHTMLOpenTableRow = rxpHTMLOpenTableRow_class(fNr, "")
+End Function
+
+Public Function rxpHTMLOpenTableRow_class(ByVal fNr As Integer, ByVal sRowClassName As String) As Boolean
+On Error GoTo fout
+rxpHTMLOpenTableRow_class = False
+
+If (sRowClassName = "") Then
+  Print #fNr, "<TR>"
+Else
+  Print #fNr, "<TR class=""" & sRowClassName & """>"
+End If
+
+rxpHTMLOpenTableRow_class = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLOpenTableRow_class" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpHTMLCloseTableRow(ByVal fNr As Integer) As Boolean
+On Error GoTo fout
+rxpHTMLCloseTableRow = False
+
+Print #fNr, "</TR>"
+
+rxpHTMLCloseTableRow = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLCloseTableRow" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function rxpHTMLEmptyTableRow(ByVal fNr As Integer, ByVal nHTMLCols As Integer) As Boolean
+On Error GoTo fout
+rxpHTMLEmptyTableRow = False
+
+
+Print #fNr, "<TR><td colspan=""" & nHTMLCols & """>&nbsp;</td></TR>"
+
+rxpHTMLEmptyTableRow = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLEmptyTableRow" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function rxpHTMLTableRow(ByVal fNr As Integer, ByVal txt As String, ByVal nHTMLCols As Integer, ByVal isBold As Boolean, ByVal isItalic As Boolean) As Boolean
+On Error GoTo fout
+rxpHTMLTableRow = False
+
+If Not rxpHTMLOpenTableRow_class(fNr, "") Then
+  Exit Function
+End If
+
+If Not rxpHTMLWriteTableCell_class(fNr, nHTMLCols, txt, isBold, isItalic, "") Then
+  Exit Function
+End If
+
+If Not rxpHTMLCloseTableRow(fNr) Then
+  Exit Function
+End If
+
+rxpHTMLTableRow = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLTableRow" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpHTMLTableRowUTF(ByVal fNr As Integer, ByVal txtUTF As String, ByVal nHTMLCols As Integer, ByVal isBold As Boolean, ByVal isItalic As Boolean) As Boolean
+On Error GoTo fout
+rxpHTMLTableRowUTF = False
+
+If Not rxpHTMLOpenTableRow_class(fNr, "") Then
+  Exit Function
+End If
+
+If Not rxpHTMLWriteTableCellUTF_class(fNr, nHTMLCols, txtUTF, isBold, isItalic, "") Then
+  Exit Function
+End If
+
+If Not rxpHTMLCloseTableRow(fNr) Then
+  Exit Function
+End If
+
+rxpHTMLTableRowUTF = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLTableRowUTF" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rxpHTMLTableRowDuo(ByVal fNr As Integer, ByVal txtA As String, ByVal colA As Integer, ByVal txtB As String, ByVal colB As Integer, ByVal isBold As Boolean, ByVal isItalic As Boolean) As Boolean
+On Error GoTo fout
+rxpHTMLTableRowDuo = False
+
+If Not rxpHTMLOpenTableRow_class(fNr, "") Then
+  Exit Function
+End If
+
+If Not rxpHTMLWriteTableCell_class(fNr, colA, txtA, isBold, isItalic, "") Then
+  Exit Function
+End If
+
+If Not rxpHTMLWriteTableCell_class(fNr, colB, txtB, isBold, isItalic, "") Then
+  Exit Function
+End If
+
+If Not rxpHTMLCloseTableRow(fNr) Then
+  Exit Function
+End If
+
+rxpHTMLTableRowDuo = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLTableRowDuo" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpHTMLWriteTableCellUTF_class(ByVal fNr As Integer, ByVal colSpan As Integer, ByVal txtCellUTF As String, ByVal blStrong As Boolean, ByVal blItalic As Boolean, ByVal sTDClass As String) As Boolean
+On Error GoTo fout
+rxpHTMLWriteTableCellUTF_class = False
+
+Dim sPrfx As String
+If (sTDClass = "") Then
+  sPrfx = "<td"
+Else
+  sPrfx = "<td class=""" & sTDClass & """"
+End If
+
+
+If (colSpan > 1) Then
+  Print #fNr, sPrfx & " style = ""padding-left:5px;padding-right:5px"" colspan=""" & colSpan & """>";
+Else
+  Print #fNr, sPrfx & " style = ""padding-left:5px;padding-right:5px"">";
+End If
+
+
+
+If (blStrong) Then
+  Print #fNr, "<strong>"
+ElseIf (blItalic) Then
+  Print #fNr, "<i>"
+End If
+If (txtCellUTF = "") Then
+  Print #fNr, "&nbsp;";
+Else
+  Print #fNr, txtCellUTF;
+End If
+If (blStrong) Then
+  Print #fNr, "</strong>"
+ElseIf (blItalic) Then
+  Print #fNr, "</i>"
+End If
+Print #fNr, "</td>"
+
+rxpHTMLWriteTableCellUTF_class = True
+Exit Function
+fout:
+MsgBox Err & " rxpHTMLWriteTableCellUTF_class" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function strReplace(ByVal sIn As String, ByVal src As String, ByVal rpl As String) As String
+On Error Resume Next
+Dim tpS As String
+tpS = ""
+Dim curPos As Integer
+curPos = InStr(1, sIn, src)
+While (curPos > 0)
+  If (curPos > 1) Then
+    tpS = tpS & Left(sIn, curPos - 1)
+  End If
+  sIn = Right(sIn, Len(sIn) - curPos - Len(src) + 1)
+  tpS = tpS & rpl
+  curPos = InStr(1, sIn, src)
+Wend
+tpS = tpS & sIn
+
+strReplace = tpS
+End Function
+
+
+Private Function rxpHTMLAddBreaksToUTF(ByRef s As String) As String
+rxpHTMLAddBreaksToUTF = strReplace(s, vbCrLf, "<BR>")
+End Function
+
+
+Public Function rxpHTMLWriteTableCell(ByVal fNr As Integer, ByVal colSpan As Integer, ByVal txtCell As String, ByVal blStrong As Boolean, ByVal blItalic As Boolean) As Boolean
+rxpHTMLWriteTableCell = rxpHTMLWriteTableCell_class(fNr, colSpan, txtCell, blStrong, blItalic, "")
+End Function
+Public Function rxpHTMLWriteTableCell_class(ByVal fNr As Integer, ByVal colSpan As Integer, ByVal txtCell As String, ByVal blStrong As Boolean, ByVal blItalic As Boolean, ByVal sTDClass As String) As Boolean
+rxpHTMLWriteTableCell_class = rxpHTMLWriteTableCellUTF_class(fNr, colSpan, rxpHTMLAddBreaksToUTF(gXMLWriter.convertToUTF(txtCell, True)), blStrong, blItalic, sTDClass)
+End Function
+
+
+
+Private Function rxpExportDriver_TxtProcessDefault(ByVal fNr As Integer, ByVal nCols As Integer, ByRef colWidths() As Integer, ByRef colMultiLine() As Boolean, ByRef colValues() As String, ByRef colSpans() As Integer) As Boolean
+On Error GoTo fout
+rxpExportDriver_TxtProcessDefault = False
+
+'Just output the items.
+
+Dim CurCol As Integer
+CurCol = 0
+
+Dim blNeedsNewLine As Boolean
+blNeedsNewLine = True
+While (CurCol < nCols)
+  
+  
+  Dim txtToPrint As String
+  Dim txtWidth As Integer
+  txtWidth = rxpTxtCumWidth(colWidths, CurCol, colSpans(CurCol))
+  txtToPrint = colValues(CurCol)
+  
+  If (colMultiLine(CurCol)) Then
+    
+    txtWidth = rxpTxtCumWidth(colWidths, 0, nCols)
+    
+    Dim offs As Integer
+    offs = rxpTxtCumWidth(colWidths, 0, CurCol)
+    
+    If Not rxpTxtWriteLine(txtToPrint, fNr, txtWidth, offs) Then
+      Exit Function
+    End If
+    
+    'This has to be the last colum in the line
+    CurCol = nCols
+    blNeedsNewLine = False
+    
+  Else
+    Print #fNr, rxpTxtPadString(txtToPrint, txtWidth);
+    CurCol = CurCol + colSpans(CurCol)
+  End If
+  
+Wend
+
+'Go to next line
+If (blNeedsNewLine) Then
+  Print #fNr,
+End If
+  
+
+
+rxpExportDriver_TxtProcessDefault = True
+Exit Function
+
+fout:
+MsgBox Err & " rxpExportDriver_TxtProcessDefault = false"
+Exit Function
+End Function
+
+
+Private Function rxpExportDriver_HTMLPreProcessDefault(ByRef curTableIsOpen As Boolean, ByRef curTableNCols As Integer, ByVal fNr As Integer, ByVal useTable As Boolean, ByVal tableNCols As Integer, ByRef htmlProps As RXP_HTML_BND_PROPS) As Boolean
+On Error GoTo fout
+rxpExportDriver_HTMLPreProcessDefault = False
+
+'Just output the items.
+
+
+If (useTable) Then
+
+  If (Not curTableIsOpen) Or (curTableNCols <> tableNCols) Then
+    'Need to open new table
+    If (curTableIsOpen) Then
+      If Not rxpHTMLCloseTable(fNr) Then
+        Exit Function
+      End If
+    End If
+    
+    'Open a new table
+    If Not rxpHTMLOpenTable(fNr, htmlProps.sTbClassName) Then
+      Exit Function
+    End If
+    
+    curTableIsOpen = True
+    curTableNCols = tableNCols
+    
+  End If
+  
+End If 'if useTable
+
+  
+
+
+rxpExportDriver_HTMLPreProcessDefault = True
+Exit Function
+
+fout:
+MsgBox Err & " rxpExportDriver_HTMLPreProcessDefault = false"
+Exit Function
+End Function
+
+
+
+Private Function rxpExportDriver_HTMLProcessDefault(ByVal fNr As Integer, ByVal useTable As Boolean, ByVal tableNCols As Integer, ByRef bndHTMLProps As RXP_HTML_BND_PROPS, ByVal nFields As Integer, ByRef fldValues() As String, ByRef fldColSpans() As Integer, ByRef fldBold() As Boolean, ByRef fldItalic() As Boolean, ByRef fldHTMLProps() As RXP_HTML_COL_PROPS) As Boolean
+On Error GoTo fout
+rxpExportDriver_HTMLProcessDefault = False
+
+'Just output the items.
+
+
+If (useTable) Then
+
+ 
+  If Not rxpHTMLOpenTableRow_class(fNr, bndHTMLProps.sTRClassName) Then
+    Exit Function
+  End If
+
+  Dim usedNCols As Integer
+  usedNCols = 0
+
+  Dim i As Integer
+  For i = 0 To nFields - 1
+    Dim txtToPrint As String
+    Dim txtColSpan As Integer
+  
+    txtColSpan = fldColSpans(i)
+    txtToPrint = fldValues(i)
+    
+    Dim isBold As Boolean, isItalic As Boolean
+    isBold = fldBold(i)
+    isItalic = fldItalic(i)
+    
+    If Not rxpHTMLWriteTableCell_class(fNr, txtColSpan, txtToPrint, isBold, isItalic, fldHTMLProps(i).sTDClassName) Then
+      Exit Function
+    End If
+    
+    usedNCols = usedNCols + txtColSpan
+  Next i
+  
+  'Fill up unused rows.
+  If (usedNCols < tableNCols) Then
+    If Not rxpHTMLWriteTableCell_class(fNr, tableNCols - usedNCols, "", False, False, "") Then
+      Exit Function
+    End If
+    
+  End If
+  
+  If Not rxpHTMLCloseTableRow(fNr) Then
+    Exit Function
+  End If
+  
+End If 'if useTable
+
+  
+
+
+rxpExportDriver_HTMLProcessDefault = True
+Exit Function
+
+fout:
+MsgBox Err & " rxpExportDriver_HTMLProcessDefault = false"
+Exit Function
+End Function
+
+
+Private Function rxpExportDriver_openFile(ByRef fNr As Integer, ByRef isFileOpen As Boolean, ByRef htmlTableOpen As Boolean, ByRef htmlTableNCols As Integer, ByVal fName As String, ByVal rxpFormat As Integer) As Boolean
+On Error GoTo fout
+rxpExportDriver_openFile = False
+
+
+fNr = FreeFile
+
+Open fName For Output As #fNr
+  
+isFileOpen = True
+
+
+If (rxpFormat = RXP_FORMAT_TXT) Then
+  
+  
+ElseIf (rxpFormat = RXP_FORMAT_HTM) Then
+  htmlTableOpen = False
+  htmlTableNCols = 0
+  
+  Print #fNr, "<HTML>"
+  Print #fNr, "<HEAD>"
+  Print #fNr, "<TITLE></TITLE>"
+  
+  If (dbUseCss() And dbCssFileName() <> "") Then
+    Print #fNr, "<link rel=""stylesheet"" href=""" & dbCssFileName() & """ type=""text/css""/>"
+  End If
+  
+  
+  Print #fNr, "</HEAD>"
+  
+  If (dbHtmlAchtergrond() <> "") Then
+    Print #fNr, "<BODY BACKGROUND=""" & dbHtmlAchtergrond() & """>"
+  Else
+    Print #fNr, "<BODY>"
+  End If
+  
+End If
+
+
+
+
+rxpExportDriver_openFile = True
+Exit Function
+
+fout:
+MsgBox Err & " rxpExportDriver_openFile" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function rxpExportDriver_closeFile(ByVal fNr As Integer, ByVal rxpFormat As Integer, ByRef isFileOpen As Boolean, ByRef htmlTableOpen As Boolean, ByRef htmlTableNCols As Integer) As Boolean
+On Error GoTo fout
+rxpExportDriver_closeFile = False
+
+
+
+If (rxpFormat = RXP_FORMAT_HTM) Then
+  If (htmlTableOpen) Then
+    If Not rxpHTMLCloseTable(fNr) Then
+      Exit Function
+    End If
+    htmlTableOpen = False
+    htmlTableNCols = -1
+  End If
+  
+  Print #fNr, "</BODY>"
+  Print #fNr, "</HTML>"
+    
+End If
+
+Close fNr
+
+
+isFileOpen = False
+
+
+
+rxpExportDriver_closeFile = True
+Exit Function
+
+fout:
+MsgBox Err & " rxpExportDriver_closeFile" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function rxpExportDriver(ByVal fName As String, ByVal rxpFormat As Integer, ByVal blAllowMultiPage As Boolean, ByVal tbName As String, ByVal cbID As Long, ByRef rxpPnt As RXP_Pointer) As Boolean
+On Error GoTo fout
+rxpExportDriver = False
+
+If Not rxpPnt.intInitialized Then
+  Err.Raise 1, , "Internal dataflow problem. The rxpPnt pointer was not initialized."
+End If
+
+
+'First get the bands
+
+Dim bndNames(0 To RXP_MAX_N_BAND_TYPES) As String
+Dim bndFirstColIdx(0 To RXP_MAX_N_BAND_TYPES) As Integer
+Dim bndNCols(0 To RXP_MAX_N_BAND_TYPES) As Integer
+Dim bndIgnore(0 To RXP_MAX_N_BAND_TYPES) As Boolean
+Dim bndStartPage(0 To RXP_MAX_N_BAND_TYPES) As Boolean
+Dim bndEndPage(0 To RXP_MAX_N_BAND_TYPES) As Boolean
+Dim bndPageFieldNames(0 To RXP_MAX_N_BAND_TYPES) As String
+Dim bndHTMLUseTable(0 To RXP_MAX_N_BAND_TYPES) As Boolean
+Dim bndHTMLNCols(0 To RXP_MAX_N_BAND_TYPES) As Integer
+Dim bndHTMLProps(0 To RXP_MAX_N_BAND_TYPES) As RXP_HTML_BND_PROPS
+
+Dim isMultiPage As Boolean
+Dim nBands As Integer
+
+isMultiPage = False
+nBands = 0
+
+
+If Not rxpExportDriver_Init(tbName, bndNames, nBands, rxpPnt) Then
+  Exit Function
+End If
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [" & tbName & "] order by rxp_event_id")
+
+rs.MoveFirst
+
+If (rs.EOF) Then
+  appCleanRS rs
+  Err.Raise 1, , "The report is empty"
+End If
+
+
+Dim curBndName As String
+Dim curBndIsFirst As Boolean, curBndIsLast As Boolean
+'Get the global data
+If Nz(rs("RXP_BND_TYPE")) = RXP_BNDTYPE_GLOBAL Then
+  If Not rxpExportDriver_LoadBand(rs, curBndName, curBndIsFirst, curBndIsLast, rxpPnt) Then
+    Exit Function
+  End If
+End If
+
+'Now init the columns for the report
+Dim colFieldNames(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As String
+Dim colFieldFixedText(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As String
+Dim colFieldIdx(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As String
+Dim colTXTWidths(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As Integer
+Dim colTxtMultiLine(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As Boolean
+Dim colHTMLSpans(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As Integer
+Dim colHTMLBold(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As Boolean
+Dim colHTMLItalic(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As Boolean
+Dim colHTMLProps(0 To RXP_MAX_N_BAND_COLS * RXP_MAX_N_BAND_TYPES) As RXP_HTML_COL_PROPS
+Dim nCols As Integer
+
+nCols = 0
+
+If rxpFormat = RXP_FORMAT_TXT Then
+  Dim i As Integer
+  
+  Dim tpBndNCols As Integer
+  Dim tpBndColWidths(0 To RXP_MAX_N_BAND_COLS) As Integer
+  Dim tpBndColMultiLine(0 To RXP_MAX_N_BAND_COLS) As Boolean
+  Dim tpBndColFields(0 To RXP_MAX_N_BAND_COLS) As String
+  Dim tpBndColFixedText(0 To RXP_MAX_N_BAND_COLS) As String
+  
+  Dim tpBndStartPage As Boolean
+  Dim tpBndEndPage As Boolean
+  Dim tpBndPageFldName As String
+  
+  Dim tpIgnoreBand As Boolean
+  
+  For i = 0 To nBands - 1
+  
+    Dim j As Integer
+    tpBndNCols = 0
+    tpIgnoreBand = False
+    tpBndStartPage = False
+    tpBndEndPage = False
+    tpBndPageFldName = ""
+    
+    For j = 0 To RXP_MAX_N_BAND_COLS - 1
+      tpBndColWidths(j) = 0
+      tpBndColMultiLine(j) = False
+      tpBndColFields(j) = ""
+      tpBndColFixedText(j) = ""
+    Next j
+  
+  
+    If Not rxpExportCbMaster_TxtRegDefaultFormat(cbID, bndNames(i), tpBndNCols, tpBndColWidths, tpBndColMultiLine, tpBndColFields, tpBndColFixedText, tpIgnoreBand, tpBndStartPage, tpBndEndPage, tpBndPageFldName, rxpPnt) Then
+      Exit Function
+    End If
+    
+    bndStartPage(i) = tpBndStartPage
+    bndEndPage(i) = tpBndEndPage
+    
+    If (tpBndStartPage) Or (tpBndEndPage) Then
+      bndPageFieldNames(i) = tpBndPageFldName
+      isMultiPage = True
+    End If
+    
+    
+    bndFirstColIdx(i) = -1
+    bndNCols(i) = 0
+    
+    bndIgnore(i) = tpIgnoreBand
+    If (Not tpIgnoreBand) Then
+      bndFirstColIdx(i) = nCols
+      For j = 0 To tpBndNCols - 1
+        colTXTWidths(nCols) = tpBndColWidths(j)
+        colTxtMultiLine(nCols) = tpBndColMultiLine(j)
+        colFieldNames(nCols) = tpBndColFields(j)
+        colFieldFixedText(nCols) = tpBndColFixedText(j)
+        
+        nCols = nCols + 1
+        bndNCols(i) = bndNCols(i) + 1
+      Next j
+    End If
+    
+  Next i
+  
+ElseIf rxpFormat = RXP_FORMAT_HTM Then
+  'Initialize HTML settings
+  
+
+  Dim tpBndColHTMLSpans(0 To RXP_MAX_N_BAND_COLS) As Integer
+  Dim tpBndColHTMLBold(0 To RXP_MAX_N_BAND_COLS) As Boolean
+  Dim tpBndColHTMLItalic(0 To RXP_MAX_N_BAND_COLS) As Boolean
+  Dim tpBndColHTMLProps(0 To RXP_MAX_N_BAND_COLS) As RXP_HTML_COL_PROPS
+  
+  
+  For i = 0 To nBands - 1
+  
+    Dim tpBndHTMLNCols As Integer
+    Dim tpBndHTMLUseTable As Boolean
+    Dim tpBndHTMLProps As RXP_HTML_BND_PROPS
+    
+    tpBndNCols = 0
+    tpIgnoreBand = False
+    tpBndStartPage = False
+    tpBndEndPage = False
+    tpBndPageFldName = ""
+    
+    tpBndHTMLNCols = 1
+    tpBndHTMLUseTable = True
+    rxpInitHtmlBndProps tpBndHTMLProps
+    
+    
+    
+    For j = 0 To RXP_MAX_N_BAND_COLS - 1
+      tpBndColHTMLSpans(j) = 1
+      tpBndColFields(j) = ""
+      tpBndColFixedText(j) = ""
+      tpBndColHTMLBold(j) = False
+      tpBndColHTMLItalic(j) = False
+      rxpInitHtmlColProps tpBndColHTMLProps(j)
+    Next j
+  
+  
+    If Not rxpExportCbMaster_HTMLRegDefaultFormat(cbID, bndNames(i), tpBndHTMLUseTable, tpBndHTMLNCols, tpBndHTMLProps, tpBndNCols, tpBndColHTMLSpans, tpBndColFields, tpBndColFixedText, tpBndColHTMLBold, tpBndColHTMLItalic, tpBndColHTMLProps, tpIgnoreBand, tpBndStartPage, tpBndEndPage, tpBndPageFldName, rxpPnt) Then
+      Exit Function
+    End If
+    
+    
+    bndStartPage(i) = tpBndStartPage
+    bndEndPage(i) = tpBndEndPage
+    
+    If (tpBndStartPage) Or (tpBndEndPage) Then
+      bndPageFieldNames(i) = tpBndPageFldName
+      isMultiPage = True
+    End If
+    
+    
+    bndHTMLUseTable(i) = tpBndHTMLUseTable
+    bndHTMLNCols(i) = tpBndHTMLNCols
+    
+    bndHTMLProps(i) = tpBndHTMLProps
+    
+    
+    bndFirstColIdx(i) = -1
+    bndNCols(i) = 0
+    
+    bndIgnore(i) = tpIgnoreBand
+    If (Not tpIgnoreBand) Then
+      bndFirstColIdx(i) = nCols
+      For j = 0 To tpBndNCols - 1
+        colHTMLSpans(nCols) = tpBndColHTMLSpans(j)
+        colHTMLBold(nCols) = tpBndColHTMLBold(j)
+        colHTMLItalic(nCols) = tpBndColHTMLItalic(j)
+        colHTMLProps(nCols) = tpBndColHTMLProps(j)
+        colFieldNames(nCols) = tpBndColFields(j)
+        colFieldFixedText(nCols) = tpBndColFixedText(j)
+        nCols = nCols + 1
+        bndNCols(i) = bndNCols(i) + 1
+      Next j
+    End If
+    
+  Next i
+  
+  
+
+End If
+
+'Extract the field indices
+For i = 0 To nCols - 1
+  Dim tpFieldName As String
+  tpFieldName = colFieldNames(i)
+  
+  If (tpFieldName <> "") Then
+    Dim tpFldIdx As Integer
+    tpFldIdx = bSearchString(tpFieldName, rxpPnt.intNFields, rxpPnt.intFieldNames)
+    If (tpFldIdx < 0) Then
+      'Some fields may simply not be used in the export file.
+      colFieldIdx(i) = -1
+    Else
+      colFieldIdx(i) = tpFldIdx
+    End If
+  Else
+    colFieldIdx(i) = -1
+  End If
+
+Next i
+
+
+
+'Check multiPage
+
+If (isMultiPage) Then
+  If (Not blAllowMultiPage) Then
+    isMultiPage = False
+  End If
+End If
+
+
+'Now need to startup the export sequence.
+
+
+Dim txtFileNr As Integer
+
+Dim isFileOpen As Boolean
+
+Dim htmlTableOpen As Boolean
+Dim htmlTableNCols As Integer
+
+isFileOpen = False
+htmlTableOpen = False
+htmlTableNCols = -1
+
+
+'Open the file if this is a single file report.
+
+If (Not isMultiPage) Then
+
+  If Not rxpExportDriver_openFile(txtFileNr, isFileOpen, htmlTableOpen, htmlTableNCols, fName, rxpFormat) Then
+    Exit Function
+  End If
+  
+End If
+
+
+
+
+Dim workColValues(0 To RXP_MAX_N_BAND_COLS) As String
+Dim workColTxtWidths(0 To RXP_MAX_N_BAND_COLS) As Integer
+Dim workColTxtSpans(0 To RXP_MAX_N_BAND_COLS) As Integer
+Dim workColTxtMultiLine(0 To RXP_MAX_N_BAND_COLS) As Boolean
+
+Dim workColHTMLSpans(0 To RXP_MAX_N_BAND_COLS) As Integer
+Dim workColHTMLBold(0 To RXP_MAX_N_BAND_COLS) As Boolean
+Dim workColHTMLItalic(0 To RXP_MAX_N_BAND_COLS) As Boolean
+Dim workColHTMLProps(0 To RXP_MAX_N_BAND_COLS) As RXP_HTML_COL_PROPS
+
+Dim workHTMLUseTable As Boolean
+Dim workHTMLNCols As Integer
+Dim workHTMLProps As RXP_HTML_BND_PROPS
+
+'OK; all settings have been loaded.
+While Not rs.EOF
+  If Not rxpExportDriver_LoadBand(rs, curBndName, curBndIsFirst, curBndIsLast, rxpPnt) Then
+    Exit Function
+  End If
+  
+  'Now process the band.
+  Dim curBndIdx As Integer
+  curBndIdx = bSearchString(curBndName, nBands, bndNames)
+  If (curBndIdx < 0) Then
+    Err.Raise 1, , "Internal error. Unknown band: " & curBndName
+  End If
+  
+  'Check to see if a file needs to be opened
+  If (isMultiPage) Then
+    If bndStartPage(curBndIdx) And Not isFileOpen Then
+    
+      'Need to open a file
+      
+      Dim fNameSfx As String
+      If Not rxpExtractField_perform(bndPageFieldNames(curBndIdx), rxpPnt, fNameSfx) Then
+        Exit Function
+      End If
+      
+      fNameSfx = GoedTekens(fNameSfx)
+      
+      Dim fNewFName As String
+      
+      fNewFName = Left(fName, Len(fName) - 4) & "_" & fNameSfx & Right(fName, 4)
+      
+      
+      If Not rxpExportDriver_openFile(txtFileNr, isFileOpen, htmlTableOpen, htmlTableNCols, fNewFName, rxpFormat) Then
+        Exit Function
+      End If
+    
+    End If
+  End If
+  
+  
+  If isFileOpen And (Not bndIgnore(curBndIdx)) Then
+    Dim nBndCols As Integer
+    Dim firstCol As Integer
+    firstCol = bndFirstColIdx(curBndIdx)
+    nBndCols = bndNCols(curBndIdx)
+    
+    
+    If (rxpFormat = RXP_FORMAT_HTM) Then
+      workHTMLNCols = bndHTMLNCols(curBndIdx)
+      workHTMLUseTable = bndHTMLUseTable(curBndIdx)
+      workHTMLProps = bndHTMLProps(curBndIdx)
+    End If
+    
+    'Setup the fields.
+    For i = 0 To nBndCols - 1
+    
+    
+      If (rxpFormat = RXP_FORMAT_TXT) Then
+        workColTxtWidths(i) = colTXTWidths(firstCol + i)
+        workColTxtMultiLine(i) = colTxtMultiLine(firstCol + i)
+        workColTxtSpans(i) = 1
+      Else
+        workColHTMLSpans(i) = colHTMLSpans(firstCol + i)
+        workColHTMLBold(i) = colHTMLBold(firstCol + i)
+        workColHTMLItalic(i) = colHTMLItalic(firstCol + i)
+        workColHTMLProps(i) = colHTMLProps(firstCol + i)
+      End If
+      
+      
+      Dim fldIdx As Integer
+      fldIdx = colFieldIdx(firstCol + i)
+      
+      If (fldIdx <> -1) Then
+        'Get the value for this field
+        If Not rxpExtractField_read(fldIdx, rxpPnt, workColValues(i)) Then
+          Exit Function
+        End If
+      ElseIf colFieldFixedText(firstCol + i) <> "" Then
+        workColValues(i) = colFieldFixedText(firstCol + i)
+      Else
+        workColValues(i) = ""
+      End If
+    
+    Next i
+    
+    Dim blSkipDefault As Boolean
+    
+    blSkipDefault = False
+    
+    
+    If rxpFormat = RXP_FORMAT_TXT Then
+      If Not rxpExportCbMaster_TxtProcess(cbID, txtFileNr, curBndName, curBndIsFirst, curBndIsLast, nBndCols, workColTxtWidths, workColTxtMultiLine, workColValues, workColTxtSpans, blSkipDefault, rxpPnt) Then
+        Exit Function
+      End If
+    ElseIf rxpFormat = RXP_FORMAT_HTM Then
+    
+      If Not rxpExportCBMaster_HTMLPreProcess(cbID, txtFileNr, curBndName, curBndIsFirst, curBndIsLast, htmlTableOpen, htmlTableNCols, workHTMLUseTable, workHTMLNCols, workHTMLProps, rxpPnt) Then
+        Exit Function
+      End If
+      
+      If Not rxpExportDriver_HTMLPreProcessDefault(htmlTableOpen, htmlTableNCols, txtFileNr, workHTMLUseTable, workHTMLNCols, workHTMLProps) Then
+        Exit Function
+      End If
+    
+      If Not rxpExportCbMaster_HTMLProcess(cbID, txtFileNr, curBndName, curBndIsFirst, curBndIsLast, htmlTableOpen, htmlTableNCols, nBndCols, workColValues, workColHTMLSpans, workColHTMLBold, workColHTMLItalic, workColHTMLProps, blSkipDefault, rxpPnt) Then
+        Exit Function
+      End If
+    End If
+    
+    
+    If (Not blSkipDefault) Then
+      If (rxpFormat = RXP_FORMAT_TXT) Then
+        'Need to perform default output
+        If Not rxpExportDriver_TxtProcessDefault(txtFileNr, nBndCols, workColTxtWidths, workColTxtMultiLine, workColValues, workColTxtSpans) Then
+          Exit Function
+        End If
+      
+        'Now perform post-processing
+        If Not rxpExportCbMaster_TxtPostProcess(cbID, txtFileNr, curBndName, curBndIsFirst, curBndIsLast, rxpPnt) Then
+          Exit Function
+        End If
+      ElseIf (rxpFormat = RXP_FORMAT_HTM) Then
+      
+        
+      
+        'Need to perform default output
+        If Not rxpExportDriver_HTMLProcessDefault(txtFileNr, workHTMLUseTable, workHTMLNCols, workHTMLProps, nBndCols, workColValues, workColHTMLSpans, workColHTMLBold, workColHTMLItalic, workColHTMLProps) Then
+          Exit Function
+        End If
+      
+        'Now perform post-processing
+        If Not rxpExportCbMaster_HTMLPostProcess(cbID, txtFileNr, curBndName, curBndIsFirst, curBndIsLast, htmlTableOpen, htmlTableNCols, rxpPnt) Then
+          Exit Function
+        End If
+      
+      End If
+    
+    End If
+    
+  End If 'if isFileOpen and not bndIgnore
+  
+  'now need to check if the page should be closed
+  
+  If (isMultiPage) Then
+  
+    If bndEndPage(curBndIdx) And isFileOpen Then
+    
+      'Need to close page
+      
+      If Not rxpExportDriver_closeFile(txtFileNr, rxpFormat, isFileOpen, htmlTableOpen, htmlTableNCols) Then
+        Exit Function
+      End If
+    
+    End If
+  
+  End If
+  
+  
+  'Do not need to movenext; this is done automatically by the band loader
+  
+Wend
+
+
+appCleanRS rs
+
+
+
+
+If (isFileOpen) Then
+
+  'Need to close file
+  
+  If Not rxpExportDriver_closeFile(txtFileNr, rxpFormat, isFileOpen, htmlTableOpen, htmlTableNCols) Then
+    Exit Function
+  End If
+
+End If
+
+
+
+rxpExportDriver = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Close
+MsgBox Err & " rxpExportDriver" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function

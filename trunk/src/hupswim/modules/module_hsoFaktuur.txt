@@ -1,0 +1,275 @@
+Option Compare Database
+Option Explicit
+
+Private Function facCalcFees_ProcessMatch_processEstStarts(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByVal sVer As String, _
+ByRef kstInfo As WED_KOSTEN_INFO, ByRef calcData As FEE_CALC_DATA) As Boolean
+
+On Error GoTo fout
+facCalcFees_ProcessMatch_processEstStarts = False
+
+Dim sql As String
+
+sql = "select * from [~AN_Estafs_fac];"
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset("dtProgrammanummers")
+skProg.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpWed As Long, tpProg As String
+  Dim tpPlIsRes As Boolean
+  
+  tpWed = Nz(rs("EST_Wedstrijdnummer"))
+  tpProg = Nz(rs("EST_Programmanummer"))
+  tpPlIsRes = Nz(rs("EST_IsReserve"))
+  
+  skProg.Seek "=", tpWed, tpProg
+  
+  If (skProg.NoMatch) Then
+    Err.Raise 1, , "Internal error. Could not find prog: (" & tpWed & ", " & tpProg & ")"
+  End If
+  
+  Dim tpExtKosten As Double
+  tpExtKosten = Nz(skProg("Kosten"))
+
+
+  intFacCalcFees_addEstaf tpPlIsRes, tpExtKosten, kstInfo, calcData
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+facCalcFees_ProcessMatch_processEstStarts = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " facCalcFees_processMatch_processEstStarts" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+
+
+Public Function facCalcFees_ProcessMatch_perform(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByRef kstInfo As WED_KOSTEN_INFO, _
+ByRef rsVerOut As Recordset, ByRef rsSwmOut As Recordset, ByRef calcData As FEE_CALC_DATA) As Boolean
+On Error GoTo fout
+facCalcFees_ProcessMatch_perform = False
+
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("dtVerenigingen")
+skVer.Index = "PrimaryKey"
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+Dim sql As String
+
+If (Not blEntireMeet) Then
+  sql = "SELECT [dtDeelnemers].*, [dtProgrammanummers].slag as PROGSLAG, [dtProgrammanummers].* " & _
+    "FROM [dtProgrammanummers] INNER JOIN [dtDeelnemers] ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr) " & _
+    "WHERE ((([dtDeelnemers].Wedstrijdnr)= " & wedMainNr & ") and finIsFirstRound(nz([Type])) ) order by [startnummer], val([programmanummer]), [programmanummer];"
+Else
+  sql = "SELECT [dtDeelnemers].*, [dtProgrammanummers].Slag AS PROGSLAG, [dtProgrammanummers].*, [dtWedstrijden].[Wedstrijd nummer] " & _
+        "FROM [dtWedstrijden] INNER JOIN ([dtProgrammanummers] INNER JOIN [dtDeelnemers] ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr " & _
+        "WHERE ((([dtWedstrijden].[Wedstrijd nummer]) = " & wedMainNr & ") or ([MainWedstrijdNummer] = " & wedMainNr & ")  ) and finIsFirstRound(nz([Type]))" & _
+        "ORDER BY [dtDeelnemers].Startnummer, Val([programmanummer]), [dtProgrammanummers].Programmanummer; "
+End If
+
+
+If Not analyzeEstafs(Not blEntireMeet, wedMainNr, wedMainNr, "~AN_Estafs_fac") Then
+  Exit Function
+End If
+
+Dim skEst As Recordset
+Set skEst = CurrentDb().OpenRecordset("~AN_Estafs_fac")
+skEst.Index = "P"
+
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+Dim curVer As String, curStart As String
+Dim tpVer As String, tpStart As String
+
+
+curVer = ""
+curStart = ""
+
+Dim blDone As Boolean
+
+geg.MoveFirst
+
+blDone = geg.EOF
+Do Until blDone
+  If (geg.EOF) Then
+    tpVer = ""
+    tpStart = ""
+  Else
+    tpVer = ver()
+    tpStart = Nz(geg("startnummer"))
+  End If
+  
+  Dim blIsNewVer As Boolean, blIsOldVer As Boolean
+  Dim blIsNewStart As Boolean, blIsOldStart As Boolean
+  
+  blIsNewVer = False
+  blIsOldVer = False
+  blIsNewStart = False
+  blIsOldStart = False
+  
+  
+  If (tpVer <> curVer) Then
+    blIsNewVer = (tpVer <> "")
+    blIsOldVer = (curVer <> "")
+  End If
+  
+  If (tpVer <> curVer) Or (tpStart <> curStart) Then
+    blIsNewStart = (tpStart <> "")
+    blIsOldStart = (curStart <> "")
+  End If
+  
+  If (blIsOldStart) Then
+  
+    intFacCalcFees_closeSwimmer curStart, rsSwmOut, kstInfo, calcData
+    
+  End If
+  
+  If (blIsOldVer) Then
+  
+    'First handle all ploegen
+    If Not facCalcFees_ProcessMatch_processEstStarts(wedMainNr, blEntireMeet, curVer, kstInfo, calcData) Then
+      Exit Function
+    End If
+  
+    'need to close old ver
+    intFacCalcFees_closeVer curVer, rsVerOut, kstInfo, calcData
+  End If
+  
+  If (blIsNewVer) Then
+    'lookup data for new ver
+    Dim tpDepot As String
+    tpDepot = depot()
+    
+    
+        
+    'open up the new ver
+    intFacCalcFees_openVer tpVer, tpDepot, calcData
+  End If
+  
+  If (blIsNewStart) Then
+    'open new start
+    Dim tpName As String
+    
+    skZwm.Seek "=", tpStart
+    If (skZwm.NoMatch) Then
+      Err.Raise 1, , "Internal error: could not find startnr: " & tpStart
+    End If
+    
+    tpName = fmtName(Nz(skZwm("voornaam")), Nz(skZwm("voegsel")), Nz(skZwm("achternaam")))
+    
+    intFacCalcFees_openSwimmer tpStart, tpName, Nz(skZwm("achternaam")), calcData
+    
+    
+  End If
+  
+  
+  'update current settings
+  curVer = tpVer
+  curStart = tpStart
+  
+    
+    
+  'process the current start
+  If (Not geg.EOF) Then
+    
+    Dim tpWed As Long, tpProg As String
+    Dim tpIsEstaf As Boolean, tpEstNr As Integer, tpVolg As Integer, tpAf As String, tpSl As String, tpExtKosten As Double, tpInsTd As Double, tpIsRes As Boolean
+    
+    tpWed = Nz(geg("dtDeelnemers.Wedstrijdnr"))
+    tpProg = Nz(geg("Programmanr"))
+    tpExtKosten = Nz(geg("Kosten"))
+    tpAf = Nz(geg("Afstand"))
+    tpSl = Nz(geg("progSlag"))
+    tpIsRes = Nz(geg("Reserve")) = "J"
+    tpInsTd = Nz(geg("Inschrijftijd"))
+        
+    tpIsEstaf = (tpAf Like "*x*")
+    
+    If (tpIsEstaf) Then
+      tpVolg = Nz(geg("Volgorde"))
+      tpEstNr = Nz(geg("estafette nummer"))
+      
+      Dim tpPlIsRes As Boolean
+      tpPlIsRes = False
+      
+      skEst.Seek "=", tpWed, tpProg, tpEstNr, ver()
+      
+      If (skEst.NoMatch) Then
+        Err.Raise 1, , "Could not find estnr: (" & tpWed & ", " & tpProg & ", " & tpEstNr
+      End If
+      
+      tpPlIsRes = Nz(skEst("EST_IsReserve"), False)
+      
+      
+      intFacCalcFees_addPloeglid tpPlIsRes, tpIsRes, tpExtKosten, tpProg, tpAf, tpSl, tpEstNr, tpVolg, "", 0, kstInfo, calcData
+      
+    Else
+      intFacCalcFees_addPersoonlijk tpIsRes, tpExtKosten, tpProg, tpAf, tpSl, tpInsTd, "", 0, kstInfo, calcData
+    End If
+  
+  End If
+
+  If (geg.EOF) Then
+    blDone = True
+  Else
+    geg.MoveNext
+  End If
+Loop
+
+
+appCleanRS geg
+
+appCleanRS skVer
+appCleanRS skZwm
+appCleanRS skEst
+
+
+
+
+DoCmd.DeleteObject acTable, "~AN_Estafs_fac"
+
+facCalcFees_ProcessMatch_perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+If (Err = 3011) Or (Err = 7874) Then Resume Next ' could not find object to delete
+
+MsgBox Err & " facCalcFees_ProcessMatch_perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
