@@ -2881,7 +2881,7 @@ Do Until recs.EOF
         
       recOutp("rc_Tijd") = tpTime
       recOutp("rc_AantalDecimalen") = 2
-      recOutp("rc_displayCategorie") = tpCat
+      recOutp("rc_displayCategorie") = hzn(fmtCatCode(tpCatGes, tpCatLft))
       recOutp("RC_Geslacht") = hzn(tpCatGes)
       recOutp("RC_Leeftijd") = hzn(tpCatLft)
       recOutp("rc_wedstrijdnummer") = tpWedNr
@@ -2973,10 +2973,10 @@ End If
 
 'Transfer the current af & sl &cat & bn to the temp table.
 Dim appSql As String
-appSql = "INSERT INTO [~STW_REC_InitVals] ( REC_AF, REC_SLAG, REC_CAT, REC_BN ) " & _
-         "SELECT [dtRecordsInternal].rc_Afstand, [dtRecordsInternal].rc_Slag, [dtRecordsInternal].rc_displayCategorie, [dtRecordsInternal].rc_Baanlengte " & _
+appSql = "INSERT INTO [~STW_REC_InitVals] ( REC_AF, REC_SLAG, REC_GES, REC_LFT, REC_BN ) " & _
+         "SELECT [dtRecordsInternal].rc_Afstand, [dtRecordsInternal].rc_Slag, [dtRecordsInternal].rc_geslacht,[dtRecordsInternal].rc_leeftijd,   [dtRecordsInternal].rc_Baanlengte " & _
         "FROM [dtRecordsInternal] WHERE ((([dtRecordsInternal].[rc_recordnummer]) < 1905000) and dtRecordsInternal.rc_code = """ & rsInfo.Code & """) " & _
-        "GROUP BY [dtRecordsInternal].rc_Afstand, [dtRecordsInternal].rc_Slag, [dtRecordsInternal].rc_displayCategorie, [dtRecordsInternal].rc_Baanlengte;"
+        "GROUP BY [dtRecordsInternal].rc_Afstand, [dtRecordsInternal].rc_Slag,[dtRecordsInternal].rc_geslacht,[dtRecordsInternal].rc_leeftijd, [dtRecordsInternal].rc_Baanlengte;"
         
 DoCmd.SetWarnings False
 DoCmd.RunSQL appSql
@@ -3031,7 +3031,7 @@ For i = 0 To nAfSl - 1
         tpCatGes = catGes(j)
         tpCatLft = catMaxAge(j)
         
-        If Not recivBuildInitValsAddMissingPerform(rsInfo, setAtZero, tpAf, tpSl, tpBn, tpCat, tpCatGes, tpCatLft, rs, clubOut, maxClubNr) Then
+        If Not recivBuildInitValsAddMissingPerform(rsInfo, setAtZero, tpAf, tpSl, tpBn, tpCatGes, tpCatLft, rs, clubOut, maxClubNr) Then
           Exit Function
         End If
         
@@ -3057,7 +3057,7 @@ For i = 0 To nExtra - 1
   done = False
   
   While Not done
-    If Not recivBuildInitValsAddMissingPerform(rsInfo, setAtZero, tpAf, tpSl, tpBn, tpCat, tpCatGes, tpCatLft, rs, clubOut, maxClubNr) Then
+    If Not recivBuildInitValsAddMissingPerform(rsInfo, setAtZero, tpAf, tpSl, tpBn, tpCatGes, tpCatLft, rs, clubOut, maxClubNr) Then
       Exit Function
     End If
     If (tpBn = 50 Or (Not rsInfo.blSepBaan)) Then
@@ -3099,14 +3099,14 @@ recivBuildAfSlagList = False
 extAf(0) = "8x50"
 extSl(0) = "VRIJ"
 extCat(0) = "ZWEEDS"
-extCatGes(0) = "*"
+extCatGes(0) = "z"
 extCatLft(0) = CAT_MAX_AGE
 
 extAf(1) = "10x50"
 extSl(1) = "VRIJ"
 extCat(1) = "ZWEEDS"
-extCatGes(0) = "*"
-extCatLft(0) = CAT_MAX_AGE
+extCatGes(1) = "z"
+extCatLft(1) = CAT_MAX_AGE
 
 nExtra = 2
 
@@ -3218,8 +3218,12 @@ idx.Fields.Append idx.CreateField("REC_SLAG", dbText, 20)
 tb.Fields.Append tb.CreateField("REC_BN", dbInteger)
 idx.Fields.Append idx.CreateField("REC_BN", dbInteger)
 
-tb.Fields.Append tb.CreateField("REC_CAT", dbText, 20)
-idx.Fields.Append idx.CreateField("REC_CAT", dbText, 20)
+tb.Fields.Append tb.CreateField("REC_GES", dbText, 1)
+idx.Fields.Append idx.CreateField("REC_GES", dbText, 1)
+
+tb.Fields.Append tb.CreateField("REC_LFT", dbLong)
+idx.Fields.Append idx.CreateField("REC_LFT", dbLong)
+
 
 idx.Primary = True
 tb.Indexes.Append idx
@@ -3240,11 +3244,11 @@ End Function
 
 
 
-Private Function recivBuildInitValsAddMissingPerform(ByRef rsInfo As RECSET_BASIC_INFO, ByVal setAtZero As Boolean, ByVal af As String, ByVal sl As String, ByVal bn As Integer, ByVal cat As String, ByVal catGes As String, ByVal catLft As Long, ByRef rs As Recordset, ByRef clubOut As Recordset, ByRef maxUsedClubNr As Long) As Boolean
+Private Function recivBuildInitValsAddMissingPerform(ByRef rsInfo As RECSET_BASIC_INFO, ByVal setAtZero As Boolean, ByVal af As String, ByVal sl As String, ByVal bn As Integer, ByVal catGes As String, ByVal catLft As Long, ByRef rs As Recordset, ByRef clubOut As Recordset, ByRef maxUsedClubNr As Long) As Boolean
 On Error GoTo fout
 recivBuildInitValsAddMissingPerform = False
 
-rs.Seek "=", af, sl, bn, cat
+rs.Seek "=", af, sl, bn, catGes, catLft
 If rs.NoMatch Then
   maxUsedClubNr = maxUsedClubNr + 1
   If (maxUsedClubNr >= 1905000) Then
@@ -3255,7 +3259,7 @@ If rs.NoMatch Then
   clubOut.AddNew
     clubOut("RC_code") = hzn(rsInfo.Code)
     clubOut("rc_recordnummer") = maxUsedClubNr
-    clubOut("rc_displayCategorie") = hzn(cat)
+    clubOut("rc_displayCategorie") = hzn(fmtCatCode(catGes, catLft))
     clubOut("RC_Leeftijd") = catLft
     clubOut("RC_Geslacht") = hzn(catGes)
     clubOut("rc_afstand") = hzn(af)

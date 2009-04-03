@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1541136247
+Checksum =-607378641
 Begin Form
     MaxButton = NotDefault
     MinButton = NotDefault
@@ -235,6 +235,7 @@ Begin Form
                     Name ="RC_DisplayCategorie"
                     ControlSource ="RC_DisplayCategorie"
                     BeforeUpdate ="[Event Procedure]"
+                    AfterUpdate ="[Event Procedure]"
                     InputMask =">CCCCCCC;;\" \""
                 End
                 Begin TextBox
@@ -690,6 +691,11 @@ End If
 
 End Sub
 
+Private Sub RC_DisplayCategorie_AfterUpdate()
+On Error Resume Next
+Me.rc_DisplayCategorie = hzn(fmtCatCode(Nz([rc_geslacht]), Nz([rc_leeftijd])))
+End Sub
+
 Private Sub rc_DisplayCategorie_BeforeUpdate(Cancel As Integer)
 On Error Resume Next
 Dim newCat As String
@@ -706,8 +712,8 @@ If (Not isOK) Then
   Cancel = True
   MsgBox "De categorie: " & newCat & " is ongeldig. " & vbCrLf & sInvalid, vbCritical
 Else
-  [RC_Geslacht] = ges
-  [RC_Leeftijd] = lft
+  [rc_geslacht] = ges
+  [rc_leeftijd] = lft
 End If
 
 
