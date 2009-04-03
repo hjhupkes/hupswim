@@ -304,6 +304,21 @@ ElseIf impTbIdx = GB_IDX_HUPGEG Then
   Set tb = Nothing
   Set db = Nothing
   
+  
+ElseIf impTbIdx = GB_IDX_RECINT Then
+
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL "update dtRecordsInternal set rc_displayCategorie = hzn(fmtCatCode(nz([rc_geslacht]), nz([rc_leeftijd])));"
+  DoCmd.SetWarnings True
+  
+  
+ElseIf impTbIdx = GB_IDX_RECEXT Then
+
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL "update dtRecordsExternal set rc_displayCategorie = hzn(fmtCatCode(nz([rc_geslacht]), nz([rc_leeftijd])));"
+  DoCmd.SetWarnings True
+  
+  
 End If
 
 
@@ -562,7 +577,7 @@ If (impTbIdx = GB_IDX_RECSETS) Then
               outp("RC_Baanlengte") = IIf(tpBn = 50, 50, 25)
               outp("RC_Leeftijd") = tpLft
               outp("RC_Geslacht") = hzn(tpGes)
-              outp("RC_DisplayCategorie") = fmtCatCode(tpGes, tpLft)
+              outp("RC_DisplayCategorie") = hzn(fmtCatCode(tpGes, tpLft))
               outp("RC_Startnummer") = hzn(tpStart)
               outp("RC_Vereniging") = Null
               outp("RC_Tijd") = tpTime
