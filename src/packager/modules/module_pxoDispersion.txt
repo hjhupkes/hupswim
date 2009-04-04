@@ -175,6 +175,70 @@ Exit Function
 End Function
 
 
+Public Function writeRSSFeed(ByVal sVerCode As String, ByVal sFName As String) As Boolean
+On Error GoTo fout
+writeRSSFeed = False
+
+
+Dim blFOpen As Boolean, fNr As Long
+blFOpen = False
+
+
+fNr = FreeFile
+
+disposeFile sFName
+
+Open sFName For Output As #fNr
+
+blFOpen = True
+
+Print #fNr, "<?xml version=""1.0""?>"
+Print #fNr, "<rss version=""2.0"">"
+Print #fNr, "  <channel>"
+
+Print #fNr,
+
+Print #fNr, "    <title>Hupsoft</title>"
+Print #fNr, "    <description>Informatie over Hupswim</description>"
+Print #fNr, "    <link>http://home.wxs.nl/~wimhupke/hupsoft</link>"
+
+Print #fNr,
+
+Print #fNr, "    <item>"
+Print #fNr, "      <guid isPermaLink=""false"">http://home.wxs.nl/~wimhupke/hupsoft/versie" & sVerCode & "</guid>"
+Print #fNr, "      <title>Hupswim versie " & sVerCode & "</title>"
+Print #fNr, "      <description>Hupwim versie " & sVerCode & " is uit! [" & Format(Now(), "dd\-mm\-yyyy") & "]</description>"
+Print #fNr, "      <link>http://home.wxs.nl/~wimhupke/hupsoft</link>"
+Print #fNr, "    </item>"
+
+Print #fNr,
+
+Print #fNr, "  </channel>"
+Print #fNr, "</rss>"
+
+Close #fNr
+
+blFOpen = False
+
+
+writeRSSFeed = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " writeRSSFeed" & vbCrLf & Error$
+
+If (blFOpen) Then
+  Close #fNr
+End If
+
+MsgBox msg, vbCritical
+
+Exit Function
+
+End Function
+
+
+
 
 
 Public Function prepareDistribution(ByRef bldOpts As BUILD_OPTIONS) As Boolean
@@ -218,6 +282,16 @@ End If
 
 If Not writeVersionInfo(sHupswimVersion, sCurDir & "\src\hupprog\Modules\Module_gVerInfo.txt") Then
   Exit Function
+End If
+
+
+
+If Not DirectoryExists(sCurDir & "\release") Then
+  FileSystem.MkDir sCurDir & "\release"
+End If
+
+If Not DirectoryExists(sCurDir & "\release") Then
+  Err.Raise 1, , "Could not create dir: " & sCurDir & "\release"
 End If
 
 
@@ -273,6 +347,13 @@ End If
 If Not DirectoryExists(sRelDBDir & "\prep") Then
   Err.Raise 1, , "Could not create dir: " & sRelDBDir & "\prep"
 End If
+
+
+
+
+
+
+
 
 If (bldOpts.blPrepareBuildOff97Version) Then
   disposeFile sRelDBDir & "\off97\hupsw97.mdb"
@@ -343,6 +424,10 @@ disposeFile sRelDBDir & "\prep\empty_off2003.mdb"
 'disposeFile sRelDBDir & "\prep\empty_off2000.mdb"
 
 disposeFile sRelDBDir & "\prep\empty_off97.mdb"
+
+
+
+disposeFile sCurDir & "\release\rss_feed.rss"
 
 
 
@@ -656,6 +741,15 @@ If (bldOpts.blPrepareSetupOff2003) Then
   FileCopy sCurDir & "\release\setup_hupsoft_office_2003_2007.exe", sCurDir & "\release\setup_office2003.exe"
 End If
 
+
+If Not writeRSSFeed(sHupswimVersion, sCurDir & "\release\rss_feed.rss") Then
+  Exit Function
+End If
+
+
+
+
+SysCmd acSysCmdClearStatus
 
 
 
