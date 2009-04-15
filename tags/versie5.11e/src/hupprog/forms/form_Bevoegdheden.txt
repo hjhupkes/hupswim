@@ -1,0 +1,240 @@
+Version =20
+VersionRequired =20
+Checksum =-1519352573
+Begin Form
+    AutoResize = NotDefault
+    PopUp = NotDefault
+    Modal = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DividingLines = NotDefault
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =4485
+    DatasheetFontHeight =10
+    ItemSuffix =39
+    Left =6405
+    Top =2610
+    Right =11400
+    Bottom =8925
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    AfterInsert ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x093bb2173f5fe340
+    End
+    RecordSource ="SELECT * from dtBevoegdheden order by bv_nr;"
+    Caption ="Bevoegdheid"
+    BeforeUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin Subform
+            SpecialEffect =2
+            Width =1701
+            Height =1701
+        End
+        Begin FormHeader
+            Height =939
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =93
+                    TextAlign =2
+                    Left =-15
+                    Top =120
+                    Width =4425
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =16776960
+                    Name ="Label0"
+                    Caption ="Bevoegdheden"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =60
+                    Top =729
+                    Width =330
+                    Height =210
+                    Name ="Label10"
+                    Caption ="Nr"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =1307
+                    Top =729
+                    Width =1650
+                    Height =210
+                    Name ="Label11"
+                    Caption ="Omschrijving"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =574
+                    Top =729
+                    Width =510
+                    Height =210
+                    Name ="Label38"
+                    Caption ="Code"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =215
+                    AccessKey =84
+                    Left =3510
+                    Top =75
+                    Width =855
+                    Height =405
+                    FontSize =10
+                    FontWeight =700
+                    ForeColor =255
+                    Name ="btnTerug"
+                    Caption ="&Terug"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =60
+                    Width =336
+                    Name ="BV_Nr"
+                    ControlSource ="BV_Nr"
+                    Format =">"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="1"
+                    GUID = Begin
+                        0x20ca76e85967c74ca4b00a233687b511
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1307
+                    Width =2331
+                    TabIndex =2
+                    Name ="BV_Omschrijving"
+                    ControlSource ="BV_Omschrijving"
+                    GUID = Begin
+                        0xa74218f8f82f25438dd07acb156a2ecf
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =570
+                    Width =591
+                    TabIndex =1
+                    Name ="BV_Code"
+                    ControlSource ="BV_Code"
+                    GUID = Begin
+                        0x14af75d7efea484fa0178b5809bf19ff
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =12632256
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+Private Sub btnTerug_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+Private Sub Form_AfterInsert()
+On Error Resume Next
+BV_NR_AfterUpdate
+End Sub
+
+
+
+
+
+Private Sub Form_BeforeUpdate(Cancel As Integer)
+On Error GoTo fout
+
+Cancel = True
+
+
+If (Nz(Me.BV_Nr) < 1) Or (Nz(Me.BV_Nr) > 31) Then
+  Err.Raise 1, , "Nr moet tussen 1 en 31 liggen."
+End If
+
+
+
+Cancel = False
+
+Exit Sub
+
+fout:
+MsgBox Err & " form_beforeUpdate" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+
+setBackground Me
+
+End Sub
+
+Private Sub BV_NR_AfterUpdate()
+On Error Resume Next
+BV_Nr.DefaultValue = "=" & CStr(BV_Nr.value + 1)
+End Sub

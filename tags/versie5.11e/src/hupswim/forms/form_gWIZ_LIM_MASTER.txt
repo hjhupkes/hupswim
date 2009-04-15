@@ -1,0 +1,792 @@
+Version =20
+VersionRequired =20
+Checksum =5474648
+Begin Form
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DividingLines = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    ViewsAllowed =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridX =24
+    GridY =24
+    Width =11550
+    DatasheetFontHeight =10
+    ItemSuffix =20
+    Left =3780
+    Top =1140
+    Right =15330
+    Bottom =8835
+    DatasheetGridlinesColor =12632256
+    Toolbar ="gFrmToolbar"
+    RecSrcDt = Begin
+        0x24c8cc2e9110e340
+    End
+    Caption ="Limieten instellen"
+    OnOpen ="[Event Procedure]"
+    MenuBar ="gMnBasic"
+    DatasheetFontName ="Arial"
+    OnResize ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+        End
+        Begin Subform
+            SpecialEffect =2
+        End
+        Begin FormHeader
+            Height =600
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =-45
+                    Top =120
+                    Width =11595
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    Name ="Label0"
+                    Caption ="Limieten instellen"
+                End
+            End
+        End
+        Begin Section
+            CanGrow = NotDefault
+            Height =6636
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin Subform
+                    OverlapFlags =85
+                    OldBorderStyle =0
+                    SpecialEffect =0
+                    Width =11528
+                    Height =6636
+                    BorderColor =4210752
+                    Name ="subfrm"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =480
+            BackColor =-2147483633
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =78
+                    Left =8000
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnNxt"
+                    Caption ="&Next"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =80
+                    Left =6696
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnPrev"
+                    Caption ="&Previous"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =67
+                    Left =120
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =2
+                    Name ="btnCancel"
+                    Caption ="&Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =70
+                    Left =9247
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =3
+                    Name ="btnFin"
+                    Caption ="&Finish"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+'Private prvFName As String
+
+Private hasAutoCalcedAction As Boolean
+
+Private curPage As Integer
+Private Const PAGE_MIN = 0
+Private Const PAGE_INTRO = 0
+Private Const PAGE_APPEND_SET = 1
+Private Const PAGE_ACTION = 2
+Private Const PAGE_PROGS = 3
+Private Const PAGE_MAX = PAGE_PROGS
+
+Private Const APP_CHOICE_NOTHING = 1
+Private Const APP_CHOICE_LEVEL = 2
+Private Const APP_CHOICE_FINA = 3
+Private Const APP_CHOICE_FILE = 4
+
+
+'Standard Wizard code version: 15-dec-2007.
+
+
+
+Private Function getFDes() As String
+On Error Resume Next
+getFDes = Nz(DLookup("ILO_AppendFileDes", "gLIM_IMP_OPTIONS"))
+End Function
+
+Private Function getFName() As String
+On Error Resume Next
+getFName = Nz(DLookup("ILO_AppendFileName", "gLIM_IMP_OPTIONS"))
+End Function
+
+
+Private Function getLevelCode() As String
+On Error Resume Next
+getLevelCode = Nz(DLookup("ILO_AppendLevelCode", "gLIM_IMP_OPTIONS"))
+End Function
+Private Function getLevelBaan() As Integer
+On Error Resume Next
+getLevelBaan = Nz(DLookup("ILO_AppendLevelBaan", "gLIM_IMP_OPTIONS"))
+End Function
+
+Private Function getFinaPoints() As Double
+On Error Resume Next
+getFinaPoints = Nz(DLookup("ILO_AppendFinaPoints", "gLIM_IMP_OPTIONS"))
+End Function
+Private Function getFinaBaan() As Integer
+On Error Resume Next
+getFinaBaan = Nz(DLookup("ILO_AppendFinaBaan", "gLIM_IMP_OPTIONS"))
+End Function
+
+
+Private Function getAppendChoice() As Integer
+On Error Resume Next
+getAppendChoice = Nz(DLookup("ILO_AppendChoice", "gLIM_IMP_OPTIONS"))
+End Function
+Private Sub setAppendChoice(chc As Integer)
+On Error Resume Next
+On Error Resume Next
+DoCmd.SetWarnings False
+DoCmd.RunSQL "update gLIM_IMP_OPTIONS set ILO_AppendChoice = " & chc
+DoCmd.SetWarnings True
+End Sub
+
+Private Sub setWedData(curProg As String, wednr As Long, meetMainNr As Long, wedAgeDate As Date, wedLftMode As String)
+On Error Resume Next
+DoCmd.SetWarnings False
+DoCmd.RunSQL "update gLIM_IMP_OPTIONS set ILO_ProgsCurProg = hzn(""" & curProg & """), ILO_ProgsWedNr = " & wednr & ", " & _
+"ILO_ProgsMeetMainNr = " & meetMainNr & ", ILO_WedAgeDate = #" & Format(wedAgeDate, "mm\-dd\-yyyy") & "#, ILO_WedLftMode=""" & wedLftMode & """"
+DoCmd.SetWarnings True
+End Sub
+Private Sub setProgOptions(isMeet As Boolean)
+On Error Resume Next
+DoCmd.SetWarnings False
+DoCmd.RunSQL "update gLIM_IMP_OPTIONS set ILO_ProgsEntireMeet = " & boolToString(isMeet)
+DoCmd.SetWarnings True
+
+End Sub
+
+
+
+Private Function getActionChoice() As Integer
+On Error Resume Next
+getActionChoice = Nz(DLookup("ILO_LimAction", "gLIM_IMP_OPTIONS"))
+End Function
+
+Private Function getVVTSetID() As Integer
+On Error Resume Next
+getVVTSetID = Nz(DLookup("ILO_LimVVTSetID", "gLIM_IMP_OPTIONS"), -1)
+End Function
+
+Private Function get25SetID() As Integer
+On Error Resume Next
+get25SetID = Nz(DLookup("ILO_LimMix25SetID", "gLIM_IMP_OPTIONS"), -1)
+End Function
+
+Private Function get50SetID() As Integer
+On Error Resume Next
+get50SetID = Nz(DLookup("ILO_LimMix50SetID", "gLIM_IMP_OPTIONS"), -1)
+End Function
+
+
+
+Private Function wzcPostPageUnload(ByVal page As Integer)
+On Error Resume Next
+
+
+End Function
+Private Sub wzcPostFinish()
+On Error Resume Next
+
+If Not limImportLimits_Cleanup() Then
+  Exit Sub
+End If
+
+
+End Sub
+
+Private Function wzcAllowCancel(curPage As Integer) As Boolean
+On Error Resume Next
+wzcAllowCancel = True
+End Function
+
+Private Sub wzcPerformCancel(lstPage As Integer)
+On Error Resume Next
+
+If Not limImportLimits_Cleanup() Then
+  Exit Sub
+End If
+
+End Sub
+
+
+
+Private Function wzcMinPage() As Integer
+On Error Resume Next
+  wzcMinPage = PAGE_MIN
+End Function
+
+Private Function wzcMaxPage() As Integer
+On Error Resume Next
+wzcMaxPage = PAGE_MAX
+End Function
+
+
+Private Sub wzcFormatButtons(curPage As Integer)
+On Error GoTo fout
+
+If (curPage = PAGE_INTRO) Then
+  Me.btnFin.Enabled = False
+ElseIf (curPage = PAGE_APPEND_SET) Then
+  Me.btnFin.Enabled = False
+  
+  Dim appChoice As Integer
+  appChoice = getAppendChoice()
+  Select Case appChoice
+    Case APP_CHOICE_NOTHING
+      Me.btnNxt.Enabled = True
+    Case APP_CHOICE_LEVEL
+      Me.btnNxt.Enabled = True
+      If (getLevelCode() = "" Or getLevelBaan = 0) Then
+        Me.btnNxt.Enabled = False
+      End If
+    Case APP_CHOICE_FINA
+      Me.btnNxt.Enabled = True
+      If (getFinaPoints < 1 Or getFinaBaan = 0) Then
+        Me.btnNxt.Enabled = False
+      End If
+    Case APP_CHOICE_FILE
+      Me.btnNxt.Enabled = True
+      If (getFName = "" Or getFDes = "") Then
+        Me.btnNxt.Enabled = False
+      End If
+  End Select
+  
+  
+ElseIf (curPage = PAGE_ACTION) Then
+  Me.btnFin.Enabled = False
+
+
+  Dim actChoice As Integer
+  actChoice = getActionChoice()
+  
+  Select Case actChoice
+    Case LIM_ACTION_CLEAR_LIM, LIM_ACTION_CLEAR_VVT
+      Me.btnNxt.Enabled = True
+    Case LIM_ACTION_SET_VVT
+      Me.btnNxt.Enabled = (getVVTSetID() >= 0)
+    Case LIM_ACTION_SET_MIX
+      Me.btnNxt.Enabled = ((get25SetID() >= 0) And (get50SetID() >= 0))
+    Case LIM_ACTION_SET_STD
+      Me.btnNxt.Enabled = True
+  End Select
+  
+ElseIf (curPage = PAGE_PROGS) Then
+   Me.btnFin.Enabled = True
+End If
+
+
+Exit Sub
+fout:
+If (Err = 2164) Then ' cannot disable a control when it has focus.
+  Me.btnCancel.SetFocus
+  Resume
+End If
+
+MsgBox Err & " " & Error$, 16
+
+End Sub
+
+
+
+Private Sub wzcInit(ByRef initPage As Integer)
+On Error Resume Next
+
+
+
+wedProgTabelVullen wed_MeetMainNr(), waarde(), wed_IsMeet(), False, "", ""
+
+If Not limImportLimits_Cleanup() Then
+  Exit Sub
+End If
+
+setWedData waarde_prog(), waarde(), wed_MeetMainNr(), wed_age_date(), wed_lft_mode()
+
+setProgOptions wed_IsMeet()
+
+setAppendChoice APP_CHOICE_NOTHING
+
+hasAutoCalcedAction = False
+
+End Sub
+
+
+Private Sub wzcHandleMove(ByVal prvPage As Integer, ByRef nxtPage As Integer)
+On Error GoTo fout
+
+If (prvPage = PAGE_APPEND_SET) And (nxtPage = PAGE_ACTION) Then
+  'need to perform load operation.
+  Select Case Nz(getAppendChoice())
+    Case APP_CHOICE_NOTHING
+      'Need to determine default action to take. Only do this a single time, so as not to mess up user settings.
+      If (Not hasAutoCalcedAction) Then
+        If Not limImportLimits_DetermineLimAction() Then
+          Exit Sub
+        End If
+        hasAutoCalcedAction = True
+      End If
+    Case APP_CHOICE_FILE, APP_CHOICE_LEVEL, APP_CHOICE_FINA
+      setAppendChoice APP_CHOICE_NOTHING
+      nxtPage = PAGE_APPEND_SET
+    End Select
+End If
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+End Sub
+
+
+Private Sub wzcPrePageLoad(ByVal curPage As Integer)
+On Error Resume Next
+
+
+End Sub
+Private Sub wzcPostPageLoad(ByVal curPage As Integer)
+On Error Resume Next
+
+End Sub
+
+Private Function wzcGetPageName(ByVal curPage As Integer) As String
+On Error Resume Next
+
+
+Select Case curPage
+  Case PAGE_INTRO
+    wzcGetPageName = "gWIZ_LIM_INTRO"
+  Case PAGE_APPEND_SET
+    wzcGetPageName = "gWIZ_LIM_APPEND_SET"
+  Case PAGE_ACTION
+    wzcGetPageName = "gWIZ_LIM_ACTION"
+  Case PAGE_PROGS
+    wzcGetPageName = "gWIZ_LIM_PROGS"
+End Select
+
+End Function
+
+
+
+
+
+
+
+Private Function wzcExitPage(pageNr As Integer, direction As Integer) As Boolean
+On Error Resume Next
+wzcExitPage = False
+
+
+If (pageNr = PAGE_APPEND_SET) And (direction > 0) Then
+  Select Case Nz(getAppendChoice())
+    Case APP_CHOICE_NOTHING
+    Case APP_CHOICE_FILE
+      Dim fName As String, fDes As String
+      fName = getFName()
+      fDes = getFDes()
+      
+      If Not limImportLimits_AppendFile(fName, fDes) Then
+        Exit Function
+      End If
+    
+
+    Case APP_CHOICE_LEVEL
+    
+      Dim levCode As String, levBn As Integer
+      levCode = getLevelCode()
+      levBn = getLevelBaan
+      
+      If Not limImportLimits_AppendLevel(levCode, levBn) Then
+        Exit Function
+      End If
+    
+    Case APP_CHOICE_FINA
+    
+      Dim finPoints As Double, finBn As Integer
+      finPoints = getFinaPoints()
+      finBn = getFinaBaan()
+      
+      If Not limImportLimits_AppendFina(finPoints, finBn) Then
+        Exit Function
+      End If
+    
+    End Select
+End If
+
+wzcExitPage = True
+End Function
+
+
+
+Private Function wzcFinish(curPage As Integer) As Boolean
+On Error GoTo fout
+
+wzcFinish = False
+
+If Not limImportLimits_ApplyToProgs() Then
+  Exit Function
+End If
+
+
+wzcFinish = True
+
+
+Exit Function
+fout:
+MsgBox Err & " wzcFinish" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+'Standard wizard stuff.
+
+Private Function wzbCancel() As Boolean
+On Error GoTo fout
+
+wzbCancel = False
+
+Dim lstPage As Integer
+lstPage = curPage
+
+If Not wzcAllowCancel(curPage) Then
+  Exit Function
+End If
+
+Dim closedPage As Integer
+closedPage = curPage
+
+'close the current page.
+Me.subfrm.SourceObject = "WIZ_UNBOUND"
+curPage = -1
+
+wzcPostPageUnload closedPage
+
+wzcPerformCancel lstPage
+ 
+ wzbCancel = True
+ 
+ Exit Function
+fout:
+ MsgBox Err & " " & Error$, 16
+ Exit Function
+
+
+End Function
+
+
+'Below is just standard wizard stuff.
+
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+
+If (wzbCancel()) Then
+  DoCmd.Close
+End If
+
+End Sub
+
+Private Sub btnFin_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+If (wzbFinish()) Then
+  DoCmd.Close
+End If
+End Sub
+
+Private Sub btnNxt_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+wzbAdvance
+End Sub
+
+Private Sub btnPrev_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+wzbRetreat
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+wzbInit
+End Sub
+
+
+
+Public Sub wzbNotifyChange()
+On Error Resume Next
+wzbFormatButtons
+End Sub
+
+Private Sub wzbFormatButtons()
+On Error GoTo fout
+
+Me.btnFin.Enabled = True
+
+If curPage = wzcMinPage() Then
+  Me.btnPrev.Enabled = False
+Else
+  Me.btnPrev.Enabled = True
+End If
+If curPage = wzcMaxPage() Then
+  Me.btnNxt.Enabled = False
+Else
+  Me.btnNxt.Enabled = True
+End If
+
+wzcFormatButtons curPage
+
+Exit Sub
+fout:
+If (Err = 2164) Then ' cannot disable a control when it has focus.
+  Me.btnCancel.SetFocus
+  Resume
+End If
+
+MsgBox Err & " " & Error$, 16
+End Sub
+Private Sub wzbInit()
+On Error Resume Next
+curPage = wzcMinPage()
+
+wzcInit curPage
+
+wzbDisplayCurPage
+End Sub
+
+
+
+
+
+Private Sub wzbAdvance()
+On Error GoTo fout
+If (curPage < wzcMaxPage()) Then
+  If wzbExitPage(curPage, 1) Then
+    Dim prvPage As Integer
+    prvPage = curPage
+    curPage = curPage + 1
+    
+    'Unload current page.
+    Me.subfrm.SourceObject = "WIZ_UNBOUND"
+    
+    wzcPostPageUnload prvPage
+    
+    wzcHandleMove prvPage, curPage
+    
+    wzbDisplayCurPage
+  End If
+End If
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+Private Sub wzbRetreat()
+On Error GoTo fout
+If (curPage > wzcMinPage()) Then
+  If (wzbExitPage(curPage, -1)) Then
+    Dim prvPage As Integer
+    prvPage = curPage
+    curPage = curPage - 1
+    
+    'Unload current page.
+    Me.subfrm.SourceObject = "WIZ_UNBOUND"
+    
+    wzcPostPageUnload (prvPage)
+    
+    wzcHandleMove prvPage, curPage
+    
+    wzbDisplayCurPage
+  End If
+End If
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+  
+End Sub
+
+Private Sub wzbDisplayCurPage()
+On Error GoTo fout
+
+wzcPrePageLoad (curPage)
+
+Dim pageName As String
+pageName = wzcGetPageName(curPage)
+
+Me.subfrm.SourceObject = pageName
+
+wzbFormatButtons
+
+If curPage = wzcMinPage() Then
+ If (Me.btnNxt.Enabled) Then
+   Me.btnNxt.SetFocus
+ ElseIf (Me.btnFin.Enabled) Then
+   Me.btnFin.SetFocus
+ End If
+End If
+
+If curPage = wzcMaxPage() Then
+  If (Me.btnPrev.Enabled) Then
+    Me.btnPrev.SetFocus
+  ElseIf (Me.btnFin.Enabled) Then
+    Me.btnFin.SetFocus
+  End If
+End If
+
+wzcPostPageLoad (curPage)
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+
+End Sub
+
+
+Private Function wzbExitPage(pageNr As Integer, direction As Integer) As Boolean
+On Error Resume Next
+
+wzbExitPage = wzcExitPage(pageNr, direction)
+
+End Function
+
+Private Function wzbFinish() As Boolean
+On Error Resume Next
+wzbFinish = False
+
+If Not wzbExitPage(curPage, 1) Then Exit Function
+
+If Not wzcFinish(curPage) Then Exit Function
+
+Dim closedPage As Integer
+closedPage = curPage
+
+ 'Unload current page.
+Me.subfrm.SourceObject = "WIZ_UNBOUND"
+curPage = -1
+    
+wzcPostPageUnload closedPage
+
+'Notify that wizard is finished.
+wzcPostFinish
+
+wzbFinish = True
+
+
+
+End Function
+
+
+Private Sub Form_Resize()
+On Error GoTo fout
+
+Dim newDetlHeight As Long
+
+newDetlHeight = Me.Form.InsideHeight - Me.FormFooter.Height - Me.FormHeader.Height
+If (newDetlHeight > Me.Detail.Height) Then
+  Me.Detail.Height = newDetlHeight
+  Me.subfrm.Height = Me.Detail.Height
+Else
+'  Me.subfrm.Height = 0
+  Me.subfrm.Height = newDetlHeight
+  Me.Detail.Height = newDetlHeight
+End If
+
+Dim newDetlWidth As Long
+newDetlWidth = Me.Form.InsideWidth
+Me.subfrm.Width = newDetlWidth
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+
+End Sub

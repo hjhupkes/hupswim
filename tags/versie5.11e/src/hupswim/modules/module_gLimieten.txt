@@ -1,0 +1,722 @@
+Option Compare Database
+Option Explicit
+
+
+
+Public Function rslFillDefaultsTable() As Boolean
+On Error GoTo fout
+rslFillDefaultsTable = False
+
+Dim sql As String
+sql = "Delete * from [gRes_marge];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gRes_marge")
+
+
+Dim stdAfList(0 To 20) As String
+Dim nStdAf As Integer
+
+stdAfList(0) = "50"
+stdAfList(1) = "100"
+stdAfList(2) = "200"
+stdAfList(3) = "400"
+stdAfList(4) = "800"
+stdAfList(5) = "1500"
+stdAfList(6) = "4x50"
+stdAfList(7) = "4x100"
+stdAfList(8) = "4x200"
+nStdAf = 9
+
+Dim i As Integer
+For i = 0 To nStdAf - 1
+  rs.AddNew
+    rs("RM_Afstand") = hzn(stdAfList(i))
+    rs("RM_Afstand_Numeric") = afstOrder(stdAfList(i))
+    rs("RM_ResMarge") = rslGetDefault(stdAfList(i))
+  rs.Update
+Next i
+
+
+appCleanRS rs
+
+rslFillDefaultsTable = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+Public Function rslGetDefault(afst As String) As Double
+On Error GoTo fout
+rslGetDefault = 0
+
+If (afst = "4x100") Then
+    rslGetDefault = 0.8
+  ElseIf (afst Like "4x200") Then
+    rslGetDefault = 2
+  ElseIf (afst Like "*x*") Then
+    rslGetDefault = 0.4
+  ElseIf (afst = "50") Then
+    rslGetDefault = 0.2
+  ElseIf (afst = "100") Then
+    rslGetDefault = 0.2
+  ElseIf (afst = "200") Then
+    rslGetDefault = 0.4
+  ElseIf (afst = "400") Then
+    rslGetDefault = 0.8
+  ElseIf (afst Like "800") Then
+    rslGetDefault = 2#
+  ElseIf (afst Like "1500") Then
+    rslGetDefault = 3
+  Else
+    rslGetDefault = 0.4
+  End If
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function findResLimiet(ByVal resLimStr As String, ByVal prAfstand As String, ByRef resLim25 As Double, ByRef resLim50 As Double, ByRef resLim As Double, ByRef isDefResLim As Boolean) As Boolean
+On Error GoTo fout
+findResLimiet = False
+
+isDefResLim = False
+
+If (resLimStr = "") Then
+  
+  resLim = rslGetDefault(prAfstand)
+  
+  resLim25 = resLim
+  resLim50 = resLim
+  
+  isDefResLim = True
+  
+  findResLimiet = True
+  
+  Exit Function
+End If
+
+
+Dim lft As String, rgt As String, midS As String
+Dim pos As Integer
+If (resLimStr Like "*/*") Then
+  pos = InStr(resLimStr, "/")
+  lft = Left(resLimStr, pos - 1)
+  rgt = Mid(resLimStr, pos + 1, Len(resLimStr) - pos)
+  resLim25 = parseTijd(lft)
+  resLim50 = parseTijd(rgt)
+  If (resLim25 < 0) Then
+    resLim25 = 0
+  End If
+  If (resLim50 < 0) Then
+    resLim50 = 0
+  End If
+  
+  If (resLim25 < resLim50) Then
+    resLim = resLim25
+  Else
+    resLim = resLim50
+  End If
+  
+  findResLimiet = True
+  Exit Function
+End If
+
+resLim = parseTijd(resLimStr)
+'Hj debug mei 2006: changed resLim > 0 to resLim < 0
+If (resLim < 0) Then
+  resLim = 0
+End If
+resLim25 = resLim
+resLim50 = resLim
+
+findResLimiet = True
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function limParseTijd(td As String) As Double
+'Only difference with parseTijd is that on error -1 is returned.
+On Error Resume Next
+limParseTijd = 0
+If td Like "*.*.*" Then
+  limParseTijd = parseTijd(td)
+Else
+  limParseTijd = val(td)
+End If
+
+If (limParseTijd = 0) Then
+  'check if actually zero.
+  If (td = "0" Or td = "0.0" Or td Like "0.00.0*" Or td = "0 00.0") Then
+  Else
+    limParseTijd = -1
+  End If
+End If
+
+End Function
+
+
+Public Function limGetMiddle(ByVal lim As String) As Double
+On Error GoTo fout
+limGetMiddle = -1
+
+Dim blDum As Boolean, dbl1 As Double, dbl2 As Double, dbl3 As Double, dbl4 As Double
+
+Dim blHasMid As Boolean
+Dim dbMid As Double
+
+If (Not analyzeLimiet(lim, blDum, dbl1, dbl2, dbl3, dbl4, blHasMid, dbMid)) Then
+  Exit Function
+End If
+
+If (blHasMid) Then
+  limGetMiddle = dbMid
+End If
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function analyzeLimiet(ByVal lim As String, ByRef is25Of50mBaan As Boolean, ByRef lim25 As Double, ByRef lim50 As Double, ByRef limMin As Double, ByRef limMax As Double, ByRef hasMiddleLim, ByRef limMid As Double) As Boolean
+On Error GoTo fout
+analyzeLimiet = False
+Dim lft As String, rgt As String, midS As String
+Dim pos As Integer
+If (lim Like "*/*") Then
+  pos = InStr(lim, "/")
+  lft = Left(lim, pos - 1)
+  rgt = Mid(lim, pos + 1, Len(lim) - pos)
+  lim25 = limParseTijd(lft)
+  lim50 = limParseTijd(rgt)
+  If (lim25 < -0.1) Or (lim50 < -0.1) Then
+    Exit Function
+  End If
+  
+  is25Of50mBaan = True
+  analyzeLimiet = True
+  Exit Function
+End If
+
+If (lim Like "*-*") Then
+  lft = extractToken(lim, "-")
+  rgt = extractToken(lim, "-")
+  If (Len(lim) > 0) Then
+    midS = rgt
+    hasMiddleLim = True
+    rgt = extractToken(lim, "-")
+    'Addition 26 september 2006.
+    If (rgt Like "*+") Then
+      rgt = "9999.99"
+    End If
+    'End addition 26 september 2006
+  ElseIf rgt Like "*+" Then
+    midS = rgt
+    hasMiddleLim = True
+    rgt = "9999.99"
+  End If
+  
+  limMin = limParseTijd(lft)
+  If (limMin < -0.1) Then Exit Function
+  
+  limMax = limParseTijd(rgt)
+  If (limMax < -0.1) Then Exit Function
+  
+  If (hasMiddleLim) Then
+    limMid = limParseTijd(midS)
+    If (limMid < -0.1) Then Exit Function
+  End If
+  
+  analyzeLimiet = True
+  Exit Function
+End If
+
+If (lim Like "*+") Then
+  limMin = limParseTijd(lim)
+  If (limMin < -0.1) Then Exit Function
+  limMax = 9999.99
+  analyzeLimiet = True
+Else
+  limMax = limParseTijd(lim)
+  If (limMax < -0.1) Then Exit Function
+  limMin = -1
+  analyzeLimiet = True
+End If
+  
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+Public Function limBuild(is25Of50 As Boolean, lim25 As Double, lim50 As Double, limMin As Double, limMax As Double, limMid As Double, hasMid As Boolean) As String
+On Error GoTo fout
+limBuild = ""
+
+If (is25Of50) Then
+  limBuild = Trim(fmtSwimTime(lim25)) & " / " & Trim(fmtSwimTime(lim50))
+  Exit Function
+ElseIf (hasMid) Then
+  If (limMax > 8888) Then
+    limBuild = Trim(fmtSwimTime(limMin)) & "-" & Trim(fmtSwimTime(limMid)) & "+"
+  Else
+    limBuild = Trim(fmtSwimTime(limMin)) & "-" & Trim(fmtSwimTime(limMid)) & "-" & Trim(fmtSwimTime(limMax))
+  End If
+ElseIf (limMin < 0.1) Then
+  limBuild = Trim(fmtSwimTime(limMax))
+ElseIf (limMax > 8888) Then
+  limBuild = Trim(fmtSwimTime(limMin)) & "+"
+Else
+  limBuild = Trim(fmtSwimTime(limMin)) & "-" & Trim(fmtSwimTime(limMax))
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+Public Function limFormat(lim As String) As String
+On Error GoTo fout
+limFormat = ""
+Dim is25Of50 As Boolean, lim25 As Double, lim50 As Double, limMin As Double, limMax As Double, limMid As Double, hasMid As Boolean
+
+If (Not analyzeLimiet(lim, is25Of50, lim25, lim50, limMin, limMax, hasMid, limMid)) Then
+  Exit Function
+End If
+
+limFormat = limBuild(is25Of50, lim25, lim50, limMin, limMax, limMid, hasMid)
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+Public Function limVoldoetBare(Tijd As Double, lim As String) As Boolean
+On Error GoTo fout
+limVoldoetBare = False
+
+Dim is25Of50 As Boolean, lim25 As Double, lim50 As Double, limMin As Double, limMax As Double, limMid As Double, hasMid As Boolean
+
+If (Not analyzeLimiet(lim, is25Of50, lim25, lim50, limMin, limMax, hasMid, limMid)) Then
+  Exit Function
+End If
+
+If (is25Of50) Then Exit Function
+
+If (Tijd < 1) Then Tijd = 8888.88
+
+'Modification 25 september 2006
+If (Tijd > 8888) Then Tijd = 8888.88
+'End modification 25 september 2006
+
+If (Tijd >= limMin - LIMEPS And Tijd <= limMax + LIMEPS) Then
+  limVoldoetBare = True
+  Exit Function
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+Public Function rslApplyResMarges_Perform(ByRef rmAfs() As String, ByRef rmTd() As Double, ByVal nRM As Integer, ByVal afst As String, blZero As Boolean, bl50Apart As Boolean, blAftrekken As Boolean, ByRef limS As String, ByRef resLimS As String) As Boolean
+On Error GoTo fout
+rslApplyResMarges_Perform = False
+
+If (limS <> "") Then
+  Dim is25Of50 As Boolean, lim25 As Double, lim50 As Double, limMin As Double, limMax As Double, limMid As Double, hasMid As Boolean
+
+  If (Not analyzeLimiet(limS, is25Of50, lim25, lim50, limMin, limMax, hasMid, limMid)) Then
+    Exit Function
+  End If
+  
+  
+  Dim resIs25Of50 As Boolean, resLim25 As Double, resLim50 As Double, resLim As Double, isDefResLim As Boolean
+  If (Not findResLimiet(resLimS, afst, resLim25, resLim50, resLim, isDefResLim)) Then
+    Exit Function
+  End If
+  
+  
+  
+  Dim dRes As Double
+  dRes = 0.2
+  'First determine the reserve limit.
+  Dim lkpPos As Integer
+  lkpPos = bSearchString(afst, nRM, rmAfs)
+  If (lkpPos < 0) Then
+    'Afstand niet gevonden -> standaard 0.2
+  Else
+    dRes = rmTd(lkpPos)
+  End If
+  
+  If (is25Of50) Then
+    If (blZero) Then
+      resLimS = lenFormatResLim(0)
+    Else
+      If (bl50Apart) Then
+        resLimS = lenFormatResLim(0) & " / " & lenFormatResLim(dRes)
+        If (blAftrekken) Then
+          If (Abs(resLim50) < LIMEPS) Then
+            lim50 = lim50 - dRes
+            limS = limBuild(is25Of50, lim25, lim50, limMin, limMax, limMid, hasMid)
+          End If
+        End If
+      Else
+        resLimS = lenFormatResLim(dRes) & " / " & lenFormatResLim(dRes)
+        If (blAftrekken) Then
+          Dim blRebuild As Boolean
+          blRebuild = False
+          If (Abs(resLim25) < LIMEPS) Then
+            lim25 = lim25 - dRes
+            blRebuild = True
+          End If
+          If (Abs(resLim50) < LIMEPS) Then
+            lim50 = lim50 - dRes
+            blRebuild = True
+          End If
+          If (blRebuild) Then
+            limS = limBuild(is25Of50, lim25, lim50, limMin, limMax, limMid, hasMid)
+          End If
+        End If
+      End If
+    End If
+  ElseIf (limMax < 8888) Then
+    'Only now is a reserve_marge useful.
+    If (blZero) Then
+      resLimS = lenFormatResLim(0)
+    Else
+      resLimS = lenFormatResLim(dRes)
+      If (blAftrekken And Abs(resLim) < LIMEPS) Then
+        limMax = limMax - dRes
+        limS = limBuild(is25Of50, lim25, lim50, limMin, limMax, limMid, hasMid)
+      End If
+    End If
+  End If
+End If
+
+rslApplyResMarges_Perform = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function rslApplyResMarges(blZero As Boolean, bl50Apart As Boolean, blAftrekken As Boolean, blHuidig As Boolean, blLeeg As Boolean, blEntireMeet As Boolean, curProg As String, curWedNr As Long, curMeetMainNr As Long) As Boolean
+On Error GoTo fout
+rslApplyResMarges = False
+
+Dim rs As Recordset
+'First build table of reserve_marges.
+
+Dim rmAfs(0 To 20) As String
+Dim rmTd(0 To 20) As Double
+Dim nRM As Integer
+
+nRM = 0
+
+Set rs = CurrentDb().OpenRecordset("select * from [gRes_marge] order by [RM_Afstand];")
+rs.MoveFirst
+Do Until rs.EOF
+  rmAfs(nRM) = Nz(rs("RM_Afstand"))
+  rmTd(nRM) = Nz(rs("RM_ResMarge"))
+  nRM = nRM + 1
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+'Hier gebeurt het werk.
+
+
+Dim sql As String
+'Have to worry about which recordset to use.
+sql = wedGetProgsSQL(blHuidig, blEntireMeet, curProg, curWedNr, curMeetMainNr, True, False)
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+If Not rslApplyResMarges_ProcessRS(rmAfs, rmTd, nRM, blZero, bl50Apart, blAftrekken, blLeeg, rs, False) Then
+  Exit Function
+End If
+
+rs.Close
+
+
+sql = wedGetLftSQL(blHuidig, blEntireMeet, curProg, curWedNr, curMeetMainNr, True)
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+If Not rslApplyResMarges_ProcessRS(rmAfs, rmTd, nRM, blZero, bl50Apart, blAftrekken, blLeeg, rs, True) Then
+  Exit Function
+End If
+
+rs.Close
+
+
+rslApplyResMarges = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Sub limAnalyzeTime(ByVal td25 As Double, ByVal td50 As Double, ByVal is25Of50 As Boolean, ByVal lim25 As Double, ByVal lim50 As Double, ByVal limMin As Double, ByVal limMax As Double, ByVal hasMid As Boolean, ByVal limMid As Double, ByVal resLim25 As Double, ByVal resLim50 As Double, ByVal resLim As Double, ByVal qlfMode As String, ByVal ges As String, ByVal af As String, ByVal sl As String, ByRef actOK As Boolean, ByRef actRes As Boolean, ByRef actBn As Integer, ByRef actIsLeftOfMid As Boolean)
+On Error GoTo fout
+
+actOK = False
+actRes = False
+actBn = 25
+actIsLeftOfMid = False
+
+
+
+If (Not swtIsValid(td25)) Then td25 = 99999
+If (Not swtIsValid(td50)) Then td50 = 99999
+
+If (Not swtIsValid(limMax)) Then
+  limMax = 99999
+End If
+
+
+
+Dim bl25LimGehaald As Boolean
+Dim bl25ResLimGehaald As Boolean
+    
+Dim bl50LimGehaald As Boolean
+Dim bl50ResLimGehaald As Boolean
+    
+    
+'First set resLim25 and resLim50 if only resLim has been set.
+If (resLim25 < LIMEPS) And (resLim50 < LIMEPS) And (resLim > LIMEPS) Then
+  resLim25 = resLim
+  resLim50 = resLim
+End If
+    
+    
+If (is25Of50) Then
+
+  
+
+  bl25LimGehaald = td25 <= lim25 + LIMEPS
+  bl25ResLimGehaald = swtToSeconds(td25) <= swtToSeconds(lim25) + resLim25 + LIMEPS
+  
+  bl50LimGehaald = td50 <= lim50 + LIMEPS
+  bl50ResLimGehaald = swtToSeconds(td50) <= swtToSeconds(lim50) + resLim50 + LIMEPS
+Else
+
+  
+  
+  If (Not swtIsValid(limMin)) Then
+  
+    'Here also use the 25/50 resLims. This way, one can still specify separate resLims for 25m / 50m
+    'lanes, even though the same limit is used.
+    'If only a single resLim has been specified, note that the code above ensures that resLim25 =resLim50 =resLim
+  
+
+    bl25LimGehaald = (td25 >= limMin - LIMEPS) And (td25 <= limMax + LIMEPS)
+    bl25ResLimGehaald = (td25 >= limMin - LIMEPS) And (swtToSeconds(td25) <= swtToSeconds(limMax) + resLim25 + LIMEPS)
+    
+    bl50LimGehaald = (td50 >= limMin - LIMEPS) And (td50 <= limMax + LIMEPS)
+    bl50ResLimGehaald = (td50 >= limMin - LIMEPS) And (swtToSeconds(td50) <= swtToSeconds(limMax) + resLim50 + LIMEPS)
+    
+  Else
+  
+    'Have to be very careful here as we are dealing with a minimum limit.
+    'We will simply use the fastest time available
+    
+    If (td25 <= td50 + LIMEPS) Then
+      'use the 25m time
+      bl25LimGehaald = (td25 >= limMin - LIMEPS) And (td25 <= limMax + LIMEPS)
+      bl25ResLimGehaald = (td25 >= limMin - LIMEPS) And (swtToSeconds(td25) <= swtToSeconds(limMax) + resLim25 + LIMEPS)
+      
+      bl50LimGehaald = False
+      bl50ResLimGehaald = False
+    Else
+      'use the 50m time
+      bl50LimGehaald = (td50 >= limMin - LIMEPS) And (td50 <= limMax + LIMEPS)
+      bl50ResLimGehaald = (td50 >= limMin - LIMEPS) And (swtToSeconds(td50) <= swtToSeconds(limMax) + resLim50 + LIMEPS)
+      
+      bl25LimGehaald = False
+      bl25ResLimGehaald = False
+    End If
+    
+  
+  End If
+
+End If
+    
+
+Dim bl25ActFastest As Boolean
+Dim bl25FinaFastest As Boolean
+    
+If (bl25ResLimGehaald And bl50ResLimGehaald) Then
+  'We will need to make a comparison
+  bl25ActFastest = True
+  If (td50 < td25) Then
+    bl25ActFastest = False
+  End If
+  
+  If (qlfMode <> QLF_CONV_NONE) And (qlfMode <> QLF_CONV_PREFER_LCM) Then
+    'we need to calculate and compare fina points.
+    Dim finP25 As Double
+    Dim finP50 As Double
+    
+    finP25 = lenCalcFinaPoints(td25, af, sl, ges, 25)
+    finP50 = lenCalcFinaPoints(td50, af, sl, ges, 50)
+    
+    bl25FinaFastest = True
+    If (finP50 > 0.1) And (finP25 > 0.1) Then
+      If (finP50 > finP25) Then
+        bl25FinaFastest = False
+      End If
+    Else
+      'Use normal ordering.
+      bl25FinaFastest = bl25ActFastest
+    End If
+    
+  End If
+    
+    
+End If 'if bl25ResLimGehaald or bl50ResLimGehaald
+    
+    
+    
+
+
+'Have to sort out which to use.
+
+'For now the tactic is: if QLF_CONV_NONE is explicitly
+'chosen, simply choose the fastest time.
+'If QLF_CONV_PREFER_LCM is explicitly chosen, choose the 50m baan time
+'All other choices (including choice BLANK)
+'treat as QLF_CONV_FINA.
+
+If (bl50LimGehaald And bl25LimGehaald) Then
+  If (qlfMode = QLF_CONV_NONE) Then
+    'simply pick fastest
+    If (bl25ActFastest) Then
+      actBn = 25
+      actOK = True
+    Else
+      actBn = 50
+      actOK = True
+    End If
+  ElseIf (qlfMode = QLF_CONV_PREFER_LCM) Then
+    actBn = 50
+    actOK = True
+  Else
+    'compare fina points
+     If (bl25FinaFastest) Then
+      actBn = 25
+      actOK = True
+    Else
+      actBn = 50
+      actOK = True
+    End If
+  End If
+ElseIf bl50LimGehaald Then
+    actBn = 50
+    actOK = True
+ElseIf bl25LimGehaald Then
+    actBn = 25
+    actOK = True
+ElseIf (bl50ResLimGehaald And bl25ResLimGehaald) Then
+   If (qlfMode = QLF_CONV_NONE) Then
+    'simply pick fastest
+      If (bl25ActFastest) Then
+        actBn = 25
+        actRes = True
+        actOK = True
+      Else
+        actBn = 50
+        actRes = True
+        actOK = True
+      End If
+   ElseIf (qlfMode = QLF_CONV_PREFER_LCM) Then
+     actBn = 50
+     actRes = True
+     actOK = True
+   Else
+    'compare fina points
+     If (bl25FinaFastest) Then
+       actBn = 25
+       actRes = True
+       actOK = True
+     Else
+       actBn = 50
+       actRes = True
+       actOK = True
+     End If
+   End If 'comparison mode
+ElseIf bl50ResLimGehaald Then
+  actOK = True
+  actRes = True
+  actBn = 50
+ElseIf bl25ResLimGehaald Then
+  actOK = True
+  actRes = True
+  actBn = 25
+End If
+
+
+
+
+
+If (hasMid) Then
+  actIsLeftOfMid = False
+  If (actOK) Then
+    If (actBn = 25) Then
+      If (td25 < limMid) Then
+        actIsLeftOfMid = True
+      End If
+    ElseIf (actBn = 50) Then
+      If (td50 < limMid) Then
+        actIsLeftOfMid = True
+      End If
+    End If
+  End If
+End If
+
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub

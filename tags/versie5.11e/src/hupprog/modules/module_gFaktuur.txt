@@ -1,0 +1,1244 @@
+Option Compare Database
+Option Explicit
+
+Private Const FAC_N_AFSTAND = 13
+
+Public Const FEE_PER_START_MODE_NONE = 0
+Public Const FEE_PER_START_MODE_FLAT = 1
+Public Const FEE_PER_START_MODE_PERS_PLOEG = 2
+Public Const FEE_PER_START_MODE_SHORT_LONG = 3
+Public Const FEE_PER_START_MODE_SHORT_LONG_PLOEG = 4
+Public Const FEE_PER_START_MODE_DETAIL_PER_DISTANCE = 5
+
+
+Public Type WED_KOSTEN_INFO
+  sCurrency As String
+  dBulkVerFee As Double
+  dBulkSwimmerFee As Double
+  iFeePerStartMode As Integer
+  sDistancesFmt(1 To FAC_N_AFSTAND) As String
+  sDistances(1 To FAC_N_AFSTAND) As String
+  dFeePerDistance(1 To FAC_N_AFSTAND) As Double
+  blKostVoorRes As Boolean
+  auxBlSepAll As Boolean
+  auxBlSepShortLong As Boolean
+  auxBlDistanceIsShort(1 To FAC_N_AFSTAND) As Boolean
+  auxBlSepEstaf As Boolean
+End Type
+
+Public Type FEE_CALC_DATA
+  lWedMainNr As Long
+  blWedIsOW As Boolean
+  
+  blVerOpen As Boolean
+  sVerName As String
+  sVerDepot As String
+  
+  lVDeelnAlleenRes As Long
+  lVDeeln As Long
+  lVBulkSwimFeeCnt As Long
+  lVStarts As Long
+  lVStartsRes As Long
+  lVPerRes As Long
+  lVPer As Long
+  lVEst As Long ' Aantal Estafette Starts leden Ver
+  lVEstRes As Long ' aantal reserve estafette starts leden Ver
+  lVEEst As Long ' Aantal Echte Estafettes...
+  lVEEstRes As Long
+  dVKostenTot As Double
+  dVEstafKosten As Double
+  dVProgExtraKosten As Double
+  
+  lVFreqAfstCost(1 To FAC_N_AFSTAND) As Long
+
+  
+  blSwmOpen As Boolean
+  sSwmStart As String
+  sSwmNam As String
+  sSwmAchternaam As String
+  
+  lPStarts As Long
+  lPStartsRes As Long
+  lPPer As Long
+  lPEst As Long
+  lPPerRes As Long
+  lPEstRes As Long
+  sPStartList As String
+  sPOWStartList As String
+  lPAfstand As Long
+  lPAfstandRes As Long
+  dPKostenTot As Double
+  dPProgExtraKosten As Double
+  dPEstafKosten As Double
+  
+  lPFreqAfstCost(1 To FAC_N_AFSTAND) As Long
+
+  
+  
+  
+End Type
+
+
+Private Function facLookupKostenInfo(ByVal wednr As Long, ByRef isFnd As Boolean, ByRef kostInfo As WED_KOSTEN_INFO) As Boolean
+On Error GoTo fout
+facLookupKostenInfo = False
+
+isFnd = False
+
+
+Dim sCurrency As String, bulkkostenver As Double, bulkKostenZwm As Double
+Dim dKosten1 As Double, iKosten1Spec As Integer, dKosten2 As Double, sKosten2Spec As String
+Dim dKostenEstaf As Double, blApartKosten As Boolean, sApartKosten As String, blKostVoorRes As Boolean
+
+'First obtain raw data
+If Not facGetKostData(wednr, sCurrency, bulkkostenver, bulkKostenZwm, dKosten1, _
+  iKosten1Spec, dKosten2, sKosten2Spec, dKostenEstaf, blApartKosten, sApartKosten, blKostVoorRes) Then
+  Exit Function
+End If
+
+'Now convert to format
+kostInfo.dBulkVerFee = bulkkostenver
+
+If (sCurrency = "EUR" Or sCurrency = "") Then
+  sCurrency = "€"
+End If
+kostInfo.sCurrency = sCurrency
+
+kostInfo.blKostVoorRes = blKostVoorRes
+
+If blApartKosten Then
+
+  kostInfo.dBulkSwimmerFee = bulkKostenZwm
+  kostInfo.iFeePerStartMode = FEE_PER_START_MODE_DETAIL_PER_DISTANCE
+  
+  kostInfo.auxBlSepAll = True
+  
+  facFillFees sApartKosten, kostInfo.sDistancesFmt, kostInfo.sDistances, kostInfo.dFeePerDistance
+  
+Else
+  
+  facFillFees "", kostInfo.sDistancesFmt, kostInfo.sDistances, kostInfo.dFeePerDistance
+  
+  
+  
+  If (iKosten1Spec = 2) Then
+    kostInfo.dBulkSwimmerFee = bulkKostenZwm
+    
+    Dim blSepShortLong As Boolean
+    blSepShortLong = (dKosten2 > 0.01) And (sKosten2Spec <> "")
+    Dim blSepEstaf As Boolean
+    blSepEstaf = (dKostenEstaf > 0.01)
+    
+    kostInfo.auxBlSepShortLong = blSepShortLong
+    kostInfo.auxBlSepEstaf = blSepEstaf
+    
+    If (blSepEstaf) Then
+      If (blSepShortLong) Then
+        kostInfo.iFeePerStartMode = FEE_PER_START_MODE_SHORT_LONG_PLOEG
+      Else
+        kostInfo.iFeePerStartMode = FEE_PER_START_MODE_PERS_PLOEG
+      End If
+    Else
+      If (blSepShortLong) Then
+        kostInfo.iFeePerStartMode = FEE_PER_START_MODE_SHORT_LONG
+      Else
+        kostInfo.iFeePerStartMode = FEE_PER_START_MODE_FLAT
+      End If
+    End If
+    
+    Dim i As Integer
+    'Analyse personal starts
+    For i = 1 To FAC_N_AFSTAND - 2
+      If blSepShortLong Then
+        If (val(kostInfo.sDistances(i)) < val(sKosten2Spec) - 0.0001) Then
+          kostInfo.dFeePerDistance(i) = dKosten1 'short distance
+          kostInfo.auxBlDistanceIsShort(i) = True
+        Else
+          kostInfo.dFeePerDistance(i) = dKosten2 'long distance
+          kostInfo.auxBlDistanceIsShort(i) = False
+        End If
+      Else
+        kostInfo.dFeePerDistance(i) = dKosten1
+      End If
+    Next i
+    
+    'now sort out estafettes
+    If (blSepEstaf) Then
+      kostInfo.dFeePerDistance(12) = dKostenEstaf
+      kostInfo.dFeePerDistance(13) = 0
+    Else
+      kostInfo.dFeePerDistance(12) = 0
+      kostInfo.dFeePerDistance(13) = dKosten1 ' just use a short fee.
+    End If
+    kostInfo.auxBlDistanceIsShort(12) = True
+    kostInfo.auxBlDistanceIsShort(13) = True ' make sure that estafette is seen as short
+    
+  ElseIf (iKosten1Spec = 1) Then
+    'just add to flat swimmer fee
+    kostInfo.dBulkSwimmerFee = bulkKostenZwm + dKosten1
+    kostInfo.iFeePerStartMode = FEE_PER_START_MODE_NONE
+  End If
+  
+  
+        
+End If
+
+
+isFnd = True
+
+
+facLookupKostenInfo = True
+Exit Function
+
+fout:
+MsgBox Err & " facLookupKostenInfo" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+Private Sub facFillFees(ByVal sKostenStr As String, ByRef sDistancesFmt() As String, ByRef sDistances() As String, ByRef dFeePerDistance() As Double)
+
+facFillDistances sDistances, sDistancesFmt
+
+Dim i As Integer
+For i = 1 To FAC_N_AFSTAND
+  dFeePerDistance(i) = 0
+Next i
+
+While sKostenStr <> ""
+  Dim tpAf As String, tpFee As Double
+  tpAf = extractToken(sKostenStr, ";")
+  tpFee = val(extractToken(sKostenStr, ";"))
+  dFeePerDistance(facAfstandNaarNr(tpAf)) = tpFee
+Wend
+
+End Sub
+
+
+Private Sub facFillDistances(ByRef sDistances() As String, ByRef sDistancesFmt() As String)
+sDistances(1) = "25"
+sDistances(2) = "50"
+sDistances(3) = "100"
+sDistances(4) = "200"
+sDistances(5) = "300"
+sDistances(6) = "400"
+sDistances(7) = "600"
+sDistances(8) = "800"
+sDistances(9) = "1500"
+sDistances(10) = "2000"
+sDistances(11) = "3000"
+sDistances(12) = "Estafette ploeg"
+sDistances(13) = "Estafette ploeglid"
+
+Dim i As Integer
+For i = 1 To FAC_N_AFSTAND - 2
+  sDistancesFmt(i) = sDistances(i) & "m"
+Next i
+sDistancesFmt(12) = "Estafette ploegen"
+sDistancesFmt(13) = "Estafette ploegleden"
+
+
+
+End Sub
+
+Private Function facWriteKosten(ByVal s As String) As Boolean
+On Error GoTo fout
+
+Dim afstanden(1 To FAC_N_AFSTAND) As String
+Dim sDummy(1 To FAC_N_AFSTAND) As String
+
+facFillDistances afstanden, sDummy
+
+Dim i As Integer
+
+' Tabel leegmaken
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "delete * from gFaktuurSetKosten;"
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+Dim uit As Recordset
+Set uit = CurrentDb().OpenRecordset("gFaktuurSetKosten", dbOpenDynaset)
+
+
+If s = "" Then
+  For i = 1 To FAC_N_AFSTAND
+    uit.AddNew
+      uit("Afstand") = afstanden(i)
+      uit("Kosten") = 0
+    uit.Update
+  Next i
+    
+Else
+  'String Parsen
+  
+  While s <> ""
+    Dim tpAf As String, tpKost As String
+    tpAf = Trim(extractToken(s, ";"))
+    tpKost = Trim(extractToken(s, ";"))
+    If (tpAf <> "") And (tpKost <> "") Then
+      uit.AddNew
+        uit("Afstand") = hzn(tpAf)
+        uit("Kosten") = val(tpKost)
+      uit.Update
+    End If
+  
+  Wend 'while s <> ""
+  
+End If
+
+appCleanRS uit
+  
+facWriteKosten = True
+
+
+
+Exit Function
+
+
+fout:
+
+MsgBox Err & " facWriteKosten" & vbCrLf & Error$, 16
+
+DoCmd.SetWarnings True
+
+Exit Function
+
+
+End Function
+
+
+
+
+Public Function facReadKosten(ByRef sCosts As String) As Boolean
+On Error GoTo fout
+
+facReadKosten = False
+
+Dim geg As Recordset
+
+Set geg = CurrentDb().OpenRecordset("gFaktuurSetKosten", dbOpenDynaset)
+
+geg.MoveFirst
+
+Dim s As String, i As Integer
+Dim afstanden(1 To FAC_N_AFSTAND) As Boolean
+
+For i = 1 To FAC_N_AFSTAND
+  afstanden(i) = False
+Next i
+
+sCosts = ""
+
+Do Until geg.EOF
+  sCosts = sCosts & Nz(geg("Afstand")) & ";" & DtoString(Nz(geg("Kosten"))) & ";"
+  afstanden(facAfstandNaarNr(Nz(geg("Afstand")))) = True
+  geg.MoveNext
+Loop
+
+appCleanRS geg
+  
+  
+'Controleren of we alle afstanden gehad hebben
+  
+For i = 1 To FAC_N_AFSTAND
+  If Not afstanden(i) Then
+    'invalidate
+    sCosts = ""
+    Exit Function
+  End If
+Next i
+  
+  
+facReadKosten = True
+
+
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+MsgBox Err & " facReadKosten" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function DtoString(d As Double) As String
+On Error Resume Next
+Dim n As Integer
+
+
+If Nz(d, 0) = 0 Then
+  DtoString = "0.00"
+  Exit Function
+End If
+
+n = CInt(d * 100)
+
+DtoString = CStr(n \ 100) & "." & Format((n Mod 100), "00")
+
+End Function
+
+
+
+Private Function facAfstandNaarNr(s As String) As Integer
+On Error Resume Next
+Dim n As Integer
+Select Case Trim(s)
+  Case "25"
+    n = 1
+  Case "50"
+    n = 2
+  Case "100"
+    n = 3
+  Case "200"
+    n = 4
+  Case "300"
+    n = 5
+  Case "400"
+    n = 6
+  Case "600"
+    n = 7
+  Case "800"
+    n = 8
+  Case "1500"
+    n = 9
+  Case "2000"
+   n = 10
+  Case "3000"
+    n = 11
+  Case "Estafette ploeg"
+    n = 12
+  Case "Estafette ploeglid"
+    n = 13
+  Case Else
+    n = 11 ' longest distance
+    
+ End Select
+
+If s Like "*x*" Then
+   n = 12
+End If
+
+facAfstandNaarNr = n
+End Function
+
+
+
+Public Function facCostsPromptUser(ByVal curCosts As String, ByRef isLkpOK As Boolean, ByRef lkpCosts As String) As Boolean
+On Error GoTo fout
+facCostsPromptUser = False
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+sql = "delete * from gFaktuursetKosten_status;"
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gFaktuurSetKosten_status")
+rs.AddNew
+  rs("KO_IsOK") = False
+rs.Update
+
+appCleanRS rs
+
+
+If Not facWriteKosten(curCosts) Then
+  Exit Function
+End If
+
+DoCmd.OpenForm "gFacTable", , , , , acDialog
+
+Dim blIsOK As Boolean
+blIsOK = Nz(DLookup("KO_IsOK", "gFaktuurSetKosten_status"))
+
+If (blIsOK) Then
+  If Not facReadKosten(lkpCosts) Then
+    Exit Function
+  End If
+  isLkpOK = True
+End If
+
+
+facCostsPromptUser = True
+Exit Function
+
+fout:
+MsgBox Err & " facCostsPromptUser" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+Public Function rxpSetFaktuurOptions(ByVal blSingleVer As Boolean, ByVal sSingleVer As String, ByVal blShowStarts As Boolean, ByVal blShowKosten As Boolean) As Boolean
+On Error GoTo fout
+rxpSetFaktuurOptions = False
+
+
+appDelAll "gFaktuurOptions"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gFaktuurOptions")
+
+rs.AddNew
+  rs("FO_ShowStarts") = blShowStarts
+  rs("FO_ShowKosten") = blShowKosten
+  rs("FO_IsSingleVer") = blSingleVer
+  rs("FO_SingleVer") = hzn(sSingleVer)
+rs.Update
+
+
+
+rxpSetFaktuurOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetFaktuurOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+'Master function
+Public Function facCalcFees(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+On Error GoTo fout
+facCalcFees = False
+
+Dim wedInf As WED_BASIC_INFO, isFnd As Boolean
+If Not wedLookup(wednr, isFnd, wedInf) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Kon wedstrijd: " & wednr & " niet vinden"
+End If
+
+'Check to see which wedstrijd to use.
+Dim mainWednr As Long
+If (blEntireMeet) Then
+  mainWednr = wedInf.meetMainNr
+Else
+  mainWednr = wednr
+End If
+
+
+'Lookup cost information
+Dim kstInfo As WED_KOSTEN_INFO
+
+If Not facLookupKostenInfo(mainWednr, isFnd, kstInfo) Then
+  Exit Function
+End If
+
+If (Not isFnd) Then
+  Err.Raise 1, , "Kon kosten voor wedstrijd: " & mainWednr & " niet vinden."
+End If
+
+
+If Not facCalcFees_perform(mainWednr, blEntireMeet, kstInfo) Then
+  Exit Function
+End If
+
+
+
+
+
+
+facCalcFees = True
+Exit Function
+
+fout:
+MsgBox Err & " facCalcFees" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function facCalcFees_clean() As Boolean
+On Error GoTo fout
+facCalcFees_clean = False
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "Delete * from [gFaktuurVer];"
+DoCmd.RunSQL sql
+
+sql = "Delete * from [gFaktuurHoofd];"
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+
+
+
+facCalcFees_clean = True
+Exit Function
+
+fout:
+MsgBox Err & " facCalcFees_clean" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+Public Sub intFacCalcFees_openVer(ByVal vName As String, vDepot As String, ByRef calcData As FEE_CALC_DATA)
+  If (calcData.blVerOpen) Then
+    Err.Raise 1, , "Internal error. Close ver first"
+  End If
+  
+  calcData.blVerOpen = True
+  calcData.sVerName = vName
+  calcData.sVerDepot = vDepot
+  
+  calcData.lVDeelnAlleenRes = 0
+  calcData.lVDeeln = 0
+  calcData.lVBulkSwimFeeCnt = 0
+  calcData.lVStarts = 0
+  calcData.lVStartsRes = 0
+  calcData.lVPerRes = 0
+  calcData.lVPer = 0
+  calcData.lVEst = 0
+  calcData.lVEstRes = 0
+  calcData.lVEEst = 0
+  calcData.lVEEstRes = 0
+  calcData.dVKostenTot = 0
+  calcData.dVEstafKosten = 0
+  calcData.dVProgExtraKosten = 0
+  
+  Dim i As Integer
+  For i = 1 To FAC_N_AFSTAND
+    calcData.lVFreqAfstCost(i) = 0
+  Next i
+  
+  
+  
+End Sub
+Public Sub intFacCalcFees_closeVer(ByVal vName As String, ByRef rsVerOut As Recordset, ByRef kstInfo As WED_KOSTEN_INFO, ByRef calcData As FEE_CALC_DATA)
+
+
+If (Not calcData.blVerOpen) Then
+  Err.Raise 1, , "Internal error. no ver open"
+End If
+
+If (calcData.sVerName <> vName) Then
+  Err.Raise 1, , "Internal error. wrong ver"
+End If
+  
+calcData.dVKostenTot = calcData.dVKostenTot + kstInfo.dBulkVerFee
+
+Dim tpS
+
+tpS = ""
+
+If (kstInfo.dBulkVerFee > 0.001) Then
+  tpS = tpS & " + " & fmtKosten(kstInfo.dBulkVerFee, kstInfo.sCurrency)
+End If
+  
+If (kstInfo.dBulkSwimmerFee > 0.001) Then
+  If (calcData.lVBulkSwimFeeCnt > 0) Then
+    tpS = tpS & " + " & calcData.lVBulkSwimFeeCnt & " * " & fmtKosten(kstInfo.dBulkSwimmerFee, kstInfo.sCurrency)
+  End If
+End If
+          
+          
+   
+Select Case kstInfo.iFeePerStartMode
+  Case FEE_PER_START_MODE_FLAT
+    Dim tpFeeNStarts As Long, dFeePerStart As Double
+    tpFeeNStarts = 0
+    dFeePerStart = kstInfo.dFeePerDistance(1) ' they are all the same
+    
+    Dim i As Integer
+    For i = 1 To FAC_N_AFSTAND
+      tpFeeNStarts = tpFeeNStarts + calcData.lVFreqAfstCost(i)
+    Next i
+    If (tpFeeNStarts > 0) Then
+      tpS = tpS & " + " & tpFeeNStarts & " * " & fmtKosten(dFeePerStart, kstInfo.sCurrency)
+    End If
+    
+  Case FEE_PER_START_MODE_PERS_PLOEG
+    Dim tpFeeNStartsPers As Long, dFeePerStartPers As Double
+    tpFeeNStartsPers = 0
+    dFeePerStartPers = kstInfo.dFeePerDistance(1)
+    
+    'only personal starts
+    For i = 1 To FAC_N_AFSTAND - 2
+      tpFeeNStartsPers = tpFeeNStartsPers + calcData.lVFreqAfstCost(i)
+    Next i
+    If (tpFeeNStartsPers > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsPers & " * " & fmtKosten(dFeePerStartPers, kstInfo.sCurrency)
+    End If
+    If (calcData.dVEstafKosten > 0.001) Then
+      tpS = tpS & " + " & fmtKosten(calcData.dVEstafKosten, kstInfo.sCurrency) & " (Est.)"
+    End If
+    
+  Case FEE_PER_START_MODE_SHORT_LONG
+    Dim tpFeeNStartsShort As Long, dFeePerStartShort As Double
+    Dim tpFeeNStartsLong As Long, dFeePerStartLong As Double
+    
+    tpFeeNStartsShort = 0
+    tpFeeNStartsLong = 0
+    
+    'all starts
+    For i = 1 To FAC_N_AFSTAND
+      If (kstInfo.auxBlDistanceIsShort(i)) Then
+        tpFeeNStartsShort = tpFeeNStartsShort + calcData.lVFreqAfstCost(i)
+        dFeePerStartShort = kstInfo.dFeePerDistance(i)
+      Else
+        tpFeeNStartsLong = tpFeeNStartsLong + calcData.lVFreqAfstCost(i)
+        dFeePerStartLong = kstInfo.dFeePerDistance(i)
+      End If
+    Next i
+    
+    If (tpFeeNStartsShort > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsShort & " * " & fmtKosten(dFeePerStartShort, kstInfo.sCurrency)
+    End If
+    If (tpFeeNStartsLong > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsLong & " * " & fmtKosten(dFeePerStartLong, kstInfo.sCurrency)
+    End If
+  
+  Case FEE_PER_START_MODE_SHORT_LONG_PLOEG
+    tpFeeNStartsShort = 0
+    tpFeeNStartsLong = 0
+    
+    'only estafettes
+    For i = 1 To FAC_N_AFSTAND - 2
+      If (kstInfo.auxBlDistanceIsShort(i)) Then
+        tpFeeNStartsShort = tpFeeNStartsShort + calcData.lVFreqAfstCost(i)
+        dFeePerStartShort = kstInfo.dFeePerDistance(i)
+      Else
+        tpFeeNStartsLong = tpFeeNStartsLong + calcData.lVFreqAfstCost(i)
+        dFeePerStartLong = kstInfo.dFeePerDistance(i)
+      End If
+    Next i
+    
+    If (tpFeeNStartsShort > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsShort & " * " & fmtKosten(dFeePerStartShort, kstInfo.sCurrency)
+    End If
+    If (tpFeeNStartsLong > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsLong & " * " & fmtKosten(dFeePerStartLong, kstInfo.sCurrency)
+    End If
+    If (calcData.dVEstafKosten > 0.001) Then
+      tpS = tpS & " + " & fmtKosten(calcData.dVEstafKosten, kstInfo.sCurrency) & " (Est.)"
+    End If
+    
+  Case FEE_PER_START_MODE_DETAIL_PER_DISTANCE
+  
+    For i = 1 To FAC_N_AFSTAND - 2
+      If calcData.lVFreqAfstCost(i) > 0 Then
+        tpS = tpS & " + " & calcData.lVFreqAfstCost(i) & " * " & fmtKosten(kstInfo.dFeePerDistance(i), kstInfo.sCurrency)
+      End If
+    Next i
+  
+    If (calcData.dVEstafKosten > 0.001) Then
+      tpS = tpS & " + " & fmtKosten(calcData.dVEstafKosten, kstInfo.sCurrency) & " (Est.)"
+    End If
+  
+End Select
+       
+
+If (calcData.dVProgExtraKosten > 0.01) Then
+  tpS = tpS & " + " & fmtKosten(calcData.dVProgExtraKosten, kstInfo.sCurrency) & "(Ext)"
+End If
+
+
+'now chop of the first " + " sign
+If Len(tpS) > 0 Then
+  tpS = Right(tpS, Len(tpS) - 3)
+End If
+          
+          
+          
+Dim tpS2 As String
+
+tpS2 = "Totaal " & Trim(calcData.lVDeeln & fmtResStr(calcData.lVDeelnAlleenRes)) & " deelnemers en " & Trim(calcData.lVStarts & fmtResStr(calcData.lVStartsRes)) & " starts, waarvan " & Trim(calcData.lVPer & fmtResStr(calcData.lVPerRes)) & " persoonlijk en " & Trim(calcData.lVEst & fmtResStr(calcData.lVEstRes)) & " estafettes (" & Trim(calcData.lVEEst & fmtResStr(calcData.lVEEstRes)) & " ploegen)"
+          
+          
+          
+rsVerOut.AddNew
+  rsVerOut("AV_Wedstrijdnummer") = calcData.lWedMainNr
+  rsVerOut("AV_Naam") = hzn(calcData.sVerName)
+  rsVerOut("AV_Depot") = hzn(calcData.sVerDepot)
+  rsVerOut("AV_AantalDeeln") = calcData.lVDeeln
+  rsVerOut("AV_AantalDeelnRes") = calcData.lVDeelnAlleenRes
+  rsVerOut("AV_TotStarts") = calcData.lVStarts
+  rsVerOut("AV_TotRes") = calcData.lVStartsRes
+  rsVerOut("AV_TotPerStarts") = calcData.lVPer
+  rsVerOut("AV_TotEstStarts") = calcData.lVEst
+  rsVerOut("AV_TotEstafettes") = calcData.lVEEst
+  rsVerOut("AV_TotEstafettesRes") = calcData.lVEEstRes
+  
+  rsVerOut("AV_TotPerReserves") = calcData.lVPerRes
+  rsVerOut("AV_TotEstReserves") = calcData.lVEstRes
+  rsVerOut("AV_TotKosten") = calcData.dVKostenTot
+  rsVerOut("AV_Beschrijving") = hzn(tpS)
+  rsVerOut("AV_BeschrijvingDeeln") = hzn(tpS2)
+  rsVerOut("AV_Currency") = hzn(kstInfo.sCurrency)
+rsVerOut.Update
+          
+          
+  
+  
+calcData.blVerOpen = False
+  
+
+End Sub
+
+Public Sub intFacCalcFees_openSwimmer(ByVal sStart As String, ByVal sNaam As String, sAchternaam As String, ByRef calcData As FEE_CALC_DATA)
+  If (calcData.blSwmOpen) Then
+    Err.Raise 1, , "Internal error. close swimmer first"
+  End If
+  
+  calcData.blSwmOpen = True
+  
+  calcData.sSwmStart = sStart
+  calcData.sSwmNam = sNaam
+  calcData.sSwmAchternaam = sAchternaam
+  
+  calcData.lPStarts = 0
+  calcData.lPStartsRes = 0
+  calcData.lPPer = 0
+  calcData.lPEst = 0
+  calcData.lPPerRes = 0
+  calcData.lPEstRes = 0
+  
+  calcData.sPStartList = ""
+  calcData.sPOWStartList = ""
+  
+  calcData.lPAfstand = 0
+  calcData.lPAfstandRes = 0
+  calcData.dPKostenTot = 0
+  calcData.dPProgExtraKosten = 0
+  calcData.dPEstafKosten = 0
+  
+  Dim i As Integer
+  For i = 1 To FAC_N_AFSTAND
+    calcData.lPFreqAfstCost(i) = 0
+  Next i
+
+
+  
+End Sub
+Public Sub intFacCalcFees_closeSwimmer(ByVal sStart As String, ByRef rsSwmOut As Recordset, ByRef kstInfo As WED_KOSTEN_INFO, ByRef calcData As FEE_CALC_DATA)
+
+If (Not calcData.blSwmOpen) Then
+  Err.Raise 1, , "internal error. no open swimmer"
+End If
+
+If calcData.sSwmStart <> sStart Then
+  Err.Raise 1, , "internal error. wrong swimmer"
+End If
+
+
+
+
+Dim zwmIsAlleenRes As Boolean
+zwmIsAlleenRes = (calcData.lPStarts = 0)
+
+If (zwmIsAlleenRes) Then
+  calcData.lVDeelnAlleenRes = calcData.lVDeelnAlleenRes + 1
+Else
+  calcData.lVDeeln = calcData.lVDeeln + 1
+End If
+
+
+Dim blAddBulkFee As Boolean
+blAddBulkFee = False
+
+'Need to check if the bulk swimmer fee should be added.
+'The bulk swimmer fee should only be added if there is at least one feeable distance.
+'Note that there is a subtle difference between this approach
+'and simply checking zwmIsAlleenRes. This has to do with the fact a reserve estafette swimmer
+'is NOT charged, even if blKostVoorRes is set to true.
+Dim i As Integer
+For i = 1 To FAC_N_AFSTAND
+  If (calcData.lPFreqAfstCost(i)) > 0 Then
+    blAddBulkFee = True
+    Exit For
+  End If
+Next i
+
+If (blAddBulkFee) Then
+  calcData.lVBulkSwimFeeCnt = calcData.lVBulkSwimFeeCnt + 1
+  calcData.dPKostenTot = calcData.dPKostenTot + kstInfo.dBulkSwimmerFee
+  calcData.dVKostenTot = calcData.dVKostenTot + kstInfo.dBulkSwimmerFee
+End If
+
+Dim tpS As String
+
+tpS = ""
+         
+'Only add the bulk costs if we have a fee per start
+If (kstInfo.iFeePerStartMode <> FEE_PER_START_MODE_NONE) Then
+  If (blAddBulkFee And kstInfo.dBulkSwimmerFee > 0.001) Then
+    tpS = tpS & " + " & fmtKosten(kstInfo.dBulkSwimmerFee, kstInfo.sCurrency)
+  End If
+End If
+         
+         
+Select Case kstInfo.iFeePerStartMode
+  Case FEE_PER_START_MODE_FLAT
+    Dim tpFeeNStarts As Long, dFeePerStart As Double
+    tpFeeNStarts = 0
+    dFeePerStart = kstInfo.dFeePerDistance(1) ' they are all the same
+    
+    For i = 1 To FAC_N_AFSTAND
+      tpFeeNStarts = tpFeeNStarts + calcData.lPFreqAfstCost(i)
+    Next i
+    If (tpFeeNStarts > 0) Then
+      tpS = tpS & " + " & tpFeeNStarts & " * " & fmtKosten(dFeePerStart, kstInfo.sCurrency)
+    End If
+    
+  Case FEE_PER_START_MODE_PERS_PLOEG
+    Dim tpFeeNStartsPers As Long, dFeePerStartPers As Double
+    tpFeeNStartsPers = 0
+    dFeePerStartPers = kstInfo.dFeePerDistance(1)
+    
+    'only personal starts
+    For i = 1 To FAC_N_AFSTAND - 2
+      tpFeeNStartsPers = tpFeeNStartsPers + calcData.lPFreqAfstCost(i)
+    Next i
+    If (tpFeeNStartsPers > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsPers & " * " & fmtKosten(dFeePerStartPers, kstInfo.sCurrency)
+    End If
+    If (calcData.dPEstafKosten > 0.001) Then
+      tpS = tpS & " + " & fmtKosten(calcData.dPEstafKosten, kstInfo.sCurrency) & " (Est.)"
+    End If
+    
+  Case FEE_PER_START_MODE_SHORT_LONG
+    Dim tpFeeNStartsShort As Long, dFeePerStartShort As Double
+    Dim tpFeeNStartsLong As Long, dFeePerStartLong As Double
+    
+    tpFeeNStartsShort = 0
+    tpFeeNStartsLong = 0
+    
+    'all starts
+    For i = 1 To FAC_N_AFSTAND
+      If (kstInfo.auxBlDistanceIsShort(i)) Then
+        tpFeeNStartsShort = tpFeeNStartsShort + calcData.lPFreqAfstCost(i)
+        dFeePerStartShort = kstInfo.dFeePerDistance(i)
+      Else
+        tpFeeNStartsLong = tpFeeNStartsLong + calcData.lPFreqAfstCost(i)
+        dFeePerStartLong = kstInfo.dFeePerDistance(i)
+      End If
+    Next i
+    
+    If (tpFeeNStartsShort > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsShort & " * " & fmtKosten(dFeePerStartShort, kstInfo.sCurrency)
+    End If
+    If (tpFeeNStartsLong > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsLong & " * " & fmtKosten(dFeePerStartLong, kstInfo.sCurrency)
+    End If
+  
+  Case FEE_PER_START_MODE_SHORT_LONG_PLOEG
+    tpFeeNStartsShort = 0
+    tpFeeNStartsLong = 0
+    
+    'only estafettes
+    For i = 1 To FAC_N_AFSTAND - 2
+      If (kstInfo.auxBlDistanceIsShort(i)) Then
+        tpFeeNStartsShort = tpFeeNStartsShort + calcData.lPFreqAfstCost(i)
+        dFeePerStartShort = kstInfo.dFeePerDistance(i)
+      Else
+        tpFeeNStartsLong = tpFeeNStartsLong + calcData.lPFreqAfstCost(i)
+        dFeePerStartLong = kstInfo.dFeePerDistance(i)
+      End If
+    Next i
+    
+    If (tpFeeNStartsShort > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsShort & " * " & fmtKosten(dFeePerStartShort, kstInfo.sCurrency)
+    End If
+    If (tpFeeNStartsLong > 0) Then
+      tpS = tpS & " + " & tpFeeNStartsLong & " * " & fmtKosten(dFeePerStartLong, kstInfo.sCurrency)
+    End If
+    If (calcData.dPEstafKosten > 0.001) Then
+      tpS = tpS & " + " & fmtKosten(calcData.dPEstafKosten, kstInfo.sCurrency) & " (Est.)"
+    End If
+    
+  Case FEE_PER_START_MODE_DETAIL_PER_DISTANCE
+  
+    For i = 1 To FAC_N_AFSTAND - 2
+      If calcData.lPFreqAfstCost(i) > 0 Then
+        tpS = tpS & " + " & calcData.lPFreqAfstCost(i) & " * " & fmtKosten(kstInfo.dFeePerDistance(i), kstInfo.sCurrency)
+      End If
+    Next i
+  
+    If (calcData.dPEstafKosten > 0.001) Then
+      tpS = tpS & " + " & fmtKosten(calcData.dPEstafKosten, kstInfo.sCurrency) & " (Est.)"
+    End If
+  
+End Select
+       
+
+If (calcData.dPProgExtraKosten > 0.01) Then
+  tpS = tpS & " + " & fmtKosten(calcData.dPProgExtraKosten, kstInfo.sCurrency) & "(Ext)"
+End If
+
+
+'now chop of the first " + " sign
+If Len(tpS) > 0 Then
+  tpS = Right(tpS, Len(tpS) - 3)
+End If
+                    
+      
+      
+'we are now ready to export the data
+
+
+rsSwmOut.AddNew
+  rsSwmOut("AS_Wedstrijdnummer") = calcData.lWedMainNr
+  rsSwmOut("AS_Vereniging") = hzn(calcData.sVerName)
+  rsSwmOut("AS_Depot") = hzn(calcData.sVerDepot)
+  rsSwmOut("AS_Startnummer") = hzn(calcData.sSwmStart)
+  rsSwmOut("AS_Naam") = hzn(calcData.sSwmNam)
+  rsSwmOut("AS_Achternaam") = hzn(calcData.sSwmAchternaam)
+  rsSwmOut("AS_TotStarts") = calcData.lPStarts
+  rsSwmOut("AS_TotResStarts") = calcData.lPStartsRes
+  rsSwmOut("AS_TotPerStarts") = calcData.lPPer
+  rsSwmOut("AS_TotEstStarts") = calcData.lPEst
+  rsSwmOut("AS_TotPerResStarts") = calcData.lPPerRes
+  rsSwmOut("AS_TotEstResStarts") = calcData.lPEstRes
+  rsSwmOut("AS_Kosten") = calcData.dPKostenTot
+  rsSwmOut("AS_Beschrijving") = hzn(tpS)
+  rsSwmOut("AS_TotAfstand") = hzn(calcData.lPAfstand)
+  rsSwmOut("AS_TotAfstandRes") = hzn(calcData.lPAfstandRes)
+  rsSwmOut("AS_StartsBeschrijving") = hzn(calcData.sPStartList)
+  If (calcData.blWedIsOW) Then
+    rsSwmOut("AS_OW_StartsBeschrijving") = hzn(calcData.sPOWStartList)
+  End If
+  rsSwmOut("AS_Currency") = hzn(kstInfo.sCurrency)
+ 
+rsSwmOut.Update
+
+
+
+
+'mark that swimmer is no longer open
+calcData.blSwmOpen = False
+
+End Sub
+
+Public Sub intFacCalcFees_addEstaf(ByVal blIsRes As Boolean, ByVal dExtraKosten As Double, ByRef kstInfo As WED_KOSTEN_INFO, ByRef calcData As FEE_CALC_DATA)
+
+
+'First handle fees
+        
+If ((Not blIsRes) Or kstInfo.blKostVoorRes) Then
+  'handle fees.
+  
+  calcData.dVKostenTot = calcData.dVKostenTot + dExtraKosten
+  calcData.dVProgExtraKosten = calcData.dVProgExtraKosten + dExtraKosten
+  
+  calcData.dVKostenTot = calcData.dVKostenTot + kstInfo.dFeePerDistance(12)
+  calcData.dVEstafKosten = calcData.dVEstafKosten + kstInfo.dFeePerDistance(12)
+  calcData.lVFreqAfstCost(12) = calcData.lVFreqAfstCost(12) + 1
+  
+End If
+
+
+If (blIsRes) Then
+  calcData.lVEEstRes = calcData.lVEEstRes + 1
+Else
+  calcData.lVEEst = calcData.lVEEst + 1
+End If
+
+
+End Sub
+
+Public Sub intFacCalcFees_addPersoonlijk(ByVal blIsRes As Boolean, ByVal dExtraKosten As Double, ByVal sProg As String, ByVal sAfstand As String, ByVal sSlag As String, ByVal dInsTd As Double, sCapKleur As String, lCapNr As Long, ByRef kstInfo As WED_KOSTEN_INFO, ByRef calcData As FEE_CALC_DATA)
+
+Dim tpInTdStr As String
+
+tpInTdStr = ""
+If swtIsValid(dInsTd) Then
+  tpInTdStr = " (" & Trim(fmtSwimTime(dInsTd)) & ")"
+End If
+
+      
+          
+If (Len(calcData.sPStartList) > 0) Then
+  calcData.sPStartList = calcData.sPStartList & ", "
+End If
+        
+calcData.sPStartList = calcData.sPStartList & "Pr. " & sProg & ": " & _
+  sAfstand & " " & sSlag & _
+  IIf(blIsRes, " (Res)", "") & tpInTdStr
+
+If (calcData.blWedIsOW) Then
+  If (Len(calcData.sPOWStartList) > 0) Then
+    calcData.sPOWStartList = calcData.sPOWStartList & ", "
+  End If
+  calcData.sPOWStartList = calcData.sPOWStartList & sCapKleur & " " & lCapNr
+End If
+          
+
+
+If (blIsRes) Then
+  calcData.lPAfstandRes = calcData.lPAfstandRes + CLng(val(sAfstand))
+Else
+  calcData.lPAfstand = calcData.lPAfstand + CLng(val(sAfstand))
+End If
+          
+    
+'Costs only if not or if res should pay
+If ((Not blIsRes) Or kstInfo.blKostVoorRes) Then
+  
+  
+  'Always add extra kosten.
+  calcData.dPProgExtraKosten = calcData.dPProgExtraKosten + dExtraKosten
+  calcData.dVProgExtraKosten = calcData.dVProgExtraKosten + dExtraKosten
+  
+  calcData.dPKostenTot = calcData.dPKostenTot + dExtraKosten
+  calcData.dVKostenTot = calcData.dVKostenTot + dExtraKosten
+  
+  Dim iAfIdx As Integer
+  iAfIdx = facAfstandNaarNr(sAfstand)
+  
+  calcData.dPKostenTot = calcData.dPKostenTot + kstInfo.dFeePerDistance(iAfIdx)
+  calcData.lPFreqAfstCost(iAfIdx) = calcData.lPFreqAfstCost(iAfIdx) + 1
+  
+  calcData.dVKostenTot = calcData.dVKostenTot + kstInfo.dFeePerDistance(iAfIdx)
+  calcData.lVFreqAfstCost(iAfIdx) = calcData.lVFreqAfstCost(iAfIdx) + 1
+
+End If
+             
+If Not blIsRes Then
+  calcData.lPPer = calcData.lPPer + 1
+  calcData.lPStarts = calcData.lPStarts + 1
+  
+  calcData.lVPer = calcData.lVPer + 1
+  calcData.lVStarts = calcData.lVStarts + 1
+Else
+  calcData.lPPerRes = calcData.lPPerRes + 1
+  calcData.lPStartsRes = calcData.lPStartsRes + 1
+  
+  calcData.lVPerRes = calcData.lVPerRes + 1
+  calcData.lVStartsRes = calcData.lVStartsRes + 1
+End If
+
+End Sub
+
+Public Sub intFacCalcFees_addPloeglid(ByVal blPlIsRes As Boolean, ByVal blZwmIsRes As Boolean, ByVal dExtraKosten As Double, ByVal sProg As String, ByVal sAfstand As String, ByVal sSlag As String, ByVal lEstNr As Long, ByVal lVolg As Long, ByVal sCapKleur As String, ByVal lCapNr As Long, ByRef kstInfo As WED_KOSTEN_INFO, ByRef calcData As FEE_CALC_DATA)
+
+
+Dim nEstSwms As Integer
+nEstSwms = afstand_n_zwemmers(sAfstand)
+    
+           
+If (Len(calcData.sPStartList) > 0) Then
+  calcData.sPStartList = calcData.sPStartList & ", "
+End If
+calcData.sPStartList = calcData.sPStartList & "Pr. " & sProg & ": " & _
+  sAfstand & " " & sSlag & _
+  IIf(blPlIsRes Or blZwmIsRes, " (Res)", " (" & lEstNr & "-" & lVolg & ")")
+             
+If (calcData.blWedIsOW) Then
+   If (Len(calcData.sPOWStartList) > 0) Then
+     calcData.sPOWStartList = calcData.sPOWStartList & ", "
+   End If
+   calcData.sPOWStartList = calcData.sPOWStartList & sCapKleur & " " & lCapNr
+End If
+             
+
+If (blPlIsRes Or blZwmIsRes) Then
+  calcData.lPAfstandRes = calcData.lPAfstandRes + afstand_ind_part(sAfstand)
+Else
+  calcData.lPAfstand = calcData.lPAfstand + afstand_ind_part(sAfstand)
+End If
+         
+'fees are only due for swimmers that are non-reserve 'even if kstInfo.blKostForRes is true
+If (Not blZwmIsRes) Then
+  If (kstInfo.blKostVoorRes Or (Not blPlIsRes)) Then
+    If (nEstSwms > 0) Then
+      calcData.dPProgExtraKosten = calcData.dPProgExtraKosten + dExtraKosten / nEstSwms
+      calcData.dPKostenTot = calcData.dPKostenTot + dExtraKosten / nEstSwms
+    End If
+      
+    'Get the kosten for ploeglid status
+    calcData.dPKostenTot = calcData.dPKostenTot + kstInfo.dFeePerDistance(13)
+    calcData.dPEstafKosten = calcData.dPEstafKosten + kstInfo.dFeePerDistance(13)
+    calcData.lPFreqAfstCost(13) = calcData.lPFreqAfstCost(13) + 1
+    
+    calcData.dVKostenTot = calcData.dVKostenTot + kstInfo.dFeePerDistance(13)
+    calcData.dVEstafKosten = calcData.dVEstafKosten + kstInfo.dFeePerDistance(13)
+    calcData.lVFreqAfstCost(13) = calcData.lVFreqAfstCost(13) + 1
+    
+    'Get the kosten for estTeam. This has already been added for the vers,
+    'so only need to process the cost to the individual swimmers
+    If (nEstSwms > 0) Then
+      calcData.dPKostenTot = calcData.dPKostenTot + kstInfo.dFeePerDistance(12) / nEstSwms
+      calcData.dPEstafKosten = calcData.dPEstafKosten + kstInfo.dFeePerDistance(12) / nEstSwms
+    End If
+  End If 'if kostForRes or not plIsRes
+End If 'if not zwmIsRes
+
+
+If (blZwmIsRes Or blPlIsRes) Then
+  calcData.lPEstRes = calcData.lPEstRes + 1
+  calcData.lPStartsRes = calcData.lPStartsRes + 1
+  
+  calcData.lVEstRes = calcData.lVEstRes + 1
+  calcData.lVStartsRes = calcData.lVStartsRes + 1
+Else
+  calcData.lPEst = calcData.lPEst + 1
+  calcData.lPStarts = calcData.lPStarts + 1
+  
+  calcData.lVEst = calcData.lVEst + 1
+  calcData.lVStarts = calcData.lVStarts + 1
+End If
+      
+
+End Sub
+
+
+
+
+Private Function facCalcFees_perform(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByRef kstInfo As WED_KOSTEN_INFO) As Boolean
+On Error GoTo fout
+facCalcFees_perform = False
+
+'First clean up existing data in output tables.
+If Not facCalcFees_clean() Then
+  Exit Function
+End If
+
+Dim rsVerOut As Recordset, rsSwmOut As Recordset
+Set rsVerOut = CurrentDb().OpenRecordset("gFaktuurVer")
+Set rsSwmOut = CurrentDb().OpenRecordset("gFaktuurHoofd")
+
+Dim calcData As FEE_CALC_DATA
+calcData.blVerOpen = False
+calcData.blSwmOpen = False
+calcData.blWedIsOW = wedLkpIsOW(wedMainNr)
+calcData.lWedMainNr = wedMainNr
+
+'now delegate to custom processer
+If Not facCalcFees_ProcessMatch(wedMainNr, blEntireMeet, kstInfo, rsVerOut, rsSwmOut, calcData) Then
+  Exit Function
+End If
+
+appCleanRS rsVerOut
+appCleanRS rsSwmOut
+
+facCalcFees_perform = True
+Exit Function
+
+fout:
+MsgBox Err & " facCalcFees_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function

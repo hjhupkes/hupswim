@@ -1,0 +1,2989 @@
+Option Compare Database
+Option Explicit
+
+Public Const CAT_OK = 0
+Public Const CAT_GES_ERROR = 1
+Public Const CAT_NOT_IN_RANGE = 2
+Public Const CAT_AGE_RESTRICTION_ERROR = 3
+
+Public Type CAT_PARSED_INFO
+  sCat As String
+  sCatDes As String
+  sGes As String
+  blBlockLftResRules As Boolean
+  blIsMCat As Boolean
+  blHasAgeRestriction As Boolean
+  blIsNLBased As Boolean
+  blIsYOBBased As Boolean
+  blIsAgeBased As Boolean
+  blIsEstSumAges As Boolean
+  lYngYOB As Long
+  lOldYOB As Long
+  sYngNLCode As String
+  sOldNLCode As String
+  iYngAge As Integer
+  iOldAge As Integer
+End Type
+
+Public Type CAT_COMPILED_INFO
+  sCat As String
+  sGes As String
+  lYngYOB As Long
+  lYngYOBPriorLftRes As Long
+  lYngYOBEst As Long
+  lYngYOBEstPriorLftRes As Long
+  lOldYOB As Long
+  lOldYOBEst As Long
+  blCheckYngDOB As Boolean
+  dYngDOB As Date
+  blCheckOldDOB As Boolean
+  dOldDOB As Date
+  blIsEstafSumAges As Boolean
+  lEstSumMinAge As Integer
+  lEstSumMaxAge As Integer
+  lEstSumRefYear As Long
+  iAuxYngAge As Integer
+  iAuxOldAge As Integer
+  iAuxLftResYngAgeForOldAge As Integer
+  sAuxDesMinAge As String
+  sAuxDesMaxAge As String
+  sAuxLftCalcDes As String
+  dAuxAgeDate As Date
+End Type
+
+
+
+
+
+'Needs recoding, but remember that invoer may be null (so not a string)
+'is used in queries
+Function m_of_v(invoer) As String   'Moeten alle zwemmers, alleen heren of dames bij de inschrijvingen getoond worden
+On Error Resume Next
+
+
+
+
+If invoer Like "MMin*" Or invoer Like "MJUN*" Or invoer Like "MJEU*" Or invoer Like "MSEN*" Then
+  m_of_v = "V"
+  Exit Function
+End If
+
+If invoer Like "JMin*" Or invoer Like "JJun*" Or invoer Like "JJeu*" Or invoer Like "JSEN*" Then
+  m_of_v = "M"
+  Exit Function
+End If
+
+If invoer Like "MJMin*" Or invoer Like "MJJun*" Or invoer Like "MJJeu*" Or invoer Like "MJSEN*" Then
+  m_of_v = "*"
+  Exit Function
+End If
+
+If invoer = "MVAR" Then
+  m_of_v = "V"
+  Exit Function
+End If
+If invoer = "MJVAR" Then
+  m_of_v = "*"
+  Exit Function
+End If
+If invoer = "JVAR" Then
+  m_of_v = "M"
+  Exit Function
+End If
+  
+  
+  
+Dim deel1 As String
+
+deel1 = Left(invoer, 2)
+If deel1 Like "he" Or deel1 Like "j*" Then
+    m_of_v = "M"
+Else
+    If deel1 Like "da" Or deel1 Like "m*" Then
+        If deel1 Like "mj" Or deel1 Like "zw" Or deel1 Like "Mi" Then
+            m_of_v = "*"
+        Else
+            m_of_v = "V"
+        End If
+    Else
+        If deel1 Like "zw" Or deel1 Like "mi" Then
+            m_of_v = "*"
+        End If
+
+    End If
+End If
+
+
+
+Exit Function
+End Function
+
+
+
+
+
+Public Function catIsEstafTotalAge(ByVal cat As String) As Boolean
+On Error Resume Next
+catIsEstafTotalAge = False
+If (Right(cat, 1) = "T") Then
+  catIsEstafTotalAge = True
+End If
+End Function
+
+Public Function catIsMCat(ByVal cat As String) As Boolean
+On Error Resume Next
+catIsMCat = cat Like "*VAR"
+End Function
+
+Function catBeschrijvingMooi(ByVal Categorie As String) As String
+On Error GoTo fout
+catBeschrijvingMooi = ""
+Dim tpS As String
+tpS = catBeschrijving(Categorie)
+Dim tpVoorV As String
+tpVoorV = extractToken(tpS, " ")
+If (tpVoorV = "j.") Then
+  catBeschrijvingMooi = "Jongens " & tpS
+ElseIf (tpVoorV = "m.") Then
+  catBeschrijvingMooi = "Meisjes " & tpS
+ElseIf (tpVoorV = "d.") Then
+  catBeschrijvingMooi = "Dames " & tpS
+ElseIf (tpVoorV = "h.") Then
+  catBeschrijvingMooi = "Heren " & tpS
+Else
+  catBeschrijvingMooi = Trim(tpVoorV & " " & tpS)
+End If
+
+
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function stnrExtractYOB(sStart As String, ByVal refDate As Date, ByVal gebDate As Date) As Long
+On Error GoTo fout
+stnrExtractYOB = 0
+
+Dim yobMod100 As Integer
+yobMod100 = CInt(val(Left(sStart, 2)))
+
+
+Dim blDone As Boolean
+blDone = False
+
+'first try gebDate
+If (Not blDone) Then
+  If (lenDateIsValid(gebDate)) Then
+    Dim gebYear As Long
+    gebYear = val(Format(gebDate, "yyyy"))
+    If (gebYear Mod 100) = yobMod100 Then
+      stnrExtractYOB = gebYear
+      blDone = True
+    End If
+  End If
+End If
+
+'now try refDate
+If (Not blDone) Then
+  If (lenDateIsValid(refDate)) Then
+    Dim refYear As Long
+    refYear = val(Format(refDate, "yyyy"))
+    If (refYear - (1900 + yobMod100)) >= 100 Then
+      stnrExtractYOB = 2000 + yobMod100
+    Else
+      stnrExtractYOB = 1900 + yobMod100
+    End If
+    blDone = True
+  End If
+End If
+
+'now try a simple heuristic
+If (Not blDone) Then
+  If (yobMod100 < 20) Then
+    stnrExtractYOB = 2000 + yobMod100
+  Else
+    stnrExtractYOB = 1900 + yobMod100
+  End If
+  blDone = True
+End If
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+Public Function catCreateMCat(ByVal ges As String) As String
+On Error GoTo fout
+catCreateMCat = ""
+
+Dim tpPrsCatInf As CAT_PARSED_INFO
+
+tpPrsCatInf.blIsMCat = True
+tpPrsCatInf.sGes = ges
+
+Dim sCat As String
+
+If Not ctxBuildCat(False, False, Now(), LFT_MODE_SZYR, tpPrsCatInf, sCat) Then
+  Exit Function
+End If
+
+catCreateMCat = sCat
+
+Exit Function
+fout:
+MsgBox Err & " catCreateMCat" & Error$, 16
+End Function
+
+Public Function catCreateFromYOB(ByVal blTryConvertNL As Boolean, ByVal blApplyLftRes As Boolean, ByVal ageDate As Date, ByVal sLftMode As String, ByVal ges As String, ByVal catYOBYng As Long, ByVal catYOBOld As Long) As String
+On Error GoTo fout
+
+catCreateFromYOB = ""
+
+Dim tpPrsCatInf As CAT_PARSED_INFO
+
+tpPrsCatInf.blIsMCat = False
+tpPrsCatInf.blHasAgeRestriction = True
+tpPrsCatInf.blIsYOBBased = True
+tpPrsCatInf.blIsAgeBased = False
+tpPrsCatInf.blIsNLBased = False
+
+tpPrsCatInf.lYngYOB = catYOBYng
+tpPrsCatInf.lOldYOB = catYOBOld
+
+tpPrsCatInf.sGes = ges
+
+Dim sCat As String
+
+If Not ctxBuildCat(blTryConvertNL, blApplyLftRes, ageDate, sLftMode, tpPrsCatInf, sCat) Then
+  Exit Function
+End If
+
+catCreateFromYOB = sCat
+
+Exit Function
+fout:
+MsgBox Err & " catCreateFromYOB" & Error$, 16
+Exit Function
+End Function
+
+Public Function catCreateFromAge(ByVal blTryConvertNL As Boolean, ByVal blApplyLftRes As Boolean, ByVal ageDate As Date, ByVal sLftMode As String, ByVal ges As String, ByVal catYngAge As Integer, ByVal catOldAge As Integer) As String
+On Error GoTo fout
+
+catCreateFromAge = ""
+
+Dim tpPrsCatInf As CAT_PARSED_INFO
+
+tpPrsCatInf.blIsMCat = False
+tpPrsCatInf.blHasAgeRestriction = True
+tpPrsCatInf.blIsYOBBased = False
+tpPrsCatInf.blIsAgeBased = True
+tpPrsCatInf.blIsNLBased = False
+
+tpPrsCatInf.iYngAge = catYngAge
+tpPrsCatInf.iOldAge = catOldAge
+
+tpPrsCatInf.sGes = ges
+
+Dim sCat As String
+
+If Not ctxBuildCat(blTryConvertNL, blApplyLftRes, ageDate, sLftMode, tpPrsCatInf, sCat) Then
+  Exit Function
+End If
+
+catCreateFromAge = sCat
+
+Exit Function
+fout:
+MsgBox Err & " catCreateFromAge" & Error$, 16
+Exit Function
+End Function
+
+
+'Needed in sql statements
+Public Function catGetMaxAllowedAge(ByVal sCat As String, Optional lftMode As String = LFT_MODE_SZYR) As Integer
+catGetMaxAllowedAge = catGetMaxAllowedAge_bare(sCat, Nz(wed_age_date(), #1/1/1900#), lftMode)
+End Function
+
+'Needed in sql statements
+Public Function catGetMinAllowedAge(ByVal sCat As String, Optional lftMode As String = LFT_MODE_SZYR, Optional blLefOpLft As Boolean = False) As Integer
+catGetMinAllowedAge = catGetMinAllowedAge_bare(sCat, Nz(wed_age_date(), #1/1/1900#), lftMode, blLefOpLft)
+End Function
+
+
+
+
+'Note that lftBeperking is irrelevant here as it concerns the max age
+Public Function catGetMaxAllowedAgeTranslated(ByVal sCat As String, ByVal ageDate As Date, ByVal lftModeCat As String, ByVal lftModeCalcAge As String) As Integer
+Dim minAge As Integer, maxAge As Integer
+If Not catGetAllowedAgeRange_bare(sCat, minAge, maxAge, ageDate, lftModeCat, lftModeCalcAge, False) Then
+  Exit Function
+End If
+catGetMaxAllowedAgeTranslated = maxAge
+End Function
+
+
+Public Function catGetAllowedAgeRange_bare(ByVal sCat As String, ByRef catMinAge As Integer, ByRef catMaxAge As Integer, ByVal ageDate As Date, ByVal lftModeCat As String, ByVal lftModeCalcAge As String, ByVal blLetOpLftBep As Boolean) As Boolean
+catGetAllowedAgeRange_bare = ctxGetAgeRange_bare(sCat, ageDate, lftModeCat, blLetOpLftBep, ageDate, lftModeCalcAge, catMinAge, catMaxAge)
+End Function
+
+'lft bepaling is irrelevant to get max age
+Public Function catGetMaxAllowedAge_bare(ByVal sCat As String, ByVal ageDate As Date, ByVal lftMode As String) As Integer
+On Error Resume Next
+Dim minAge As Integer, maxAge As Integer
+catGetMaxAllowedAge_bare = CAT_MAX_AGE
+If Not catGetAllowedAgeRange_bare(sCat, minAge, maxAge, ageDate, lftMode, lftMode, False) Then
+  Exit Function
+End If
+
+catGetMaxAllowedAge_bare = maxAge
+
+End Function
+
+
+Public Function catGetMinAllowedAge_bare(ByVal sCat As String, ByVal ageDate As Date, ByVal lftMode As String, ByVal blLefOpLft As Boolean) As Integer
+On Error Resume Next
+Dim minAge As Integer, maxAge As Integer
+catGetMinAllowedAge_bare = CAT_MAX_AGE
+If Not catGetAllowedAgeRange_bare(sCat, minAge, maxAge, ageDate, lftMode, lftMode, blLefOpLft) Then
+  Exit Function
+End If
+
+catGetMinAllowedAge_bare = minAge
+
+End Function
+
+
+'Public Function cat_voldoet_list(ByVal startnr As String, ByVal catList As String, ByVal Geslacht As String, ByVal gebDatum As Date, ByVal lftMode As String, ByVal blLetOpLftBep As Boolean) As Boolean
+'cat_voldoet_list = cat_voldoet_list_bare(startnr, catList, Geslacht, gebDatum, lftMode, Nz(wed_age_date(), #1/1/1900#), blLetOpLftBep)
+'End Function
+
+Public Function cat_voldoet_list_bare(ByVal startnr As String, ByVal catList As String, ByVal Geslacht As String, ByVal gebDatum As Date, ByVal lftMode As String, ByVal ageDate As Date, ByVal blLetOpLftBep As Boolean) As Boolean
+On Error GoTo fout
+cat_voldoet_list_bare = False
+
+While (Len(catList) > 0)
+  Dim curCat As String
+  curCat = extractToken(catList, ";")
+  If (cat_voldoet_bare(startnr, curCat, Geslacht, gebDatum, lftMode, blLetOpLftBep, ageDate) = CAT_OK) Then
+    cat_voldoet_list_bare = True
+    Exit Function
+  End If
+Wend
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function cat_voldoet_est_list_bare(ByVal estMinYOB As Long, ByVal estMaxYOB As Long, ByVal estSumYOB As Long, ByVal estCntYOB As Integer, ByVal estGes As String, ByVal catList As String, ByVal wedLftMode As String, ByVal ageDate As Date, ByVal blLetOpLftBep As Boolean) As Boolean
+On Error GoTo fout
+cat_voldoet_est_list_bare = False
+
+While (Len(catList) > 0)
+  Dim curCat As String
+  curCat = extractToken(catList, ";")
+  If (cat_voldoet_est_bare(estMinYOB, estMaxYOB, estSumYOB, estCntYOB, estGes, curCat, wedLftMode, ageDate, blLetOpLftBep) = CAT_OK) Then
+    cat_voldoet_est_list_bare = True
+    Exit Function
+  End If
+Wend
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function cat_voldoet_est_bare(ByVal estMinYOB As Long, ByVal estMaxYOB As Long, ByVal estSumYOB As Long, ByVal estCntYOB As Integer, ByVal estGes As String, ByVal sCat As String, ByVal wedLftMode As String, ByVal ageDate As Date, ByVal blLetOpLftBep As Boolean) As Integer
+On Error GoTo fout
+
+cat_voldoet_est_bare = CAT_OK
+
+Dim tpCmpCatInf As CAT_COMPILED_INFO
+
+Dim blDummy As Boolean
+If Not ctxCompileCat(sCat, ageDate, wedLftMode, blLetOpLftBep, blDummy, tpCmpCatInf) Then
+  Exit Function
+End If
+
+Dim iCatStatus As Integer
+
+If Not ctxCheckEstCat(estMinYOB, estMaxYOB, estSumYOB, estCntYOB, estGes, tpCmpCatInf, iCatStatus) Then
+  Exit Function
+End If
+
+cat_voldoet_est_bare = iCatStatus
+
+
+
+Exit Function
+fout:
+MsgBox Err & " cat_voldoet_est_bare" & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function catGetAge(ByVal yob As Long, ByVal gebDatum As Date, ByVal lftMode As String, ByVal ageDate As Date) As Long
+catGetAge = ctxGetAge(yob, gebDatum, lftMode, ageDate)
+End Function
+
+
+'Public Function cat_voldoet(ByVal startnr As String, ByVal Categorie As String, ByVal Geslacht As String, ByVal gebDatum As Date, ByVal lftMode As String, ByVal blLetOpLftBep As Boolean) As Integer
+'cat_voldoet = cat_voldoet_bare(startnr, Categorie, Geslacht, gebDatum, lftMode, blLetOpLftBep, Nz(wed_age_date(), #1/1/1900#))
+'End Function
+
+
+
+Public Function cat_voldoet_bare(ByVal startnr As String, ByVal sCat As String, ByVal sGes As String, ByVal gebDatum As Date, ByVal lftMode As String, ByVal blLetOpLftBep As Boolean, ByVal ageDate As Date) As Integer
+On Error GoTo fout
+
+cat_voldoet_bare = CAT_OK
+
+Dim tpCmpCatInf As CAT_COMPILED_INFO
+
+Dim blDummy As Boolean
+If Not ctxCompileCat(sCat, ageDate, lftMode, blLetOpLftBep, blDummy, tpCmpCatInf) Then
+  Exit Function
+End If
+
+Dim iCatStatus As Integer
+
+If Not ctxCheckCat(startnr, gebDatum, sGes, tpCmpCatInf, iCatStatus) Then
+  Exit Function
+End If
+
+cat_voldoet_bare = iCatStatus
+
+Exit Function
+fout:
+MsgBox Err & " cat_voldoet_est_bare" & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+
+
+
+Function catBeschrijving(ByVal sCat As String) As String
+On Error Resume Next
+catBeschrijving = ""
+
+Dim tpPrsCatInf As CAT_PARSED_INFO
+
+Dim blDummy As Boolean
+
+If Not ctxParseCat(sCat, blDummy, tpPrsCatInf) Then
+  Exit Function
+End If
+
+catBeschrijving = tpPrsCatInf.sCatDes
+
+End Function
+
+
+
+
+
+Public Sub snel_cat_voldoet_reset()
+snel_cat_voldoet_bare "", "", "", #1/1/1900#, 0, "", False, #1/1/1900#, True, False
+End Sub
+Public Sub snel_cat_voldoet_list_reset()
+snel_cat_voldoet_list_bare "", "", "", #1/1/1900#, 0, "", False, #1/1/1900#, True, False
+End Sub
+
+
+
+'Public Function snel_cat_voldoet(ByVal startnr As String, ByVal cat As String, ByVal gesl As String, ByVal geb As Date, prior, ByVal lftMode As String, ByVal letOpLftBep As Boolean, Optional reset As Boolean = False, Optional blLetOpPrioriteit = False) As Boolean
+'On Error GoTo fout
+'snel_cat_voldoet = snel_cat_voldoet_bare(startnr, cat, gesl, geb, prior, lftMode, letOpLftBep, Nz(wed_age_date(), #1/1/1900#), reset, blLetOpPrioriteit)
+'Exit Function
+'fout:
+'MsgBox Err & " " & Error$, 16
+'End Function
+
+
+
+
+
+
+Public Function snel_cat_voldoet_bare(ByVal startnr As String, ByVal cat As String, ByVal gesl As String, ByVal geb As Date, prior, ByVal lftMode As String, ByVal letOpLftBep As Boolean, ByVal ageDate As Date, Optional reset As Boolean = False, Optional blLetOpPrioriteit = False) As Boolean
+On Error Resume Next
+Static voldoet(0 To 99, 1 To 2) As Integer '0=onbepaald  1 = goed 2 = niet
+Static o_cat As String
+Static o_prior As Long
+
+If reset Then
+    o_prior = cat_get_prioriteit()
+    o_cat = ""
+    If cat = "" Then Exit Function
+End If
+
+
+
+If blLetOpPrioriteit Then
+   If Not cat_check_prioriteit(CLng(Nz(prior, 0)), o_prior) Then
+      snel_cat_voldoet_bare = False
+      Exit Function
+   End If
+End If
+
+
+If (lftMode = LFT_MODE_WEDDAT) Then
+  snel_cat_voldoet_bare = (cat_voldoet_bare(startnr, cat, gesl, geb, lftMode, letOpLftBep, ageDate) = CAT_OK)
+  Exit Function
+End If
+
+
+
+Dim i As Integer, j As Integer
+If cat <> o_cat Then
+    For i = 0 To 99
+        For j = 1 To 2
+            voldoet(i, j) = 0
+        Next j
+    Next i
+    o_cat = cat
+End If
+
+Dim catVoldoet As Boolean
+Dim tpjaar As Integer
+tpjaar = CInt(val(startnr))
+If voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 0 Then
+    catVoldoet = cat_voldoet_bare(startnr, cat, gesl, geb, lftMode, letOpLftBep, ageDate) = CAT_OK
+    If (catVoldoet) Then
+      voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 1
+    Else
+      voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 2
+    End If
+    
+End If
+
+snel_cat_voldoet_bare = (voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 1)
+
+
+
+
+End Function
+
+
+'Public Function snel_cat_voldoet_list(ByVal startnr As String, ByVal catList As String, ByVal gesl As String, ByVal geb As Date, prior, ByVal lftMode As String, ByVal letOpLftBep As Boolean, Optional reset As Boolean = False, Optional blLetOpPrioriteit = False) As Boolean
+'On Error GoTo fout
+'snel_cat_voldoet_list = snel_cat_voldoet_list_bare(startnr, catList, gesl, geb, prior, lftMode, letOpLftBep, Nz(wed_age_date(), #1/1/1900#), reset, blLetOpPrioriteit)
+'Exit Function
+'fout:
+'MsgBox Err & " " & Error$, 16
+'Exit Function
+'End Function
+
+
+Public Function snel_cat_voldoet_list_bare(ByVal startnr As String, ByVal catList As String, ByVal gesl As String, ByVal geb As Date, prior, ByVal lftMode As String, ByVal letOpLftBep As Boolean, ByVal ageDate As Date, Optional reset As Boolean = False, Optional blLetOpPrioriteit = False) As Boolean
+On Error Resume Next
+Static voldoet(0 To 99, 1 To 2) As Integer '0=onbepaald  1 = goed 2 = niet
+Static o_catlist As String
+Static o_prior As Long
+
+If reset Then
+    o_catlist = "-"
+    o_prior = cat_get_prioriteit()
+    If (catList = "") Then
+      snel_cat_voldoet_list_bare = False
+      Exit Function
+    End If
+End If
+
+If blLetOpPrioriteit Then
+   If Not cat_check_prioriteit(CLng(Nz(prior, 0)), o_prior) Then
+      snel_cat_voldoet_list_bare = False
+      Exit Function
+   End If
+End If
+
+
+If (lftMode = LFT_MODE_WEDDAT) Then
+  snel_cat_voldoet_list_bare = (cat_voldoet_list_bare(startnr, catList, gesl, geb, lftMode, ageDate, letOpLftBep))
+  Exit Function
+End If
+
+
+
+Dim i As Integer, j As Integer
+If catList <> o_catlist Then
+    For i = 0 To 99
+        For j = 1 To 2
+            voldoet(i, j) = 0
+        Next j
+    Next i
+    o_catlist = catList
+End If
+
+Dim catVoldoet As Boolean
+Dim tpjaar As Integer
+tpjaar = CInt(val(startnr))
+If voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 0 Then
+    catVoldoet = cat_voldoet_list_bare(startnr, catList, gesl, #1/1/1900#, lftMode, ageDate, letOpLftBep)
+    If (catVoldoet) Then
+      voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 1
+    Else
+      voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 2
+    End If
+    
+End If
+
+snel_cat_voldoet_list_bare = (voldoet(tpjaar, IIf(gesl = "M", 1, 2)) = 1)
+
+
+
+
+End Function
+
+
+
+
+
+
+
+
+
+
+
+
+
+Public Function catGetMinAllowedAgeLftBep(maxAge As Integer) As Integer
+catGetMinAllowedAgeLftBep = ctxGetLftResMinAge(maxAge)
+End Function
+
+
+Function categorie_telt_mee_bare(cat As String, ByVal ageDate As Date) As String
+On Error GoTo fout
+categorie_telt_mee_bare = "N"
+Dim maxAllowedAge As Integer
+maxAllowedAge = catGetMaxAllowedAge_bare(cat, ageDate, LFT_MODE_SZYR)
+If (maxAllowedAge >= 10) Then
+  categorie_telt_mee_bare = "J"
+End If
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function catGetErrMsg(catCode As Integer) As String
+On Error Resume Next
+catGetErrMsg = ""
+   
+If catCode = CAT_AGE_RESTRICTION_ERROR Then
+   catGetErrMsg = "Deze deelnemer is op grond van de Nederlandse leeftijdsbepalingen te jong om in deze leeftijdsgroep te mogen zwemmen."
+ ElseIf catCode = CAT_GES_ERROR Then
+  catGetErrMsg = "Deze deelnemer heeft niet het juiste geslacht."
+ ElseIf catCode = CAT_NOT_IN_RANGE Then
+   catGetErrMsg = "Deze deelnemer valt niet binnen de aangegeven leeftijdsgrenzen."
+ End If
+
+End Function
+
+
+
+Private Function ctxNLCatFromOrder(ByVal iOrder As String) As String
+Select Case iOrder
+  Case 10
+    ctxNLCatFromOrder = "MIN1"
+  Case 20
+    ctxNLCatFromOrder = "MIN2"
+  Case 30
+    ctxNLCatFromOrder = "MIN3"
+  Case 40
+    ctxNLCatFromOrder = "MIN4"
+  Case 50
+    ctxNLCatFromOrder = "MIN5"
+  Case 60
+    ctxNLCatFromOrder = "MIN6"
+  Case 70
+    ctxNLCatFromOrder = "JUN1"
+  Case 80
+    ctxNLCatFromOrder = "JUN2"
+  Case 90
+    ctxNLCatFromOrder = "JUN3"
+  Case 100
+    ctxNLCatFromOrder = "JUN4"
+  Case 110
+    ctxNLCatFromOrder = "JEU1"
+  Case 120
+    ctxNLCatFromOrder = "JEU2"
+  Case 130
+    ctxNLCatFromOrder = "SEN1"
+  Case 140
+    ctxNLCatFromOrder = "SEN2"
+  Case 150
+    ctxNLCatFromOrder = "SENO"
+  Case Else
+    ctxNLCatFromOrder = ""
+End Select
+  
+End Function
+Private Function ctxNLCatToOrder(ByVal sNLCat As String) As Integer
+Select Case sNLCat
+  Case "MIN1"
+    ctxNLCatToOrder = 10
+  Case "MIN2"
+    ctxNLCatToOrder = 20
+  Case "MIN3"
+    ctxNLCatToOrder = 30
+  Case "MIN4"
+    ctxNLCatToOrder = 40
+  Case "MIN5"
+    ctxNLCatToOrder = 50
+  Case "MIN6"
+    ctxNLCatToOrder = 60
+  Case "JUN1"
+    ctxNLCatToOrder = 70
+  Case "JUN2"
+    ctxNLCatToOrder = 80
+  Case "JUN3"
+    ctxNLCatToOrder = 90
+  Case "JUN4"
+    ctxNLCatToOrder = 100
+  Case "JEU1"
+    ctxNLCatToOrder = 110
+  Case "JEU2"
+    ctxNLCatToOrder = 120
+  Case "SEN1"
+    ctxNLCatToOrder = 130
+  Case "SEN2"
+    ctxNLCatToOrder = 140
+  Case "SENO"
+    ctxNLCatToOrder = 150
+  Case Else
+    ctxNLCatToOrder = -1
+End Select
+End Function
+
+
+
+Private Function ctxGetNLCatForAge(ByVal age As Integer, ges As String, ageDate As Date, ByRef blIsExactMatch As Boolean) As String
+On Error Resume Next
+
+Dim mJunBaseAge As Integer
+Dim yyyy As Long
+Dim mm As Long
+
+Dim curDate As Date
+   
+curDate = Nz(ageDate, #1/1/1900#)
+If (IsNull(curDate) Or isEmpty(curDate) Or Format(curDate, "yyyy") <= 1900) Then
+  curDate = Now()
+End If
+
+yyyy = val(Format(curDate, "yyyy"))
+mm = val(Format(curDate, "mm"))
+
+mJunBaseAge = 11
+If (yyyy > 2007) Or (yyyy = 2007 And mm >= 8) Then
+  mJunBaseAge = 10
+End If
+
+blIsExactMatch = True
+
+Dim tpS As String
+tpS = ""
+If (ges = "M" Or ges = "*") Then
+    Select Case age
+      Case Is <= 6
+        tpS = "MIN1"
+      Case 7
+        tpS = "MIN2"
+      Case 8
+        tpS = "MIN3"
+      Case 9
+        tpS = "MIN4"
+      Case 10
+        tpS = "MIN5"
+      Case 11
+        tpS = "MIN6"
+      Case 12
+        tpS = "JUN1"
+      Case 13
+        tpS = "JUN2"
+      Case 14
+        tpS = "JUN3"
+      Case 15
+        tpS = "JUN4"
+      Case 16
+        tpS = "JEU1"
+      Case 17
+        tpS = "JEU2"
+      Case 18
+        tpS = "SEN1"
+      Case 19
+        tpS = "SEN2"
+      Case 20
+        tpS = "SENO"
+      Case Is >= 21
+        tpS = "SENO"
+        blIsExactMatch = False
+    End Select
+Else
+  Select Case age
+      Case Is <= 6
+        tpS = "MIN1"
+      Case 7
+        tpS = "MIN2"
+      Case 8
+        tpS = "MIN3"
+      Case 9
+        tpS = "MIN4"
+      Case 10
+        tpS = "MIN5"
+      Case 11
+        If (mJunBaseAge = 10) Then
+          tpS = "JUN1"
+        Else
+          tpS = "MIN6"
+        End If
+      Case 12
+        If (mJunBaseAge = 10) Then
+          tpS = "JUN2"
+        Else
+          tpS = "JUN1"
+        End If
+      Case 13
+        If (mJunBaseAge = 10) Then
+          tpS = "JUN3"
+        Else
+          tpS = "JUN2"
+        End If
+      Case 14
+        tpS = "JEU1"
+      Case 15
+        tpS = "JEU2"
+      Case 16
+        tpS = "SEN1"
+      Case 17
+        tpS = "SEN2"
+      Case 18
+        tpS = "SENO"
+      Case Is >= 19
+        blIsExactMatch = False
+        tpS = "SENO"
+    End Select
+End If
+ctxGetNLCatForAge = tpS
+End Function
+
+
+
+
+Private Sub ctxInitParsedCat(ByVal sCat As String, ByRef catParsedInfo As CAT_PARSED_INFO)
+
+catParsedInfo.sCat = sCat
+catParsedInfo.sCatDes = "Onbekend"
+catParsedInfo.sGes = "*"
+catParsedInfo.blBlockLftResRules = False
+catParsedInfo.blIsMCat = False
+catParsedInfo.blHasAgeRestriction = False
+catParsedInfo.blIsNLBased = False
+catParsedInfo.blIsYOBBased = False
+catParsedInfo.blIsAgeBased = False
+catParsedInfo.blIsEstSumAges = False
+catParsedInfo.iOldAge = CAT_MAX_AGE
+catParsedInfo.iYngAge = 0
+catParsedInfo.lOldYOB = 0
+catParsedInfo.lYngYOB = 9999
+catParsedInfo.sYngNLCode = ""
+catParsedInfo.sOldNLCode = ""
+
+
+End Sub
+
+
+Public Function ctxParseCat(ByVal sCat As String, ByRef blIsOK As Boolean, ByRef catParsedInfo As CAT_PARSED_INFO) As Boolean
+On Error GoTo fout
+ctxParseCat = False
+
+blIsOK = False
+
+
+'Initialization
+
+ctxInitParsedCat sCat, catParsedInfo
+
+
+Dim voorv As String
+Dim voorvOud As String
+Dim restStr As String
+
+
+
+Dim catIdx As Integer
+
+Dim y1 As Long
+Dim y2 As Long
+Dim age1 As Integer
+Dim age2 As Integer
+Dim tpAge As Integer
+
+
+
+
+Dim rgtPart As String
+rgtPart = Right(sCat, 3)
+If (rgtPart = "EOT" Or rgtPart = "EJT" Or rgtPart = "JRT") Then
+  catParsedInfo.blIsEstSumAges = True
+  sCat = Left(sCat, Len(sCat) - 1)
+End If
+
+
+
+
+If (sCat Like "*/*") Then
+  Dim posSlash As Integer
+  posSlash = InStr(1, sCat, "/")
+  Dim leftStr As String
+  Dim rightStr As String
+  leftStr = Left(sCat, posSlash - 1)
+  rightStr = Right(sCat, Len(sCat) - posSlash)
+  
+  If (leftStr Like "*JUN*" Or leftStr Like "*MIN*" Or leftStr Like "*JEU*" Or leftStr Like "*SEN*") Then
+    If (rightStr Like "*JUN*" Or rightStr Like "*MIN*" Or rightStr Like "*JEU*" Or rightStr Like "*SEN*") Then
+        
+        
+        catParsedInfo.blHasAgeRestriction = True
+        catParsedInfo.blIsNLBased = True
+        
+        
+        
+        If (leftStr Like "MJ[!EU]*") Then
+          catParsedInfo.sGes = "*"
+          voorv = "m./j. "
+          restStr = Right(leftStr, Len(leftStr) - 2)
+        ElseIf (leftStr Like "M*") Then
+          catParsedInfo.sGes = "V"
+          voorv = "m. "
+          restStr = Right(leftStr, Len(leftStr) - 1)
+        ElseIf (leftStr Like "J*") Then
+          catParsedInfo.sGes = "M"
+          voorv = "j. "
+          restStr = Right(leftStr, Len(leftStr) - 1)
+        Else
+          Err.Raise 2, , "Unrecognized"
+        End If
+        
+        
+        Dim iOrdLft As Integer, iOrdRgt As Integer
+        iOrdLft = ctxNLCatToOrder(restStr)
+        iOrdRgt = ctxNLCatToOrder(rightStr)
+        
+        If (iOrdLft = -1) Or (iOrdRgt = -1) Then
+          Err.Raise 2, , "Unrecognized"
+        End If
+        
+        If (iOrdLft > iOrdRgt) Then
+          Dim tpSwapS As String
+          tpSwapS = restStr
+          restStr = rightStr
+          rightStr = tpSwapS
+        End If
+          
+        
+        catParsedInfo.sYngNLCode = restStr
+        catParsedInfo.sOldNLCode = rightStr
+        
+        
+        Dim leftParsedString As String
+        Dim rightParsedString As String
+        
+        catIdx = CInt(val(Right(restStr, 1)))
+        
+        
+        If (restStr Like "MIN[0-9]") Then
+          leftParsedString = "min. " & catIdx
+        ElseIf (restStr Like "JUN[0-9]") Then
+          leftParsedString = "jun. " & catIdx
+        ElseIf (restStr Like "JEU[0-9]") Then
+          leftParsedString = "jeugd " & catIdx
+        ElseIf (restStr Like "SEN[0-9]") Then
+          leftParsedString = "sen. " & catIdx
+        ElseIf (restStr Like "SENO") Then
+          leftParsedString = "sen. open"
+        Else
+          Err.Raise 2, , "Unrecognized"
+        End If
+        
+        catIdx = CInt(val(Right(rightStr, 1)))
+        
+        If (rightStr Like "MIN[0-9]") Then
+          rightParsedString = "min. " & catIdx
+        ElseIf (rightStr Like "JUN[0-9]") Then
+          rightParsedString = "jun. " & catIdx
+        ElseIf (rightStr Like "JEU[0-9]") Then
+          rightParsedString = "jeugd " & catIdx
+        ElseIf (rightStr Like "SEN[0-9]") Then
+          rightParsedString = "sen. " & catIdx
+        ElseIf (restStr Like "SENO") Then
+          rightParsedString = "sen. open"
+        Else
+          Err.Raise 2, , "Unrecognized"
+        End If
+        
+        catParsedInfo.sCatDes = voorv & leftParsedString & " / " & rightParsedString
+             
+        blIsOK = True
+        ctxParseCat = True
+        Exit Function
+        
+    End If
+  End If
+End If
+
+
+If sCat = "JVAR" Then
+  catParsedInfo.sCatDes = "heren mix"
+  catParsedInfo.sGes = "M"
+  catParsedInfo.blIsMCat = True
+  
+  blIsOK = True
+  ctxParseCat = True
+  Exit Function
+ElseIf sCat = "MVAR" Then
+  catParsedInfo.sCatDes = "dames mix"
+  catParsedInfo.sGes = "V"
+  catParsedInfo.blIsMCat = True
+  
+  blIsOK = True
+  ctxParseCat = True
+  Exit Function
+ElseIf sCat = "MJVAR" Then
+  catParsedInfo.sCatDes = "dames/heren mix"
+  catParsedInfo.sGes = "*"
+  catParsedInfo.blIsMCat = True
+  
+  blIsOK = True
+  ctxParseCat = True
+  Exit Function
+End If
+
+If sCat Like "*JR" Then
+  
+  If (sCat Like "MJ*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    voorvOud = "d./h. "
+    restStr = Right(sCat, Len(sCat) - 2)
+  ElseIf (sCat Like "M*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    voorvOud = "d. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  ElseIf (sCat Like "J*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    voorvOud = "h. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  Else
+    Err.Raise 2, , "Unrecognized"
+  End If
+  
+  If (sCat Like "*-*JR") Then
+    Dim partBefDash As String
+    Dim partAftDash As String
+    Dim posDash As Integer
+    posDash = InStr(1, restStr, "-")
+    partBefDash = Left(restStr, posDash - 1)
+    partAftDash = Mid(restStr, posDash + 1, Len(restStr) - posDash - 2)
+    Dim lftBef As Integer
+    Dim lftAft As Integer
+    lftBef = CInt(val(partBefDash))
+    lftAft = CInt(val(partAftDash))
+    
+    If (lftBef = 0 Or lftAft = 0) Then
+      Err.Raise 2, , "Unrecognized"
+    End If
+    
+    Dim lftSwap As Integer
+    
+    If (lftBef > lftAft) Then
+      lftSwap = lftBef
+      lftBef = lftAft
+      lftAft = lftSwap
+    End If
+     
+    If (lftAft > 18) Then
+      voorv = voorvOud
+    End If
+    
+        
+    If (Not catParsedInfo.blIsEstSumAges) Then
+      catParsedInfo.sCatDes = voorv & lftBef & " tot " & lftAft & " jaar."
+    Else
+      catParsedInfo.sCatDes = voorv & lftBef & " tot " & lftAft & " jr. tot."
+    End If
+    
+    catParsedInfo.blHasAgeRestriction = True
+    catParsedInfo.blIsAgeBased = True
+    catParsedInfo.iYngAge = lftBef
+    catParsedInfo.iOldAge = lftAft
+    
+    blIsOK = True
+    ctxParseCat = True
+    Exit Function
+    
+  Else
+    Dim lft As Integer
+    lft = CInt(val(Left(restStr, Len(restStr) - 2)))
+    If (lft = 0) Then
+      Err.Raise 2, , "Unrecognized"
+    Else
+      If (lft > 18) Then
+        voorv = voorvOud
+      End If
+      catParsedInfo.sCatDes = voorv & lft & " jaar."
+      
+      catParsedInfo.blHasAgeRestriction = True
+      catParsedInfo.blIsAgeBased = True
+      catParsedInfo.iYngAge = lft
+      catParsedInfo.iOldAge = lft
+      
+      blIsOK = True
+      ctxParseCat = True
+      Exit Function
+    
+    End If
+  
+  End If
+    
+  
+End If
+
+
+Dim lcatIdx As Integer, rcatIdx As Integer
+
+
+If (sCat Like "*MIN*") Or (sCat Like "*JUN*") Or (sCat Like "*JEU*") Or (sCat Like "*SEN*") Then
+
+  catParsedInfo.blHasAgeRestriction = True
+  catParsedInfo.blIsNLBased = True
+
+  Dim sNLBase As String
+  Dim sNLDesBase As String
+
+  If (sCat Like "MJMin*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    sNLBase = "MIN"
+    sNLDesBase = "minioren "
+  ElseIf (sCat Like "MJJUN*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    sNLBase = "JUN"
+    sNLDesBase = "junioren "
+  ElseIf (sCat Like "MJJEU*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    sNLBase = "JEU"
+    sNLDesBase = "jeugd "
+  ElseIf (sCat Like "MJSEN*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    sNLBase = "SEN"
+    sNLDesBase = "senioren "
+  ElseIf (sCat Like "MMIN*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    sNLBase = "MIN"
+    sNLDesBase = "minioren "
+  ElseIf (sCat Like "MJUN*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    sNLBase = "JUN"
+    sNLDesBase = "junioren "
+  ElseIf (sCat Like "MJEU*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    sNLBase = "JEU"
+    sNLDesBase = "jeugd "
+  ElseIf (sCat Like "MSEN*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    sNLBase = "SEN"
+    sNLDesBase = "senioren "
+  ElseIf (sCat Like "JMin*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    sNLBase = "MIN"
+    sNLDesBase = "minioren "
+  ElseIf (sCat Like "JJUN*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    sNLBase = "JUN"
+    sNLDesBase = "junioren "
+  ElseIf (sCat Like "JJEU*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    sNLBase = "JEU"
+    sNLDesBase = "jeugd "
+  ElseIf (sCat Like "JSEN*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    sNLBase = "SEN"
+    sNLDesBase = "senioren "
+  End If
+   
+   
+  
+  
+  voorvOud = ""
+  If catParsedInfo.sGes = "*" Then
+    voorvOud = "mix"
+  ElseIf catParsedInfo.sGes = "M" Then
+    voorvOud = "heren"
+  ElseIf catParsedInfo.sGes = "V" Then
+    voorvOud = "dames"
+  End If
+  
+  If (voorvOud = "") Then
+    Err.Raise 2, , "Unrecognized"
+  End If
+  
+  
+  'special exception for seno cats
+  
+  If (sCat = "JSENO") Or (sCat = "JSENOEE") Or (sCat = "MSENO") Or (sCat = "MSENOEE") Or (sCat = "MJSENO") Or (sCat = "MJSENOEE") Then
+    catParsedInfo.sCatDes = "senioren " & voorvOud & " open"
+    catParsedInfo.sYngNLCode = "SENO"
+  ElseIf (sCat = "JSENOEL") Or (sCat = "MSENOEL") Or (sCat = "MJSENOEL") Then
+    catParsedInfo.sCatDes = "senioren " & voorvOud & " all-in"
+    catParsedInfo.sOldNLCode = "SENO"
+  ElseIf sCat Like "*EL" Then
+    catIdx = CInt(val(Left(Right(sCat, 3), 1)))
+    catParsedInfo.sCatDes = voorv & sNLDesBase & catIdx & " en later"
+    catParsedInfo.sOldNLCode = sNLBase & catIdx
+  ElseIf sCat Like "*EE" Then
+    catIdx = CInt(val(Left(Right(sCat, 3), 1)))
+    catParsedInfo.sCatDes = voorv & sNLDesBase & catIdx & " en eerder"
+    catParsedInfo.sYngNLCode = sNLBase & catIdx
+  ElseIf sCat Like "*[0-9]/[0-9]" Then
+    lcatIdx = CInt(val(Left(Right(sCat, 3), 1)))
+    rcatIdx = CInt(val(Right(sCat, 1)))
+    catParsedInfo.sCatDes = voorv & sNLDesBase & lcatIdx & " / " & rcatIdx
+    
+    Dim tpSwapIdx As Integer
+    If (lcatIdx > rcatIdx) Then
+      tpSwapIdx = lcatIdx
+      lcatIdx = rcatIdx
+      rcatIdx = tpSwapIdx
+    End If
+    catParsedInfo.sYngNLCode = sNLBase & lcatIdx
+    catParsedInfo.sOldNLCode = sNLBase & rcatIdx
+  Else
+    catIdx = CInt(val(Right(sCat, 1)))
+    catParsedInfo.sCatDes = voorv & sNLDesBase & catIdx
+    catParsedInfo.sYngNLCode = sNLBase & catIdx
+    catParsedInfo.sOldNLCode = sNLBase & catIdx
+  End If
+  
+  If (catParsedInfo.sYngNLCode <> "") Then
+    If ctxNLCatToOrder(catParsedInfo.sYngNLCode) = -1 Then
+      Err.Raise 2, , "Unrecognized"
+    End If
+  End If
+  
+  If (catParsedInfo.sOldNLCode <> "") Then
+    If ctxNLCatToOrder(catParsedInfo.sOldNLCode) = -1 Then
+      Err.Raise 2, , "Unrecognized"
+    End If
+  End If
+      
+      
+  blIsOK = True
+  ctxParseCat = True
+  Exit Function
+
+End If
+  
+
+
+If sCat = "HEREN" Then
+  catParsedInfo.sGes = "M"
+  catParsedInfo.sCatDes = "heren"
+ElseIf sCat = "DAMES" Then
+  catParsedInfo.sGes = "V"
+  catParsedInfo.sCatDes = "dames"
+ElseIf sCat = "ZWEEDS" Then
+  catParsedInfo.sGes = "*"
+  catParsedInfo.sCatDes = "zweeds"
+  catParsedInfo.blBlockLftResRules = True
+ElseIf sCat = "MIX" Then
+  catParsedInfo.sGes = "*"
+  catParsedInfo.sCatDes = "Mix"
+  catParsedInfo.blBlockLftResRules = True
+ElseIf (sCat Like "MJO[0-9][0-9]") Or (sCat Like "JO[0-9][0-9]") Or (sCat Like "MO[0-9][0-9]") Then
+  
+  If (sCat Like "MJO*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+  ElseIf (sCat Like "JO*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+  ElseIf (sCat Like "MO*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+  End If
+  
+  catIdx = CInt(val(Right(sCat, 2)))
+  
+  catParsedInfo.sCatDes = voorv & "0/" & catIdx
+  
+  catParsedInfo.blHasAgeRestriction = True
+  catParsedInfo.blIsAgeBased = True
+  catParsedInfo.iOldAge = catIdx
+  
+ElseIf (sCat Like "MJ[0-9][0-9]/[0-9][0-9]") Or (sCat Like "J[0-9][0-9]/[0-9][0-9]") Or (sCat Like "M[0-9][0-9]/[0-9][0-9]") Then
+  If (sCat Like "MJ[0-9]*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    restStr = Right(sCat, Len(sCat) - 2)
+  ElseIf (sCat Like "J[0-9]*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  ElseIf (sCat Like "M[0-9]*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  End If
+
+  lcatIdx = 1900 + CInt(val(Mid(restStr, 1, 2)))
+  rcatIdx = 1900 + CInt(val(Mid(restStr, 4, 2)))
+  If (lcatIdx < 1920) Then
+    lcatIdx = lcatIdx + 100
+  End If
+  If (rcatIdx < 1920) Then
+    rcatIdx = rcatIdx + 100
+  End If
+  
+  If (lcatIdx > rcatIdx) Then
+    tpSwapIdx = lcatIdx
+    lcatIdx = rcatIdx
+    rcatIdx = tpSwapIdx
+  End If
+  
+  catParsedInfo.sCatDes = voorv & lcatIdx & "/" & rcatIdx
+  
+  catParsedInfo.blHasAgeRestriction = True
+  catParsedInfo.blIsYOBBased = True
+  
+  catParsedInfo.lYngYOB = rcatIdx
+  catParsedInfo.lOldYOB = lcatIdx
+
+ElseIf (sCat Like "MJ[0-9][0-9]") Or (sCat Like "J[0-9][0-9]") Or (sCat Like "M[0-9][0-9]") Then
+
+  If (sCat Like "MJ[0-9]*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    restStr = Right(sCat, Len(sCat) - 2)
+  ElseIf (sCat Like "J[0-9]*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  ElseIf (sCat Like "M[0-9]*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  End If
+  catIdx = 1900 + CInt(val(restStr))
+  If (catIdx < 1920) Then
+    catIdx = catIdx + 100
+  End If
+
+  catParsedInfo.sCatDes = voorv & catIdx
+  
+  catParsedInfo.blHasAgeRestriction = True
+  catParsedInfo.blIsYOBBased = True
+  
+  catParsedInfo.lYngYOB = catIdx
+  catParsedInfo.lOldYOB = catIdx
+
+ElseIf (sCat Like "MJ[0-9][0-9]E[E,L]") Or (sCat Like "J[0-9][0-9]E[E,L]") Or (sCat Like "M[0-9][0-9]E[E,L]") Then
+
+  If (sCat Like "MJ[0-9]*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    restStr = Right(sCat, Len(sCat) - 2)
+  ElseIf (sCat Like "J[0-9]*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  ElseIf (sCat Like "M[0-9]*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  End If
+  catIdx = 1900 + CInt(val(Left(restStr, 2)))
+  If (catIdx < 1920) Then
+    catIdx = catIdx + 100
+  End If
+
+  
+  
+  catParsedInfo.blHasAgeRestriction = True
+  catParsedInfo.blIsYOBBased = True
+  
+  If Right(sCat, 1) = "E" Then
+    catParsedInfo.sCatDes = voorv & catIdx & " en eerder"
+    catParsedInfo.lYngYOB = catIdx
+  ElseIf Right(sCat, 1) = "L" Then
+    catParsedInfo.sCatDes = voorv & catIdx & " en later"
+    catParsedInfo.lOldYOB = catIdx
+  End If
+  
+ElseIf (sCat Like "MJ[0-9][0-9]E[O,J]") Or (sCat Like "MJ[0-9][0-9][0-9]E[O,J]") Or (sCat Like "J[0-9][0-9]E[O,J]") Or (sCat Like "J[0-9][0-9][0-9]E[O,J]") Or (sCat Like "M[0-9][0-9]E[O,J]") Or (sCat Like "M[0-9][0-9][0-9]E[O,J]") Then
+  If (sCat Like "MJ[0-9]*") Then
+    catParsedInfo.sGes = "*"
+    voorv = "m./j. "
+    voorvOud = "d./h. "
+    restStr = Right(sCat, Len(sCat) - 2)
+  ElseIf (sCat Like "J[0-9]*") Then
+    catParsedInfo.sGes = "M"
+    voorv = "j. "
+    voorvOud = "h. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  ElseIf (sCat Like "M[0-9]*") Then
+    catParsedInfo.sGes = "V"
+    voorv = "m. "
+    voorvOud = "d. "
+    restStr = Right(sCat, Len(sCat) - 1)
+  End If
+  catIdx = CInt(val(Left(restStr, Len(restStr) - 2)))
+  
+  If (catIdx > 18) Then
+    voorv = voorvOud
+  End If
+  
+  
+  
+  catParsedInfo.blHasAgeRestriction = True
+  catParsedInfo.blIsAgeBased = True
+
+  If Right(sCat, 1) = "O" Then
+    If (catParsedInfo.blIsEstSumAges) Then
+      catParsedInfo.sCatDes = voorv & catIdx & " jr. en ouder tot."
+    Else
+      catParsedInfo.sCatDes = voorv & catIdx & " jr. en ouder"
+    End If
+    catParsedInfo.iYngAge = catIdx
+  ElseIf Right(sCat, 1) = "J" Then
+    If (catParsedInfo.blIsEstSumAges) Then
+      catParsedInfo.sCatDes = voorv & catIdx & " jr. en jonger tot."
+    Else
+      catParsedInfo.sCatDes = voorv & catIdx & " jr. en jonger"
+    End If
+    catParsedInfo.iOldAge = catIdx
+  End If
+
+Else
+  Err.Raise 2, , "Unrecognized"
+End If
+
+blIsOK = True
+ctxParseCat = True
+Exit Function
+
+fout:
+If (Err = 2) Then
+  'unrecognized-error -> wipe clean the parsed data and return true
+  ctxInitParsedCat sCat, catParsedInfo
+  ctxParseCat = True
+  Exit Function
+End If
+
+MsgBox Err & " ctxParseCat" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+Public Function ctxCompileCat(ByVal sCat As String, ByVal ageDate As Date, ByVal lftBep As String, ByVal blApplyNLLftRules As Boolean, ByRef blIsOK As Boolean, ByRef catCompiledInfo As CAT_COMPILED_INFO) As Boolean
+On Error GoTo fout
+ctxCompileCat = False
+
+Dim catParsedInfo As CAT_PARSED_INFO
+
+blIsOK = False
+
+
+If Not ctxParseCat(sCat, blIsOK, catParsedInfo) Then
+  Exit Function
+End If
+
+If blIsOK Then
+
+  blIsOK = False
+  
+  If Not ctxCompileCat_perform(catParsedInfo, ageDate, lftBep, blApplyNLLftRules, blIsOK, catCompiledInfo) Then
+    Exit Function
+  End If
+
+End If
+
+ctxCompileCat = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxCompileCat" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function ctxConvertYOBToAge(ByVal lYOB As Long, ByVal wedYear As Long, ByVal wedMonth As Long, ByVal sLftBep As String) As Integer
+
+If (lYOB = 0) Then
+  ctxConvertYOBToAge = CAT_MAX_AGE
+ElseIf (lYOB = 9999) Then
+  ctxConvertYOBToAge = 0
+Else
+  
+  Select Case sLftBep
+    Case LFT_MODE_SZYR
+      If (wedMonth >= 8) Then
+        ctxConvertYOBToAge = wedYear - lYOB
+      Else
+        ctxConvertYOBToAge = wedYear - 1 - lYOB
+      End If
+    Case LFT_MODE_WEDDAT
+      'This should not be used
+      'Simply treat as LFT_MODE_WEDYR_END
+      ctxConvertYOBToAge = wedYear - lYOB
+    Case LFT_MODE_WEDYR_END
+      ctxConvertYOBToAge = wedYear - lYOB
+    Case LFT_MODE_WEDYR_START
+      ctxConvertYOBToAge = wedYear - 1 - lYOB
+  End Select
+
+  If (ctxConvertYOBToAge < 0) Then
+    ctxConvertYOBToAge = 0
+  ElseIf (ctxConvertYOBToAge > CAT_MAX_AGE) Then
+    ctxConvertYOBToAge = CAT_MAX_AGE
+  End If
+
+End If
+
+End Function
+
+Private Function ctxConvertAgeToYOB(ByVal iAge As Integer, ByVal wedYear As Long, ByVal wedMonth As Long, ByVal wedDay As Long, ByVal sLftBep As String, ByVal blIsYngMode As Boolean, ByRef blRestrictDOB As Boolean, ByRef dDOB As Date) As Long
+
+blRestrictDOB = False
+
+If (iAge = 0) Then
+  ctxConvertAgeToYOB = 9999
+ElseIf (iAge = CAT_MAX_AGE) Then
+  ctxConvertAgeToYOB = 0
+Else
+
+  Select Case sLftBep
+    Case LFT_MODE_SZYR
+      If (wedMonth >= 8) Then
+        ctxConvertAgeToYOB = wedYear - iAge
+      Else
+        ctxConvertAgeToYOB = wedYear - 1 - iAge
+      End If
+    Case LFT_MODE_WEDDAT
+      If (blIsYngMode) Then
+        ctxConvertAgeToYOB = wedYear - iAge
+        If (wedMonth = 12) And (wedDay = 31) Then
+          
+        Else
+          blRestrictDOB = True
+          dDOB = DateSerial(ctxConvertAgeToYOB, wedMonth, wedDay)
+        End If
+      Else
+        If (wedMonth = 12) And (wedDay = 31) Then
+          ctxConvertAgeToYOB = wedYear - iAge
+        Else
+          ctxConvertAgeToYOB = wedYear - iAge - 1
+          blRestrictDOB = True
+          dDOB = DateAdd("d", 1, DateSerial(ctxConvertAgeToYOB, wedMonth, wedDay))
+        End If
+      End If
+    Case LFT_MODE_WEDYR_END
+      ctxConvertAgeToYOB = wedYear - iAge
+    Case LFT_MODE_WEDYR_START
+      ctxConvertAgeToYOB = wedYear - 1 - iAge
+  End Select
+  
+  If (ctxConvertAgeToYOB < 0) Then
+    ctxConvertAgeToYOB = 0
+    blRestrictDOB = False
+  ElseIf (ctxConvertAgeToYOB > 9999) Then
+    ctxConvertAgeToYOB = 9999
+    blRestrictDOB = False
+  End If
+  
+End If
+
+
+End Function
+
+Private Function ctxGetNLMinAge(ByVal sNLCat As String, ByVal sGes As String, ByVal wedYear As Long, ByVal wedMonth As Long) As Integer
+
+
+If (sNLCat = "") Then
+  ctxGetNLMinAge = 0
+Else
+  
+  
+  Dim mJunBaseAge As Integer
+  mJunBaseAge = 11
+  
+  If (wedYear > 2007) Or (wedYear = 2007 And wedMonth >= 8) Then
+    mJunBaseAge = 10
+  End If
+  
+  
+  If (sGes = "V") Then
+    Select Case sNLCat
+      Case "MIN1"
+        ctxGetNLMinAge = 5
+      Case "MIN2"
+        ctxGetNLMinAge = 7
+      Case "MIN3"
+        ctxGetNLMinAge = 8
+      Case "MIN4"
+        ctxGetNLMinAge = 9
+      Case "MIN5"
+        ctxGetNLMinAge = 10
+      Case "MIN6"
+        ctxGetNLMinAge = 11
+      Case "JUN1"
+        ctxGetNLMinAge = mJunBaseAge + 1
+      Case "JUN2"
+        ctxGetNLMinAge = mJunBaseAge + 2
+      Case "JUN3"
+        ctxGetNLMinAge = mJunBaseAge + 3
+      Case "JUN4"
+        ctxGetNLMinAge = mJunBaseAge + 4
+      Case "JEU1"
+        ctxGetNLMinAge = 14
+      Case "JEU2"
+        ctxGetNLMinAge = 15
+      Case "SEN1"
+        ctxGetNLMinAge = 16
+      Case "SEN2"
+        ctxGetNLMinAge = 17
+      Case "SENO"
+        ctxGetNLMinAge = 18
+      Case Else
+        ctxGetNLMinAge = CAT_MAX_AGE
+    End Select
+  Else
+    
+    Select Case sNLCat
+      Case "MIN1"
+        ctxGetNLMinAge = 5
+      Case "MIN2"
+        ctxGetNLMinAge = 7
+      Case "MIN3"
+        ctxGetNLMinAge = 8
+      Case "MIN4"
+        ctxGetNLMinAge = 9
+      Case "MIN5"
+        ctxGetNLMinAge = 10
+      Case "MIN6"
+        ctxGetNLMinAge = 11
+      Case "JUN1"
+        ctxGetNLMinAge = 12
+      Case "JUN2"
+        ctxGetNLMinAge = 13
+      Case "JUN3"
+        ctxGetNLMinAge = 14
+      Case "JUN4"
+        ctxGetNLMinAge = 15
+      Case "JEU1"
+        ctxGetNLMinAge = 16
+      Case "JEU2"
+        ctxGetNLMinAge = 17
+      Case "SEN1"
+        ctxGetNLMinAge = 18
+      Case "SEN2"
+        ctxGetNLMinAge = 19
+      Case "SENO"
+        ctxGetNLMinAge = 20
+      Case Else
+        ctxGetNLMinAge = CAT_MAX_AGE
+    End Select
+  
+  
+  
+  
+  End If
+  
+End If
+
+
+End Function
+Private Function ctxGetNLMaxAge(ByVal sNLCat As String, ByVal sGes As String, ByVal wedYear As Long, ByVal wedMonth As Long) As Integer
+
+
+If (sNLCat = "") Then
+  ctxGetNLMaxAge = CAT_MAX_AGE
+Else
+
+  
+  Dim mJunBaseAge As Integer
+  mJunBaseAge = 11
+  
+  If (wedYear > 2007) Or (wedYear = 2007 And wedMonth >= 8) Then
+    mJunBaseAge = 10
+  End If
+  
+  
+  If (sGes = "V") Then
+    Select Case sNLCat
+      Case "MIN1"
+        ctxGetNLMaxAge = 6
+      Case "MIN2"
+        ctxGetNLMaxAge = 7
+      Case "MIN3"
+        ctxGetNLMaxAge = 8
+      Case "MIN4"
+        ctxGetNLMaxAge = 9
+      Case "MIN5"
+        ctxGetNLMaxAge = 10
+      Case "MIN6"
+        ctxGetNLMaxAge = 11
+      Case "JUN1"
+        ctxGetNLMaxAge = mJunBaseAge + 1
+      Case "JUN2"
+        ctxGetNLMaxAge = mJunBaseAge + 2
+      Case "JUN3"
+        ctxGetNLMaxAge = mJunBaseAge + 3
+      Case "JUN4"
+        ctxGetNLMaxAge = mJunBaseAge + 4
+      Case "JEU1"
+        ctxGetNLMaxAge = 14
+      Case "JEU2"
+        ctxGetNLMaxAge = 15
+      Case "SEN1"
+        ctxGetNLMaxAge = 16
+      Case "SEN2"
+        ctxGetNLMaxAge = 17
+      Case "SENO"
+        ctxGetNLMaxAge = CAT_MAX_AGE
+      Case Else
+        ctxGetNLMaxAge = 0
+    End Select
+  Else
+    
+    Select Case sNLCat
+      Case "MIN1"
+        ctxGetNLMaxAge = 6
+      Case "MIN2"
+        ctxGetNLMaxAge = 7
+      Case "MIN3"
+        ctxGetNLMaxAge = 8
+      Case "MIN4"
+        ctxGetNLMaxAge = 9
+      Case "MIN5"
+        ctxGetNLMaxAge = 10
+      Case "MIN6"
+        ctxGetNLMaxAge = 11
+      Case "JUN1"
+        ctxGetNLMaxAge = 12
+      Case "JUN2"
+        ctxGetNLMaxAge = 13
+      Case "JUN3"
+        ctxGetNLMaxAge = 14
+      Case "JUN4"
+        ctxGetNLMaxAge = 15
+      Case "JEU1"
+        ctxGetNLMaxAge = 16
+      Case "JEU2"
+        ctxGetNLMaxAge = 17
+      Case "SEN1"
+        ctxGetNLMaxAge = 18
+      Case "SEN2"
+        ctxGetNLMaxAge = 19
+      Case "SENO"
+        ctxGetNLMaxAge = CAT_MAX_AGE
+      Case Else
+        ctxGetNLMaxAge = 0
+    End Select
+  
+  
+  
+  
+  End If
+  
+  
+End If
+
+End Function
+
+
+
+Private Function ctxGetLftResMinAge(maxAge As Integer) As Integer
+
+Dim res As Integer
+If (maxAge >= 13) Then
+  res = 11
+Else
+  res = maxAge - 2
+End If
+
+If (res < 5) Then
+  res = 5
+End If
+
+ctxGetLftResMinAge = res
+
+End Function
+
+Private Function ctxGetLftModeDes(ByVal sLftBep As String, ageYear As Long, ageMonth As Long, ageDay As Long) As String
+Dim ageDate As Date
+ageDate = DateSerial(ageYear, ageMonth, ageDay)
+Dim lftBepDate As Date
+
+Select Case sLftBep
+  Case LFT_MODE_SZYR
+    If (ageMonth >= 8) Then
+      lftBepDate = DateSerial(ageYear, 12, 31)
+    Else
+      lftBepDate = DateSerial(ageYear - 1, 12, 31)
+    End If
+  Case LFT_MODE_WEDYR_END
+    lftBepDate = DateSerial(ageYear, 12, 31)
+  Case LFT_MODE_WEDYR_START
+    lftBepDate = DateSerial(ageYear - 1, 12, 31)
+  Case LFT_MODE_WEDDAT
+    lftBepDate = ageDate
+    
+End Select
+
+ctxGetLftModeDes = "Lft. wordt berekend op: " & fmtDate(lftBepDate)
+
+ctxGetLftModeDes = ctxGetLftModeDes & " (Wedstr. peil datum: " & fmtDate(ageDate) & "; Lft bep. = "
+
+Select Case sLftBep
+  Case LFT_MODE_SZYR
+    ctxGetLftModeDes = ctxGetLftModeDes & "Standaard (31 dec wedstr. seiz.)"
+  Case LFT_MODE_WEDYR_END
+    ctxGetLftModeDes = ctxGetLftModeDes & "Wedstr. jaar (31 dec wedstr. jaar)"
+  Case LFT_MODE_WEDYR_START
+    ctxGetLftModeDes = ctxGetLftModeDes & "Begin wedstr. jr. (1 jan wedstr. jaar)"
+  Case LFT_MODE_WEDDAT
+    ctxGetLftModeDes = ctxGetLftModeDes & "Wedstr. datum"
+End Select
+
+ctxGetLftModeDes = ctxGetLftModeDes & ")"
+
+End Function
+
+
+
+
+Private Function ctxCompileCat_perform(ByRef catParsedInfo As CAT_PARSED_INFO, ByVal ageDate As Date, ByVal lftBep As String, ByVal blApplyNLLftRules As Boolean, ByRef blIsOK As Boolean, ByRef catCompiledInfo As CAT_COMPILED_INFO) As Boolean
+On Error GoTo fout
+ctxCompileCat_perform = False
+
+
+'Need to compile the cat according to the supplied ageDate & lftBep
+
+
+If (lftBep = "") Then
+  lftBep = LFT_MODE_SZYR
+End If
+
+'First need to determine ageYear and ageMonth to use
+Dim tpDate As Date
+tpDate = Nz(ageDate, #1/1/1900#)
+If (IsNull(tpDate) Or isEmpty(tpDate) Or Format(tpDate, "yyyy") <= 1900) Then
+  tpDate = Now()
+End If
+
+Dim ageYear As Long
+Dim ageMonth As Long
+Dim ageDay As Long
+
+ageYear = val(Format(tpDate, "yyyy"))
+ageMonth = val(Format(tpDate, "mm"))
+ageDay = val(Format(tpDate, "dd"))
+
+catCompiledInfo.dAuxAgeDate = tpDate
+
+catCompiledInfo.sCat = catParsedInfo.sCat
+catCompiledInfo.sGes = catParsedInfo.sGes
+
+catCompiledInfo.blCheckOldDOB = False
+catCompiledInfo.blCheckYngDOB = False
+catCompiledInfo.blIsEstafSumAges = False
+catCompiledInfo.lEstSumRefYear = ageYear
+catCompiledInfo.lEstSumMaxAge = CAT_MAX_AGE
+catCompiledInfo.lEstSumMinAge = 0
+
+
+'Need to determine the appropriate year of births
+catCompiledInfo.lOldYOB = 0
+catCompiledInfo.lOldYOBEst = 0
+catCompiledInfo.lYngYOB = 9999
+catCompiledInfo.lYngYOBPriorLftRes = 9999
+catCompiledInfo.lYngYOBEst = 9999
+catCompiledInfo.lYngYOBEstPriorLftRes = 9999
+
+
+catCompiledInfo.iAuxOldAge = CAT_MAX_AGE
+catCompiledInfo.iAuxLftResYngAgeForOldAge = 0
+catCompiledInfo.iAuxYngAge = 0
+catCompiledInfo.sAuxDesMinAge = "geen beperking"
+catCompiledInfo.sAuxDesMaxAge = "geen beperking"
+
+catCompiledInfo.sAuxLftCalcDes = ctxGetLftModeDes(lftBep, ageYear, ageMonth, ageDay)
+
+
+
+
+If (catParsedInfo.blIsMCat) Then
+  'need not do anything
+ElseIf (catParsedInfo.blIsEstSumAges) Then
+  catCompiledInfo.blIsEstafSumAges = True
+  If (Not catParsedInfo.blHasAgeRestriction) Or (Not catParsedInfo.blIsAgeBased) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  catCompiledInfo.lEstSumMinAge = catParsedInfo.iYngAge
+  catCompiledInfo.lEstSumMaxAge = catParsedInfo.iOldAge
+  catCompiledInfo.iAuxOldAge = catParsedInfo.iOldAge
+  catCompiledInfo.iAuxYngAge = catParsedInfo.iYngAge
+  If (catCompiledInfo.iAuxYngAge > 0) Then
+    catCompiledInfo.sAuxDesMinAge = "Opgetelde leeftijd: " & catParsedInfo.iYngAge
+  End If
+  If (catCompiledInfo.iAuxOldAge < CAT_MAX_AGE) Then
+    catCompiledInfo.sAuxDesMaxAge = "Opgetelde leeftijd: " & catParsedInfo.iOldAge
+  End If
+  
+  Select Case lftBep
+    Case LFT_MODE_WEDDAT, LFT_MODE_WEDYR_END
+      catCompiledInfo.lEstSumRefYear = ageYear
+    Case LFT_MODE_WEDYR_START
+      catCompiledInfo.lEstSumRefYear = ageYear - 1
+    Case Else
+      'treat as LFT_MODE_SZYR
+      If (ageMonth >= 8) Then
+        catCompiledInfo.lEstSumRefYear = ageYear
+      Else
+        catCompiledInfo.lEstSumRefYear = ageYear - 1
+      End If
+  End Select
+  
+  
+Else
+  Dim tpYngAge As Integer, tpOldAge As Integer
+  Dim tpYngYOB As Long, tpOldYOB As Long
+  Dim tpYngYOBEst As Long, tpOldYOBEst As Long
+  Dim tpYngResDOB As Boolean, tpOldResDOB As Boolean
+  Dim tpYngDOB As Date, tpOldDOB As Date
+  
+  tpYngAge = 0
+  tpOldAge = CAT_MAX_AGE
+  tpYngYOB = 9999
+  tpYngYOBEst = 9999
+  tpOldYOB = 0
+  tpOldYOBEst = 0
+  
+  Dim blActApplyLftRes As Boolean
+  blActApplyLftRes = blApplyNLLftRules
+  
+  If (lftBep <> LFT_MODE_SZYR) Then
+    If (Not catParsedInfo.blHasAgeRestriction) Or (Not catParsedInfo.blIsNLBased) Then
+      blActApplyLftRes = False
+    End If
+  End If
+  
+  If (catParsedInfo.blBlockLftResRules) Then
+    blActApplyLftRes = False
+  End If
+  
+  
+  
+  If (catParsedInfo.blHasAgeRestriction) Then
+  
+    If (catParsedInfo.blIsYOBBased) Then
+      tpYngYOB = catParsedInfo.lYngYOB
+      tpYngYOBEst = tpYngYOB
+      tpOldYOB = catParsedInfo.lOldYOB
+      tpOldYOBEst = tpOldYOB
+      
+      tpYngAge = ctxConvertYOBToAge(tpYngYOB, ageYear, ageMonth, lftBep)
+      tpOldAge = ctxConvertYOBToAge(tpOldYOB, ageYear, ageMonth, lftBep)
+      
+    ElseIf (catParsedInfo.blIsNLBased) Then
+      'Always interpret according to LFT_MODE_SZYR
+      tpYngAge = ctxGetNLMinAge(catParsedInfo.sYngNLCode, catParsedInfo.sGes, ageYear, ageMonth)
+      tpOldAge = ctxGetNLMaxAge(catParsedInfo.sOldNLCode, catParsedInfo.sGes, ageYear, ageMonth)
+      
+      tpYngYOB = ctxConvertAgeToYOB(tpYngAge, ageYear, ageMonth, ageDay, LFT_MODE_SZYR, True, tpYngResDOB, tpYngDOB)
+      tpYngYOBEst = tpYngYOB
+      
+      tpOldYOB = ctxConvertAgeToYOB(tpOldAge, ageYear, ageMonth, ageDay, LFT_MODE_SZYR, False, tpOldResDOB, tpOldDOB)
+      tpOldYOBEst = tpOldYOB
+      
+      
+      catCompiledInfo.sAuxLftCalcDes = ctxGetLftModeDes(LFT_MODE_SZYR, ageYear, ageMonth, ageDay)
+      
+      
+      
+    ElseIf (catParsedInfo.blIsAgeBased) Then
+      tpYngAge = catParsedInfo.iYngAge
+      tpOldAge = catParsedInfo.iOldAge
+      
+      Dim sEstLftBep As String
+      sEstLftBep = lftBep
+      If (sEstLftBep = LFT_MODE_WEDDAT) Then
+        sEstLftBep = LFT_MODE_WEDYR_END
+      End If
+      
+      Dim dDummy As Date, blDummy As Boolean
+      
+      tpYngYOB = ctxConvertAgeToYOB(tpYngAge, ageYear, ageMonth, ageDay, lftBep, True, tpYngResDOB, tpYngDOB)
+      tpYngYOBEst = ctxConvertAgeToYOB(tpYngAge, ageYear, ageMonth, ageDay, sEstLftBep, True, blDummy, dDummy)
+      
+      tpOldYOB = ctxConvertAgeToYOB(tpOldAge, ageYear, ageMonth, ageDay, lftBep, False, tpOldResDOB, tpOldDOB)
+      tpOldYOBEst = ctxConvertAgeToYOB(tpOldAge, ageYear, ageMonth, ageDay, sEstLftBep, False, blDummy, dDummy)
+      
+    Else
+      Err.Raise 1, , "Internal error"
+    End If
+    
+  End If 'if blHasAgeRestriction
+  
+  Dim blLftResApplied As Boolean
+  blLftResApplied = False
+  
+  If (blActApplyLftRes) Then
+  
+    Dim tpLftResYngAge As Integer
+    tpLftResYngAge = ctxGetLftResMinAge(tpOldAge)
+    
+    catCompiledInfo.iAuxLftResYngAgeForOldAge = tpLftResYngAge
+    
+    
+  
+    If (tpLftResYngAge > tpYngAge) Then
+      blLftResApplied = True
+      tpYngAge = tpLftResYngAge
+    End If
+  
+  End If
+  
+  
+  catCompiledInfo.lYngYOBPriorLftRes = tpYngYOB
+  catCompiledInfo.lYngYOBEstPriorLftRes = tpYngYOBEst
+  
+  
+  If (blLftResApplied) Then
+    'Need to recalculate the young yob
+    If (catParsedInfo.blHasAgeRestriction) And (catParsedInfo.blIsNLBased) Then
+      tpYngYOB = ctxConvertAgeToYOB(tpYngAge, ageYear, ageMonth, ageDay, LFT_MODE_SZYR, True, tpYngResDOB, tpYngDOB)
+      tpYngYOBEst = tpYngYOB
+    Else
+    
+      sEstLftBep = lftBep
+      If (sEstLftBep = LFT_MODE_WEDDAT) Then
+        sEstLftBep = LFT_MODE_WEDYR_END
+      End If
+      
+      tpYngYOB = ctxConvertAgeToYOB(tpYngAge, ageYear, ageMonth, ageDay, lftBep, True, tpYngResDOB, tpYngDOB)
+           
+      tpYngYOBEst = ctxConvertAgeToYOB(tpYngAge, ageYear, ageMonth, ageDay, sEstLftBep, True, blDummy, dDummy)
+      
+    End If
+  End If
+  
+  
+  catCompiledInfo.lOldYOB = tpOldYOB
+  catCompiledInfo.blCheckOldDOB = tpOldResDOB
+  catCompiledInfo.dOldDOB = tpOldDOB
+  catCompiledInfo.lOldYOBEst = tpOldYOBEst
+  
+  catCompiledInfo.lYngYOB = tpYngYOB
+  catCompiledInfo.blCheckYngDOB = tpYngResDOB
+  catCompiledInfo.dYngDOB = tpYngDOB
+  catCompiledInfo.lYngYOBEst = tpYngYOBEst
+  
+  catCompiledInfo.iAuxOldAge = tpOldAge
+  catCompiledInfo.iAuxYngAge = tpYngAge
+  
+  If (catCompiledInfo.iAuxOldAge < CAT_MAX_AGE) Then
+    catCompiledInfo.sAuxDesMaxAge = catCompiledInfo.iAuxOldAge & " jaar (geboortejaar: " & catCompiledInfo.lOldYOB & ")"
+  End If
+  
+  If (catCompiledInfo.iAuxYngAge > 0) Then
+    catCompiledInfo.sAuxDesMinAge = catCompiledInfo.iAuxYngAge & " jaar (geboortejaar: " & catCompiledInfo.lYngYOB & ")"
+    If (blLftResApplied) Then
+      catCompiledInfo.sAuxDesMinAge = catCompiledInfo.sAuxDesMinAge & " (op grond van Nederlandse leeftijdsbepalingen)"
+    End If
+  End If
+  
+  
+  
+End If
+
+
+
+blIsOK = True
+
+
+
+
+
+ctxCompileCat_perform = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxCompileCat_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function ctxGetSatisfiedCatIdxFromList(ByVal sStartnr As String, ByVal dGebDate As Date, ByVal sGes As String, ByVal idxStart As Integer, ByVal idxEndExclusive As Integer, ByRef catCmpInfo() As CAT_COMPILED_INFO) As Integer
+On Error GoTo fout
+ctxGetSatisfiedCatIdxFromList = -1
+
+Dim blFound As Boolean
+blFound = False
+Dim fndCatIdx As Integer
+Dim fndCatMinAge As Integer
+Dim fndCatMaxAge As Integer
+
+'Attempt to find most restrictive category, to account for duplicates etc.
+
+Dim i As Integer
+For i = idxStart To idxEndExclusive - 1
+  Dim blDummy As Boolean, iCatStatus As Integer
+  If Not ctxCheckCat(sStartnr, dGebDate, sGes, catCmpInfo(i), iCatStatus) Then
+    Exit Function
+  End If
+  If iCatStatus = CAT_OK Then
+    Dim catMinAge As Integer, catMaxAge As Integer
+    catMinAge = catCmpInfo(i).iAuxYngAge
+    catMaxAge = catCmpInfo(i).iAuxOldAge
+    
+    If (Not blFound) Then
+      blFound = True
+      fndCatIdx = i
+      fndCatMinAge = catMinAge
+      fndCatMaxAge = catMaxAge
+    Else
+      If (catMaxAge - catMinAge < fndCatMaxAge - fndCatMinAge) Then
+        fndCatIdx = i
+        fndCatMinAge = catMinAge
+        fndCatMaxAge = catMaxAge
+      End If
+    End If
+  End If
+Next i
+
+If (blFound) Then
+  ctxGetSatisfiedCatIdxFromList = fndCatIdx
+End If
+
+Exit Function
+fout:
+MsgBox Err & " ctxGetSatisfiedCatIdxFromList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function ctxCheckCat(ByVal sStart As String, ByVal dGebDate As Date, ByVal sGes As String, ByRef catCompiledInfo As CAT_COMPILED_INFO, ByRef iCatStatus As Integer) As Boolean
+On Error GoTo fout
+ctxCheckCat = False
+
+iCatStatus = CAT_OK
+
+'First check geslacht.
+If Not (sGes Like catCompiledInfo.sGes) Then
+  iCatStatus = CAT_GES_ERROR
+End If
+
+'Now check age
+If (iCatStatus = CAT_OK) Then
+  If Not (catCompiledInfo.blIsEstafSumAges) Then
+    
+    Dim lYOB As Long
+    lYOB = stnrExtractYOB(sStart, catCompiledInfo.dAuxAgeDate, dGebDate)
+    
+    If (lYOB > catCompiledInfo.lYngYOB) Then
+      If (lYOB > catCompiledInfo.lYngYOBPriorLftRes) Then
+        iCatStatus = CAT_NOT_IN_RANGE
+      Else
+        iCatStatus = CAT_AGE_RESTRICTION_ERROR
+      End If
+    ElseIf (lYOB = catCompiledInfo.lYngYOB) And (catCompiledInfo.blCheckYngDOB) Then
+      
+      If Not lenDateIsValid(dGebDate) Then
+        dGebDate = DateSerial(lYOB, 1, 1)
+      End If
+    
+      If (dGebDate > catCompiledInfo.dYngDOB) Then
+        iCatStatus = CAT_NOT_IN_RANGE
+      End If
+      
+    End If 'young age check
+    
+    If (lYOB < catCompiledInfo.lOldYOB) Then
+      iCatStatus = CAT_NOT_IN_RANGE
+    ElseIf (lYOB = catCompiledInfo.lOldYOB) And (catCompiledInfo.blCheckOldDOB) Then
+      
+      
+      If Not lenDateIsValid(dGebDate) Then
+        dGebDate = DateSerial(lYOB, 1, 1)
+      End If
+    
+      If (dGebDate < catCompiledInfo.dOldDOB) Then
+        iCatStatus = CAT_NOT_IN_RANGE
+      End If
+      
+    End If 'old age check
+  
+  End If 'if not blEstafSumAges
+End If 'if catStatus = CAT_OK
+
+
+
+ctxCheckCat = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxCheckCat"
+End Function
+
+
+
+Public Function ctxCheckEstCat(ByVal estMinYOB As Long, ByVal estMaxYOB As Long, ByVal estSumYOB As Long, ByVal estCntYOB As Integer, ByVal estGes As String, ByRef catCompiledInfo As CAT_COMPILED_INFO, ByRef iCatStatus As Integer) As Boolean
+On Error GoTo fout
+
+ctxCheckEstCat = False
+
+
+iCatStatus = CAT_OK
+
+'First check geslacht.
+If Not (estGes Like catCompiledInfo.sGes) Then
+  iCatStatus = CAT_GES_ERROR
+End If
+
+'Now check age
+If (iCatStatus = CAT_OK) Then
+  If Not (catCompiledInfo.blIsEstafSumAges) Then
+    
+    If (estMaxYOB > catCompiledInfo.lYngYOBEst) Then
+      If (estMaxYOB > catCompiledInfo.lYngYOBEstPriorLftRes) Then
+        iCatStatus = CAT_NOT_IN_RANGE
+      Else
+        iCatStatus = CAT_AGE_RESTRICTION_ERROR
+      End If
+    End If 'young age check
+    
+    If (estMinYOB < catCompiledInfo.lOldYOBEst) Then
+      iCatStatus = CAT_NOT_IN_RANGE
+    End If 'old age check
+  
+  
+  Else
+    'Need to check the sum of ages
+    Dim estSumAge As Long
+    estSumAge = estCntYOB * catCompiledInfo.lEstSumRefYear - estSumYOB
+    
+    If (estSumAge < catCompiledInfo.lEstSumMinAge) Or (estSumAge > catCompiledInfo.lEstSumMaxAge) Then
+      iCatStatus = CAT_NOT_IN_RANGE
+    End If
+    
+  End If 'if not blEstafSumAges
+End If 'if catStatus = CAT_OK
+
+
+
+
+ctxCheckEstCat = True
+Exit Function
+fout:
+MsgBox Err & " ctxCheckEstCat" & Error$, 16
+Exit Function
+End Function
+
+
+Private Function ctxBuildCat_attemptNLConversion(ByVal blApplyLftRes As Boolean, ByVal ageDate As Date, ByVal ageYear As Long, ageDay As Long, ageMonth As Long, ByVal sLftBep As String, ByRef catParsedInfo As CAT_PARSED_INFO, ByRef blIsConvertedToNL As Boolean, ByRef sCatConstructed As String) As Boolean
+On Error GoTo fout
+
+ctxBuildCat_attemptNLConversion = False
+  
+Dim blUseDutchCats As Boolean
+blUseDutchCats = True
+
+If (blUseDutchCats) Then
+  If (sLftBep <> LFT_MODE_SZYR) Or (catParsedInfo.blIsEstSumAges) Then
+    blUseDutchCats = False
+  End If
+End If
+
+
+Dim blYngValid  As Boolean, blOldValid As Boolean
+Dim tpYngAge As Integer, tpOldAge As Integer
+
+If (blUseDutchCats) Then
+
+  'gather ages to use
+  
+  tpYngAge = 0
+  tpOldAge = CAT_MAX_AGE
+  
+  
+  If (catParsedInfo.blIsYOBBased) Then
+    If (catParsedInfo.lYngYOB <= 0) Or (catParsedInfo.lYngYOB >= 9999) Then
+      tpYngAge = 0
+    Else
+      tpYngAge = ctxConvertYOBToAge(catParsedInfo.lYngYOB, ageYear, ageMonth, sLftBep)
+    End If
+    If (catParsedInfo.lOldYOB <= 0) Or (catParsedInfo.lOldYOB >= 9999) Then
+      tpOldAge = CAT_MAX_AGE
+    Else
+      tpOldAge = ctxConvertYOBToAge(catParsedInfo.lOldYOB, ageYear, ageMonth, sLftBep)
+    End If
+  ElseIf (catParsedInfo.blIsAgeBased) Then
+    tpYngAge = catParsedInfo.iYngAge
+    tpOldAge = catParsedInfo.iOldAge
+    If (tpYngAge <= 0) Or (tpYngAge >= CAT_MAX_AGE) Then
+      tpYngAge = 0
+    End If
+    If (tpOldAge <= 0) Or (tpOldAge >= CAT_MAX_AGE) Then
+      tpOldAge = CAT_MAX_AGE
+    End If
+  End If
+  
+  blYngValid = tpYngAge > 0
+  blOldValid = tpOldAge < CAT_MAX_AGE
+  
+  
+  If (blYngValid And blOldValid) Then
+    If (tpYngAge > tpOldAge) Then
+      Dim iSwap As Integer
+      iSwap = tpOldAge
+      tpOldAge = tpYngAge
+      tpYngAge = iSwap
+    End If
+  End If
+  
+End If
+
+
+If (blUseDutchCats) Then
+  If (blOldValid And tpOldAge >= 22) Then
+    blUseDutchCats = False
+  ElseIf (blYngValid And tpYngAge >= 22) Then
+    blUseDutchCats = False
+  End If
+End If
+  
+  
+Dim bareYngNLCat As String, bareYngCatExactMatch As Boolean
+Dim bareOldNLCat As String, bareOldCatExactMatch As Boolean
+bareYngNLCat = ""
+bareOldNLCat = ""
+  
+If (blUseDutchCats) Then
+  If (blYngValid) Then
+    bareYngNLCat = ctxGetNLCatForAge(tpYngAge, catParsedInfo.sGes, ageDate, bareYngCatExactMatch)
+  End If
+  If (blOldValid) Then
+    bareOldNLCat = ctxGetNLCatForAge(tpOldAge, catParsedInfo.sGes, ageDate, bareOldCatExactMatch)
+  End If
+  
+  If (blOldValid And bareOldNLCat = "SENO") Then
+    blUseDutchCats = False
+  ElseIf (blOldValid And (Not bareOldCatExactMatch)) Then
+    blUseDutchCats = False
+  ElseIf (blYngValid And (Not bareYngCatExactMatch)) Then
+    blUseDutchCats = False
+  End If
+  
+End If 'if blUseDutchCats
+  
+If (blUseDutchCats) Then
+
+  blIsConvertedToNL = True
+
+  
+  Dim tpPrsCatInf As CAT_PARSED_INFO
+  
+  tpPrsCatInf = catParsedInfo
+  
+  tpPrsCatInf.blIsYOBBased = False
+  tpPrsCatInf.blIsAgeBased = False
+  tpPrsCatInf.blIsNLBased = True
+  
+  tpPrsCatInf.sYngNLCode = ""
+  tpPrsCatInf.sOldNLCode = ""
+  If (blYngValid) Then
+    tpPrsCatInf.sYngNLCode = bareYngNLCat
+  End If
+  If (blOldValid) Then
+    tpPrsCatInf.sOldNLCode = bareOldNLCat
+  End If
+  
+  If Not ctxBuildCat(False, blApplyLftRes, ageDate, sLftBep, tpPrsCatInf, sCatConstructed) Then
+    Exit Function
+  End If
+  
+  
+End If
+
+
+
+
+ctxBuildCat_attemptNLConversion = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxBuildCat_attemptNLConversion" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+'Build a category from the information in catParsedInfo
+Public Function ctxBuildCat(ByVal blTryConvertToNL As Boolean, ByVal blApplyLftRes As Boolean, ByVal dAgeDate As Date, ByVal sLftBep As String, ByRef catParsedInfo As CAT_PARSED_INFO, ByRef sCatConstructed As String) As Boolean
+On Error GoTo fout
+ctxBuildCat = False
+
+sCatConstructed = ""
+
+
+If (sLftBep = "") Then
+  sLftBep = LFT_MODE_SZYR
+End If
+
+Dim tpDate As Date
+tpDate = Nz(dAgeDate, #1/1/1900#)
+If (IsNull(tpDate) Or isEmpty(tpDate) Or Format(tpDate, "yyyy") <= 1900) Then
+  tpDate = Now()
+End If
+
+Dim ageYear As Long
+Dim ageMonth As Long
+Dim ageDay As Long
+
+Dim actAgeDate As Date
+actAgeDate = tpDate
+
+ageYear = val(Format(tpDate, "yyyy"))
+ageMonth = val(Format(tpDate, "mm"))
+ageDay = val(Format(tpDate, "dd"))
+
+
+Dim blYngValid As Boolean, blOldValid As Boolean
+Dim lSwap As Long, iSwap As Integer, sSwap As String
+
+Dim blDummy As Boolean
+Dim tpCatCmpInf As CAT_COMPILED_INFO
+
+Dim sPrfx As String, sPrfxOld As String
+If (catParsedInfo.sGes = "M") Then
+  sPrfx = "J"
+  sPrfxOld = "HEREN"
+ElseIf (catParsedInfo.sGes = "V") Then
+  sPrfx = "M"
+  sPrfxOld = "DAMES"
+Else
+  sPrfx = "MJ"
+  sPrfxOld = "MIX"
+End If
+
+If (catParsedInfo.blIsMCat) Then
+  sCatConstructed = sPrfx & "VAR"
+ElseIf (catParsedInfo.blHasAgeRestriction) And (catParsedInfo.blIsYOBBased) Then
+  Dim blIsConverted As Boolean
+  blIsConverted = False
+  
+  If (blTryConvertToNL) Then
+    If Not ctxBuildCat_attemptNLConversion(blApplyLftRes, actAgeDate, ageYear, ageDay, ageMonth, sLftBep, catParsedInfo, blIsConverted, sCatConstructed) Then
+      Exit Function
+    End If
+  End If
+  
+  If (Not blIsConverted) Then
+  
+    
+    Dim tpYngYOB As Long, tpOldYOB As Long
+    tpYngYOB = catParsedInfo.lYngYOB
+    tpOldYOB = catParsedInfo.lOldYOB
+    
+    If (tpYngYOB <= 0) Or (tpYngYOB >= 9999) Then
+      tpYngYOB = 9999
+    End If
+    
+    If (tpOldYOB <= 0) Or (tpOldYOB >= 9999) Then
+      tpOldYOB = 0
+    End If
+    
+    
+    blYngValid = tpYngYOB < 9999
+    blOldValid = tpOldYOB > 0
+    
+    If (blYngValid And blOldValid) Then
+      If (tpOldYOB > tpYngYOB) Then
+        lSwap = tpOldYOB
+        tpOldYOB = tpYngYOB
+        tpYngYOB = lSwap
+      End If
+    End If
+    
+    
+    Dim blNeedLftCorr As Boolean
+    blNeedLftCorr = False
+    
+    If (blYngValid And blOldValid) Then
+      If (tpYngYOB = tpOldYOB) Then
+        sCatConstructed = sPrfx & Format((tpYngYOB Mod 100), "00")
+      Else
+        sCatConstructed = sPrfx & Format((tpOldYOB Mod 100), "00") & "/" & Format((tpYngYOB Mod 100), "00")
+      End If
+      blNeedLftCorr = True
+    ElseIf (blYngValid) Then
+      sCatConstructed = sPrfx & Format((tpYngYOB Mod 100), "00") & "EE"
+      blNeedLftCorr = True
+    ElseIf (blOldValid) Then
+      sCatConstructed = sPrfx & Format((tpOldYOB Mod 100), "00") & "EL"
+    Else
+      'There is no age restriction
+      sCatConstructed = sPrfxOld
+    End If
+    
+    If (blApplyLftRes) And (blNeedLftCorr) Then
+      If Not ctxCompileCat(sCatConstructed, actAgeDate, sLftBep, True, blDummy, tpCatCmpInf) Then
+        Exit Function
+      End If
+      
+      If (tpCatCmpInf.iAuxLftResYngAgeForOldAge >= tpCatCmpInf.iAuxYngAge) Then
+        'can ignore the yng Age
+        If (blOldValid) Then
+          sCatConstructed = sPrfx & Format((tpOldYOB Mod 100), "00") & "EL"
+        Else
+          sCatConstructed = sPrfxOld
+        End If
+      End If
+    End If
+    
+  End If 'if not blIsConverted
+  
+ElseIf (catParsedInfo.blHasAgeRestriction) And (catParsedInfo.blIsNLBased) Then
+  
+  blYngValid = catParsedInfo.sYngNLCode <> ""
+  blOldValid = catParsedInfo.sOldNLCode <> ""
+  
+  
+  Dim tpYngNLCode As String, tpOldNLCode As String
+  tpYngNLCode = catParsedInfo.sYngNLCode
+  tpOldNLCode = catParsedInfo.sOldNLCode
+  
+    
+  
+  If (blYngValid And blOldValid) Then
+    If (ctxNLCatToOrder(tpYngNLCode) > ctxNLCatToOrder(tpOldNLCode)) Then
+      sSwap = tpOldNLCode
+      tpOldNLCode = tpYngNLCode
+      tpYngNLCode = sSwap
+    End If
+  End If
+  
+  
+  blNeedLftCorr = False
+  
+  If (blYngValid And blOldValid) Then
+    If (tpYngNLCode = tpOldNLCode) Then
+      sCatConstructed = sPrfx & tpYngNLCode
+      blNeedLftCorr = False
+    ElseIf (tpOldNLCode = "SENO") Then
+      sCatConstructed = sPrfx & tpYngNLCode & "EE"
+      blNeedLftCorr = True
+    ElseIf (Left(tpYngNLCode, 3) = Left(tpOldNLCode, 3)) Then
+      sCatConstructed = sPrfx & Left(tpYngNLCode, 3) & Right(tpYngNLCode, 1) & "/" & Right(tpOldNLCode, 1)
+      blNeedLftCorr = True
+    Else
+      sCatConstructed = sPrfx & tpYngNLCode & "/" & tpOldNLCode
+      blNeedLftCorr = True
+    End If
+    
+  ElseIf (blYngValid) Then
+    If (tpYngNLCode = "SENO") Then
+      sCatConstructed = sPrfx & "SENO"
+    Else
+      sCatConstructed = sPrfx & tpYngNLCode & "EE"
+      blNeedLftCorr = True
+    End If
+  ElseIf (blOldValid) Then
+    sCatConstructed = sPrfx & tpOldNLCode & "EL"
+  Else
+    'There is no age restriction
+    sCatConstructed = sPrfx & "SENOEL"
+  End If
+  
+  If (blApplyLftRes) And (blNeedLftCorr) Then
+    If Not ctxCompileCat(sCatConstructed, actAgeDate, sLftBep, True, blDummy, tpCatCmpInf) Then
+      Exit Function
+    End If
+    
+    If (tpCatCmpInf.iAuxLftResYngAgeForOldAge >= tpCatCmpInf.iAuxYngAge) Then
+      'can ignore the yng Age
+      If (blOldValid) Then
+        sCatConstructed = sPrfx & tpOldNLCode & "EL"
+      Else
+        sCatConstructed = sPrfx & "SENOEL"
+      End If
+    End If
+  End If
+  
+ElseIf (catParsedInfo.blHasAgeRestriction) And (catParsedInfo.blIsAgeBased) Then
+  
+  blIsConverted = False
+  
+  If (blTryConvertToNL) Then
+    If Not ctxBuildCat_attemptNLConversion(blApplyLftRes, actAgeDate, ageYear, ageDay, ageMonth, sLftBep, catParsedInfo, blIsConverted, sCatConstructed) Then
+      Exit Function
+    End If
+  End If
+  
+  
+  If Not blIsConverted Then
+  
+  
+    
+    
+    
+    Dim tpYngAge As Integer, tpOldAge As Integer
+    tpYngAge = catParsedInfo.iYngAge
+    tpOldAge = catParsedInfo.iOldAge
+    
+    If (tpYngAge <= 0) Or (tpYngAge >= CAT_MAX_AGE) Then
+      tpYngAge = 0
+    End If
+    
+    If (tpOldAge <= 0) Or (tpOldAge >= CAT_MAX_AGE) Then
+      tpOldAge = CAT_MAX_AGE
+    End If
+    
+    blYngValid = tpYngAge > 0
+    blOldValid = tpOldAge < CAT_MAX_AGE
+    
+    
+    If (blYngValid And blOldValid) Then
+      If (tpYngAge > tpOldAge) Then
+        iSwap = tpOldAge
+        tpOldAge = tpYngAge
+        tpYngAge = iSwap
+      End If
+    End If
+    
+    
+    
+    blNeedLftCorr = False
+  
+    'Use "JR" notation
+    If (blYngValid And blOldValid) Then
+      If (tpYngAge = tpOldAge) Then
+        sCatConstructed = sPrfx & tpYngAge & "JR"
+      Else
+        sCatConstructed = sPrfx & tpYngAge & "-" & tpOldAge & "JR"
+      End If
+      blNeedLftCorr = True
+    ElseIf (blYngValid) Then
+      sCatConstructed = sPrfx & tpYngAge & "EO"
+      blNeedLftCorr = True
+    ElseIf (blOldValid) Then
+      sCatConstructed = sPrfx & tpOldAge & "EJ"
+    Else
+      sCatConstructed = sPrfxOld
+    End If
+        
+    If ((blYngValid Or blOldValid) And catParsedInfo.blIsEstSumAges) Then
+      sCatConstructed = sCatConstructed & "T"
+      blNeedLftCorr = False
+    End If
+    
+    
+    If (blApplyLftRes) And (blNeedLftCorr) Then
+      If Not ctxCompileCat(sCatConstructed, actAgeDate, sLftBep, True, blDummy, tpCatCmpInf) Then
+        Exit Function
+      End If
+    
+      If (tpCatCmpInf.iAuxLftResYngAgeForOldAge >= tpCatCmpInf.iAuxYngAge) Then
+        'can ignore the yng Age
+        If (blOldValid) Then
+          sCatConstructed = sPrfx & tpOldAge & "EJ"
+        Else
+          sCatConstructed = sPrfxOld
+        End If
+      End If
+    End If
+
+  End If 'if not blIsConverted
+Else
+  sCatConstructed = sPrfxOld
+End If
+
+
+ctxBuildCat = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxBuildCat" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function ctxGetAgeRange_bare(ByVal sCat As String, ByVal dCatAgeDate As Date, ByVal sCatLftBep As String, ByVal blCatApplyNLLftRules As Boolean, ByVal dCalcAgeDate As Date, ByVal sLftModeCalcAge As String, ByRef catMinAge As Integer, ByRef catMaxAge As Integer) As Boolean
+On Error GoTo fout
+ctxGetAgeRange_bare = False
+
+Dim tpCmpCat As CAT_COMPILED_INFO
+
+Dim blDummy As Boolean
+
+If Not ctxCompileCat(sCat, dCatAgeDate, sCatLftBep, blCatApplyNLLftRules, blDummy, tpCmpCat) Then
+  Exit Function
+End If
+
+If Not ctxGetAgeRange(dCalcAgeDate, sLftModeCalcAge, tpCmpCat, catMinAge, catMaxAge) Then
+  Exit Function
+End If
+
+ctxGetAgeRange_bare = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxGetAgeRange_bare" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function ctxGetAgeRange(ByVal dCalcAgeDate As Date, ByVal sLftModeCalcAge As String, ByRef catCompiledInfo As CAT_COMPILED_INFO, ByRef catMinAge As Integer, ByRef catMaxAge As Integer) As Boolean
+On Error GoTo fout
+ctxGetAgeRange = False
+
+If (sLftModeCalcAge = "") Then
+  sLftModeCalcAge = LFT_MODE_SZYR
+End If
+
+
+Dim tpDate As Date
+tpDate = Nz(dCalcAgeDate, #1/1/1900#)
+If (IsNull(tpDate) Or isEmpty(tpDate) Or Format(tpDate, "yyyy") <= 1900) Then
+  tpDate = Now()
+End If
+
+Dim ageYear As Long
+Dim ageMonth As Long
+Dim ageDay As Long
+
+ageYear = val(Format(tpDate, "yyyy"))
+ageMonth = val(Format(tpDate, "mm"))
+ageDay = val(Format(tpDate, "dd"))
+
+
+If (catCompiledInfo.blIsEstafSumAges) Then
+  catMinAge = catCompiledInfo.lEstSumMinAge
+  catMaxAge = catCompiledInfo.lEstSumMaxAge
+Else
+  
+  
+  If (sLftModeCalcAge = LFT_MODE_WEDDAT) Then
+    'Need to do a more involved computation.
+    If (catCompiledInfo.lOldYOB > 0) Then
+    
+      If (ageMonth = 12) And (ageDay = 31) Then
+        catMaxAge = ageYear - catCompiledInfo.lOldYOB
+      Else
+        catMaxAge = ageYear - catCompiledInfo.lOldYOB
+        If (catCompiledInfo.blCheckOldDOB) Then
+          Dim dobMonth As Long
+          Dim dobDay As Long
+          dobMonth = val(Format(catCompiledInfo.dOldDOB, "mm"))
+          dobDay = val(Format(catCompiledInfo.dOldDOB, "dd"))
+        
+          If (ageMonth < dobMonth) Or (ageMonth = dobMonth) And (ageDay < dobDay) Then
+            catMaxAge = catMaxAge - 1
+          End If
+        End If
+      End If
+      
+    Else
+      catMaxAge = CAT_MAX_AGE
+    End If
+    
+    If (catCompiledInfo.lYngYOB < 9999) Then
+      If (ageMonth = 12) And (ageDay = 31) Then
+        catMinAge = ageYear - catCompiledInfo.lYngYOB
+      Else
+        catMinAge = ageYear - catCompiledInfo.lYngYOB - 1
+        If (catCompiledInfo.blCheckYngDOB) Then
+          dobMonth = val(Format(catCompiledInfo.dYngDOB, "mm"))
+          dobDay = val(Format(catCompiledInfo.dYngDOB, "dd"))
+          
+          If (ageMonth > dobMonth) Or (ageMonth = dobMonth) And (ageDay >= dobDay) Then
+            catMinAge = catMinAge + 1
+          End If
+          
+        End If
+      End If
+    Else
+      catMinAge = 0
+    End If
+    
+  Else
+    catMinAge = ctxConvertYOBToAge(catCompiledInfo.lYngYOB, ageYear, ageMonth, sLftModeCalcAge)
+    catMaxAge = ctxConvertYOBToAge(catCompiledInfo.lOldYOB, ageYear, ageMonth, sLftModeCalcAge)
+  End If
+  
+End If
+
+
+
+ctxGetAgeRange = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxGetAgeRange" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function ctxGetAge(ByVal yob As Long, ByVal dGebDate As Date, ByVal lftMode As String, ByVal dAgeDate As Date) As Long
+On Error Resume Next
+
+If (lftMode = "") Then
+  lftMode = LFT_MODE_SZYR
+End If
+
+
+ctxGetAge = CAT_MAX_AGE
+
+
+Dim tpDate As Date
+tpDate = Nz(dAgeDate, #1/1/1900#)
+If (IsNull(tpDate) Or isEmpty(tpDate) Or Format(tpDate, "yyyy") <= 1900) Then
+  tpDate = Now()
+End If
+
+Dim ageYear As Long
+Dim ageMonth As Long
+Dim ageDay As Long
+
+ageYear = val(Format(tpDate, "yyyy"))
+ageMonth = val(Format(tpDate, "mm"))
+ageDay = val(Format(tpDate, "dd"))
+
+
+
+
+
+Select Case lftMode
+  Case LFT_MODE_SZYR
+    If (ageMonth >= 8) Then
+      ctxGetAge = ageYear - yob
+    Else
+      ctxGetAge = ageYear - 1 - yob
+    End If
+  Case LFT_MODE_WEDYR_START
+    ctxGetAge = ageYear - 1 - yob
+  Case LFT_MODE_WEDYR_END
+    ctxGetAge = ageYear - yob
+  Case LFT_MODE_WEDDAT
+    If (ageMonth = 12) And (ageDay = 31) Then
+      ctxGetAge = ageYear - yob
+    Else
+      Dim dobMonth As Long
+      Dim dobDay As Long
+      dobMonth = 1
+      dobDay = 1
+      If lenDateIsValid(dGebDate) Then
+        If val(Format(dGebDate, "yyyy")) = yob Then
+          dobMonth = val(Format(dGebDate, "mm"))
+          dobDay = val(Format(dGebDate, "dd"))
+        End If
+      End If
+      
+      If (dobMonth < ageMonth) Or (dobMonth = ageMonth And dobDay <= ageDay) Then
+        ctxGetAge = ageYear - yob
+      Else
+        ctxGetAge = ageYear - 1 - yob
+      End If
+    End If
+End Select
+
+End Function
+
+Public Function ctxPromptUser(ByVal sCat As String, ByVal blAllowMCat As Boolean, ByVal blApplyNLLftRules As Boolean, ByVal dAgeDate As Date, ByVal sLftMode As String, ByRef isOK As Boolean, ByRef lkpCat As String) As Boolean
+On Error GoTo fout
+
+ctxPromptUser = False
+
+Dim sql As String
+sql = "delete * from gCAT_BUILD_OPTIONS;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gCAT_BUILD_OPTIONS")
+
+rs.AddNew
+  rs("CB_ARG_AllowMCat") = blAllowMCat
+  rs("CB_ARG_CurCat") = hzn(sCat)
+  rs("CB_ARG_WedAgeDate") = dAgeDate
+  rs("CB_ARG_WedLftMOde") = hzn(sLftMode)
+  rs("CB_ARG_ApplyNLLftRules") = blApplyNLLftRules
+  rs("CB_IS_OK") = False
+rs.Update
+
+appCleanRS rs
+
+
+DoCmd.OpenForm "gWIZ_CAT_BUILD_MASTER", , , , , acDialog
+
+
+isOK = Nz(DLookup("CB_Is_OK", "gCAT_BUILD_Options"), False)
+If (isOK) Then
+  lkpCat = Nz(DLookup("CB_SMY_Categorie", "gCAT_BUILD_Options"))
+End If
+
+
+
+ctxPromptUser = True
+Exit Function
+
+fout:
+MsgBox Err & " ctxPromptUser" & vbCrLf & Error$, 16
+Exit Function
+End Function

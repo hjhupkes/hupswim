@@ -1,0 +1,927 @@
+Option Compare Database
+Option Explicit
+
+
+Public Type BUILD_OPTIONS
+  blPrepareCleanVersion As Boolean
+  blPrepareBuildOff97Version As Boolean
+  blBuildOff97 As Boolean
+  blBuildOff2000 As Boolean
+  blBuildOff2003 As Boolean
+  blPrepareSetupOff97 As Boolean
+  blPrepareSetupOff2000 As Boolean
+  blPrepareSetupOff2003 As Boolean
+End Type
+
+
+Public Type ENV_SETTINGS
+  sLocAcc97 As String
+  sLocAcc2000 As String
+  sLocAcc2003 As String
+  sLocInno As String
+  sLocSignTool As String
+End Type
+
+
+
+
+
+Private Declare Function OpenProcess Lib "kernel32" _
+(ByVal dwDesiredAccess As Long, ByVal bInheritHandle As Long, _
+ByVal dwProcessId As Long) As Long
+
+Private Declare Function GetExitCodeProcess Lib "kernel32" _
+(ByVal hProcess As Long, lpExitCode As Long) As Long
+
+Private Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+
+
+Private Const STATUS_PENDING = &H103&
+Private Const PROCESS_QUERY_INFORMATION = &H400
+
+
+Private Function getEnvironment(ByRef envSettings As ENV_SETTINGS) As Boolean
+On Error GoTo fout
+getEnvironment = False
+
+
+Dim sTp As String
+If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "software\microsoft\office\8.0\common\installroot", "OfficeBin", sTp) Then
+  Exit Function
+End If
+envSettings.sLocAcc97 = """" & sTp & "\msaccess.exe"""
+
+'off2000 no longer supported
+'If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "software\microsoft\office\9.0\access\installroot", "Path", sTp) Then
+'  Exit Function
+'End If
+'envSettings.sLocAcc2000 = """" & sTp & "msaccess.exe"""
+
+
+If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "software\microsoft\office\11.0\access\installroot", "Path", sTp) Then
+  Exit Function
+End If
+envSettings.sLocAcc2003 = """" & sTp & "msaccess.exe"""
+
+
+If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "software\microsoft\windows\currentversion\uninstall\inno setup 5_is1", "InstallLocation", sTp) Then
+  Exit Function
+End If
+envSettings.sLocInno = """" & sTp & "compil32.exe"""
+
+
+
+
+If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "software\microsoft\.netframework", "sdkInstallRootv2.0", sTp) Then
+  Exit Function
+End If
+envSettings.sLocSignTool = """" & sTp & "bin\signtool.exe"""
+
+
+
+
+
+getEnvironment = True
+Exit Function
+fout:
+MsgBox Err & " getEnviroment" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+Private Sub disposeFile(ByVal fName As String)
+On Error Resume Next
+If FileExists(fName) Then
+  FileSystem.Kill fName
+End If
+End Sub
+
+
+
+Public Function getCurrentHupswimVersion() As String
+On Error Resume Next
+Dim sName As String
+sName = CurrentDb.name()
+Dim sFilePath As String
+sFilePath = extractFilePath(sName)
+Dim iLoc As Integer
+iLoc = InStr(sFilePath, "versie")
+If (iLoc <= 0) Then
+  getCurrentHupswimVersion = "ERROR"
+  Exit Function
+End If
+Dim tpS As String
+tpS = Right(sFilePath, Len(sFilePath) - iLoc + 1)
+tpS = Right(tpS, Len(tpS) - Len("versie"))
+getCurrentHupswimVersion = tpS
+
+End Function
+
+
+
+
+
+Private Function writeVersionInfo(ByVal sVerCode As String, ByVal sFName As String) As Boolean
+On Error GoTo fout
+writeVersionInfo = False
+
+
+Dim blFOpen As Boolean, fNr As Long
+blFOpen = False
+
+
+fNr = FreeFile
+
+disposeFile sFName
+
+Open sFName For Output As #fNr
+
+blFOpen = True
+
+Print #fNr, "Option Compare Database"
+Print #fNr, "Option Explicit"
+
+Print #fNr,
+
+Print #fNr, "'This module is __volatile__"
+Print #fNr, "'It is overwritten without notice by packager"
+
+Print #fNr,
+
+Print #fNr, "Public Const APP_VERSION_CODE = """ & sVerCode & """"
+
+Close #fNr
+
+blFOpen = False
+
+
+writeVersionInfo = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " writeVersionInfo" & vbCrLf & Error$
+
+If (blFOpen) Then
+  Close #fNr
+End If
+
+MsgBox msg, vbCritical
+
+Exit Function
+
+End Function
+
+
+Public Function writeRSSFeed(ByVal sVerCode As String, ByVal sFName As String) As Boolean
+On Error GoTo fout
+writeRSSFeed = False
+
+
+Dim blFOpen As Boolean, fNr As Long
+blFOpen = False
+
+
+fNr = FreeFile
+
+disposeFile sFName
+
+Open sFName For Output As #fNr
+
+blFOpen = True
+
+Print #fNr, "<?xml version=""1.0""?>"
+Print #fNr, "<rss version=""2.0"">"
+Print #fNr, "  <channel>"
+
+Print #fNr,
+
+Print #fNr, "    <title>Hupsoft</title>"
+Print #fNr, "    <description>Informatie over Hupswim</description>"
+Print #fNr, "    <link>http://home.wxs.nl/~wimhupke/hupsoft</link>"
+
+Print #fNr,
+
+Print #fNr, "    <item>"
+Print #fNr, "      <guid isPermaLink=""false"">http://home.wxs.nl/~wimhupke/hupsoft/versie" & sVerCode & "</guid>"
+Print #fNr, "      <title>Hupswim versie " & sVerCode & "</title>"
+Print #fNr, "      <description>Hupwim versie " & sVerCode & " is uit! [" & Format(Now(), "dd\-mm\-yyyy") & "]</description>"
+Print #fNr, "      <link>http://home.wxs.nl/~wimhupke/hupsoft</link>"
+Print #fNr, "    </item>"
+
+Print #fNr,
+
+Print #fNr, "  </channel>"
+Print #fNr, "</rss>"
+
+Close #fNr
+
+blFOpen = False
+
+
+writeRSSFeed = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " writeRSSFeed" & vbCrLf & Error$
+
+If (blFOpen) Then
+  Close #fNr
+End If
+
+MsgBox msg, vbCritical
+
+Exit Function
+
+End Function
+
+
+
+
+
+Public Function prepareDistribution(ByRef bldOpts As BUILD_OPTIONS) As Boolean
+On Error GoTo fout
+
+prepareDistribution = False
+
+
+
+
+Dim sHupswimVersion As String
+sHupswimVersion = getCurrentHupswimVersion()
+
+If (sHupswimVersion = "ERROR") Then
+  Err.Raise 1, , "Hupswim versie niet gedetecteerd"
+End If
+
+Dim envSettings As ENV_SETTINGS
+
+If Not getEnvironment(envSettings) Then
+  Exit Function
+End If
+
+
+
+
+
+If MsgBox("Current version: " & sHupswimVersion & vbCrLf & "Please set macro security to LOW", vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Function
+End If
+
+
+Dim sCurDir As String
+sCurDir = extractFilePath(CurrentDb.name)
+
+
+
+If Not writeVersionInfo(sHupswimVersion, sCurDir & "\src\hupswim\Modules\Module_gVerInfo.txt") Then
+  Exit Function
+End If
+
+If Not writeVersionInfo(sHupswimVersion, sCurDir & "\src\hupprog\Modules\Module_gVerInfo.txt") Then
+  Exit Function
+End If
+
+
+
+If Not DirectoryExists(sCurDir & "\release") Then
+  FileSystem.MkDir sCurDir & "\release"
+End If
+
+If Not DirectoryExists(sCurDir & "\release") Then
+  Err.Raise 1, , "Could not create dir: " & sCurDir & "\release"
+End If
+
+
+
+Dim sRelDBDir As String
+sRelDBDir = sCurDir & "\rel_db"
+
+If Not DirectoryExists(sRelDBDir) Then
+  FileSystem.MkDir sRelDBDir
+End If
+
+If Not DirectoryExists(sRelDBDir) Then
+  Err.Raise 1, , "Could not create dir: " & sRelDBDir
+End If
+
+
+
+
+If Not DirectoryExists(sRelDBDir & "\off97") Then
+  FileSystem.MkDir sRelDBDir & "\off97"
+End If
+
+If Not DirectoryExists(sRelDBDir & "\off97") Then
+  Err.Raise 1, , "Could not create dir: " & sRelDBDir & "\off97"
+End If
+
+
+
+
+'off2000 no longer supported
+'If Not DirectoryExists(sRelDBDir & "\off2000") Then
+'  FileSystem.MkDir sRelDBDir & "\off2000"
+'End If
+
+'If Not DirectoryExists(sRelDBDir & "\off2000") Then
+'  Err.Raise 1, , "Could not create dir: " & sRelDBDir & "\off2000"
+'End If
+
+
+If Not DirectoryExists(sRelDBDir & "\off2003") Then
+  FileSystem.MkDir sRelDBDir & "\off2003"
+End If
+
+If Not DirectoryExists(sRelDBDir & "\off2003") Then
+  Err.Raise 1, , "Could not create dir: " & sRelDBDir & "\off2003"
+End If
+
+
+If Not DirectoryExists(sRelDBDir & "\prep") Then
+  FileSystem.MkDir sRelDBDir & "\prep"
+End If
+
+If Not DirectoryExists(sRelDBDir & "\prep") Then
+  Err.Raise 1, , "Could not create dir: " & sRelDBDir & "\prep"
+End If
+
+
+
+
+
+
+
+
+If (bldOpts.blPrepareBuildOff97Version) Then
+  disposeFile sRelDBDir & "\off97\hupsw97.mdb"
+  disposeFile sRelDBDir & "\off97\wedstr97.mdb"
+  
+  disposeFile sRelDBDir & "\off97\hupsw97_for_validation.mdb"
+  disposeFile sRelDBDir & "\off97\wedstr97_for_validation.mdb"
+End If
+
+If (bldOpts.blBuildOff97) Then
+  disposeFile sRelDBDir & "\off97\hupsw97.mde"
+  disposeFile sRelDBDir & "\off97\wedstr97.mde"
+End If
+
+
+'off2000 no longer supported
+'If (bldOpts.blBuildOff2000) Then
+'  disposeFile sRelDBDir & "\off2000\hupsw97.mdb"
+'  disposeFile sRelDBDir & "\off2000\hupsw97.mde"
+'  disposeFile sRelDBDir & "\off2000\wedstr97.mdb"
+'  disposeFile sRelDBDir & "\off2000\wedstr97.mde"
+'End If
+
+If (bldOpts.blBuildOff2003) Then
+  disposeFile sRelDBDir & "\off2003\hupsw97.mdb"
+  disposeFile sRelDBDir & "\off2003\hupsw97.mde"
+  disposeFile sRelDBDir & "\off2003\wedstr97.mdb"
+  disposeFile sRelDBDir & "\off2003\wedstr97.mde"
+End If
+
+If (bldOpts.blPrepareCleanVersion) Then
+  disposeFile sRelDBDir & "\prep\hupsw97.mdb"
+  disposeFile sRelDBDir & "\prep\wedstr97.mdb"
+
+  'disposeFile sRelDBDir & "\prep\hupsw97_step_2.mdb"
+  'disposeFile sRelDBDir & "\prepare\wedstr97_step_2.mdb"
+
+  'disposeFile sRelDBDir & "\prepare\hupsw97_step_1.mdb"
+  'disposeFile sRelDBDir & "\prepare\wedstr97_step_1.mdb"
+End If
+
+
+If (bldOpts.blPrepareSetupOff97) Then
+  disposeFile sCurDir & "\release\setup_hupsoft_office_97.exe"
+End If
+
+
+'off2000 no longer supported
+'If (bldOpts.blPrepareSetupOff2000) Then
+'  disposeFile sCurDir & "\release\setup_hupsoft_office_2000.exe"
+'End If
+
+
+If (bldOpts.blPrepareSetupOff2003) Then
+  disposeFile sCurDir & "\release\setup_hupsoft_office_2003_2007.exe"
+  disposeFile sCurDir & "\release\setup_office2003.exe"
+End If
+
+
+
+
+
+
+
+disposeFile sRelDBDir & "\prep\empty_off2003.mdb"
+
+'off2000 no longer supported
+'disposeFile sRelDBDir & "\prep\empty_off2000.mdb"
+
+disposeFile sRelDBDir & "\prep\empty_off97.mdb"
+
+
+
+disposeFile sCurDir & "\release\rss_feed.rss"
+
+
+
+SysCmd acSysCmdSetStatus, "Creating empty databases"
+
+
+'create empty databases
+
+DBEngine.CreateDatabase sRelDBDir & "\prep\empty_off2003.mdb", dbLangGeneral, dbVersion40
+
+'off2000 no longer supported
+'DBEngine.CreateDatabase sRelDBDir & "\prep\empty_off2000.mdb", dbLangGeneral, dbVersion40
+
+DBEngine.CreateDatabase sRelDBDir & "\prep\empty_off97.mdb", dbLangGeneral, dbVersion30
+
+
+'now convert this database to other version
+'Need to have a new access object for this
+
+Dim accApp2003 As Application
+
+
+SysCmd acSysCmdSetStatus, "Building databases in  <rel_db\prep> directory"
+
+
+
+If (bldOpts.blPrepareCleanVersion) Then
+
+  FileCopy sCurDir & "\bin\empty_stub_acc2003.mdb", sRelDBDir & "\prep\hupsw97.mdb"
+  FileCopy sCurDir & "\bin\empty_stub_acc2003.mdb", sRelDBDir & "\prep\wedstr97.mdb"
+  
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\prep\hupsw97.mdb""  /x ""__stbSys_Restore_Tree"" /cmd """ & sCurDir & "\src\hupswim""", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for hupswim to build"
+  End If
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\prep\wedstr97.mdb""  /x ""__stbSys_Restore_Tree"" /cmd """ & sCurDir & "\src\hupprog""", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for hupprog to build"
+  End If
+  
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\prep\hupsw97.mdb""  /compact", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for hupswim to compact"
+  End If
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\prep\wedstr97.mdb""  /compact", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for hupprog to compact"
+  End If
+
+  
+End If 'if bldOpts.blPrepareCleanVersion
+
+
+
+
+
+
+If (bldOpts.blPrepareBuildOff97Version) Then
+
+  SysCmd acSysCmdSetStatus, "Translating to office97 format"
+
+  'Now translate to office97 format
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\prep\hupsw97.mdb"" /x gDistributeConvertTo97", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc2003 to finish"
+  End If
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\prep\wedstr97.mdb"" /x gDistributeConvertTo97", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc2003 to finish"
+  End If
+  
+  FileCopy sRelDBDir & "\off97\hupsw97.mdb", sRelDBDir & "\off97\hupsw97_for_validation.mdb"
+  FileCopy sRelDBDir & "\off97\wedstr97.mdb", sRelDBDir & "\off97\wedstr97_for_validation.mdb"
+  
+  
+  SysCmd acSysCmdSetStatus, "Opening in office 97"
+
+
+  'Now open access97 and prepare to distribute
+  If Not ShellAndWait(envSettings.sLocAcc97 & " """ & sRelDBDir & "\off97\hupsw97.mdb"" /x gDistributePrepare", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc97 to finish"
+  End If
+
+  If Not ShellAndWait(envSettings.sLocAcc97 & " """ & sRelDBDir & "\off97\wedstr97.mdb"" /x gDistributePrepare", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc97 to finish"
+  End If
+
+  
+End If 'if bldOpts.blPrepareBuildOff97Version
+
+
+Dim sPrepDir As String
+sPrepDir = sRelDBDir & "\prep"
+
+
+
+
+If bldOpts.blBuildOff2003 Then
+  'Get an instance of accApp2003 and convert to acc2003 format
+
+
+  SysCmd acSysCmdSetStatus, "Converting to office2003"
+
+  If Not getAccessVersion(accApp2003, 11, envSettings, sPrepDir) Then
+    Exit Function
+  End If
+
+  accApp2003.ConvertAccessProject sRelDBDir & "\off97\hupsw97.mdb", sRelDBDir & "\off2003\hupsw97.mdb", acFileFormatAccess2002
+  accApp2003.ConvertAccessProject sRelDBDir & "\off97\wedstr97.mdb", sRelDBDir & "\off2003\wedstr97.mdb", acFileFormatAccess2002
+
+  If Not cleanAccessVersion(accApp2003) Then
+    Exit Function
+  End If
+
+
+  'Last used was acc2003 -> may safely call acc2003
+  
+  'Now sign the application
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\off2003\hupsw97.mdb"" /x gDistributePromptSign", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc2003 to finish"
+  End If
+  
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\off2003\wedstr97.mdb"" /x gDistributePromptSign", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc2003 to finish"
+  End If
+
+
+  'sequence for office 2003
+
+  SysCmd acSysCmdSetStatus, "Handling office 2003 MDE creating sequence"
+
+  If Not getAccessVersion(accApp2003, 11, envSettings, sPrepDir) Then
+    Exit Function
+  End If
+
+  'Final distribution preparation
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\off2003\hupsw97.mdb"" /x gDistributeFinal", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc2003 to finish"
+  End If
+  
+  If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\off2003\wedstr97.mdb"" /x gDistributeFinal", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc2003 to finish"
+  End If
+
+  'Create MDE file
+  accApp2003.SysCmd 603, sRelDBDir & "\off2003\hupsw97.mdb", sRelDBDir & "\off2003\hupsw97.mde"
+  accApp2003.SysCmd 603, sRelDBDir & "\off2003\wedstr97.mdb", sRelDBDir & "\off2003\wedstr97.mde"
+
+  If Not cleanAccessVersion(accApp2003) Then
+    Exit Function
+  End If
+
+End If 'if bldOpts.blBuildOff2003
+
+
+
+
+
+'off2000 no longer supported
+'If bldOpts.blBuildOff2000 Then
+'  'Sequence for office 2000
+
+'  SysCmd acSysCmdSetStatus, "Handling office 2000 MDE creating sequence"
+
+  
+'  'Now convert to office 2000
+'  Dim accApp2000 As Application
+'  If Not getAccessVersion(accApp2000, 9, envSettings, sPrepDir) Then
+'    Exit Function
+'  End If
+  
+'  'Wait some time (12 seconds)
+'  Sleep 12000
+  
+'  If Not cleanAccessVersion(accApp2000) Then
+'    Exit Function
+'  End If
+  
+  
+  
+'  If Not getAccessVersion(accApp2000, 9, envSettings, sPrepDir) Then
+'    Exit Function
+'  End If
+  
+  
+'  'May now safely call acc2000
+'  If Not ShellAndWait(envSettings.sLocAcc2000 & " """ & sRelDBDir & "\off97\hupsw97.mdb"" /convert """ & sRelDBDir & "\off2000\hupsw97.mdb""", CLng(1000) * CLng(60) * CLng(5)) Then
+'    Err.Raise 1, , "Error waiting for acc2000 to finish"
+'  End If
+  
+'  If Not ShellAndWait(envSettings.sLocAcc2000 & " """ & sRelDBDir & "\off97\wedstr97.mdb"" /convert """ & sRelDBDir & "\off2000\wedstr97.mdb""", CLng(1000) * CLng(60) * CLng(5)) Then
+'    Err.Raise 1, , "Error waiting for acc2000 to finish"
+'  End If
+    
+  
+  
+  
+'  'Final distribution preparation
+'  If Not ShellAndWait(envSettings.sLocAcc2000 & " """ & sRelDBDir & "\off2000\hupsw97.mdb"" /x gDistributeFinal", CLng(1000) * CLng(60) * CLng(5)) Then
+'    Err.Raise 1, , "Error waiting for acc2000 to finish"
+'  End If
+  
+'  If Not ShellAndWait(envSettings.sLocAcc2000 & " """ & sRelDBDir & "\off2000\wedstr97.mdb"" /x gDistributeFinal", CLng(1000) * CLng(60) * CLng(5)) Then
+'    Err.Raise 1, , "Error waiting for acc2000 to finish"
+'  End If
+  
+  
+'  'Create MDE file
+'  accApp2000.SysCmd 603, sRelDBDir & "\off2000\hupsw97.mdb", sRelDBDir & "\off2000\hupsw97.mde"
+  
+'  accApp2000.SysCmd 603, sRelDBDir & "\off2000\wedstr97.mdb", sRelDBDir & "\off2000\wedstr97.mde"
+  
+'  If Not cleanAccessVersion(accApp2000) Then
+'    Exit Function
+'  End If
+
+'End If 'if bldOpts.blBuildOff2000
+
+
+
+
+If bldOpts.blBuildOff97 Then
+  'Sequence for office 97
+
+  SysCmd acSysCmdSetStatus, "Handling office 97 MDE creating sequence"
+
+  Dim accApp97 As Application
+  
+  If Not getAccessVersion(accApp97, 8, envSettings, sPrepDir) Then
+    Exit Function
+  End If
+  
+  'Final distribution preparation
+  If Not ShellAndWait(envSettings.sLocAcc97 & " """ & sRelDBDir & "\off97\hupsw97.mdb"" /x gDistributeFinal", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc97 to finish"
+  End If
+  
+  If Not ShellAndWait(envSettings.sLocAcc97 & " """ & sRelDBDir & "\off97\wedstr97.mdb"" /x gDistributeFinal", CLng(1000) * CLng(60) * CLng(5)) Then
+    Err.Raise 1, , "Error waiting for acc97 to finish"
+  End If
+  
+  
+  'Create MDE file
+  accApp97.SysCmd 603, sRelDBDir & "\off97\hupsw97.mdb", sRelDBDir & "\off97\hupsw97.mde"
+  accApp97.SysCmd 603, sRelDBDir & "\off97\wedstr97.mdb", sRelDBDir & "\off97\wedstr97.mde"
+  
+  If Not cleanAccessVersion(accApp97) Then
+    Exit Function
+  End If
+  
+End If 'if bldOpts.blBuildOff97
+
+
+
+
+
+
+
+
+
+If (bldOpts.blPrepareSetupOff2003) Then
+  SysCmd acSysCmdSetStatus, "Compiling setup for office 2003"
+
+  If Not ShellAndWait(envSettings.sLocInno & " /cc """ & sCurDir & "\src\installatie\off2003\installatieOffice2003.iss""", 0) Then
+    Exit Function
+  End If
+
+  Dim sCmdStringSign As String
+  sCmdStringSign = envSettings.sLocSignTool & " sign /d ""hupsoft versie " & sHupswimVersion & """ /du " & _
+   """http://home.wxs.nl/~wimhupke/hupsoft"" " & _
+  """" & sCurDir & "\release\setup_hupsoft_office_2003_2007.exe"""
+ 
+  If Not ShellAndWait(sCmdStringSign, 0) Then
+    Exit Function
+  End If
+  
+End If
+
+
+
+'off2000 no longer supported
+'If (bldOpts.blPrepareSetupOff2000) Then
+'  SysCmd acSysCmdSetStatus, "Compiling setup for office 2000"
+
+'  If Not ShellAndWait(envSettings.sLocInno & " /cc """ & sCurDir & "\src\installatie\off2000\installatieOffice2000.iss""", 0) Then
+'    Exit Function
+'  End If
+  
+'End If
+
+
+
+If (bldOpts.blPrepareSetupOff97) Then
+  SysCmd acSysCmdSetStatus, "Compiling setup for office 97"
+
+  If Not ShellAndWait(envSettings.sLocInno & " /cc """ & sCurDir & "\src\installatie\off97\installatieOffice97.iss""", 0) Then
+    Exit Function
+  End If
+  
+  sCmdStringSign = envSettings.sLocSignTool & " sign /d ""hupsoft versie " & sHupswimVersion & """ /du " & _
+   """http://home.wxs.nl/~wimhupke/hupsoft"" " & _
+  """" & sCurDir & "\release\setup_hupsoft_office_97.exe"""
+ 
+  If Not ShellAndWait(sCmdStringSign, 0) Then
+    Exit Function
+  End If
+  
+End If
+
+
+
+SysCmd acSysCmdSetStatus, "Copying setup files to final location"
+
+
+
+If (bldOpts.blPrepareSetupOff2003) Then
+  FileCopy sCurDir & "\release\setup_hupsoft_office_2003_2007.exe", sCurDir & "\release\setup_office2003.exe"
+End If
+
+
+If Not writeRSSFeed(sHupswimVersion, sCurDir & "\release\rss_feed.rss") Then
+  Exit Function
+End If
+
+
+
+
+SysCmd acSysCmdClearStatus
+
+
+
+
+MsgBox "Process complete. Please set macro security setting back to MEDIUM!"
+
+
+
+prepareDistribution = True
+Exit Function
+
+
+fout:
+MsgBox Err & " prepareDistribution" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+Private Function ShellAndWait(ExeFullPath As String, _
+Optional TimeOutValue As Long = 0) As Boolean
+    
+    Dim lInst As Long
+    Dim lStart As Long
+    Dim lTimeToQuit As Long
+    Dim sExeName As String
+    Dim lProcessId As Long
+    Dim lExitCode As Long
+    Dim bPastMidnight As Boolean
+    
+    On Error GoTo ErrorHandler
+
+    lStart = CLng(Timer)
+    sExeName = ExeFullPath
+
+    'Deal with timeout being reset at Midnight
+    If TimeOutValue > 0 Then
+        If lStart + TimeOutValue < 86400 Then
+            lTimeToQuit = lStart + TimeOutValue
+        Else
+            lTimeToQuit = (lStart - 86400) + TimeOutValue
+            bPastMidnight = True
+        End If
+    End If
+
+    lInst = Shell(sExeName, vbMinimizedNoFocus)
+    
+lProcessId = OpenProcess(PROCESS_QUERY_INFORMATION, False, lInst)
+
+    Do
+        Call GetExitCodeProcess(lProcessId, lExitCode)
+        DoEvents
+        If TimeOutValue And Timer > lTimeToQuit Then
+            If bPastMidnight Then
+                 If Timer < lStart Then Exit Do
+            Else
+                 Exit Do
+            End If
+    End If
+    Loop While lExitCode = STATUS_PENDING
+    
+    ShellAndWait = True
+   
+   
+Exit Function
+   
+ErrorHandler:
+ShellAndWait = False
+Exit Function
+End Function
+
+Private Function getAccessVersion(ByRef accApp As Application, ByVal versionNr As Long, ByRef envSettings As ENV_SETTINGS, ByVal sPrepDir As String) As Boolean
+On Error GoTo fout
+
+Dim errCnt As Integer
+errCnt = 0
+
+
+getAccessVersion = False
+
+
+Set accApp = Nothing
+
+
+Dim sMDBName As String, sCommand As String
+Select Case versionNr
+  Case 8
+    sMDBName = sPrepDir & "\empty_off97.mdb"
+    sCommand = envSettings.sLocAcc97 & " """ & sMDBName & """"
+  Case 9
+    sMDBName = sPrepDir & "\empty_off2000.mdb"
+    sCommand = envSettings.sLocAcc2000 & " """ & sMDBName & """"
+  Case 11
+    sMDBName = sPrepDir & "\empty_off2003.mdb"
+    sCommand = envSettings.sLocAcc2003 & " """ & sMDBName & """"
+End Select
+
+Shell sCommand
+  
+  
+Sleep 6000
+  
+On Error GoTo errMaySleep
+
+getObject:
+
+Set accApp = getObject(sMDBName).Application
+
+
+accApp.CloseCurrentDatabase
+
+On Error GoTo fout
+
+
+getAccessVersion = True
+
+Exit Function
+
+errMaySleep:
+
+If (errCnt < 5) Then
+  'wait for some time and retry
+  errCnt = errCnt + 1
+  Sleep 1000
+  Resume getObject
+End If
+
+
+MsgBox Err & " getAccessVersion" & vbCrLf & Error$, 16
+Exit Function
+
+fout:
+
+MsgBox Err & " getAccessVersion" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function cleanAccessVersion(ByRef accApp As Application) As Boolean
+On Error GoTo fout
+
+cleanAccessVersion = False
+
+
+If Not (accApp Is Nothing) Then
+  On Error Resume Next
+  accApp.Quit
+  On Error GoTo fout
+End If
+
+Set accApp = Nothing
+
+Dim regUpdateStr As String
+regUpdateStr = "reg add hkcr\Access.application\CurVer /f /ve /t REG_SZ /d Access.Application.11"
+  
+'If Not ShellAndWait(regUpdateStr) Then
+'  Exit Function
+'End If
+
+
+cleanAccessVersion = True
+
+Exit Function
+
+fout:
+MsgBox Err & " cleanAccessVersion" & vbCrLf & Error$, 16
+Exit Function
+
+End Function

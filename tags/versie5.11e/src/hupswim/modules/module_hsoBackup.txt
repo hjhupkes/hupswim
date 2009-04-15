@@ -1,0 +1,2722 @@
+Option Compare Database
+Option Explicit
+
+Public Const BCK_TYPE_NAME_WEDSTRIJDEN = "Hupswim/Wedstrijden"
+
+
+Public Const WB_STATUS_NONE = 0
+Public Const WB_STATUS_WED_INFO = 1
+Public Const WB_STATUS_PROG = 2
+Public Const WB_STATUS_OP = 3
+Public Const WB_STATUS_UIT = 4
+
+
+Const GB_IDX_HUPGEG = 0
+Const GB_IDX_ZWMBAD = 1
+Const GB_IDX_VER = 2
+Const GB_IDX_LEDEN = 3
+Const GB_IDX_LID_SOORT = 4
+Const GB_IDX_WED = 5
+Const GB_IDX_WEDGEG = 6
+Const GB_IDX_GZT = 7
+Const GB_IDX_PROG = 8
+Const GB_IDX_PROG_LFT = 9
+Const GB_IDX_INS = 10
+Const GB_IDX_WEDCAT = 11
+Const GB_IDX_TY_PERS = 12
+Const GB_IDX_TY_EST = 13
+Const GB_IDX_EST = 14 'Est must be before records.
+Const GB_IDX_RECSETS = 15
+Const GB_IDX_RECSETS_AGES = 16
+Const GB_IDX_RECINT = 17
+Const GB_IDX_RECEXT = 18
+Const GB_IDX_DIRSERV = 19
+
+Const GB_N_TABLES = 20
+
+Const WB_IDX_WED = 0
+Const WB_IDX_WED_GEG = 1
+Const WB_IDX_PROG = 2
+Const WB_IDX_INS = 3
+Const WB_IDX_TY_PERS = 4
+Const WB_IDX_TY_EST = 5
+Const WB_IDX_LFT = 6
+Const WB_IDX_WED_INS = 7
+Const WB_IDX_WED_EST_INS = 8
+Const WB_IDX_VERS = 9
+Const WB_IDX_ZWM = 10
+
+Const WB_N_TABLES = 11
+
+
+
+
+Public Function bckGlobal_preDelete_perform(ByVal impTbIdx As Integer, impTbName As String) As Boolean
+On Error GoTo fout
+bckGlobal_preDelete_perform = False
+
+If (impTbIdx = GB_IDX_WED) Then
+  DoCmd.SetWarnings False
+  Dim sql As String
+  sql = "update [" & impTbName & "] set MainWedstrijdNummer = null;"
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+End If
+
+
+bckGlobal_preDelete_perform = True
+Exit Function
+
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " bckGlobal_preDelete_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function bckGlobal_SetupTables_perform(ByRef impTbNames() As String, ByRef impTbClearConditional() As Boolean, ByRef impTbFullImport() As Boolean, ByRef impTbExtraSQL() As String, ByRef impTbNamesSecondary() As String, ByRef impTbNamesTertiary() As String, ByRef nImpTables As Integer) As Boolean
+On Error GoTo fout
+bckGlobal_SetupTables_perform = False
+
+impTbNames(GB_IDX_HUPGEG) = "dtSettings"
+impTbNames(GB_IDX_ZWMBAD) = "dtZwembaden"
+impTbNames(GB_IDX_VER) = "dtVerenigingen"
+impTbNames(GB_IDX_LEDEN) = "dtLeden"
+impTbNames(GB_IDX_LID_SOORT) = "dtLidsoorten"
+impTbNames(GB_IDX_WED) = "dtWedstrijden"
+impTbNames(GB_IDX_WEDGEG) = "dtWedstrijdGegevens"
+impTbNames(GB_IDX_GZT) = "dtTijden"
+impTbNames(GB_IDX_PROG) = "dtProgrammanummers"
+impTbNames(GB_IDX_PROG_LFT) = "dtProgrammaLeeftijdsgroepen"
+impTbNames(GB_IDX_INS) = "dtDeelnemers"
+impTbNames(GB_IDX_WEDCAT) = "dtgCatCodes"
+impTbNames(GB_IDX_TY_PERS) = "dtUitslagenPers"
+impTbNames(GB_IDX_TY_EST) = "dtUitslagenEst"
+impTbNames(GB_IDX_RECSETS) = "dtRecordSets"
+impTbNames(GB_IDX_RECSETS_AGES) = "dtRecordsetAges"
+impTbNames(GB_IDX_RECINT) = "dtRecordsInternal"
+impTbNames(GB_IDX_RECEXT) = "dtRecordsExternal"
+impTbNames(GB_IDX_EST) = "dtEstafettes"
+impTbNames(GB_IDX_DIRSERV) = "dtgDirectoryServer"
+
+nImpTables = GB_N_TABLES
+
+Dim i As Integer
+For i = 0 To nImpTables - 1
+  impTbNamesSecondary(i) = ""
+  impTbNamesTertiary(i) = ""
+  impTbClearConditional(i) = False
+  impTbFullImport(i) = False
+  impTbExtraSQL(i) = ""
+Next i
+
+'Setup secondary table names
+
+impTbNamesSecondary(GB_IDX_HUPGEG) = "#hupgegevens"
+impTbNamesSecondary(GB_IDX_ZWMBAD) = "Zwembaden tbl"
+impTbNamesSecondary(GB_IDX_VER) = "Verenigingen"
+impTbNamesSecondary(GB_IDX_LEDEN) = "leden tbl"
+impTbNamesSecondary(GB_IDX_LID_SOORT) = "leden_categorien tbl"
+impTbNamesSecondary(GB_IDX_WED) = "wedstrijden tbl"
+impTbNamesSecondary(GB_IDX_WEDGEG) = "wedstrijd gegevens tbl"
+impTbNamesSecondary(GB_IDX_GZT) = "gezwommen tijden tbl"
+impTbNamesSecondary(GB_IDX_PROG) = "inschrijvingen tbl"
+impTbNamesSecondary(GB_IDX_PROG_LFT) = "programma_leeftijdsgroepen"
+impTbNamesSecondary(GB_IDX_INS) = "inschrijvingen verder tbl"
+impTbNamesSecondary(GB_IDX_WEDCAT) = "~Cat"
+impTbNamesSecondary(GB_IDX_TY_PERS) = "weg2"
+impTbNamesSecondary(GB_IDX_TY_EST) = "weg4"
+impTbNamesSecondary(GB_IDX_RECSETS) = "recordsets"
+impTbNamesSecondary(GB_IDX_RECSETS_AGES) = "recordsetsAges"
+impTbNamesSecondary(GB_IDX_RECINT) = "recordsInternal"
+impTbNamesSecondary(GB_IDX_RECEXT) = "recordsExternal"
+impTbNamesSecondary(GB_IDX_EST) = "Estafettes"
+
+'end setup secondary table names
+
+
+impTbClearConditional(GB_IDX_LID_SOORT) = True
+impTbFullImport(GB_IDX_WED) = True
+impTbExtraSQL(GB_IDX_WED) = " order by [wedstrijd nummer]"
+
+bckGlobal_SetupTables_perform = True
+Exit Function
+fout:
+MsgBox Err & " bckGlobal_SetupTables_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function bckGlobal_preTransfer_perform(ByVal fName As String, ByVal impTbIdx As Integer, ByVal impTbSrcName As String, ByVal impTbTgtName As String, ByRef blShouldProcess As Boolean) As Boolean
+On Error GoTo fout
+bckGlobal_preTransfer_perform = False
+
+If impTbIdx = GB_IDX_WEDCAT Then
+  'Check to see whether field "CT_Wedstrijdnummer" exists in the backup table.
+
+  Dim db As Database, tb As TableDef
+  Set db = CurrentDb()
+  Set tb = db.TableDefs(impTbSrcName)
+  If (Not fieldExistsInTD(tb, "CT_Wedstrijdnummer")) Then
+    blShouldProcess = False
+  End If
+  
+  Set db = Nothing
+  Set tb = Nothing
+ElseIf impTbIdx = GB_IDX_WED Then
+
+  'Need to correct MainWedstrijdNummer field.
+  Set db = CurrentDb()
+  Set tb = db.TableDefs(impTbSrcName)
+  If (fieldExistsInTD(tb, "MainWedstrijdnummer")) Then
+  
+  
+    'We may need to convert the main wedstrijdnummers in order to ensure that the main wedstrijdnummer
+    'has the smallest number
+    Dim wedConvSrc(0 To 1000) As Long
+    Dim wedConvTgt(0 To 1000) As Long
+    Dim nWedConv As Integer
+    nWedConv = 0
+  
+  
+    Dim rs As Recordset
+    Set rs = CurrentDb().OpenRecordset("select * from [" & impTbSrcName & "] order by [wedstrijd nummer]")
+  
+    Dim skWed As Recordset
+    Set skWed = CurrentDb().OpenRecordset(impTbSrcName)
+    skWed.Index = "PrimaryKey"
+  
+    rs.MoveFirst
+    Do Until rs.EOF
+      Dim tpIsPartOfMeet As Boolean
+      Dim tpMainWedNr As Long
+      tpMainWedNr = Nz(rs("MainWedstrijdnummer"))
+      tpIsPartOfMeet = Nz(rs("IsPartOfMeet"))
+      If tpMainWedNr > 0 Then
+        Dim actWedNr As Long
+        actWedNr = Nz(rs("Wedstrijd nummer"))
+        If Not tpIsPartOfMeet Then
+          rs.Edit
+            rs("MainWedstrijdnummer") = Null
+          rs.Update
+        Else
+          Dim lkpPos As Integer
+          lkpPos = bSearchLong(tpMainWedNr, nWedConv, wedConvSrc)
+          If (lkpPos < 0) Then
+            If (tpMainWedNr > actWedNr) Then
+              'Have to add conversion
+              Dim insPos As Integer, oldWedConvCnt As Integer
+              oldWedConvCnt = nWedConv
+              insPos = insLong(tpMainWedNr, nWedConv, wedConvSrc)
+              shiftRightLong insPos, 1, oldWedConvCnt, wedConvTgt
+              wedConvTgt(insPos) = actWedNr
+              rs.Edit
+                rs("MainWedstrijdNummer") = actWedNr
+              rs.Update
+            Else
+              'Check and update
+              skWed.Seek "=", tpMainWedNr
+              If (skWed.NoMatch) Then
+                rs.Edit
+                rs("MainWedstrijdnummer") = Null
+                rs("IsPartOfMeet") = False
+                rs.Update
+              End If
+            End If
+            
+          Else
+            'Conversion found
+            rs.Edit
+              rs("MainWedstrijdNummer") = wedConvTgt(lkpPos)
+            rs.Update
+          End If
+        End If 'if tpIsPartOfMeet
+      End If 'if tpMainWedNr > 0
+  
+      rs.MoveNext
+    Loop
+  End If ' if FieldExists MainWedstrijdNummer
+  
+  Set db = Nothing
+  Set tb = Nothing
+  
+ 
+  
+End If 'if tbIdx =GB_IDX_WED
+
+
+bckGlobal_preTransfer_perform = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckGlobal_preTransfer_perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Public Function bckGlobal_postTransfer_perform(ByVal fName As String, ByVal impTbIdx As Integer, ByVal impTbSrcName As String, ByVal impTbTgtName As String) As Boolean
+On Error GoTo fout
+bckGlobal_postTransfer_perform = False
+
+
+If impTbIdx = GB_IDX_LEDEN Then
+  Dim db As Database, tb As TableDef
+  Set db = CurrentDb()
+  Set tb = db.TableDefs(impTbSrcName)
+  If (fieldExistsInTD(tb, "opm")) Then
+    If tb.Fields("opm").Type = dbInteger Then
+      'Oude tabel -> veld opmerking aanpassen...
+      DoCmd.SetWarnings False
+      DoCmd.RunSQL "UPDATE [dtLeden] SET [dtLeden].Opm = 2^(nz([opm],0)-1) WHERE (((nz([opm],0))>=1));"
+      DoCmd.SetWarnings True
+    End If
+  End If
+  
+ElseIf impTbIdx = GB_IDX_TY_EST Then
+
+  Set db = CurrentDb()
+  Set tb = db.TableDefs(impTbSrcName)
+  If (Not fieldExistsInTD(tb, "TY_DIS_Startzwemmer")) Then
+    'Need to set TY_DIS_Startzwemmer to TY_Dis, because this field was not yet present in the backup
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL "update dtUitslagenEst set ty_dis_startzwemmer = ty_dis;"
+    DoCmd.SetWarnings True
+  End If
+  
+  Set db = Nothing
+  Set tb = Nothing
+  
+ElseIf impTbIdx = GB_IDX_HUPGEG Then
+  
+  Set db = CurrentDb()
+  Set tb = db.TableDefs(impTbSrcName)
+  If Not fieldExistsInTD(tb, "blBlockAutoVerCheck") Then
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL "update dtSettings set blBlockAutoVerCheck = true;"
+    DoCmd.SetWarnings True
+  End If
+  
+  Set tb = Nothing
+  Set db = Nothing
+  
+  
+ElseIf impTbIdx = GB_IDX_RECINT Then
+
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL "update dtRecordsInternal set rc_displayCategorie = hzn(fmtCatCode(nz([rc_geslacht]), nz([rc_leeftijd])));"
+  DoCmd.SetWarnings True
+  
+  
+ElseIf impTbIdx = GB_IDX_RECEXT Then
+
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL "update dtRecordsExternal set rc_displayCategorie = hzn(fmtCatCode(nz([rc_geslacht]), nz([rc_leeftijd])));"
+  DoCmd.SetWarnings True
+  
+  
+End If
+
+
+
+bckGlobal_postTransfer_perform = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " bckGlobal_postTransfer_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Public Function bckGlobal_handleAbsent_perform(ByVal fName, ByVal impTbIdx As Integer, ByVal impTbTgtName As String) As Boolean
+On Error GoTo fout
+bckGlobal_handleAbsent_perform = False
+
+If (impTbIdx = GB_IDX_RECSETS) Then
+  'Need to convert the clubrecords to the new situation.
+  
+  DoCmd.DeleteObject acTable, "Clubrecords tbl(ter)"
+  DoCmd.DeleteObject acTable, "jaren tbl(ter)"
+  DoCmd.DeleteObject acTable, "samenstelling clubrc estafettes(ter)"
+  
+  DoCmd.TransferDatabase acLink, "Microsoft Access", fName, acTable, "Clubrecords tbl", "Clubrecords tbl(ter)"
+  DoCmd.TransferDatabase acLink, "Microsoft Access", fName, acTable, "Jaren tbl", "Jaren tbl(ter)"
+  DoCmd.TransferDatabase acLink, "Microsoft Access", fName, acTable, "Samenstelling clubrc estafettes", "Samenstelling clubrc estafettes(ter)"
+  
+  Dim blProcess As Boolean
+  blProcess = True
+  If Not tableExists("clubrecords tbl(ter)") Or Not tableExists("Jaren tbl(ter)") Or Not tableExists("Samenstelling clubrc estafettes(ter)") Then
+    blProcess = False
+  End If
+  
+  If (blProcess) Then
+    If Not tableExists("dtSettings(ter)") Then
+      blProcess = False
+    End If
+  End If
+  
+  
+  If (blProcess) Then
+  
+    Dim rsHupGeg As Recordset
+    Set rsHupGeg = CurrentDb().OpenRecordset("dtSettings(ter)")
+    
+    rsHupGeg.MoveFirst
+    If Not rsHupGeg.EOF Then
+      'Get some clubrecord options.
+      
+      
+      Dim db As Database
+      Dim tb As TableDef
+      Set db = CurrentDb()
+      Set tb = db.TableDefs("dtSettings(ter)")
+      
+      
+      
+      Dim optNoClubs As Boolean, optClubsSzYear As Boolean
+      Dim optClubs50 As Boolean, optClubOwnAge As Boolean
+      Dim optClubOwnAgeFirst As Boolean
+      Dim dClubStartDate As Date
+      
+      optNoClubs = False
+      optClubsSzYear = False
+      optClubs50 = False
+      optClubOwnAge = False
+      optClubOwnAgeFirst = False
+      dClubStartDate = #1/1/1900#
+      
+      If (fieldExistsInTD(tb, "blGeenClubrecords")) Then
+        optNoClubs = Nz(rsHupGeg("blGeenClubrecords"))
+      End If
+      If (fieldExistsInTD(tb, "blNieuweClubGroepen")) Then
+        optClubsSzYear = Nz(rsHupGeg("blNieuweClubGroepen"))
+      End If
+      If (fieldExistsInTD(tb, "club_50")) Then
+        optClubs50 = Nz(rsHupGeg("club_50"))
+      End If
+      If (fieldExistsInTD(tb, "club_AlleenEigenLeeftijd")) Then
+        optClubOwnAge = Nz(rsHupGeg("club_AlleenEigenLeeftijd"))
+      End If
+      If (fieldExistsInTD(tb, "club_HHCSysteem")) Then
+        optClubOwnAgeFirst = Nz(rsHupGeg("club_HHCSysteem"))
+      End If
+      If (fieldExistsInTD(tb, "dat_clubrecordStartDatum")) Then
+        dClubStartDate = Nz(rsHupGeg("dat_ClubrecordStartDatum"), #1/1/1900#)
+      End If
+      
+      Set db = Nothing
+      Set tb = Nothing
+      
+      
+      If (Not optNoClubs) Then
+        Dim rsRecSets As Recordset
+        Set rsRecSets = CurrentDb().OpenRecordset("dtRecordSets")
+        rsRecSets.AddNew
+          rsRecSets("RS_Code") = "CR"
+          rsRecSets("RS_Name") = "Clubrecords"
+          rsRecSets("RS_NameSingle") = "Clubrecord"
+          rsRecSets("RS_ManagedExternally") = False
+          If (optClubsSzYear) Then
+            rsRecSets("RS_LftMode") = LFT_MODE_SZYR
+          Else
+            rsRecSets("RS_LftMode") = LFT_MODE_WEDYR_END
+          End If
+          rsRecSets("RS_OnlyOwnAge") = optClubOwnAge
+          rsRecSets("RS_OwnAgeFirst") = optClubOwnAgeFirst
+          rsRecSets("RS_SeparateBaanlengtes") = optClubs50
+          rsRecSets("RS_AllowDis") = False
+          If (lenDateIsValid(dClubStartDate)) Then
+            rsRecSets("RS_StartDate") = dClubStartDate
+          Else
+            rsRecSets("RS_StartDate") = Null
+          End If
+          rsRecSets("RS_IsMultiVer") = False
+        rsRecSets.Update
+        
+        appCleanRS rsRecSets
+                
+        
+        'update ages
+        Dim sql As String
+        sql = "Insert into dtRecordsetAges (RSA_Code, RSA_Age) select ""CR"" as CD, JR_JAAR from [jaren tbl(ter)];"
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL sql
+        DoCmd.SetWarnings True
+        
+        'now write the records
+        
+        Dim rcsInfo As RECSET_BASIC_INFO
+        Dim recAges(0 To MAX_N_REC_AGES) As Long
+        Dim nRecAges As Integer
+        Dim isFnd As Boolean
+        If Not rcsLookup("CR", isFnd, rcsInfo, nRecAges, recAges) Then
+          Exit Function
+        End If
+        
+        If Not isFnd Then
+          Err.Raise 1, , "internal error"
+        End If
+        
+        
+        Dim rsClb As Recordset
+        Set rsClb = CurrentDb().OpenRecordset("clubrecords tbl(ter)")
+        
+        Dim rsClbEst As Recordset
+        Set rsClbEst = CurrentDb().OpenRecordset("select * from [samenstelling clubrc estafettes(ter)] order by [cubrecord nr], [volgorde zwemmer]")
+        
+        Dim outp As Recordset
+        Set outp = CurrentDb().OpenRecordset("dtRecordsInternal")
+        
+        Dim outpEst As Recordset
+        Set outpEst = CurrentDb().OpenRecordset("dtEstafettes")
+        
+        Dim freeEstGUID As Long
+        freeEstGUID = estGetFreeGUID()
+        
+        Set db = CurrentDb()
+        Set tb = db.TableDefs("clubrecords tbl(ter)")
+        
+        Dim blBaanExists As Boolean
+        blBaanExists = fieldExistsInTD(tb, "baan")
+        
+        Set db = Nothing
+        Set tb = Nothing
+        
+        rsClb.MoveFirst
+        Do Until rsClb.EOF
+          Dim tpRecNr As Long, tpWedNr As Long
+          Dim tpStart As String, tpTime As Double, tpAf As String, tpSl As String, tpBn As Integer
+          Dim tpCat As String
+          tpRecNr = Nz(rsClb("Club record nr"))
+          tpWedNr = Nz(rsClb("wedstrijd nr"))
+          tpStart = Nz(rsClb("start nr"))
+          tpAf = Nz(rsClb("afstand"))
+          tpSl = Nz(rsClb("slag"))
+          If (blBaanExists) Then
+            tpBn = Nz(rsClb("baan"))
+            If (tpBn <> 50) Then
+              tpBn = 25
+            End If
+          Else
+            tpBn = 25
+          End If
+          tpTime = Nz(rsClb("tijd"))
+          tpCat = Nz(rsClb("categorie"))
+          
+          Dim tpLft As Long, tpGes As String, sDummy As String, tpIsValid As Boolean
+          
+          If Not recParseCat(tpCat, nRecAges, recAges, tpIsValid, tpGes, tpLft, sDummy) Then
+            Exit Function
+          End If
+          
+          If (tpIsValid) Then
+            'need to output the record
+            
+            
+            
+            Dim tpIsValidEst As Boolean
+            Dim tpEstGUID As Long
+            tpIsValidEst = False
+                              
+            If tpStart = "00-000" Then
+              If (tpAf Like "*x*") Then
+                Dim tpEstStarts(0 To MAX_ESTAF_CNT) As String
+                Dim tpNEstSwms As Integer
+                tpNEstSwms = 0
+                Dim nSwms As Integer
+                nSwms = afstand_n_zwemmers(tpAf)
+                If (nSwms > 0) And (nSwms <= MAX_ESTAF_CNT) Then
+                  tpIsValidEst = True
+                  Dim i As Integer
+                  For i = 1 To nSwms
+                    rsClbEst.FindFirst "[cubrecord nr] = " & tpRecNr & " and [volgorde zwemmer] = " & i
+                    If Not rsClbEst.NoMatch Then
+                      tpEstStarts(i - 1) = Nz(rsClbEst("start nr"))
+                    Else
+                      tpIsValidEst = False
+                      Exit For
+                    End If
+                  Next i
+                  
+                  If (tpIsValidEst) Then
+                    For i = 0 To nSwms - 1
+                      Dim j As Integer
+                      For j = 0 To nSwms - 1
+                        If (i <> j) Then
+                          If tpEstStarts(i) = tpEstStarts(j) Then
+                            tpIsValidEst = False
+                            Exit For
+                          End If
+                        End If
+                      Next j
+                      If (Not tpIsValidEst) Then
+                        Exit For
+                      End If
+                    Next i
+                  End If
+                  
+                  If (tpIsValidEst) Then
+                    tpEstGUID = freeEstGUID
+                    If Not estWriteEst(tpEstGUID, nSwms, tpEstStarts, outpEst) Then
+                      Exit Function
+                    End If
+                    freeEstGUID = freeEstGUID + 1
+                  End If
+                  
+                End If 'if nSwms > 0 and ..
+              End If 'if tpAf like "*x*"
+            End If 'if tpStart = 00-000
+            
+            outp.AddNew
+              outp("RC_Code") = "CR"
+              outp("RC_Recordnummer") = tpRecNr
+              outp("RC_Afstand") = hzn(tpAf)
+              outp("RC_Slag") = hzn(tpSl)
+              outp("RC_Baanlengte") = IIf(tpBn = 50, 50, 25)
+              outp("RC_Leeftijd") = tpLft
+              outp("RC_Geslacht") = hzn(tpGes)
+              outp("RC_DisplayCategorie") = hzn(fmtCatCode(tpGes, tpLft))
+              outp("RC_Startnummer") = hzn(tpStart)
+              outp("RC_Vereniging") = Null
+              outp("RC_Tijd") = tpTime
+              outp("RC_AantalDecimalen") = 2
+              outp("RC_Wedstrijdnummer") = tpWedNr
+              outp("RC_Opmerking") = Null
+              If (tpIsValidEst) Then
+                outp("RC_EST_GUID") = tpEstGUID
+              Else
+                outp("RC_EST_GUID") = Null
+              End If
+            outp.Update
+          End If 'if isValidCat
+        
+        
+          rsClb.MoveNext
+        Loop 'do until rsClb.eof
+        
+        
+        appCleanRS rsClb
+        appCleanRS rsClbEst
+        appCleanRS outp
+        appCleanRS outpEst
+        
+                
+      End If 'if not optNoClubs
+    End If 'if not rsHupGeg.eof
+    
+    appCleanRS rsHupGeg
+  
+  End If 'if blprocess
+    
+  
+  DoCmd.DeleteObject acTable, "Clubrecords tbl(ter)"
+  DoCmd.DeleteObject acTable, "Jaren tbl(ter)"
+  DoCmd.DeleteObject acTable, "Samenstelling clubrc estafettes(ter)"
+  
+  
+  
+End If
+
+
+
+bckGlobal_handleAbsent_perform = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+MsgBox Err & " bckGlobal_handleAbsent_perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Public Function bckGlobal_postProcess_perform(ByVal fName As String) As Boolean
+On Error GoTo fout
+bckGlobal_postProcess_perform = False
+
+
+If Not tstRestoreAllStoredTimes() Then
+  Exit Function
+End If
+
+
+dbSetUsed (True)
+
+
+notifyGlobalChange
+
+bckGlobal_postProcess_perform = True
+Exit Function
+fout:
+MsgBox Err & " bckGlobal_postProcess_perform" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+
+
+
+
+Private Function bckExportWedstrijden_applyRestriction(ByVal blRestrictWeds As Boolean, ByRef ordWeds() As Long, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+bckExportWedstrijden_applyRestriction = False
+
+If Not blRestrictWeds Then
+  bckExportWedstrijden_applyRestriction = True
+  Exit Function
+End If
+
+
+Dim sql As String
+sql = "update [dtWedstrijden] set [teltmee] = false"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+Dim i As Integer
+For i = 0 To nWeds - 1
+  skWed.Seek "=", ordWeds(i)
+  If Not skWed.NoMatch Then
+    skWed.Edit
+      skWed("TeltMee") = True
+    skWed.Update
+  End If
+Next i
+
+appCleanRS skWed
+
+bckExportWedstrijden_applyRestriction = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " bckExportWedstrijden_applyRestriction" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function bckExportWedstrijden(ByVal fName As String, sNameCreator As String, sDescription As String, ByVal dExpDate As Date, ByVal blRestrictWeds As Boolean, ByRef ordWeds() As Long, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+bckExportWedstrijden = False
+
+Dim bckMDBFileName As String
+
+
+Dim zipData As ZIP_INTERNAL
+
+If Not zipWrite(fName, "hup", "zip", bckMDBFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+
+Dim isOK As Boolean
+isOK = bckExportWedstrijden_exportData(bckMDBFileName, sNameCreator, sDescription, dExpDate, blRestrictWeds, ordWeds, nWeds)
+
+On Error GoTo fout
+
+
+Dim sDummy As String, isPackedOK As Boolean
+
+If (Not isOK) Then
+  If Not zipWrite_finish(False, isPackedOK, False, sDummy, zipData) Then
+    Exit Function
+  End If
+Else
+  If Not zipWrite_finish(True, isPackedOK, True, sDummy, zipData) Then
+    Exit Function
+  End If
+  If Not isPackedOK Then
+    Exit Function
+  End If
+End If
+
+
+  
+If (Not isOK) Then
+  Exit Function
+End If
+
+MsgBox "Wedstrijden Backup met succes weggeschreven naar" & Chr$(13) & fName, 64
+
+
+bckExportWedstrijden = True
+
+Exit Function
+fout:
+MsgBox Err & " bckExportWedstrijden" & vbCrLf & Error$, 16
+Exit Function
+
+fout_cleanup:
+Dim msg As String
+msg = Err & " bckExportWedstrijden" & vbCrLf & Error$
+
+zipWrite_finish False, isPackedOK, False, sDummy, zipData
+
+MsgBox msg, 16
+Exit Function
+
+
+
+End Function
+
+Private Function bckWedstrijden_setupTables(ByRef tbName() As String, ByRef tbExpName() As String, ByRef tbJoin() As Boolean, ByRef tbJoinFieldName() As String, ByRef nTables) As Boolean
+On Error GoTo fout
+bckWedstrijden_setupTables = False
+
+tbName(WB_IDX_WED) = "dtWedstrijden"
+tbExpName(WB_IDX_WED) = "(expWed)Wed"
+tbJoin(WB_IDX_WED) = False
+
+tbName(WB_IDX_WED_GEG) = "dtWedstrijdGegevens"
+tbExpName(WB_IDX_WED_GEG) = "(expWed)WedGeg"
+tbJoin(WB_IDX_WED_GEG) = True
+tbJoinFieldName(WB_IDX_WED_GEG) = "wedstrijdnummer"
+
+tbName(WB_IDX_PROG) = "dtProgrammanummers"
+tbExpName(WB_IDX_PROG) = "(expWed)WedProg"
+tbJoin(WB_IDX_PROG) = True
+tbJoinFieldName(WB_IDX_PROG) = "Wedstrijdnr"
+
+tbName(WB_IDX_INS) = "dtDeelnemers"
+tbExpName(WB_IDX_INS) = "(expWed)WedIns"
+tbJoin(WB_IDX_INS) = True
+tbJoinFieldName(WB_IDX_INS) = "wedstrijdnr"
+
+tbName(WB_IDX_TY_PERS) = "dtUitslagenPers"
+tbExpName(WB_IDX_TY_PERS) = "(expWed)WedUit2"
+tbJoin(WB_IDX_TY_PERS) = True
+tbJoinFieldName(WB_IDX_TY_PERS) = "TY_wedstrijdnummer"
+
+tbName(WB_IDX_TY_EST) = "dtUitslagenEst"
+tbExpName(WB_IDX_TY_EST) = "(expWed)WedUit4"
+tbJoin(WB_IDX_TY_EST) = True
+tbJoinFieldName(WB_IDX_TY_EST) = "TY_wedstrijdnummer"
+
+tbName(WB_IDX_LFT) = "dtProgrammaLeeftijdsgroepen"
+tbExpName(WB_IDX_LFT) = "(expWed)WedLft"
+tbJoin(WB_IDX_LFT) = True
+tbJoinFieldName(WB_IDX_LFT) = "wedstrijdnr"
+
+tbName(WB_IDX_WED_INS) = "wedIns"
+tbExpName(WB_IDX_WED_INS) = "(expWed)InsWeds"
+tbJoin(WB_IDX_WED_INS) = False
+
+
+tbName(WB_IDX_WED_EST_INS) = "wedEstIns"
+tbExpName(WB_IDX_WED_EST_INS) = "(expWed)EstInsWeds"
+tbJoin(WB_IDX_WED_EST_INS) = False
+
+tbName(WB_IDX_VERS) = "wedVers"
+tbExpName(WB_IDX_VERS) = "(expWed)Vers"
+tbJoin(WB_IDX_VERS) = False
+
+tbName(WB_IDX_ZWM) = "wedZwemmers"
+tbExpName(WB_IDX_ZWM) = "(expWed)Zwemmers"
+tbJoin(WB_IDX_ZWM) = False
+
+
+
+
+nTables = WB_N_TABLES
+
+bckWedstrijden_setupTables = True
+Exit Function
+fout:
+MsgBox Err & " "
+End Function
+
+
+Private Function bckExportWedstrijden_exportData(ByVal fMDBFileName As String, sNameCreator As String, sDescription As String, ByVal dExpDate As Date, ByVal blRestrictWeds As Boolean, ByRef ordWeds() As Long, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+bckExportWedstrijden_exportData = False
+
+
+
+If Not bckExportWedstrijden_applyRestriction(blRestrictWeds, ordWeds, nWeds) Then
+  Exit Function
+End If
+
+
+Dim sqlWedWhere As String
+If (blRestrictWeds) Then
+  sqlWedWhere = " ( [dtWedstrijden].datum>=# " & Format(dExpDate, "mm\-dd\-yyyy") & "# and [dtWedstrijden].TeltMee = true   )"
+Else
+  sqlWedWhere = " ( [dtWedstrijden].datum>=# " & Format(dExpDate, "mm\-dd\-yyyy") & "# )"
+End If
+
+Dim tbName(0 To 100) As String, tbExpName(0 To 100) As String, tbJoin(0 To 100) As Boolean, tbJoinField(0 To 100) As String
+Dim nExpTables As Integer
+
+If Not bckWedstrijden_setupTables(tbName, tbExpName, tbJoin, tbJoinField, nExpTables) Then
+  Exit Function
+End If
+
+
+
+Dim i As Integer
+For i = 0 To nExpTables - 1
+  DoCmd.DeleteObject acQuery, tbName(i) & "(qExp)"
+Next i
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim qry As QueryDef
+
+For i = 0 To nExpTables - 1
+
+  Set qry = db.CreateQueryDef
+  qry.name = tbName(i) & "(qExp)"
+  
+  Dim sql As String
+    
+  sql = ""
+
+  If (i = WB_IDX_WED_INS) Then
+  
+    sql = "SELECT distinctrow [w].* FROM ([dtWedstrijden] as W INNER JOIN [dtDeelnemers] ON [w].[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd) INNER JOIN [dtWedstrijden]  ON [dtDeelnemers].Wedstrijdnr = [dtWedstrijden].[Wedstrijd nummer] "
+
+    sql = sql & " where " & sqlWedWhere
+    
+  ElseIf (i = WB_IDX_WED_EST_INS) Then
+  
+    sql = "SELECT distinctrow [w].* FROM ([dtWedstrijden] as W INNER JOIN [dtDeelnemers] ON [w].[Wedstrijd nummer] = [dtDeelnemers].ESTINS_ExtInsWedNr) INNER JOIN [dtWedstrijden]  ON [dtDeelnemers].Wedstrijdnr = [dtWedstrijden].[Wedstrijd nummer] "
+
+    sql = sql & " where " & sqlWedWhere
+  
+  ElseIf (i = WB_IDX_VERS) Then
+  
+    sql = "Select * from dtVerenigingen;"
+    
+  ElseIf (i = WB_IDX_ZWM) Then
+    
+    sql = "Select * from dtLeden;"
+  
+  Else
+    sql = "select [" & tbName(i) & "].* from [" & tbName(i) & "]"
+    If (tbJoin(i)) Then
+      sql = sql & " inner join [dtWedstrijden] on [" & tbName(i) & "].[" & tbJoinField(i) & "] = [dtWedstrijden].[wedstrijd nummer]"
+    End If
+    sql = sql & " where " & sqlWedWhere
+  End If
+  
+  qry.sql = sql
+  
+  db.QueryDefs.Append qry
+  
+  Set qry = Nothing
+  
+Next i
+  
+
+Dim backupdb As Database
+
+Set backupdb = DBEngine.Workspaces(0).CreateDatabase(fMDBFileName, DB_LANG_GENERAL, dbVersion30)
+
+Dim sDummy(0 To 0) As String
+
+
+If Not bckAddInfo(backupdb, sNameCreator, sDescription, sDummy, sDummy, 0, BCK_TYPE_NAME_WEDSTRIJDEN) Then
+  Exit Function
+End If
+
+backupdb.Close
+Set backupdb = Nothing
+
+For i = 0 To nExpTables - 1
+  DoCmd.TransferDatabase acExport, "Microsoft Access", fMDBFileName, acTable, tbName(i) & "(qExp)", tbExpName(i)
+Next i
+
+For i = 0 To nExpTables - 1
+  DoCmd.DeleteObject acQuery, tbName(i) & "(qExp)"
+Next i
+
+bckExportWedstrijden_exportData = True
+
+Exit Function
+
+fout:
+If Err = 3011 Or Err = 7874 Then
+  Resume Next
+End If
+
+MsgBox Err & " bckExportWedstrijden_exportData" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+Public Function bckImportWedstrijden_cleanPhase() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_cleanPhase = False
+
+Dim tbName(0 To 100) As String, tbExpName(0 To 100) As String, tbJoin(0 To 100) As Boolean, tbJoinField(0 To 100) As String
+Dim nImpTables As Integer
+
+If Not bckWedstrijden_setupTables(tbName, tbExpName, tbJoin, tbJoinField, nImpTables) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nImpTables - 1
+  DoCmd.DeleteObject acTable, tbName(i) & "(wImp)"
+Next i
+
+bckImportWedstrijden_cleanPhase = True
+Exit Function
+
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_cleanPhase" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function bckImportWedstrijden_postMatchPhase_stats() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_postMatchPhase_stats = False
+
+
+Dim sql As String
+sql = "update [dtWedstrijden(wImp)] set ref_hasWedData = false, ref_hasProg = false, ref_hasOpstelling = false, ref_hasResults = false;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+'Determine data for new wedstrijden.
+Dim skImpWed As Recordset
+Set skImpWed = CurrentDb().OpenRecordset("dtWedstrijden(wImp)")
+skImpWed.Index = "MatchKey"
+
+Dim rsWedGeg As Recordset
+Set rsWedGeg = CurrentDb().OpenRecordset("select * from [dtWedstrijdGegevens] inner join [dtWedstrijden(wImp)] on [dtWedstrijdGegevens].wedstrijdnummer = [dtWedstrijden(wImp)].match_wedstrijdnummer")
+rsWedGeg.MoveFirst
+Do Until rsWedGeg.EOF
+  Dim tpWed As Long
+  tpWed = Nz(rsWedGeg("Wedstrijd nummer"))
+  
+  Dim hasData As Boolean
+  hasData = False
+  
+  If Not IsNull(rsWedGeg("Aanvang")) Then
+    hasData = True
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsWedGeg("Inzwemmen")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsWedGeg("EchtInzwemmen")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsWedGeg("Zwembad")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsWedGeg("Adres")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsWedGeg("Ploegleider")) Then
+      hasData = True
+    End If
+  End If
+  
+  
+  If (hasData) Then
+    skImpWed.Seek "=", tpWed
+    If (Not skImpWed.NoMatch) Then
+      skImpWed.Edit
+        skImpWed("REF_HasWedData") = True
+      skImpWed.Update
+    End If
+  End If
+
+
+  rsWedGeg.MoveNext
+Loop
+
+appCleanRS rsWedGeg
+
+
+Dim rsProgs As Recordset
+Set rsProgs = CurrentDb().OpenRecordset("select [wedstrijdnr] from [dtProgrammanummers] inner join  [dtWedstrijden(wImp)] on [dtProgrammanummers].wedstrijdnr = [dtWedstrijden(wImp)].match_wedstrijdnummer group by [wedstrijdnr] ")
+
+rsProgs.MoveFirst
+Do Until rsProgs.EOF
+
+  tpWed = Nz(rsProgs("Wedstrijdnr"))
+  
+  skImpWed.Seek "=", tpWed
+  If Not skImpWed.NoMatch Then
+    skImpWed.Edit
+      skImpWed("REF_HasProg") = True
+    skImpWed.Update
+  End If
+  
+
+  rsProgs.MoveNext
+Loop
+
+appCleanRS rsProgs
+
+Dim rsIns As Recordset
+Set rsIns = CurrentDb().OpenRecordset("select [wedstrijdnr] from [dtDeelnemers] inner join  [dtWedstrijden(wImp)] on [dtDeelnemers].wedstrijdnr = [dtWedstrijden(wImp)].match_wedstrijdnummer group by [wedstrijdnr] ")
+
+rsIns.MoveFirst
+Do Until rsIns.EOF
+
+  tpWed = Nz(rsIns("Wedstrijdnr"))
+  
+  skImpWed.Seek "=", tpWed
+  If Not skImpWed.NoMatch Then
+    skImpWed.Edit
+      skImpWed("REF_HasOpstelling") = True
+    skImpWed.Update
+  End If
+  
+
+  rsIns.MoveNext
+Loop
+
+appCleanRS rsIns
+
+
+Dim rsUit As Recordset
+Set rsUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer] from [dtUitslagenPers] inner join  [dtWedstrijden(wImp)] on [dtUitslagenPers].ty_wedstrijdnummer = [dtWedstrijden(wImp)].match_wedstrijdnummer group by [ty_wedstrijdnummer] ")
+
+rsUit.MoveFirst
+Do Until rsUit.EOF
+
+  tpWed = Nz(rsUit("ty_Wedstrijdnummer"))
+  
+  Dim tpTyValid As Boolean
+  
+  tpTyValid = False
+  If swtIsValid(Nz(rsUit("ty_eindtijd"), 0)) Then
+    tpTyValid = True
+  End If
+  
+  If Not tpTyValid Then
+    If Nz(rsUit("TY_Dis")) <> "" Then
+      tpTyValid = True
+    End If
+  End If
+  
+  If (tpTyValid) Then
+  
+    skImpWed.Seek "=", tpWed
+    If Not skImpWed.NoMatch Then
+      skImpWed.Edit
+        skImpWed("REF_HasResults") = True
+      skImpWed.Update
+    End If
+  End If
+  
+
+  rsUit.MoveNext
+Loop
+
+appCleanRS rsUit
+
+
+Set rsUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer] from [dtUitslagenEst] inner join  [dtWedstrijden(wImp)] on [dtUitslagenEst].ty_wedstrijdnummer = [dtWedstrijden(wImp)].match_wedstrijdnummer group by [ty_wedstrijdnummer] ")
+
+rsUit.MoveFirst
+Do Until rsUit.EOF
+
+  tpWed = Nz(rsUit("ty_Wedstrijdnummer"))
+  
+  tpTyValid = False
+  If swtIsValid(Nz(rsUit("ty_eindtijd"), 0)) Then
+    tpTyValid = True
+  End If
+  
+  If Not tpTyValid Then
+    If Nz(rsUit("TY_Dis")) <> "" Then
+      tpTyValid = True
+    End If
+  End If
+  
+  If (tpTyValid) Then
+  
+    skImpWed.Seek "=", tpWed
+    If Not skImpWed.NoMatch Then
+      skImpWed.Edit
+        skImpWed("REF_HasResults") = True
+      skImpWed.Update
+    End If
+  End If
+  
+
+  rsUit.MoveNext
+Loop
+
+appCleanRS rsUit
+
+
+
+bckImportWedstrijden_postMatchPhase_stats = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_postMatchPhase_stats" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Private Function bckImportWedstrijden_initPhase_stats() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_initPhase_stats = False
+
+'Determine data for new wedstrijden.
+Dim skImpWed As Recordset
+Set skImpWed = CurrentDb().OpenRecordset("dtWedstrijden(wImp)")
+skImpWed.Index = "PrimaryKey"
+
+Dim rsiWedGeg As Recordset
+Set rsiWedGeg = CurrentDb().OpenRecordset("dtWedstrijdGegevens(wImp)")
+rsiWedGeg.MoveFirst
+Do Until rsiWedGeg.EOF
+  Dim tpWed As Long
+  tpWed = Nz(rsiWedGeg("Wedstrijdnummer"))
+  
+  Dim hasData As Boolean
+  hasData = False
+  
+  If Not IsNull(rsiWedGeg("Aanvang")) Then
+    hasData = True
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsiWedGeg("Inzwemmen")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsiWedGeg("EchtInzwemmen")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsiWedGeg("Zwembad")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsiWedGeg("Adres")) Then
+      hasData = True
+    End If
+  End If
+  
+  If Not hasData Then
+    If Not IsNull(rsiWedGeg("Ploegleider")) Then
+      hasData = True
+    End If
+  End If
+  
+  
+  If (hasData) Then
+    skImpWed.Seek "=", tpWed
+    If Not skImpWed.NoMatch Then
+      skImpWed.Edit
+        skImpWed("STAT_HasWedData") = True
+      skImpWed.Update
+    End If
+  End If
+
+
+  rsiWedGeg.MoveNext
+Loop
+
+appCleanRS rsiWedGeg
+
+
+Dim rsiProgs As Recordset
+Set rsiProgs = CurrentDb().OpenRecordset("select [wedstrijdnr] from [dtProgrammanummers(wImp)] group by [wedstrijdnr] ")
+
+rsiProgs.MoveFirst
+Do Until rsiProgs.EOF
+
+  tpWed = Nz(rsiProgs("Wedstrijdnr"))
+  
+  skImpWed.Seek "=", tpWed
+  If (Not skImpWed.NoMatch) Then
+    skImpWed.Edit
+      skImpWed("STAT_HasProg") = True
+    skImpWed.Update
+  End If
+  
+
+  rsiProgs.MoveNext
+Loop
+
+appCleanRS rsiProgs
+
+Dim rsiIns As Recordset
+Set rsiIns = CurrentDb().OpenRecordset("select [wedstrijdnr] from [dtDeelnemers(wImp)] group by [wedstrijdnr] ")
+
+rsiIns.MoveFirst
+Do Until rsiIns.EOF
+
+  tpWed = Nz(rsiIns("Wedstrijdnr"))
+  
+  skImpWed.Seek "=", tpWed
+  If (Not skImpWed.NoMatch) Then
+    skImpWed.Edit
+      skImpWed("STAT_HasOpstelling") = True
+    skImpWed.Update
+  End If
+  
+
+  rsiIns.MoveNext
+Loop
+
+appCleanRS rsiIns
+
+
+Dim rsiUit As Recordset
+Set rsiUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer] from [dtUitslagenPers(wImp)] where nz([ty_eindtijd]) > 1 group by [ty_wedstrijdnummer]  ")
+
+rsiUit.MoveFirst
+Do Until rsiUit.EOF
+
+  tpWed = Nz(rsiUit("ty_Wedstrijdnummer"))
+  
+  skImpWed.Seek "=", tpWed
+  If (Not skImpWed.NoMatch) Then
+    skImpWed.Edit
+      skImpWed("STAT_HasResults") = True
+    skImpWed.Update
+  End If
+  
+
+  rsiUit.MoveNext
+Loop
+
+appCleanRS rsiUit
+
+
+Set rsiUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer] from [dtUitslagenEst(wImp)] where nz([ty_eindtijd]) > 1 group by [ty_wedstrijdnummer]  ")
+
+rsiUit.MoveFirst
+Do Until rsiUit.EOF
+
+  tpWed = Nz(rsiUit("ty_Wedstrijdnummer"))
+  
+  skImpWed.Seek "=", tpWed
+  If (Not skImpWed.NoMatch) Then
+    skImpWed.Edit
+      skImpWed("STAT_HasResults") = True
+    skImpWed.Update
+  End If
+  
+
+  rsiUit.MoveNext
+Loop
+
+appCleanRS rsiUit
+
+
+
+bckImportWedstrijden_initPhase_stats = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_initPhase_stats" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Function bckImportWedstrijden_match_wed_set(sql As String) As Boolean
+On Error GoTo fout
+bckImportWedstrijden_match_wed_set = False
+
+
+Dim matchedWeds(0 To 100000) As Long
+Dim nMatchedWeds As Integer
+
+nMatchedWeds = 0
+
+
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+Dim srcWed As Recordset
+Set srcWed = CurrentDb().OpenRecordset("dtWedstrijden", dbOpenDynaset)
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpWed As Long, tpDat As Date, tpPl As String, tpBn As Integer, tpBes As String
+  tpWed = Nz(rs("Wedstrijd nummer"))
+  tpDat = Nz(rs("Datum"), #1/1/1900#)
+  tpPl = Nz(rs("plaats"))
+  tpBn = Nz(rs("Baanlengte"))
+  tpBes = Nz(rs("Beschrijving"))
+  
+  
+ 
+  Dim tpRefWed As Long, tpRefDat As Date, tpRefPl As String, tpRefBn As Integer, tpRefBes As String
+  tpRefWed = -1
+  
+  skWed.Seek "=", tpWed
+  If Not skWed.NoMatch Then
+    tpRefWed = Nz(skWed("Wedstrijd nummer"))
+    tpRefDat = Nz(skWed("datum"))
+    tpRefPl = Nz(skWed("plaats"))
+    tpRefBn = Nz(skWed("baanlengte"))
+    tpRefBes = Nz(skWed("Beschrijving"))
+  End If
+    
+  Dim isMatch As Boolean, lMatchWed As Long
+  isMatch = False
+  lMatchWed = -1
+  
+  'Do not check for beschrijving here
+  If tpRefWed <> -1 And (tpRefDat = tpDat) And (tpPl = tpRefPl) And (tpBn = tpRefBn) Then
+    isMatch = True
+    lMatchWed = tpRefWed
+  End If
+    
+  
+  If Not isMatch Then
+    'find based on criteria
+    Dim sqlCrit As String
+    sqlCrit = "datum=#" & Format(tpDat, "mm\-dd\-yyyy") & "# and plaats=""" & tpPl & """ and baanlengte = " & tpBn
+    
+    
+    Dim nPartialCount As Long
+    Dim lPartialMatchWed As Long
+    nPartialCount = 0
+    lPartialMatchWed = -1
+    
+    srcWed.FindFirst sqlCrit
+    While Not srcWed.NoMatch
+      lPartialMatchWed = Nz(srcWed("Wedstrijd nummer"))
+      nPartialCount = nPartialCount + 1
+      tpRefBes = Nz(srcWed("Beschrijving"))
+      If (tpRefBes = tpBes) Then
+        isMatch = True
+        lMatchWed = lPartialMatchWed
+      End If
+      srcWed.FindNext sqlCrit
+    Wend
+    If (Not isMatch) Then
+      If nPartialCount = 1 Then
+        isMatch = True
+        lMatchWed = lPartialMatchWed
+      End If
+    End If
+  End If
+  
+  If (isMatch) Then
+    If bSearchLong(lMatchWed, nMatchedWeds, matchedWeds) >= 0 Then
+      isMatch = False
+    End If
+  End If
+  
+    
+  If (isMatch) Then
+    rs.Edit
+      rs("MATCH_Wedstrijdnummer") = lMatchWed
+    rs.Update
+    insLong lMatchWed, nMatchedWeds, matchedWeds
+  Else
+    rs.Edit
+      rs("Match_Wedstrijdnummer") = Null
+    rs.Update
+  End If
+    
+  
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS skWed
+appCleanRS srcWed
+
+bckImportWedstrijden_match_wed_set = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_match_wed_set" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function bckImportWedstrijden_initPhase_match() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_initPhase_match = False
+
+
+If Not bckImportWedstrijden_match_wed_set("dtWedstrijden(wImp)") Then
+  Exit Function
+End If
+
+If tableExists("wedIns(wImp)") Then
+  If Not bckImportWedstrijden_match_wed_set("wedIns(wImp)") Then
+    Exit Function
+  End If
+End If
+
+If tableExists("wedEstIns(wImp)") Then
+  If Not bckImportWedstrijden_match_wed_set("wedEstIns(wImp)") Then
+    Exit Function
+  End If
+End If
+
+
+
+
+bckImportWedstrijden_initPhase_match = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_initPhase_match" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function bckImportWedstrijden_readPhase(fName As String) As Boolean
+On Error GoTo fout
+bckImportWedstrijden_readPhase = False
+
+
+
+Dim fActExt As String
+fActExt = "hup"
+
+
+
+Dim bckValid As Boolean, bckInvalidReason As Integer, bckInvalidString As String, bckHasInfo As Boolean, bckVersion As String, bckTimeS As String, bckDateS As String, bckNameCreator As String, bckDescription As String, bckMDBFileName As String
+Dim bckVersionOK As Boolean
+
+Dim sDummy(0 To 0) As String
+Dim blDummy As Boolean
+Dim zipData As ZIP_INTERNAL
+
+If Not bckAnalyze_perform(fName, BCK_TYPE_NAME_WEDSTRIJDEN, fActExt, "zip", True, True, bckValid, bckVersionOK, bckInvalidReason, bckInvalidString, bckHasInfo, bckDateS, bckTimeS, bckVersion, bckNameCreator, bckDescription, sDummy, sDummy, 0, False, bckMDBFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+Dim isOK As Boolean
+isOK = True
+
+If (Not bckValid) Then
+  'Error dialog has already been shown.
+  isOK = False
+End If
+
+
+
+If (isOK) Then
+  isOK = bckImportWedstrijden_readPhase_readFile(bckMDBFileName)
+End If
+
+On Error GoTo fout
+
+If Not bckAnalyze_cleanup(zipData) Then
+  Exit Function
+End If
+
+If (Not isOK) Then
+  Exit Function
+End If
+    
+
+
+
+
+bckImportWedstrijden_readPhase = True
+Exit Function
+fout:
+MsgBox Err & " bckImportWedstrijden_readPhase" & vbCrLf & Error$, 16
+Exit Function
+
+fout_cleanup:
+Dim msg As String
+msg = Err & " bckImportWedstrijden_readPhase" & vbCrLf & Error$
+
+bckAnalyze_cleanup zipData
+
+MsgBox msg, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
+Public Function bckImportWedstrijden_analyzeFile(ByVal fName As String, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckHasInfo As Boolean, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckVersion As String, ByRef bckNameCreator As String, ByRef bckDescription As String, ByRef bckVersionOK As Boolean) As Boolean
+On Error GoTo fout
+bckImportWedstrijden_analyzeFile = False
+
+
+Dim sDummy(0 To 0) As String
+Dim dummyFName As String
+
+Dim zipData As ZIP_INTERNAL
+
+If Not bckAnalyze_perform(fName, BCK_TYPE_NAME_WEDSTRIJDEN, "hup", "zip", False, True, bckValid, bckVersionOK, bckInvalidReason, bckInvalidString, bckHasInfo, bckDateS, bckTimeS, bckVersion, bckNameCreator, bckDescription, sDummy, sDummy, 0, True, dummyFName, zipData) Then
+  Exit Function
+End If
+
+
+
+bckImportWedstrijden_analyzeFile = True
+Exit Function
+fout:
+MsgBox Err & " bckImportWedstrijden_readPhase" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+Private Function bckImportWedstrijden_readPhase_readFile(fMDBFileName As String) As Boolean
+On Error GoTo fout
+bckImportWedstrijden_readPhase_readFile = False
+
+Dim tbName(0 To 100) As String, tbExpName(0 To 100) As String, tbJoin(0 To 100) As Boolean, tbJoinField(0 To 100) As String
+Dim nImpTables As Integer
+
+If Not bckWedstrijden_setupTables(tbName, tbExpName, tbJoin, tbJoinField, nImpTables) Then
+  Exit Function
+End If
+
+If Not bckImportWedstrijden_cleanPhase() Then
+  Exit Function
+End If
+
+
+Dim db As Database
+Dim tb As TableDef
+Dim idx As Index
+
+
+Dim i As Integer
+For i = 0 To nImpTables - 1
+  Dim isImported As Boolean
+  If Not bckReadTable(fMDBFileName, False, tbName(i) & "(wImp)", tbExpName(i), "", "", isImported) Then
+    Exit Function
+  End If
+  
+  If Not isImported Then
+    If (i <> WB_IDX_WED_INS) And (i <> WB_IDX_WED_EST_INS) And (i <> WB_IDX_VERS) And (i <> WB_IDX_ZWM) Then
+      'fail
+      bckImportWedstrijden_cleanPhase
+      Err.Raise 1, , "Could not find table: " & tbExpName(i) & vbCrLf & "in backup file: " & fMDBFileName
+      Exit Function
+    End If
+  End If
+  
+  If (i = WB_IDX_WED_GEG) Or (i = WB_IDX_LFT) Or (i = WB_IDX_PROG) Or (i = WB_IDX_INS) Or (i = WB_IDX_TY_EST) Or (i = WB_IDX_TY_PERS) Then
+    Set db = CurrentDb()
+    Set tb = db.TableDefs(tbName(i) & "(wImp)")
+    tb.Fields.Append tb.CreateField("CORR_Wedstrijdnummer", dbLong)
+    If (i = WB_IDX_INS) Then
+      tb.Fields.Append tb.CreateField("CORR_INS_Wedstrijdnummer", dbLong)
+      tb.Fields.Append tb.CreateField("CORR_ESTINS_Wedstrijdnummer", dbLong)
+    End If
+    Set tb = Nothing
+    Set db = Nothing
+  End If
+  
+  If (i = WB_IDX_ZWM) And isImported Then
+    Set db = CurrentDb()
+    Set tb = db.TableDefs(tbName(i) & "(wImp)")
+    
+    tb.Fields.Append tb.CreateField("REF_IsUsed", dbBoolean)
+    tb.Fields.Append tb.CreateField("REF_IsKnown", dbBoolean)
+    tb.Fields.Append tb.CreateField("IMP_Import", dbBoolean)
+    
+    Set idx = tb.CreateIndex("IDX_STARTNR")
+    idx.Fields.Append idx.CreateField("Startnummer", dbText, 8)
+    idx.Primary = True
+    tb.Indexes.Append idx
+    Set idx = Nothing
+    
+    
+    Set tb = Nothing
+    Set db = Nothing
+  End If
+  
+  If (i = WB_IDX_VERS) And isImported Then
+    Set db = CurrentDb()
+    Set tb = db.TableDefs(tbName(i) & "(wImp)")
+    
+    
+    Set idx = tb.CreateIndex("IDX_VER_NAAM")
+      idx.Fields.Append idx.CreateField("V_Naam", dbText, 50)
+      idx.Primary = True
+      tb.Indexes.Append idx
+    Set idx = Nothing
+    
+    
+    Set tb = Nothing
+    Set db = Nothing
+  End If
+  
+Next i
+
+
+Set db = CurrentDb()
+
+'Now need to analyze the data we just read.
+Set tb = db.TableDefs("dtWedstrijden(wImp)")
+tb.Fields.Append tb.CreateField("IMP_Import", dbBoolean)
+tb.Fields.Append tb.CreateField("IMP_Wedstrijdnummer", dbLong)
+tb.Fields.Append tb.CreateField("IMP_MainWedstrijdnummer", dbLong)
+
+tb.Fields.Append tb.CreateField("MATCH_Wedstrijdnummer", dbLong)
+
+tb.Fields.Append tb.CreateField("STAT_HasWedData", dbBoolean)
+tb.Fields.Append tb.CreateField("STAT_HasProg", dbBoolean)
+tb.Fields.Append tb.CreateField("STAT_HasOpstelling", dbBoolean)
+tb.Fields.Append tb.CreateField("STAT_HasResults", dbBoolean)
+tb.Fields.Append tb.CreateField("STAT_StatusString", dbText, 20)
+tb.Fields.Append tb.CreateField("STAT_Status", dbInteger)
+
+tb.Fields.Append tb.CreateField("REF_HasWedData", dbBoolean)
+tb.Fields.Append tb.CreateField("REF_HasProg", dbBoolean)
+tb.Fields.Append tb.CreateField("REF_HasOpstelling", dbBoolean)
+tb.Fields.Append tb.CreateField("REF_HasResults", dbBoolean)
+tb.Fields.Append tb.CreateField("REF_StatusString", dbText, 20)
+tb.Fields.Append tb.CreateField("REF_Status", dbInteger)
+
+
+
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+idx.Fields.Append idx.CreateField("Wedstrijd nummer")
+tb.Indexes.Append idx
+Set idx = Nothing
+
+Set idx = tb.CreateIndex("MatchKey")
+idx.Unique = True
+idx.IgnoreNulls = True
+idx.Fields.Append idx.CreateField("MATCH_Wedstrijdnummer")
+tb.Indexes.Append idx
+Set idx = Nothing
+
+Set tb = Nothing
+
+
+
+If (tableExists("wedIns(wImp)")) Then
+  Set tb = db.TableDefs("wedIns(wImp)")
+  tb.Fields.Append tb.CreateField("MATCH_Wedstrijdnummer", dbLong)
+  Set tb = Nothing
+End If
+
+If (tableExists("wedEstIns(wImp)")) Then
+  Set tb = db.TableDefs("wedEstIns(wImp)")
+  tb.Fields.Append tb.CreateField("MATCH_Wedstrijdnummer", dbLong)
+  Set tb = Nothing
+End If
+
+Set db = Nothing
+
+
+
+
+bckImportWedstrijden_readPhase_readFile = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_readPhase_readFile" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function bckImportWedstrijden_initPhase(ByVal blRestrictDate As Boolean, ByVal dMinDate As Date) As Boolean
+On Error GoTo fout
+bckImportWedstrijden_initPhase = False
+
+If (blRestrictDate) Then
+  Dim sql As String
+  sql = "Delete * from [dtWedstrijden(wImp)] where [datum]<#" & Format(dMinDate, "mm\-dd\-yyyy") & "#"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+End If
+
+If Not bckImportWedstrijden_initPhase_stats() Then
+  Exit Function
+End If
+
+If Not bckImportWedstrijden_initPhase_match() Then
+  Exit Function
+End If
+
+
+
+bckImportWedstrijden_initPhase = True
+Exit Function
+fout:
+DoCmd.SetWarnings False
+MsgBox Err & " bckImportWedstrijden_initPhase" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+Private Function bckImportWedstrijden_statusString(iStat As Integer) As String
+Dim tpS As String
+tpS = ""
+Select Case iStat
+Case WB_STATUS_UIT
+  tpS = "Resultaten"
+Case WB_STATUS_OP
+  tpS = "Opstelling"
+Case WB_STATUS_PROG
+  tpS = "Programma"
+Case WB_STATUS_WED_INFO
+  tpS = "Informatie"
+Case WB_STATUS_NONE
+  tpS = "Leeg"
+End Select
+bckImportWedstrijden_statusString = tpS
+End Function
+
+
+Private Function bckImportWedstrijden_postMatchPhase_determineActions() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_postMatchPhase_determineActions = False
+
+'Need to determine default set of actions based on the matching and statistics.
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtWedstrijden(wImp)")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpRefHasWedData As Boolean, tpRefHasProgramma As Boolean, tpRefHasOpstelling As Boolean, tpRefHasResults As Boolean
+  
+  tpRefHasWedData = Nz(rs("REF_HasWedData"))
+  tpRefHasProgramma = Nz(rs("REF_HasProg"))
+  tpRefHasOpstelling = Nz(rs("REF_HasOpstelling"))
+  tpRefHasResults = Nz(rs("REF_HasResults"))
+  
+  Dim tpHasWedData As Boolean, tpHasProgramma As Boolean, tpHasOpstelling As Boolean, tpHasResults As Boolean
+  tpHasWedData = Nz(rs("STAT_HasWedData"))
+  tpHasProgramma = Nz(rs("STAT_HasProg"))
+  tpHasOpstelling = Nz(rs("STAT_HasOpstelling"))
+  tpHasResults = Nz(rs("STAT_HasResults"))
+  
+  
+  Dim tpStatus As Integer, tpStatusString As String
+  If (tpHasResults) Then
+    tpStatus = WB_STATUS_UIT
+  ElseIf (tpHasOpstelling) Then
+    tpStatus = WB_STATUS_OP
+  ElseIf (tpHasProgramma) Then
+    tpStatus = WB_STATUS_PROG
+  ElseIf (tpHasWedData) Then
+    tpStatus = WB_STATUS_WED_INFO
+  Else
+    tpStatus = WB_STATUS_NONE
+  End If
+  
+  Dim tpRefStatus As Integer
+  If (tpRefHasResults) Then
+    tpRefStatus = WB_STATUS_UIT
+  ElseIf (tpRefHasOpstelling) Then
+    tpRefStatus = WB_STATUS_OP
+  ElseIf (tpRefHasProgramma) Then
+    tpRefStatus = WB_STATUS_PROG
+  ElseIf (tpRefHasWedData) Then
+    tpRefStatus = WB_STATUS_WED_INFO
+  Else
+    tpRefStatus = WB_STATUS_NONE
+  End If
+  
+  
+  rs.Edit
+    rs("STAT_StatusString") = bckImportWedstrijden_statusString(tpStatus)
+    rs("Stat_status") = tpStatus
+    rs("REF_StatusString") = bckImportWedstrijden_statusString(tpRefStatus)
+    rs("REF_Status") = tpRefStatus
+    rs("IMP_Import") = (tpStatus > tpRefStatus)
+  rs.Update
+  
+  
+
+  rs.MoveNext
+Loop
+
+
+bckImportWedstrijden_postMatchPhase_determineActions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_postMatchPhase_determineActions" & vbCrLf & Error$, 16
+Exit Function
+
+
+
+End Function
+
+
+
+Public Function bckImportWedstrijden_postMatchPhase() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_postMatchPhase = False
+
+
+If Not bckImportWedstrijden_postMatchPhase_stats() Then
+  Exit Function
+End If
+
+If Not bckImportWedstrijden_postMatchPhase_determineActions() Then
+  Exit Function
+End If
+
+bckImportWedstrijden_postMatchPhase = True
+Exit Function
+fout:
+MsgBox Err & " bckImportWedstrijden_postMatchPhase" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function bckImportWedstrijden_postZwemmerPhase_detWedNrs() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_postZwemmerPhase_detWedNrs = False
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [dtWedstrijden(wImp)] order by datum, [wedstrijd nummer]")
+
+Dim curYear As Long
+Dim curYearMaxUsedNr As Long
+Dim curYearMinNr As Long
+Dim curYearMaxNr As Long
+
+Dim usedExtraWeds(0 To 10000) As Long
+Dim nUsedExtraWeds As Integer
+nUsedExtraWeds = 0
+
+
+curYear = -1
+curYearMaxUsedNr = -1
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpYear As Long
+  Dim tpDate As Date
+  tpDate = Nz(rs("datum"))
+  If Not lenDateIsValid(tpDate) Then
+    tpYear = CLng(val(Format(Now(), "yyyy")))
+  Else
+    tpYear = CLng(val(Format(tpDate, "yyyy")))
+  End If
+  
+  If (tpYear <> curYear) Then
+    Dim minNr As Long, maxNr As Long
+    curYearMinNr = tpYear * 1000 + 1
+    curYearMaxNr = tpYear * 1000 + 999
+    curYearMaxUsedNr = Nz(DMax("[wedstrijd nummer]", "dtWedstrijden", "[wedstrijd nummer]>=" & curYearMinNr & " and [wedstrijd nummer]<=" & curYearMaxNr))
+    If (curYearMaxUsedNr < minNr) Then
+      curYearMaxUsedNr = tpYear * 1000
+    End If
+    curYear = tpYear
+  End If
+  
+  
+  Dim tpImp As Boolean
+  tpImp = Nz(rs("IMP_Import"))
+  If (tpImp) Then
+    Dim impWedNr As Long
+    impWedNr = -1
+    
+    Dim tpMatchWedNr As Long
+    tpMatchWedNr = Nz(rs("MATCH_Wedstrijdnummer"), -1)
+    If (tpMatchWedNr > 0) Then
+      impWedNr = tpMatchWedNr
+    Else
+      Dim tpOldWedNr As Long
+      tpOldWedNr = Nz(rs("Wedstrijd nummer"))
+      skWed.Seek "=", tpOldWedNr
+      If skWed.NoMatch Then
+        If bSearchLong(tpOldWedNr, nUsedExtraWeds, usedExtraWeds) < 0 Then
+          insLong tpOldWedNr, nUsedExtraWeds, usedExtraWeds
+          impWedNr = tpOldWedNr
+          If (impWedNr = curYearMaxUsedNr + 1) Then
+            If (impWedNr >= curYearMinNr) And (impWedNr <= curYearMaxNr) Then
+              curYearMaxUsedNr = impWedNr
+            End If
+          End If
+        End If
+      End If
+      If (impWedNr = -1) Then
+        'Need to construct new one
+        Dim tpNewNr As Long
+        tpNewNr = curYearMaxUsedNr + 1
+        While (tpNewNr <= curYearMaxNr) And (bSearchLong(tpNewNr, nUsedExtraWeds, usedExtraWeds) >= 0)
+          tpNewNr = tpNewNr + 1
+        Wend
+        If (tpNewNr > curYearMaxNr) Then
+          Err.Raise 1, , "Er zijn geen vrije nummers meer in het jaar " & tpYear
+        End If
+        insLong tpNewNr, nUsedExtraWeds, usedExtraWeds
+        curYearMaxUsedNr = tpNewNr
+        impWedNr = tpNewNr
+      End If
+    End If
+    
+    If (impWedNr = -1) Then
+      Err.Raise 1, , "Unable to obtain new nummer"
+    End If
+    
+    rs.Edit
+      rs("IMP_Wedstrijdnummer") = impWedNr
+    rs.Update
+    
+  End If 'if tpImp
+  rs.MoveNext
+Loop
+
+'Now need to determine mainWedstrijdNummers
+appCleanRS rs
+appCleanRS skWed
+
+
+Dim skiWed As Recordset
+Set skiWed = CurrentDb().OpenRecordset("dtWedstrijden(wImp)")
+skiWed.Index = "PrimaryKey"
+
+Set rs = CurrentDb().OpenRecordset("select * from [dtWedstrijden(wImp)] where imp_import = true")
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpOrgMeetNr As Long
+  tpOrgMeetNr = Nz(rs("MainWedstrijdNummer"), 0)
+  If (tpOrgMeetNr > 0) Then
+    skiWed.Seek "=", tpOrgMeetNr
+    Dim lNewMeetMainNr As Long
+    lNewMeetMainNr = -1
+    If Not skiWed.NoMatch Then
+      If Nz(skiWed("IMP_Import")) Then
+        lNewMeetMainNr = Nz(skiWed("IMP_Wedstrijdnummer"))
+      End If
+    End If
+    If (lNewMeetMainNr >= 0) Then
+      rs.Edit
+        rs("IMP_MainWedstrijdnummer") = lNewMeetMainNr
+      rs.Update
+    Else
+      rs.Edit
+        rs("IMP_MainWedstrijdnummer") = Null
+      rs.Update
+    End If
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS skiWed
+appCleanRS rs
+
+
+bckImportWedstrijden_postZwemmerPhase_detWedNrs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_postZwemmerPhase" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+'Overwrite any existing weds, and clear (programma, opstelling, results data)
+Private Function bckImportWedstrijden_postZwemmerPhase_prepareWeds() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_postZwemmerPhase_prepareWeds = False
+
+
+Dim rs As Recordset
+Dim skWed As Recordset
+
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+
+Dim db As Database
+Dim tbSrc As TableDef
+Dim tbTgt As TableDef
+Set db = CurrentDb()
+Set tbSrc = db.TableDefs("dtWedstrijden(wImp)")
+Set tbTgt = db.TableDefs("dtWedstrijden")
+
+Set rs = CurrentDb().OpenRecordset("Select * from [dtWedstrijden(wImp)] where imp_import")
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpNewNr As Long
+  tpNewNr = Nz(rs("IMP_Wedstrijdnummer"))
+  
+  Dim wasPresent As Boolean
+  wasPresent = False
+
+  skWed.Seek "=", tpNewNr
+  If (skWed.NoMatch) Then
+    skWed.AddNew
+    skWed("Wedstrijd nummer") = tpNewNr
+  Else
+    wasPresent = True
+    skWed.Edit
+    skWed("MainWedstrijdNummer") = Null
+  End If
+  
+  
+  
+    
+  Dim fld As Field
+  For Each fld In tbTgt.Fields
+    If fieldExistsInTD(tbSrc, fld.name) Then
+      If (fld.name <> "Wedstrijd nummer") And (fld.name <> "MainWedstrijdNummer") Then
+        skWed(fld.name) = rs(fld.name)
+      End If
+    End If
+  Next fld
+
+
+  skWed.Update
+  
+  
+  
+  If (wasPresent) Then
+    'Now delete all other data.
+    Dim sql As String
+    sql = "delete * from [dtDeelnemers] where wedstrijdnr = " & tpNewNr
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  
+    sql = "delete * from [dtProgrammanummers] where wedstrijdnr = " & tpNewNr
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  
+    sql = "delete * from [dtUitslagenPers] where ty_wedstrijdnummer = " & tpNewNr
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  
+    sql = "delete * from [dtUitslagenEst] where ty_wedstrijdnummer = " & tpNewNr
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  
+    sql = "delete * from [dtProgrammaLeeftijdsgroepen] where wedstrijdnr = " & tpNewNr
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+    
+    sql = "delete * from [dtWedstrijdGegevens] where [wedstrijdnummer]=  " & tpNewNr
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+    
+  End If 'if wasPresent
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+'Now make another pass through the table, correcting MainWedstrijdNummer for wedstijden in meets.
+
+Set rs = CurrentDb().OpenRecordset("Select * from [dtWedstrijden(wImp)] where imp_import")
+rs.MoveFirst
+Do Until rs.EOF
+  tpNewNr = Nz(rs("IMP_Wedstrijdnummer"))
+
+  skWed.Seek "=", tpNewNr
+  If (skWed.NoMatch) Then
+    Err.Raise 1, , "internal error"
+  End If
+  
+  If Nz(rs("IsPartOfMeet")) Then
+    Dim tpNewMainNr As Long
+    tpNewMainNr = Nz(rs("IMP_MainWedstrijdnummer"))
+    If (tpNewMainNr > 0) Then
+      skWed.Edit
+        skWed("MainWedstrijdnummer") = tpNewMainNr
+      skWed.Update
+    Else
+      skWed.Edit
+        skWed("MainWedstrijdnummer") = Null
+        skWed("IsPartOfMeet") = False
+      skWed.Update
+    End If
+  End If
+  
+  
+
+  rs.MoveNext
+Loop
+
+bckImportWedstrijden_postZwemmerPhase_prepareWeds = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_postZwemmerPhase_prepareWeds" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function bckImportWedstrijden_postZwemmerPhase_prepareZwemmers() As Boolean
+On Error GoTo fout
+
+bckImportWedstrijden_postZwemmerPhase_prepareZwemmers = False
+
+If (Not tableExists("wedZwemmers(wImp)")) Then
+  bckImportWedstrijden_postZwemmerPhase_prepareZwemmers = True
+  Exit Function
+End If
+
+
+'Add all new swimmers.
+
+Dim rsOut As Recordset
+
+Dim skVers As Recordset
+Dim skImpVers As Recordset
+
+
+
+Set rsOut = CurrentDb().OpenRecordset("dtLeden")
+Set skVers = CurrentDb().OpenRecordset("dtVerenigingen")
+skVers.Index = "PrimaryKey"
+
+Set skImpVers = CurrentDb().OpenRecordset("wedVers(wImp)")
+skImpVers.Index = "IDX_VER_NAAM"
+
+
+
+
+
+Dim sql As String
+
+If (dbIsMultipleVer()) Then
+
+  Dim rs As Recordset
+
+  
+  Set rs = CurrentDb().OpenRecordset("select distinctrow vereniging from [wedZwemmers(wImp)] where IMP_Import;")
+  
+  rs.MoveFirst
+  Do Until rs.EOF
+    Dim tpVer As String
+    tpVer = Nz(rs("vereniging"))
+    If (tpVer <> "") Then
+      skVers.Seek "=", tpVer
+      If (skVers.NoMatch) Then
+        skVers.AddNew
+          skVers("V_Naam") = hzn(tpVer)
+          
+          skImpVers.Seek "=", tpVer
+          If (Not skImpVers.NoMatch) Then
+            skVers("V_Plaats") = skImpVers("V_Plaats")
+            skVers("V_Afkorting") = skImpVers("V_Afkorting")
+            skVers("V_Depotnummer") = skImpVers("V_Depotnummer")
+            skVers("V_KorteNaam") = skImpVers("V_KorteNaam")
+            skVers("V_StartGemeenschap") = skImpVers("V_StartGemeenschap")
+            skVers("V_Actief") = skImpVers("V_Actief")
+          End If
+          
+        skVers.Update
+      End If
+    End If
+    rs.MoveNext
+  Loop
+  
+  appCleanRS rs
+  
+Else
+
+  sql = "update [wedZwemmers(wImp)] set vereniging = null;"
+  
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+
+End If
+
+sql = "delete * from [wedZwemmers(wImp)] where not nz([imp_import]);"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+'now append the new swimmers.
+If Not bckTransferTable("wedZwemmers(wImp)", "dtLeden", "") Then
+  Exit Function
+End If
+
+bckImportWedstrijden_postZwemmerPhase_prepareZwemmers = True
+
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " bckImportWedstrijden_postZwemmerPhase_prepareZwemmers" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function bckImportWedstrijden_updateOvergezetStatus(ByVal impTbName As String, ByVal blIsEstaf As Boolean) As Boolean
+On Error GoTo fout
+bckImportWedstrijden_updateOvergezetStatus = False
+
+
+
+Dim blShouldTransfer As Boolean
+
+Dim geg As Recordset
+
+Dim sql As String
+
+If (blIsEstaf) Then
+  sql = "select * from [" & impTbName & "] order by ty_eindslag, ty_eindafstand, ty_eindtijd, corr_wedstrijdnummer"
+Else
+  sql = "select * from [" & impTbName & "] order by ty_startnummer, ty_eindslag, ty_eindafstand, ty_eindtijd, corr_wedstrijdnummer"
+End If
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+
+geg.MoveFirst
+
+Dim curStart As String
+curStart = " "
+
+Dim blHasTijden As Boolean
+
+Dim td As Recordset
+
+Set td = Nothing
+
+Do Until geg.EOF
+  Dim tpStart As String
+  If (blIsEstaf) Then
+    tpStart = "00-000"
+  Else
+    tpStart = Nz(geg("TY_Startnummer"))
+  End If
+  
+  If (tpStart <> curStart) Then
+
+    Dim sqlperswim As String
+    sqlperswim = "SELECT * from dtTijden where [start nr]=""" & tpStart & """ " & _
+    "ORDER BY [dtTijden].Slag, Val([Afstand]), [dtTijden].Tijd, [dtTijden].[wedstr nr];"
+    
+    appCleanRS td
+        
+    Set td = CurrentDb().OpenRecordset(sqlperswim)
+    td.FindFirst "[start nr]=""" & tpStart & """"
+    blHasTijden = Not td.NoMatch
+    curStart = tpStart
+    If (blHasTijden) Then
+      td.MovePrevious
+    End If
+  End If
+  
+  
+  Dim tpSlag As String, tpAf As String
+  Dim tpTime As Double
+  Dim tpWed As Long
+  
+  tpSlag = Nz(geg("TY_Eindslag"))
+  tpAf = Nz(geg("TY_Eindafstand"))
+  tpTime = Nz(geg("TY_Eindtijd"))
+  
+  tpWed = Nz(geg("corr_wedstrijdnummer"))
+  
+  'check to see if time is already registered.
+  
+  
+  If (Not blHasTijden) Then
+    blShouldTransfer = True
+  ElseIf (swtIsValid(tpTime)) Then
+    Dim BM
+    Dim blAtBegin As Boolean
+    
+    blAtBegin = td.BOF
+    If Not blAtBegin Then
+      BM = td.Bookmark
+    End If
+    'Problem with "," tijden, therefore use lenFormatResLim
+    Dim crit As String
+    crit = "[start nr] = """ & tpStart & """ and abs([tijd] - " & lenFormatResLim(tpTime) & ") < 0.0001 and [slag] = """ & _
+    tpSlag & """ and [afstand] = """ & tpAf & """ and [wedstr nr] = " & tpWed
+    If blAtBegin Then
+      td.FindFirst crit
+    Else
+      td.FindNext crit
+    End If
+    
+    blShouldTransfer = td.NoMatch
+    
+    If (td.NoMatch) Then
+      'restore bookmark
+      If blAtBegin Then
+        td.MoveFirst
+        td.MovePrevious
+      Else
+        td.Bookmark = BM
+      End If
+    End If
+  Else
+    blShouldTransfer = True
+  End If
+  
+  'Note that all TY_Overgezet fields have been set to "N"
+  If Not blShouldTransfer Then
+    geg.Edit
+    geg("TY_Overgezet") = "J"
+    geg.Update
+  End If
+  
+  geg.MoveNext
+Loop
+
+
+appCleanRS td
+appCleanRS geg
+
+
+
+
+
+bckImportWedstrijden_updateOvergezetStatus = True
+
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckImportWedstrijden_updateOvergezetStatus" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function bckImportWedstrijden_postZwemmerPhase() As Boolean
+On Error GoTo fout
+bckImportWedstrijden_postZwemmerPhase = False
+
+
+notifyGlobalChange
+
+
+'first prepare swimmers
+If Not bckImportWedstrijden_postZwemmerPhase_prepareZwemmers() Then
+  Exit Function
+End If
+
+
+'We now have to finish the import sequence.
+If Not bckImportWedstrijden_postZwemmerPhase_detWedNrs() Then
+  Exit Function
+End If
+
+
+
+'Now just need to import all the data.
+
+'First prepare the wedstrijden
+If Not bckImportWedstrijden_postZwemmerPhase_prepareWeds() Then
+  Exit Function
+End If
+
+
+Dim tbName(0 To 100) As String, tbExpName(0 To 100) As String, tbJoin(0 To 100) As Boolean, tbJoinField(0 To 100) As String
+Dim nImpTables As Integer
+
+If Not bckWedstrijden_setupTables(tbName, tbExpName, tbJoin, tbJoinField, nImpTables) Then
+  Exit Function
+End If
+
+Dim i As Integer
+
+'Now just loop through other tables.
+For i = 0 To nImpTables - 1
+
+  If (i = WB_IDX_TY_PERS) Or (i = WB_IDX_TY_EST) Then
+    Dim sql As String
+    sql = "update [" & tbName(i) & "(wImp)] set ty_overgezet=""N"";"
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  End If
+    
+
+  If (i = WB_IDX_WED_GEG) Or (i = WB_IDX_PROG) Or (i = WB_IDX_INS) Or (i = WB_IDX_LFT) Or (i = WB_IDX_TY_PERS) Or (i = WB_IDX_TY_EST) Then
+    'First need to correct wedstrijdnummer
+    
+    sql = "update [" & tbName(i) & "(wImp)] inner join [dtWedstrijden(wImp)] on [" & tbName(i) & "(wImp)].[" & tbJoinField(i) & "] = [dtWedstrijden(wImp)].[wedstrijd nummer] " & _
+      "set corr_wedstrijdnummer = imp_wedstrijdnummer where imp_import"
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+    
+    sql = "delete * from [" & tbName(i) & "(wImp)] where isNull([corr_wedstrijdnummer]);"
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+    
+    sql = "update [" & tbName(i) & "(wImp)] set [" & tbJoinField(i) & "] = [corr_wedstrijdnummer];"
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+    
+        
+    'Now need to update insWedNr and estInsWedNr
+    If (i = WB_IDX_INS) Then
+    
+      If (tableExists("wedIns(wImp)")) Then
+        sql = "update [" & tbName(i) & "(wImp)] inner join [wedIns(wImp)] on [" & tbName(i) & "(wImp)].[WedstrijdNrInsTijd] = [wedIns(wImp)].[wedstrijd nummer] " & _
+          "set corr_ins_wedstrijdnummer = [match_wedstrijdnummer]"
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL sql
+        DoCmd.SetWarnings True
+      End If
+      sql = "update [" & tbName(i) & "(wImp)] set [wedstrijdNrInsTijd] = [corr_ins_wedstrijdnummer];"
+      DoCmd.SetWarnings False
+      DoCmd.RunSQL sql
+      DoCmd.SetWarnings True
+      
+      If (tableExists("wedEstIns(wImp)")) Then
+        sql = "update [" & tbName(i) & "(wImp)] inner join [wedEstIns(wImp)] on [" & tbName(i) & "(wImp)].[ESTINS_ExtInsWedNr] = [wedEstIns(wImp)].[wedstrijd nummer] " & _
+          "set corr_estins_wedstrijdnummer = [match_wedstrijdnummer]"
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL sql
+        DoCmd.SetWarnings True
+      End If
+    
+      sql = "update [" & tbName(i) & "(wImp)] set [estins_extInsWedNr] = [corr_estins_wedstrijdnummer];"
+      DoCmd.SetWarnings False
+      DoCmd.RunSQL sql
+      DoCmd.SetWarnings True
+      
+    End If
+    
+    If (i = WB_IDX_TY_PERS) Then
+      If Not bckImportWedstrijden_updateOvergezetStatus(tbName(i) & "(wImp)", False) Then
+        Exit Function
+      End If
+    ElseIf (i = WB_IDX_TY_EST) Then
+      If Not bckImportWedstrijden_updateOvergezetStatus(tbName(i) & "(wImp)", True) Then
+        Exit Function
+      End If
+    End If
+    
+    
+    If Not bckTransferTable(tbName(i) & "(wImp)", tbName(i), "") Then
+      Exit Function
+    End If
+    
+  
+  End If
+Next i
+
+'We leave clean up to caller.
+
+
+
+bckImportWedstrijden_postZwemmerPhase = True
+Exit Function
+fout:
+MsgBox Err & " bckImportWedstrijden_postZwemmerPhase" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
+
+
+
+Public Function bckImportWedstrijden_postActionPhase(ByRef blCanSkipZwmPhase As Boolean) As Boolean
+On Error GoTo fout
+bckImportWedstrijden_postActionPhase = False
+
+blCanSkipZwmPhase = False
+
+
+If Not tableExists("wedZwemmers(wImp)") Then
+  blCanSkipZwmPhase = True
+  bckImportWedstrijden_postActionPhase = True
+  Exit Function
+End If
+
+Dim sql As String
+
+sql = "update [wedZwemmers(wImp)] set REF_IsUsed = false, REF_IsKnown = false, IMP_Import = false;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "SELECT distinctrow  [dtDeelnemers(wImp)].Startnummer " & _
+      "FROM [dtDeelnemers(wImp)] INNER JOIN [dtWedstrijden(wImp)] ON " & _
+      "[dtDeelnemers(wImp)].Wedstrijdnr = [dtWedstrijden(wImp)].[Wedstrijd nummer] " & _
+      "WHERE [dtWedstrijden(wImp)].IMP_Import;"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim skImpZwms As Recordset
+Set skImpZwms = CurrentDb().OpenRecordset("wedZwemmers(wImp)")
+skImpZwms.Index = "IDX_STARTNR"
+
+Dim skCurZwms As Recordset
+Set skCurZwms = CurrentDb().OpenRecordset("dtLeden")
+skCurZwms.Index = "PrimaryKey"
+
+
+Dim blUnknownSwimmers As Boolean
+blUnknownSwimmers = False
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpStart As String
+  tpStart = Nz(rs("startnummer"))
+  
+  skImpZwms.Seek "=", tpStart
+  
+  If (Not skImpZwms.NoMatch) Then
+    Dim tpIsKnown As Boolean
+    tpIsKnown = True
+    
+    skCurZwms.Seek "=", tpStart
+    If (skCurZwms.NoMatch) Then
+      tpIsKnown = False
+      blUnknownSwimmers = True
+    End If
+      
+    
+    skImpZwms.Edit
+      skImpZwms("REF_IsUsed") = True
+      skImpZwms("REF_IsKnown") = tpIsKnown
+      If (Not tpIsKnown) Then
+        skImpZwms("IMP_Import") = True
+      End If
+    skImpZwms.Update
+  
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+appCleanRS skImpZwms
+
+
+If (Not blUnknownSwimmers) Then
+  blCanSkipZwmPhase = True
+End If
+
+
+bckImportWedstrijden_postActionPhase = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+MsgBox Err & " bckImportWedstrijden_postActionPhase" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+
+Exit Function
+
+
+End Function
