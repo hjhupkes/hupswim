@@ -198,10 +198,14 @@ On Error GoTo fout
 analyzeLimiet = False
 Dim lft As String, rgt As String, midS As String
 Dim pos As Integer
+
+'To prevent complications: first trim lim
+lim = Trim(lim)
+
 If (lim Like "*/*") Then
   pos = InStr(lim, "/")
-  lft = Left(lim, pos - 1)
-  rgt = Mid(lim, pos + 1, Len(lim) - pos)
+  lft = Trim(Left(lim, pos - 1))
+  rgt = Trim(Mid(lim, pos + 1, Len(lim) - pos))
   lim25 = limParseTijd(lft)
   lim50 = limParseTijd(rgt)
   If (lim25 < -0.1) Or (lim50 < -0.1) Then
@@ -214,12 +218,12 @@ If (lim Like "*/*") Then
 End If
 
 If (lim Like "*-*") Then
-  lft = extractToken(lim, "-")
-  rgt = extractToken(lim, "-")
+  lft = Trim(extractToken(lim, "-"))
+  rgt = Trim(extractToken(lim, "-"))
   If (Len(lim) > 0) Then
     midS = rgt
     hasMiddleLim = True
-    rgt = extractToken(lim, "-")
+    rgt = Trim(extractToken(lim, "-"))
     'Addition 26 september 2006.
     If (rgt Like "*+") Then
       rgt = "9999.99"
@@ -268,11 +272,25 @@ On Error GoTo fout
 limBuild = ""
 
 If (is25Of50) Then
-  limBuild = Trim(fmtSwimTime(lim25)) & " / " & Trim(fmtSwimTime(lim50))
+  If (lim25 < 0.1) And (lim50 < 0.1) Then
+    limBuild = "0 / 0"
+  ElseIf (lim25 < 0.1) Then
+    limBuild = "0 / " & Trim(fmtSwimTime(lim50))
+  ElseIf (lim50 < 0.1) Then
+    limBuild = Trim(fmtSwimTime(lim25)) & " / 0"
+  Else
+    limBuild = Trim(fmtSwimTime(lim25)) & " / " & Trim(fmtSwimTime(lim50))
+  End If
   Exit Function
 ElseIf (hasMid) Then
   If (limMax > 8888) Then
-    limBuild = Trim(fmtSwimTime(limMin)) & "-" & Trim(fmtSwimTime(limMid)) & "+"
+    If (limMin < 0.1) Then
+      limBuild = "0-" & Trim(fmtSwimTime(limMid)) & "+"
+    Else
+      limBuild = Trim(fmtSwimTime(limMin)) & "-" & Trim(fmtSwimTime(limMid)) & "+"
+    End If
+  ElseIf (limMin < 0.1) Then
+    limBuild = "0-" & Trim(fmtSwimTime(limMid)) & "-" & Trim(fmtSwimTime(limMax))
   Else
     limBuild = Trim(fmtSwimTime(limMin)) & "-" & Trim(fmtSwimTime(limMid)) & "-" & Trim(fmtSwimTime(limMax))
   End If
