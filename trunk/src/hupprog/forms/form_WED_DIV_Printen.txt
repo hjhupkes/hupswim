@@ -2422,15 +2422,27 @@ Dim sStartProg As String, sEndProg As String
 sStartProg = Nz(Me.prog1)
 sEndProg = Nz(Me.prog2)
 
+
+
+
 Select Case choice
   Case OPT_PRG, OPT_STL
+    If wedIsProgRangeEmpty(waarde(), sStartProg, sEndProg) Then
+      Err.Raise 1, , "Het opgegeven programmanummer bereik bevat geen programmanummers"
+    End If
+    
     If Not progCreate(False, waarde()) Then
       Exit Function
     End If
+    
     If Not rxpSetPVOptions(waarde(), False, sStartProg, sEndProg, False, -1) Then
       Exit Function
     End If
   Case OPT_UTB, OPT_UTL
+    If wedIsProgRangeEmpty(waarde(), sStartProg, sEndProg) Then
+      Err.Raise 1, , "Het opgegeven programmanummer bereik bevat geen programmanummers"
+    End If
+    
     If Not uitslagCreate(waarde()) Then
       Exit Function
     End If

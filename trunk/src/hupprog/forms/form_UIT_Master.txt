@@ -611,27 +611,34 @@ DoCmd.OpenForm "DLN_Master", , , , , , "Tijden"
 End Sub
 
 
-Private Sub applyPVOptions()
+Private Function applyPVOptions() As Boolean
 On Error GoTo fout
+applyPVOptions = False
 
 Dim sStartProg As String, sEndProg As String
     Dim blRestrictRnk As Boolean, lMaxRnk As Long
     
     sStartProg = Nz(Me.prog1)
     sEndProg = Nz(Me.prog2)
+    
+    If wedIsProgRangeEmpty(waarde(), sStartProg, sEndProg) Then
+      Err.Raise 1, , "Het opgegeven programmanummer bereik bevat geen programmanummers"
+    End If
+    
+    
     blRestrictRnk = Nz(Me.alleen)
     lMaxRnk = Nz(Me.aantal)
     
     If Not rxpSetPVOptions(waarde(), False, sStartProg, sEndProg, blRestrictRnk, lMaxRnk) Then
-      Exit Sub
+      Exit Function
     End If
 
-
-Exit Sub
+applyPVOptions = True
+Exit Function
 fout:
 MsgBox Err & " applyPVOptions" & vbCrLf & Error$, 16
-Exit Sub
-End Sub
+Exit Function
+End Function
 
 
 Private Sub btnPnt_Click()
@@ -649,14 +656,18 @@ End Sub
 Private Sub btnUTL_Click()
 On Error Resume Next
 uitslagCreate (waarde())
-applyPVOptions
+If Not applyPVOptions() Then
+  Exit Sub
+End If
 DoCmd.OpenReport REP_UTL, acViewPreview
 End Sub
 
 Private Sub btnUTB_Click()
 On Error Resume Next
 uitslagCreate (waarde())
-applyPVOptions
+If Not applyPVOptions() Then
+  Exit Sub
+End If
 DoCmd.OpenReport REP_UTB, acViewPreview
 
 
@@ -665,7 +676,9 @@ End Sub
 Private Sub btnPrnUTB_Click()
 On Error Resume Next
 uitslagCreate waarde()
-applyPVOptions
+If Not applyPVOptions() Then
+  Exit Sub
+End If
 printReport REP_UTB
 
 End Sub
@@ -701,7 +714,9 @@ End Sub
 Private Sub btnPrnUTL_Click()
 On Error Resume Next
 uitslagCreate (waarde())
-applyPVOptions
+If Not applyPVOptions() Then
+  Exit Sub
+End If
 printReport REP_UTL
 
 End Sub
