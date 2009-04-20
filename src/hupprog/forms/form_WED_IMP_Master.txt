@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =619393715
+Checksum =626457328
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -14,10 +14,10 @@ Begin Form
     GridY =20
     Width =10999
     ItemSuffix =40
-    Left =4965
-    Top =765
-    Right =15960
-    Bottom =7230
+    Left =4020
+    Top =330
+    Right =15015
+    Bottom =6795
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
         0xaf5744d5f873e140
@@ -344,29 +344,17 @@ If (lenex_file()) Then
 
   lenHandleCompleteImportSequence Nz(Me.dir), Nz(Me.file), True, waarde(), Nz(wed_datum(), #1/1/1900#), Nz(wed_aanvang(), #12:00:00 AM#), wed_IsMeet(), wed_MeetMainNr()
   
-  On Error Resume Next
-  Dim a
-  a = waarde()
-  Forms("wed_master").Requery
-  Forms![wed_master].SetFocus
-  Forms![wed_master]![WE_Wedstrijdnummer].SetFocus
-  DoCmd.GoToRecord A_FIRST
-  DoCmd.FindRecord val(Left(a, 4) & Right(a, 2))
+  wedUpdateViewAfterWedImport
   
   Me.SetFocus
+  
 
   
 ElseIf (mm_backup_file()) Then
 
   lenHandleCompleteMMImpSequence Nz(Me.dir), Nz(Me.file), True, waarde(), Nz(wed_datum(), #1/1/1900#), Nz(wed_aanvang(), #12:00:00 AM#), wed_IsMeet(), wed_MeetMainNr()
   
-  On Error Resume Next
-  a = waarde()
-  Forms("wed_master").Requery
-  Forms![wed_master].SetFocus
-  Forms![wed_master]![WE_Wedstrijdnummer].SetFocus
-  DoCmd.GoToRecord A_FIRST
-  DoCmd.FindRecord val(Left(a, 4) & Right(a, 2))
+  wedUpdateViewAfterWedImport
   
   Me.SetFocus
 
@@ -374,13 +362,7 @@ ElseIf (was2005_file()) Then
 
   lenHandleCompleteWasImpSequence Nz(Me.dir), Nz(Me.file), True, waarde(), Nz(wed_datum(), #1/1/1900#), Nz(wed_aanvang(), #12:00:00 AM#), wed_IsMeet(), wed_MeetMainNr()
 
-  On Error Resume Next
-  a = waarde()
-  Forms("wed_master").Requery
-  Forms![wed_master].SetFocus
-  Forms![wed_master]![WE_Wedstrijdnummer].SetFocus
-  DoCmd.GoToRecord A_FIRST
-  DoCmd.FindRecord val(Left(a, 4) & Right(a, 2))
+  wedUpdateViewAfterWedImport
   
   Me.SetFocus
 

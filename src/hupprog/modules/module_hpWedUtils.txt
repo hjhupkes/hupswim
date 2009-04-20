@@ -834,13 +834,16 @@ End Function
 
 Public Sub wedUpdateViewAfterWedImport()
 On Error Resume Next
-    Dim a
-    a = waarde()
-    Forms("wed_master").Requery
-    Forms![wed_master].SetFocus
-    Forms![wed_master]![WE_Wedstrijdnummer].SetFocus
-    DoCmd.GoToRecord A_FIRST
-    DoCmd.FindRecord val(Left(a, 4) & Right(a, 2))
+Dim curWedNr As Long
+curWedNr = waarde()
+Forms("wed_master").Requery
+
+Forms("wed_master").RecordsetClone.FindFirst ("we_wedstrijdnummer = " & curWedNr)
+If Not Forms("wed_master").RecordsetClone.NoMatch Then
+  Forms("wed_master").Bookmark = Forms("wed_master").RecordsetClone.Bookmark
+End If
+
+
 End Sub
 
 
