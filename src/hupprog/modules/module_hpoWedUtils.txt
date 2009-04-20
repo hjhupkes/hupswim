@@ -4160,3 +4160,37 @@ On Error GoTo 0
 Resume
 
 End Function
+
+
+
+
+Public Function wedIsProgRangeEmpty(ByVal lWedNr As Long, ByVal sProgStart As String, sProgEnd As String) As Boolean
+On Error Resume Next
+wedIsProgRangeEmpty = False
+
+Dim lProgStart As Long, lProgEnd As Long
+lProgStart = CLng(val(sProgStart))
+lProgEnd = CLng(val(sProgEnd))
+
+Dim sql As String
+If (sProgStart = "") And (sProgEnd = "") Then
+  sql = "select * from dtProgramma where pr_wedstrijdnummer = " & lWedNr
+ElseIf (sProgStart = "") Then
+  sql = "select * from dtProgramma where pr_wedstrijdnummer = " & lWedNr & " and val([pr_programmanummer]) <= " & lProgEnd
+ElseIf (sProgEnd = "") Then
+  sql = "select * from dtProgramma where pr_wedstrijdnummer = " & lWedNr & " and val([pr_programmanummer]) >= " & lProgStart
+Else
+  sql = "select * from dtProgramma where pr_wedstrijdnummer = " & lWedNr & " and val([pr_programmanummer]) >= " & lProgStart & " and val([pr_programmanummer]) <= " & lProgEnd
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+If rs.EOF Then
+  wedIsProgRangeEmpty = True
+End If
+
+appCleanRS rs
+
+End Function
