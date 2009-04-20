@@ -3440,7 +3440,12 @@ Do Until pl.EOF
   plOutp("PL_VER_ID") = verID
   plOutp("PL_Geslacht") = hzn(lenParseGender(Nz(pl("LEN_GENDER"))))
   plOutp("PL_Naam") = pl("LEN_NAME")
-  plOutp("PL_Nummer") = IIf(IsNull(pl("LEN_NUMBER")), Null, CInt(val(Nz(pl("LEN_NUMBER")))))
+
+  
+  'note: lenex standard changed: len_number may now be null without penalty
+  plOutp("PL_Nummer") = IIf(IsNull(pl("LEN_NUMBER")), 1, CInt(val(Nz(pl("LEN_NUMBER")))))
+  
+
   plOutp("PL_MinTotAge") = IIf(IsNull(pl("LEN_AGETOTALMIN")), Null, CInt(val(Nz(pl("LEN_AGETOTALMIN")))))
   plOutp("PL_MaxTotAge") = IIf(IsNull(pl("LEN_AGETOTALMAX")), Null, CInt(val(Nz(pl("LEN_AGETOTALMAX")))))
   plOutp("PL_MinAge") = IIf(IsNull(pl("LEN_AGEMIN")), Null, CInt(val(Nz(pl("LEN_AGEMIN")))))
