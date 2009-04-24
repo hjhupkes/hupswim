@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1516369265
+Checksum =1673061486
 Begin Form
     AllowFilters = NotDefault
     RecordSelectors = NotDefault
@@ -29,6 +29,7 @@ Begin Form
         "ND (([~AN_INS_ESTAFS].EST_Programmanummer)=waarde_prog())) ORDER BY [~AN_INS_EST"
         "AFS].EST_Estafettenummer;"
     Caption ="Uitslag"
+    AfterUpdate ="[Event Procedure]"
     Begin
         Begin CommandButton
             TextFontFamily =2
@@ -250,3 +251,8 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Compare Database   'Use database order for string comparisons
 Option Explicit
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+notifyWedOpstellingChange
+End Sub
