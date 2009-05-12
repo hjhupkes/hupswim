@@ -1113,7 +1113,10 @@ appCleanRS rsIns
 
 
 Dim rsUit As Recordset
-Set rsUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer] from [dtUitslagenPers] inner join  [dtWedstrijden(wImp)] on [dtUitslagenPers].ty_wedstrijdnummer = [dtWedstrijden(wImp)].match_wedstrijdnummer group by [ty_wedstrijdnummer] ")
+Set rsUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer], [ty_eindtijd], [ty_dis] from [dtUitslagenPers] inner join  [dtWedstrijden(wImp)] on [dtUitslagenPers].ty_wedstrijdnummer = [dtWedstrijden(wImp)].match_wedstrijdnummer order by ty_wedstrijdnummer ")
+
+Dim lLastUpdWedNr As Long
+lLastUpdWedNr = -1
 
 rsUit.MoveFirst
 Do Until rsUit.EOF
@@ -1135,11 +1138,15 @@ Do Until rsUit.EOF
   
   If (tpTyValid) Then
   
-    skImpWed.Seek "=", tpWed
-    If Not skImpWed.NoMatch Then
-      skImpWed.Edit
-        skImpWed("REF_HasResults") = True
-      skImpWed.Update
+    If (tpWed <> lLastUpdWedNr) Then
+      lLastUpdWedNr = tpWed
+  
+      skImpWed.Seek "=", tpWed
+      If Not skImpWed.NoMatch Then
+        skImpWed.Edit
+          skImpWed("REF_HasResults") = True
+        skImpWed.Update
+      End If
     End If
   End If
   
@@ -1150,7 +1157,9 @@ Loop
 appCleanRS rsUit
 
 
-Set rsUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer] from [dtUitslagenEst] inner join  [dtWedstrijden(wImp)] on [dtUitslagenEst].ty_wedstrijdnummer = [dtWedstrijden(wImp)].match_wedstrijdnummer group by [ty_wedstrijdnummer] ")
+Set rsUit = CurrentDb().OpenRecordset("select [ty_wedstrijdnummer], [ty_eindtijd], [ty_dis] from [dtUitslagenEst] inner join  [dtWedstrijden(wImp)] on [dtUitslagenEst].ty_wedstrijdnummer = [dtWedstrijden(wImp)].match_wedstrijdnummer order by ty_wedstrijdnummer  ")
+
+lLastUpdWedNr = -1
 
 rsUit.MoveFirst
 Do Until rsUit.EOF
@@ -1169,12 +1178,16 @@ Do Until rsUit.EOF
   End If
   
   If (tpTyValid) Then
-  
-    skImpWed.Seek "=", tpWed
-    If Not skImpWed.NoMatch Then
-      skImpWed.Edit
-        skImpWed("REF_HasResults") = True
-      skImpWed.Update
+    If (tpWed <> lLastUpdWedNr) Then
+      lLastUpdWedNr = tpWed
+      
+      skImpWed.Seek "=", tpWed
+      If Not skImpWed.NoMatch Then
+        skImpWed.Edit
+          skImpWed("REF_HasResults") = True
+        skImpWed.Update
+      End If
+      
     End If
   End If
   
