@@ -7,9 +7,9 @@
 AppName=Hupsoft voor Office 97
 AppVerName=Hupsoft
 AppPublisher=H.J. Hupkes - Hupsoft
-AppPublisherURL=http://home.wxs.nl/~wimhupke/hupsoft
-AppSupportURL=http://home.wxs.nl/~wimhupke/hupsoft
-AppUpdatesURL=http://home.wxs.nl/~wimhupke/hupsoft
+AppPublisherURL=http://home.kpn.nl/wimhupke/hupsoft
+AppSupportURL=http://home.kpn.nl/wimhupke/hupsoft
+AppUpdatesURL=http://home.kpn.nl/wimhupke/hupsoft
 DefaultDirName=c:\zwem
 DefaultGroupName=Hupswim
 Compression=lzma

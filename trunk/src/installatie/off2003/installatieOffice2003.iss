@@ -8,9 +8,9 @@ AppName=Hupsoft voor Office 2003/2007
 AppID=Hupsoft voor Office 2003
 AppVerName=Hupsoft
 AppPublisher=H.J. Hupkes - Hupsoft
-AppPublisherURL=http://home.wxs.nl/~wimhupke/hupsoft
-AppSupportURL=http://home.wxs.nl/~wimhupke/hupsoft
-AppUpdatesURL=http://home.wxs.nl/~wimhupke/hupsoft
+AppPublisherURL=http://home.kpn.nl/wimhupke/hupsoft
+AppSupportURL=http://home.kpn.nl/wimhupke/hupsoft
+AppUpdatesURL=http://home.kpn.nl/wimhupke/hupsoft
 DefaultDirName=c:\zwem
 DefaultGroupName=Hupswim
 Compression=lzma
@@ -163,7 +163,7 @@ begin
   
   
   if (not (blFoundAcc2003 or blFoundAcc2007) ) then begin
-    msgBox('Hupswim kon geen geinstalleerde versie van Access 2003/2007 vinden. Download eerst de runtime versie van Access 2003 van de Hupsoft website (http://home.wxs.nl/~wimhupke/hupsoft)', mbInformation, MB_OK);
+    msgBox('Hupswim kon geen geinstalleerde versie van Access 2003/2007 vinden. Download eerst de runtime versie van Access 2003 van de Hupsoft website (http://home.kpn.nl/wimhupke/hupsoft)', mbInformation, MB_OK);
     result:=false;
   end;
 end;
