@@ -1,0 +1,783 @@
+Option Compare Database
+Option Explicit
+
+Public Const BCK_VALID = -1
+Public Const BCK_INVALID_FILEFORMAT = 0
+Public Const BCK_INVALID_FILENAME = 1
+Public Const BCK_INVALID_APP = 2
+Public Const BCK_INVALID_VERSION = 3
+Public Const BCK_INVALID_ZIP_CNT = 4
+Public Const BCK_UZIP_FAILURE = 5
+Public Const BCK_UNKNOWN_FILE = 6
+Public Const BCK_INVALID_BCK_TYPE = 7
+
+Public Const BCK_TYPE_NAME_GLOBAL = "BackupGlobal"
+
+
+Sub backup()
+On Error GoTo fout
+
+DoCmd.OpenForm "BCK_Create", , , , , acDialog
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+End Sub
+
+
+Public Function bckExtractInfo(ByVal fName As String, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckHasInfo As Boolean, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckVersion As String, ByRef bckNameCreator As String, ByRef bckDescription As String, ByRef extPropNames() As String, ByRef extPropValues() As String, ByVal nExtProps As Integer, ByVal blAllowInvalidVersion As Boolean, ByRef bckVersionOK As Boolean, ByVal sBckTypeName As String) As Boolean
+On Error GoTo fout
+bckExtractInfo = False
+
+
+
+bckValid = False
+bckVersionOK = True
+bckInvalidReason = BCK_UNKNOWN_FILE
+
+bckTimeS = ""
+bckDateS = ""
+bckVersion = ""
+bckDescription = ""
+bckNameCreator = ""
+
+Dim i As Integer
+For i = 0 To nExtProps - 1
+  extPropValues(i) = ""
+Next i
+
+
+
+If FileExists(fName) Then
+  bckTimeS = FileTimeStr(fName)
+  bckDateS = FileDateStr(fName)
+  bckVersion = "4.20a of eerder"
+  
+  bckHasInfo = False
+
+  'try to extract version information.
+  Dim backupdb As Database
+  Set backupdb = DBEngine.Workspaces(0).OpenDatabase(fName)
+  
+  bckInvalidReason = BCK_INVALID_FILEFORMAT
+  
+  If (Not backupdb Is Nothing) Then
+  
+    bckValid = True
+    bckInvalidReason = BCK_VALID
+  
+    
+    Dim rs As Recordset
+    Set rs = backupdb.OpenRecordset("BCK_INFO")
+    
+    If (Not rs Is Nothing) Then
+      bckHasInfo = True
+      rs.MoveFirst
+      Dim bckDate As Date
+      bckDate = Nz(rs("BCK_Date"), #1/1/1900#)
+      If (lenDateIsValid(bckDate)) Then
+        bckDateS = Format(bckDate, "dd\-mm\-yyyy")
+        bckTimeS = Format(bckDate, "hh:nn")
+      End If
+      bckVersion = Nz(rs("BCK_Version"))
+      bckNameCreator = Nz(rs("BCK_NameCreator"))
+      bckDescription = Nz(rs("BCK_Description"))
+      
+      'now extract the extra properties.
+      For i = 0 To nExtProps - 1
+        extPropValues(i) = Nz(rs("BCK_" & extPropNames(i)))
+      Next i
+      
+      
+      
+      Dim bckApp As String
+      bckApp = Nz(rs("BCK_Application"))
+      If (bckApp <> bckAppName) Then
+        bckValid = False
+        bckInvalidReason = BCK_INVALID_APP
+      End If
+      
+      If (bckValid) Then
+        'check version.
+        If val(bckVersion) > val(licentie_versie()) Then
+          If (Not blAllowInvalidVersion) Then
+            bckValid = False
+            bckInvalidReason = BCK_INVALID_VERSION
+          Else
+            bckVersionOK = False
+          End If
+        End If
+      End If
+      
+      If (bckValid) Then
+        Dim tb As TableDef
+        Set tb = backupdb.TableDefs("BCK_INFO")
+        If fieldExistsInTD(tb, "BCK_TypeName") Then
+          Dim tpTypeName As String
+          tpTypeName = Nz(rs("BCK_TypeName"))
+          If (tpTypeName <> "") And (tpTypeName <> sBckTypeName) Then
+            bckValid = False
+            bckInvalidReason = BCK_INVALID_BCK_TYPE
+          End If
+        End If
+        Set tb = Nothing
+      End If 'if bckValid
+      
+    End If
+  End If
+
+End If
+
+
+bckExtractInfo = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+If (Err = 3078) Then Resume Next ' BCK_INFO niet gevonden.
+If (Err = 3343) Then Resume Next ' unrecognized database format
+
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function bckAddInfo(ByRef bckDB As Database, ByVal sNameCreator As String, sDescription As String, ByRef extPropNames() As String, ByRef extPropValues() As String, ByVal nExtProps As Integer, ByVal sBckTypeName As String) As Boolean
+On Error GoTo fout
+bckAddInfo = False
+
+Dim bckInfo As TableDef
+Set bckInfo = bckDB.CreateTableDef("BCK_INFO")
+bckInfo.Fields.Append bckInfo.CreateField("BCK_Version", dbText, 50)
+bckInfo.Fields.Append bckInfo.CreateField("BCK_Date", dbDate)
+bckInfo.Fields.Append bckInfo.CreateField("BCK_NameCreator", dbText, 255)
+bckInfo.Fields.Append bckInfo.CreateField("BCK_Description", dbText, 255)
+bckInfo.Fields.Append bckInfo.CreateField("BCK_Application", dbText, 50)
+bckInfo.Fields.Append bckInfo.CreateField("BCK_TypeName", dbText, 50)
+
+Dim i As Integer
+For i = 0 To nExtProps - 1
+  bckInfo.Fields.Append bckInfo.CreateField("BCK_" & extPropNames(i), dbText, 255)
+Next i
+
+bckDB.TableDefs.Append bckInfo
+Set bckInfo = Nothing
+
+Dim rsBckInfo As Recordset
+Set rsBckInfo = bckDB.OpenRecordset("BCK_INFO", dbOpenDynaset)
+rsBckInfo.AddNew
+rsBckInfo("BCK_Version") = hzn(licentie_versie())
+rsBckInfo("BCK_Date") = Now()
+rsBckInfo("BCK_NameCreator") = hzn(sNameCreator)
+rsBckInfo("BCK_Description") = hzn(sDescription)
+rsBckInfo("BCK_Application") = hzn(bckAppName)
+rsBckInfo("BCK_TypeName") = hzn(sBckTypeName)
+
+For i = 0 To nExtProps - 1
+  rsBckInfo("BCK_" & extPropNames(i)) = hzn(extPropValues(i))
+Next i
+
+rsBckInfo.Update
+
+appCleanRS rsBckInfo
+
+
+bckAddInfo = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+Public Function backup_perform(fName As String, sNameCreator As String, sDescription As String) As Boolean
+On Error GoTo fout
+backup_perform = False
+
+Dim bckMDBFileName As String
+
+
+Dim zipData As ZIP_INTERNAL
+
+If Not zipWrite(fName, "hup", "zip", bckMDBFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+
+Dim backupdb As Database
+Set backupdb = DBEngine.Workspaces(0).CreateDatabase(bckMDBFileName, DB_LANG_GENERAL, dbVersion30)
+
+Dim dummy(0 To 0) As String
+
+Dim isOK As Boolean
+
+isOK = bckAddInfo(backupdb, sNameCreator, sDescription, dummy, dummy, 0, BCK_TYPE_NAME_GLOBAL)
+  
+If (isOK) Then
+  isOK = bckGlobalWriteData(bckMDBFileName)
+End If
+
+backupdb.Close
+Set backupdb = Nothing
+
+
+On Error GoTo fout
+
+
+Dim sDummy As String, isPackedOK As Boolean
+
+If (Not isOK) Then
+  If Not zipWrite_finish(False, isPackedOK, False, sDummy, zipData) Then
+    Exit Function
+  End If
+Else
+  If Not zipWrite_finish(True, isPackedOK, True, sDummy, zipData) Then
+    Exit Function
+  End If
+  If Not isPackedOK Then
+    Exit Function
+  End If
+End If
+
+
+  
+If (Not isOK) Then
+  Exit Function
+End If
+
+MsgBox "Backup met succes weggeschreven naar" & Chr$(13) & fName, 64
+
+
+backup_perform = True
+
+Exit Function
+fout:
+MsgBox Err & " backup_perform" & vbCrLf & Error$, 16
+Exit Function
+
+fout_cleanup:
+Dim msg As String
+msg = Err & " backup_perform" & vbCrLf & Error$
+
+zipWrite_finish False, isPackedOK, False, sDummy, zipData
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+
+Private Function bckGlobalWriteData(fName As String) As Boolean
+On Error GoTo fout
+bckGlobalWriteData = False
+
+Dim impTbNames(0 To 100) As String, impTbClearConditional(0 To 100) As Boolean, impTbFullImport(0 To 100) As Boolean, impTbNamesSecondary(0 To 100) As String, impTbNamesTertiary(0 To 100) As String
+Dim impTbExtraSQL(0 To 100) As String
+Dim nBackupTables As Integer
+
+If Not bckGlobal_SetupTables(impTbNames, impTbClearConditional, impTbFullImport, impTbExtraSQL, impTbNamesSecondary, impTbNamesTertiary, nBackupTables) Then
+  Exit Function
+End If
+
+If Not bckWriteData(fName, impTbNames, nBackupTables) Then
+  Exit Function
+End If
+
+
+bckGlobalWriteData = True
+Exit Function
+fout:
+MsgBox Err & " bckGlobalWriteData" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function bckAnalyze_cleanup(ByRef zipData As ZIP_INTERNAL) As Boolean
+On Error GoTo fout
+bckAnalyze_cleanup = False
+
+
+If Not zipRead_finish(zipData) Then
+  Exit Function
+End If
+
+
+
+bckAnalyze_cleanup = True
+Exit Function
+fout:
+MsgBox Err & " bckAnalyze_cleanup" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+'If function returns true and not blCleanOnTerminate, then need to call cleanup afterwards.
+Public Function bckAnalyze_perform(ByVal fName As String, ByVal sBckTypeName As String, ByVal fActFileExt As String, fZipFileExt As String, ByVal blDisplayErrDlg As Boolean, ByVal blAllowNewVersion As Boolean, ByRef bckValid As Boolean, ByRef bckVersionOK As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckHasInfo As Boolean, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckVersion As String, ByRef bckNameCreator As String, ByRef bckDescription As String, ByRef extPropNames() As String, ByRef extPropValues() As String, ByVal nExtProps As Integer, ByVal blCleanOnTerminate As Boolean, ByRef bckMDBFileName As String, ByRef zipData As ZIP_INTERNAL) As Boolean
+On Error GoTo fout
+bckAnalyze_perform = False
+
+bckValid = False
+bckInvalidReason = BCK_INVALID_FILENAME
+bckInvalidString = ""
+
+bckTimeS = ""
+bckDateS = ""
+bckHasInfo = False
+bckNameCreator = ""
+bckDescription = ""
+
+Dim blExtracted As Boolean, zipInvalidReason As Integer, zipInvalidString As String
+
+'Do not display an error message. We will do so ourselves here if necessary.
+If Not zipRead(fName, fActFileExt, fZipFileExt, blExtracted, False, zipInvalidReason, zipInvalidString, bckMDBFileName, zipData) Then
+  Exit Function
+End If
+
+
+If (Not blExtracted) Then
+  bckInvalidString = zipInvalidString
+  Select Case zipInvalidReason
+    Case ZIP_INVALID_CNT
+      bckInvalidReason = BCK_INVALID_ZIP_CNT
+    Case ZIP_INVALID_FILE_NAME
+      bckInvalidReason = BCK_INVALID_FILENAME
+    Case ZIP_UNKNOWN_FILE
+      bckInvalidReason = BCK_UNKNOWN_FILE
+    Case ZIP_UZIP_FAILURE
+      bckInvalidReason = BCK_UZIP_FAILURE
+  End Select
+  Err.Raise 1, , bckInvalidString
+End If
+
+On Error GoTo fout_cleanup
+
+
+
+If Not bckExtractInfo(bckMDBFileName, bckValid, bckInvalidReason, bckHasInfo, bckDateS, bckTimeS, bckVersion, bckNameCreator, bckDescription, extPropNames, extPropValues, nExtProps, blAllowNewVersion, bckVersionOK, sBckTypeName) Then
+  bckAnalyze_cleanup zipData
+  Exit Function
+End If
+
+
+
+If (blCleanOnTerminate) Then
+  If Not bckAnalyze_cleanup(zipData) Then
+    Exit Function
+  End If
+End If
+ 
+   
+On Error GoTo fout
+
+
+bckAnalyze_perform = True
+Exit Function
+
+fout:
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " " & Error$
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  bckAnalyze_perform = True
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & _
+  "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+
+fout_cleanup:
+errCode = Err
+
+msg = errCode & " " & Error$
+
+bckAnalyze_cleanup zipData
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  bckAnalyze_perform = True
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & _
+  "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+End Function
+
+
+
+
+Public Function backup_analyze(ByVal fName As String, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckHasInfo As Boolean, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckVersion As String, ByRef bckNameCreator As String, ByRef bckDescription As String) As Boolean
+On Error GoTo fout
+backup_analyze = False
+
+Dim sDummy(0 To 0) As String
+Dim blDummy As Boolean
+Dim dummyFName As String
+
+Dim zipData As ZIP_INTERNAL
+
+If Not bckAnalyze_perform(fName, BCK_TYPE_NAME_GLOBAL, "hup", "zip", False, False, bckValid, blDummy, bckInvalidReason, bckInvalidString, bckHasInfo, bckDateS, bckTimeS, bckVersion, bckNameCreator, bckDescription, sDummy, sDummy, 0, True, dummyFName, zipData) Then
+  Exit Function
+End If
+
+backup_analyze = True
+Exit Function
+fout:
+MsgBox Err & " backup_analyze" & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function backup_teruglezen_driver(ByVal backup_file As String, ByVal blPrompt As Boolean) As Boolean
+On Error GoTo fout
+backup_teruglezen_driver = False
+
+
+Dim fActExt As String
+fActExt = "hup"
+If (Right(backup_file, 3) = "mde") Then
+  fActExt = "mde"
+End If
+
+
+
+Dim bckValid As Boolean, bckInvalidReason As Integer, bckInvalidString As String, bckHasInfo As Boolean, bckVersion As String, bckTimeS As String, bckDateS As String, bckNameCreator As String, bckDescription As String, bckMDBFileName As String
+Dim sDummy(0 To 0) As String
+Dim blDummy As Boolean
+Dim zipData As ZIP_INTERNAL
+
+If Not bckAnalyze_perform(backup_file, BCK_TYPE_NAME_GLOBAL, fActExt, "zip", True, False, bckValid, blDummy, bckInvalidReason, bckInvalidString, bckHasInfo, bckDateS, bckTimeS, bckVersion, bckNameCreator, bckDescription, sDummy, sDummy, 0, False, bckMDBFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+Dim isOK As Boolean
+isOK = True
+
+
+If (Not bckValid) Then
+  'Error dialog has already been shown.
+  isOK = False
+End If
+
+
+
+
+If (isOK) Then
+
+  Dim dts As String
+  If (bckHasInfo) Then
+    dts = "Aangemaakt op: " & bckDateS & " om " & bckTimeS & " uur door " & bckAppName() & " versie " & bckVersion & "."
+    If (bckNameCreator <> "") Then
+      dts = dts & Chr(13) & "Backup aangemaakt door: " & bckNameCreator & "."
+    End If
+  
+    If (bckDescription <> "") Then
+      dts = dts & Chr(13) & "Beschrijving backup: " & bckDescription
+    End If
+    
+  Else
+    dts = "Laatst gewijzigd op: " & bckDateS & " om " & bckTimeS & " uur." & Chr(13) & "Aangemaakt door " & bckAppName() & " versie " & bckVersion & "."
+  End If
+End If
+
+
+If (isOK) Then
+  If (blPrompt) Then
+    If MsgBox("Backup teruglezen vanaf:" & vbCrLf & backup_file & vbCrLf & _
+      dts & vbCrLf & "Alle gegevens zullen worden overschreven." & vbCrLf & "Wilt u doorgaan?", vbQuestion + vbOKCancel) = vbCancel Then
+      isOK = False
+    End If
+  End If
+  
+End If
+
+
+
+If (isOK) Then
+  isOK = bckGlobalImportData(bckMDBFileName)
+End If
+
+On Error GoTo fout
+
+If Not bckAnalyze_cleanup(zipData) Then
+  Exit Function
+End If
+
+If (Not isOK) Then
+  Exit Function
+End If
+    
+
+
+backup_teruglezen_driver = True
+Exit Function
+
+fout:
+MsgBox Err & " backup_teruglezen_driver" & Error$, 16
+Exit Function
+
+fout_cleanup:
+Dim msg As String
+msg = Err & " backup_teruglezen_driver" & vbCrLf & Error$
+bckAnalyze_cleanup zipData
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+
+
+Public Function bckReadTable(file As String, ByVal blLink As Boolean, ByVal newTbName As String, ByVal tbNamePrimary As String, tbNameSecondary As String, tbNameTertiary As String, ByRef blImported As Boolean) As Boolean
+On Error GoTo fout
+bckReadTable = False
+
+Dim iImpType As Integer
+If blLink Then
+  iImpType = acLink
+Else
+  iImpType = acImport
+End If
+
+blImported = False
+
+If (Not blImported) And (tbNamePrimary <> "") Then
+  DoCmd.TransferDatabase iImpType, "Microsoft Access", file, acTable, tbNamePrimary, newTbName
+  If (tableExists(newTbName)) Then
+    blImported = True
+  End If
+End If
+If (Not blImported) And (tbNameSecondary <> "") Then
+  DoCmd.TransferDatabase iImpType, "Microsoft Access", file, acTable, tbNameSecondary, newTbName
+  If (tableExists(newTbName)) Then
+    blImported = True
+  End If
+End If
+If (Not blImported) And (tbNameTertiary <> "") Then
+  DoCmd.TransferDatabase iImpType, "Microsoft Access", file, acTable, tbNameTertiary, newTbName
+  If (tableExists(newTbName)) Then
+    blImported = True
+  End If
+End If
+
+
+bckReadTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next ' could not find object to import / delete
+MsgBox Err & " bckReadTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function bckWriteData(ByVal fName As String, ByRef bckTbNames() As String, ByVal nBckTables As Integer) As Boolean
+On Error GoTo fout
+bckWriteData = False
+
+Dim i As Integer
+For i = 0 To nBckTables - 1
+  DoCmd.CopyObject fName, , acTable, bckTbNames(i)
+Next i
+
+bckWriteData = True
+Exit Function
+fout:
+MsgBox Err & " bckWriteData" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function bckGlobalImportData(ByVal fName As String)
+On Error GoTo fout
+bckGlobalImportData = False
+
+Dim impTbNames(0 To 100) As String, impTbClearConditional(0 To 100) As Boolean, impTbFullImport(0 To 100) As Boolean, impTbNamesSecondary(0 To 100) As String, impTbNamesTertiary(0 To 100) As String
+Dim impTbExtraSQL(0 To 100) As String
+Dim nBackupTables As Integer
+
+If Not bckGlobal_SetupTables(impTbNames, impTbClearConditional, impTbFullImport, impTbExtraSQL, impTbNamesSecondary, impTbNamesTertiary, nBackupTables) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nBackupTables - 1
+  DoCmd.DeleteObject acTable, impTbNames(i) & "(ter)"
+Next i
+
+
+For i = nBackupTables - 1 To 0 Step -1
+  'Delete all current data.
+  If (Not impTbClearConditional(i)) Then
+    
+    If Not bckGlobal_preDelete(i, impTbNames(i)) Then
+      Exit Function
+    End If
+  
+  
+    Dim sql As String
+    sql = "Delete * from [" & impTbNames(i) & "]"
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  End If
+Next i
+
+For i = 0 To nBackupTables - 1
+  Dim isImported As Boolean
+  If Not bckReadTable(fName, Not impTbFullImport(i), impTbNames(i) & "(ter)", impTbNames(i), impTbNamesSecondary(i), impTbNamesTertiary(i), isImported) Then
+    Exit Function
+  End If
+  
+  If (isImported) Then
+    Dim blShouldTransfer As Boolean
+    blShouldTransfer = True
+    If Not bckGlobal_preTransfer(fName, i, impTbNames(i) & "(ter)", impTbNames(i), blShouldTransfer) Then
+      Exit Function
+    End If
+    
+    If (blShouldTransfer) Then
+    
+      If impTbClearConditional(i) Then
+      
+        'still need to clear
+        If Not bckGlobal_preDelete(i, impTbNames(i)) Then
+          Exit Function
+        End If
+        
+        sql = "Delete * from [" & impTbNames(i) & "]"
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL sql
+        DoCmd.SetWarnings True
+      End If
+    
+      If Not bckTransferTable(impTbNames(i) & "(ter)", impTbNames(i), impTbExtraSQL(i)) Then
+        Exit Function
+      End If
+      
+      If Not bckGlobal_postTransfer(fName, i, impTbNames(i) & "(ter)", impTbNames(i)) Then
+        Exit Function
+      End If
+    
+    End If
+  Else
+    If Not bckGlobal_handleAbsent(fName, i, impTbNames(i)) Then
+      Exit Function
+    End If
+  End If
+Next i
+
+'Delete the imported tables
+For i = 0 To nBackupTables - 1
+  DoCmd.DeleteObject acTable, impTbNames(i) & "(ter)"
+Next i
+
+
+If Not bckGlobal_postProcess(fName) Then
+  Exit Function
+End If
+
+
+bckGlobalImportData = True
+Exit Function
+fout:
+If Err = 3044 Then
+  MsgBox "De backup-directory is ongeldig." & vbCrLf & "U kunt hem veranderen in het <instellingen> scherm.", 16
+  Exit Function
+End If
+
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+If Err = 3024 Then
+  MsgBox "Het backup-bestand:" & vbCrLf & fName & vbCrLf & "werd niet gevonden.", 16
+  Exit Function
+End If
+
+If Err = 3078 Then Resume Next
+
+MsgBox Err & " bckGlobalImportData" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+'Both tables must exist.
+Public Function bckTransferTable(ByVal tbNameSrc As String, ByVal tbNameTgt As String, ByVal tbExtraSQL As String) As Boolean
+On Error GoTo fout
+
+bckTransferTable = False
+
+Dim tbSrc As TableDef, tbTgt As TableDef
+Dim db As Database
+Set db = CurrentDb()
+Set tbSrc = db.TableDefs(tbNameSrc)
+Set tbTgt = db.TableDefs(tbNameTgt)
+
+
+
+Dim sqlListTgt As String
+Dim sqlListSrc As String
+
+Dim fld As Field
+For Each fld In tbSrc.Fields
+  If fieldExistsInTD(tbTgt, fld.name) Then
+    If (sqlListSrc <> "") Then
+      sqlListSrc = sqlListSrc & ", "
+    End If
+    If (sqlListTgt <> "") Then
+      sqlListTgt = sqlListTgt & ", "
+    End If
+    sqlListSrc = sqlListSrc & "[" & tbSrc.name & "].[" & fld.name & "]"
+    sqlListTgt = sqlListTgt & "[" & fld.name & "]"
+  End If
+Next fld
+
+If (sqlListTgt <> "") Then
+  Dim sql As String
+  sql = "Insert into [" & tbNameTgt & "] (" & sqlListTgt & ") select " & sqlListSrc & " from [" & tbNameSrc & "] " & tbExtraSQL & ";"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+End If
+
+
+bckTransferTable = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " bckTransferTable" & vbCrLf & Error$, 16
+Exit Function
+End Function

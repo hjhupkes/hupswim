@@ -1,0 +1,168 @@
+Version =20
+VersionRequired =20
+Checksum =558332947
+Begin Form
+    AllowFilters = NotDefault
+    PopUp = NotDefault
+    Modal = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =10374
+    DatasheetFontHeight =10
+    ItemSuffix =31
+    Left =1245
+    Top =1455
+    Right =7065
+    Bottom =7845
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    AfterDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x1f541e5c7b62e340
+    End
+    RecordSource ="select * from dtrecordsetAges where rsa_code = waarde_rcs() ORDER BY RSA_AGE"
+    Caption ="Clubrecords leeftijdsgroepen"
+    AfterUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =360
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =225
+                    Top =120
+                    Width =1140
+                    Height =240
+                    Name ="Label27"
+                    Caption ="Leeftijd (in jaar)"
+                    GUID = Begin
+                        0x40e4a87670826f48bfdb2026dfbf695e
+                    End
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =226
+                    Width =516
+                    Name ="RSA_Age"
+                    ControlSource ="RSA_Age"
+                    DefaultValue ="0"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =2437
+                    Width =561
+                    Height =165
+                    TabIndex =1
+                    Name ="RSA_Code"
+                    ControlSource ="RSA_Code"
+                    DefaultValue ="=waarde_rcs()"
+                    GUID = Begin
+                        0x5ee17649940f914c88af83dbde5d7234
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =907
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =226
+                    Top =113
+                    Width =10035
+                    Height =780
+                    Name ="Label29"
+                    Caption ="In dit formulier vult u de leeftijdsgroepen in waarover records worden berekend."
+                        " Alles ouder dan de hoogste leeftijd is Dames/Heren.\015\012\015\012Kies bijvoor"
+                        "beeld: 10 jaar, 12 jaar, 14 jaar, 16 jaar, 18 jaar. Alles ouder dan 18 is dan He"
+                        "ren/Dames."
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+Private Sub Form_AfterDelConfirm(Status As Integer)
+On Error Resume Next
+notifyRecordChange
+End Sub
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+notifyRecordChange
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+End Sub
+
+
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

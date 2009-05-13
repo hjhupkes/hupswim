@@ -1,0 +1,651 @@
+Option Compare Database
+Option Explicit
+
+Private Declare Function URLDownloadToCacheFile Lib "urlmon" Alias "URLDownloadToCacheFileA" (ByVal lpUnkcaller As Long, ByVal szURL As String, ByVal szFileName As String, ByVal dwBufLength As Long, ByVal dwReserved As Long, ByVal IBindStatusCallback As Long) As Long
+Private Declare Function DeleteUrlCacheEntry Lib "wininet.dll" Alias "DeleteUrlCacheEntryA" (ByVal lpszUrlName As String) As Long
+
+Public Function bSearchInt(ByVal i As Integer, ByVal cnt As Integer, ByRef intArray() As Integer) As Integer
+On Error GoTo fout
+bSearchInt = -1
+
+Dim l As Integer, r As Integer, m As Integer
+l = 0
+r = cnt
+While (r > l)
+ m = (l + r) \ 2
+ If (i < intArray(m)) Then
+   r = m
+ ElseIf (i > intArray(m)) Then
+   l = m + 1
+ Else
+   bSearchInt = m
+   Exit Function
+ End If
+Wend
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function bSearchLong(ByVal lToFind As Long, ByVal cnt As Integer, ByRef lngArray() As Long) As Integer
+On Error GoTo fout
+bSearchLong = -1
+
+Dim l As Integer, r As Integer, m As Integer
+l = 0
+r = cnt
+While (r > l)
+ m = (l + r) \ 2
+ If (lToFind < lngArray(m)) Then
+   r = m
+ ElseIf (lToFind > lngArray(m)) Then
+   l = m + 1
+ Else
+   bSearchLong = m
+   Exit Function
+ End If
+Wend
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function bSearchString(ByVal sToFind As String, ByVal cnt As Integer, ByRef sArray() As String) As Integer
+On Error GoTo fout
+bSearchString = -1
+
+Dim l As Integer, r As Integer, m As Integer
+l = 0
+r = cnt
+While (r > l)
+ m = (l + r) \ 2
+ Dim cmp As Integer
+ cmp = StrComp(sToFind, sArray(m))
+ 
+ 
+ If (cmp < 0) Then
+   r = m
+ ElseIf (cmp > 0) Then
+   l = m + 1
+ Else
+   bSearchString = m
+   Exit Function
+ End If
+Wend
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+'return the insertion position
+Public Function insInt(ByVal i As Integer, ByRef cnt As Integer, ByRef intArray() As Integer) As Integer
+On Error GoTo fout
+insInt = -1
+Dim insPos As Integer
+insPos = cnt
+Dim done As Boolean
+done = (insPos = 0)
+While (Not done)
+  If (intArray(insPos - 1) > i) Then
+    intArray(insPos) = intArray(insPos - 1)
+    insPos = insPos - 1
+  Else
+    done = True
+  End If
+  If (insPos = 0) Then
+    done = True
+  End If
+Wend
+intArray(insPos) = i
+insInt = insPos
+cnt = cnt + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+'return the insertion position
+Public Function insInt2d(ByVal firstIdx As Integer, ByVal i As Integer, ByRef cnt() As Integer, ByRef intArray() As Integer) As Integer
+On Error GoTo fout
+insInt2d = -1
+Dim insPos As Integer
+insPos = cnt(firstIdx)
+Dim done As Boolean
+done = (insPos = 0)
+While (Not done)
+  If (intArray(firstIdx, insPos - 1) > i) Then
+    intArray(firstIdx, insPos) = intArray(firstIdx, insPos - 1)
+    insPos = insPos - 1
+  Else
+    done = True
+  End If
+  If (insPos = 0) Then
+    done = True
+  End If
+Wend
+intArray(firstIdx, insPos) = i
+insInt2d = insPos
+cnt(firstIdx) = cnt(firstIdx) + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+'return the insertion position
+Public Function insString(ByVal s As String, ByRef cnt As Integer, ByRef sArray() As String) As Integer
+On Error GoTo fout
+insString = -1
+Dim insPos As Integer
+insPos = cnt
+Dim done As Boolean
+done = (insPos = 0)
+While (Not done)
+  If (sArray(insPos - 1) > s) Then
+    sArray(insPos) = sArray(insPos - 1)
+    insPos = insPos - 1
+  Else
+    done = True
+  End If
+  If (insPos = 0) Then
+    done = True
+  End If
+Wend
+sArray(insPos) = s
+insString = insPos
+cnt = cnt + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+'return the insertion position
+Public Function insString2d(ByVal firstIdx As Integer, ByVal s As String, ByRef cnt() As Integer, ByRef sArray() As String) As Integer
+On Error GoTo fout
+insString2d = -1
+Dim insPos As Integer
+insPos = cnt(firstIdx)
+Dim done As Boolean
+done = (insPos = 0)
+While (Not done)
+  If (sArray(firstIdx, insPos - 1) > s) Then
+    sArray(firstIdx, insPos) = sArray(firstIdx, insPos - 1)
+    insPos = insPos - 1
+  Else
+    done = True
+  End If
+  If (insPos = 0) Then
+    done = True
+  End If
+Wend
+sArray(firstIdx, insPos) = s
+insString2d = insPos
+cnt(firstIdx) = cnt(firstIdx) + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+'return the insertion position
+Public Function insLong(ByVal lngIns As Long, ByRef cnt As Integer, ByRef lngArray() As Long) As Integer
+On Error GoTo fout
+insLong = -1
+Dim insPos As Integer
+insPos = cnt
+Dim done As Boolean
+done = (insPos = 0)
+While (Not done)
+  If (lngArray(insPos - 1) > lngIns) Then
+    lngArray(insPos) = lngArray(insPos - 1)
+    insPos = insPos - 1
+  Else
+    done = True
+  End If
+  If (insPos = 0) Then
+    done = True
+  End If
+Wend
+lngArray(insPos) = lngIns
+insLong = insPos
+cnt = cnt + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+'return the insertion position
+Public Function insLong2d(ByVal firstIdx As Integer, ByVal lngIns As Long, ByRef cnt() As Integer, ByRef lngArray() As Long) As Integer
+On Error GoTo fout
+insLong2d = -1
+Dim insPos As Integer
+insPos = cnt(firstIdx)
+Dim done As Boolean
+done = (insPos = 0)
+While (Not done)
+  If (lngArray(firstIdx, insPos - 1) > lngIns) Then
+    lngArray(firstIdx, insPos) = lngArray(firstIdx, insPos - 1)
+    insPos = insPos - 1
+  Else
+    done = True
+  End If
+  If (insPos = 0) Then
+    done = True
+  End If
+Wend
+lngArray(firstIdx, insPos) = lngIns
+insLong2d = insPos
+cnt(firstIdx) = cnt(firstIdx) + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+'return the insertion position
+Public Function insDouble(ByVal dbIns As Double, ByRef cnt As Integer, ByRef dbArray() As Double) As Integer
+On Error GoTo fout
+insDouble = -1
+Dim insPos As Integer
+insPos = cnt
+Dim done As Boolean
+done = (insPos = 0)
+While (Not done)
+  If (dbArray(insPos - 1) > dbIns) Then
+    dbArray(insPos) = dbArray(insPos - 1)
+    insPos = insPos - 1
+  Else
+    done = True
+  End If
+  If (insPos = 0) Then
+    done = True
+  End If
+Wend
+dbArray(insPos) = dbIns
+insDouble = insPos
+cnt = cnt + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+
+Public Sub shiftRightDouble(ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef dblArray() As Double)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  dblArray(insPos) = dblArray(insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightDouble2d(ByVal firstIdx As Integer, ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef dblArray() As Double)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  dblArray(firstIdx, insPos) = dblArray(firstIdx, insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightLong(ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef lngArray() As Long)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  lngArray(insPos) = lngArray(insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightLong2d(ByVal firstIdx, ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef lngArray() As Long)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  lngArray(firstIdx, insPos) = lngArray(firstIdx, insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightBoolean(ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef blArray() As Boolean)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  blArray(insPos) = blArray(insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightBoolean2d(ByVal firstIdx, ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef blArray() As Boolean)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  blArray(firstIdx, insPos) = blArray(firstIdx, insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+
+Public Sub shiftRightString(ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef sArray() As String)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  sArray(insPos) = sArray(insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightString2d(ByVal firstIdx As Integer, ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef sArray() As String)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  sArray(firstIdx, insPos) = sArray(firstIdx, insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightInt(ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef intArray() As Integer)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  intArray(insPos) = intArray(insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Public Sub shiftRightInt2d(ByVal firstIdx As Integer, ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef intArray() As Integer)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  intArray(firstIdx, insPos) = intArray(firstIdx, insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+
+
+Public Sub shiftRightDate(ByVal pos As Integer, ByVal Shift As Integer, ByVal oldCnt As Integer, ByRef dArray() As Date)
+On Error GoTo fout
+If (Shift = 0) Then
+  Exit Sub
+End If
+Dim insPos As Integer
+Dim done As Boolean
+insPos = oldCnt - 1 + Shift
+done = (insPos - Shift < pos)
+While Not done
+  dArray(insPos) = dArray(insPos - Shift)
+  insPos = insPos - 1
+  done = (insPos - Shift < pos)
+Wend
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+
+
+
+Public Function extractToken(ByRef s As String, ByVal sep As String) As String
+On Error Resume Next
+Dim PS  As Integer
+PS = InStr(1, s, sep)
+If PS = 0 Then
+  extractToken = s
+  s = ""
+  Exit Function
+End If
+extractToken = Left(s, PS - 1)
+s = Right(s, Len(s) - PS + 1 - Len(sep))
+End Function
+
+
+
+Public Function boolToString(B As Boolean) As String
+On Error Resume Next
+boolToString = "FALSE"
+If (B) Then
+  boolToString = "TRUE"
+End If
+
+End Function
+
+Public Sub setBackground(frm As Form)
+On Error Resume Next
+
+Dim blClear As Boolean
+blClear = db_grijs()
+
+
+If (blClear) Then
+  Dim clGray As Long
+  clGray = -2147483633
+  frm.Section(acHeader).BackColor = clGray
+  frm.Section(acDetail).BackColor = clGray
+  frm.Section(acFooter).BackColor = clGray
+End If
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+
+Public Function downloadFile(URL As String) As String
+On Error GoTo fout
+
+On Error Resume Next
+  Dim lRetVal As Long
+  lRetVal = DeleteUrlCacheEntry(URL)
+  
+On Error GoTo fout
+
+
+  downloadFile = ""
+  Dim szFileName As String
+  szFileName = Space$(300)
+  If URLDownloadToCacheFile(0, URL, szFileName, Len(szFileName), 0, 0) = 0 Then
+    downloadFile = Trim(szFileName)
+    If (Asc(Right(downloadFile, 1)) = 0) Then
+      downloadFile = Left(downloadFile, Len(downloadFile) - 1)
+    End If
+  End If
+Exit Function
+fout:
+MsgBox Err & " downloadFile()" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Sub queueInit(ByRef q() As Long, ByRef qHead As Integer, ByRef qTail As Integer, ByVal qCapacity As Integer)
+On Error GoTo fout
+
+qHead = 0
+qTail = 0
+
+Exit Sub
+fout:
+MsgBox Err & " queueInit" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+Public Sub queueEnqueue(ByVal l As Long, ByRef q() As Long, ByRef qHead As Integer, ByRef qTail As Integer, ByVal qCapacity As Integer)
+On Error GoTo fout
+
+q(qTail) = l
+
+qTail = qTail + 1
+If (qTail = qCapacity) Then
+  qTail = 0
+End If
+
+Exit Sub
+fout:
+MsgBox Err & " queueEnqueue" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+Public Function queueDequeue(ByRef q() As Long, ByRef qHead As Integer, ByRef qTail As Integer, ByVal qCapacity As Integer) As Long
+On Error GoTo fout
+
+queueDequeue = q(qHead)
+
+qHead = qHead + 1
+If (qHead = qCapacity) Then
+  qHead = 0
+End If
+
+Exit Function
+fout:
+MsgBox Err & " queueDequeue" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Public Function queueEmpty(ByRef q() As Long, ByRef qHead As Integer, ByRef qTail As Integer, ByVal qCapacity As Integer) As Boolean
+On Error GoTo fout
+
+queueEmpty = (qHead = qTail)
+
+Exit Function
+fout:
+MsgBox Err & " queueEmpty" & vbCrLf & Error$, 16
+Exit Function
+End Function

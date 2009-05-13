@@ -1,0 +1,254 @@
+Option Compare Database
+Option Explicit
+
+Type PRH_EXTREC_INFO
+  rec As RECORD_INFO
+  lftCat As String
+  lftCatDes As String
+  trackImprovement As Boolean
+  improveRemark As String
+End Type
+
+Type PRH_WINNER_INFO
+  yearDes As String
+  lftCatDes As String
+  name As String
+  Vereniging As String
+  time As Double
+End Type
+
+Public Function prMergeRecLists(ByVal prognr As String, ByRef nMergedRecs As Integer, ByRef mergedRecs() As PRH_EXTREC_INFO, ByVal maxNMergedRecs As Integer, ByRef curProgRec As RECORD_INFO, ByVal nMCatProgs As Integer, ByRef mCatProgNames() As String, ByRef mCatProgOffs() As Integer, ByRef mCatProgCatCnt() As Integer, ByRef catInfo() As CAT_INFO, ByVal nExtRecProgs As Integer, ByRef extRecProgNames() As String, extRecProgOffs() As Integer, extRecProgCnt() As Integer, extRecInfo() As PRH_EXTREC_INFO) As Boolean
+On Error GoTo fout
+prMergeRecLists = False
+
+nMergedRecs = 0
+If (curProgRec.tijd > 1) Then
+  mergedRecs(0).improveRemark = ""
+  mergedRecs(0).trackImprovement = False
+  mergedRecs(0).lftCat = ""
+  mergedRecs(0).lftCatDes = ""
+  mergedRecs(0).rec = curProgRec
+  nMergedRecs = 1
+End If
+
+Dim progIdx As Integer
+Dim off As Integer
+Dim cnt As Integer
+Dim i As Integer
+
+If (nMCatProgs > 0) Then
+  progIdx = catInfoGetProgIdx(prognr, nMCatProgs, mCatProgNames)
+  If (progIdx >= 0) Then
+    
+    cnt = mCatProgCatCnt(progIdx)
+    off = mCatProgOffs(progIdx)
+    
+    For i = 0 To cnt - 1
+      If (catInfo(off + i).rec.tijd > 1) Then
+        If (nMergedRecs < maxNMergedRecs) Then
+          mergedRecs(nMergedRecs).improveRemark = ""
+          mergedRecs(nMergedRecs).trackImprovement = False
+          mergedRecs(nMergedRecs).lftCat = catInfo(off + i).cat
+          mergedRecs(nMergedRecs).lftCatDes = catInfo(off + i).cat
+          mergedRecs(nMergedRecs).rec = catInfo(off + i).rec
+          
+          nMergedRecs = nMergedRecs + 1
+        End If
+      End If
+    Next i
+  End If
+End If
+
+If (nExtRecProgs > 0) Then
+  progIdx = catInfoGetProgIdx(prognr, nExtRecProgs, extRecProgNames)
+  If (progIdx >= 0) Then
+    
+    cnt = extRecProgCnt(progIdx)
+    off = extRecProgOffs(progIdx)
+    
+    For i = 0 To cnt - 1
+      'We here explicitly do NOT check for valid records, to ensure that user can insert spaces.
+      If (nMergedRecs < maxNMergedRecs) Then
+          mergedRecs(nMergedRecs) = extRecInfo(off + i)
+          nMergedRecs = nMergedRecs + 1
+      End If
+    Next i
+  End If
+End If
+
+prMergeRecLists = True
+Exit Function
+fout:
+MsgBox Err & " prMergeRecLists" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function prGetExtRecForWed(ByVal wednr As Long, ByRef nExtRecProgs As Integer, ByRef extRecProgNames() As String, ByRef extRecProgOffs() As Integer, ByRef extRecProgCnt() As Integer, ByRef extRecInfo() As PRH_EXTREC_INFO) As Boolean
+On Error GoTo fout
+prGetExtRecForWed = False
+
+nExtRecProgs = 0
+
+Dim curOff As Integer
+curOff = 0
+
+Dim curProg As String
+curProg = ""
+Dim tpProg As String
+tpProg = ""
+
+Dim curProgCnt As Integer
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [dtProgrammaExtraRecords] where [PRR_wedstrijdnummer] = " & wednr & " order by ucase([PRR_programmanummer]), [PRR_Order] ;")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  tpProg = Nz(rs("PRR_programmanummer"))
+  If (tpProg <> curProg) Then
+    
+    'wrap up statistics for previous prog.
+    If (nExtRecProgs > 0) Then
+      extRecProgCnt(nExtRecProgs - 1) = curProgCnt
+    End If
+  
+    'start statistics for new prog.
+    extRecProgNames(nExtRecProgs) = tpProg
+    extRecProgOffs(nExtRecProgs) = curOff
+    
+        
+    
+    nExtRecProgs = nExtRecProgs + 1
+    
+    
+    curProg = tpProg
+    curProgCnt = 0
+  End If
+  
+  
+
+  
+ 
+  
+  extRecInfo(curOff).improveRemark = Nz(rs("PRR_ImprovementRemark"))
+  extRecInfo(curOff).trackImprovement = Nz(rs("PRR_TrackImprovement"), False)
+  extRecInfo(curOff).lftCat = Nz(rs("PRR_LftCat"))
+  extRecInfo(curOff).lftCatDes = Nz(rs("PRR_LftCatDes"))
+  
+
+  extRecInfo(curOff).rec.datum = Nz(rs("PRR_record_datum"))
+  extRecInfo(curOff).rec.naam = Nz(rs("PRR_record_naam"))
+  extRecInfo(curOff).rec.Plaats = Nz(rs("PRR_record_plaats"))
+  extRecInfo(curOff).rec.recType = Nz(rs("PRR_record_omschrijving"))
+  extRecInfo(curOff).rec.tijd = Nz(rs("PRR_record_tijd"))
+  extRecInfo(curOff).rec.tussentijden = Nz(rs("PRR_record_tussentijden"))
+  
+  
+  curOff = curOff + 1
+  curProgCnt = curProgCnt + 1
+
+
+  rs.MoveNext
+Loop
+
+'wrap up the last prog.
+If (nExtRecProgs > 0) Then
+  extRecProgCnt(nExtRecProgs - 1) = curProgCnt
+End If
+ 
+
+
+
+prGetExtRecForWed = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " prGetExtRecForWed" & vbCrLf & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function prGetWinForWed(ByVal wednr As Long, ByRef nWinProgs As Integer, ByRef winProgNames() As String, ByRef winProgOffs() As Integer, ByRef winProgCnt() As Integer, ByRef winInfo() As PRH_WINNER_INFO) As Boolean
+On Error GoTo fout
+prGetWinForWed = False
+
+nWinProgs = 0
+
+Dim curOff As Integer
+curOff = 0
+
+Dim curProg As String
+curProg = ""
+Dim tpProg As String
+tpProg = ""
+
+Dim curProgCnt As Integer
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [dtProgrammaPreviousWinners] where [PRW_wedstrijdnummer] = " & wednr & " order by ucase([PRW_programmanummer]), [PRW_Order] ;")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  tpProg = Nz(rs("PRW_programmanummer"))
+  If (tpProg <> curProg) Then
+    
+    'wrap up statistics for previous prog.
+    If (nWinProgs > 0) Then
+      winProgCnt(nWinProgs - 1) = curProgCnt
+    End If
+  
+    'start statistics for new prog.
+    winProgNames(nWinProgs) = tpProg
+    winProgOffs(nWinProgs) = curOff
+    
+        
+    
+    nWinProgs = nWinProgs + 1
+    
+    
+    curProg = tpProg
+    curProgCnt = 0
+  End If
+  
+  
+
+  
+ 
+  
+  winInfo(curOff).lftCatDes = Nz(rs("PRW_LftCatDes"))
+  winInfo(curOff).name = Nz(rs("PRW_Winner_Naam"))
+  winInfo(curOff).time = Nz(rs("PRW_Winner_Tijd"))
+  winInfo(curOff).Vereniging = Nz(rs("PRW_Winner_Vereniging"))
+  winInfo(curOff).yearDes = Nz(rs("PRW_YearDes"))
+  
+  
+  curOff = curOff + 1
+  curProgCnt = curProgCnt + 1
+
+
+  rs.MoveNext
+Loop
+
+'wrap up the last prog.
+If (nWinProgs > 0) Then
+  winProgCnt(nWinProgs - 1) = curProgCnt
+End If
+ 
+
+
+
+prGetWinForWed = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " prGetWinForWed" & vbCrLf & Error$, 16
+
+Exit Function
+End Function

@@ -1,0 +1,202 @@
+Version =20
+VersionRequired =20
+Checksum =991727470
+Begin Form
+    RecordSelectors = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    ViewsAllowed =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =20
+    Width =9010
+    DatasheetFontHeight =10
+    ItemSuffix =25
+    Left =2640
+    Top =375
+    Right =14670
+    Bottom =3210
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x047f6fe4395fe340
+    End
+    RecordSource ="SELECT gimp_len_zwemmers.*, fmtName(nz([zw_voornaam]),nz([zw_voegsel]),nz([zw_ac"
+        "hternaam])) AS ZW_NAAM, gIMP_LEN_Ver.IMP_Naam FROM gimp_len_zwemmers INNER JOIN "
+        "gIMP_LEN_Ver ON gimp_len_zwemmers.ZW_VER_ID = gIMP_LEN_Ver.V_ID WHERE (((gIMP_LE"
+        "N_Ver.IMP_Import)=True)) ORDER BY gIMP_LEN_Ver.IMP_Naam, stnrExpand(nz([ZW_Start"
+        "nummer]));"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =435
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =60
+                    Top =165
+                    Width =2325
+                    Height =240
+                    FontWeight =700
+                    Name ="Label15"
+                    Caption ="Te importeren zwemmer: "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4933
+                    Top =170
+                    Width =510
+                    Height =240
+                    FontWeight =700
+                    Name ="Label16"
+                    Caption ="Imp."
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =56
+                    Width =3681
+                    Name ="nm"
+                    ControlSource ="=[ZW_Naam] & \" (\" & [IMP_Naam] & \")\""
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =5103
+                    Top =28
+                    Height =165
+                    TabIndex =1
+                    Name ="blImp"
+                    ControlSource ="IMP_Import"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3855
+                    Width =966
+                    TabIndex =2
+                    Name ="V_Depot"
+                    ControlSource ="ZW_Startnummer"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =538
+            BackColor =-2147483633
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    Left =56
+                    Top =85
+                    Height =358
+                    Name ="btnDeselAll"
+                    Caption ="Alles &deselecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    Left =1870
+                    Top =85
+                    Height =358
+                    TabIndex =1
+                    Name ="btnSelAll"
+                    Caption ="Alles &selecteren"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+
+
+Private Sub selectAll(sel As Boolean)
+On Error Resume Next
+Dim rs As Recordset
+Set rs = Me.RecordsetClone
+
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+rs.MoveFirst
+Do Until rs.EOF
+  rs.Edit
+  rs("IMP_Import") = sel
+  rs.Update
+  rs.MoveNext
+Loop
+
+Me.Requery
+
+End Sub
+
+
+Private Sub btnDeselAll_Click()
+On Error Resume Next
+selectAll (False)
+End Sub
+
+Private Sub btnSelAll_Click()
+On Error Resume Next
+selectAll (True)
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+
+End Sub

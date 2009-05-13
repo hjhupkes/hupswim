@@ -1,0 +1,266 @@
+Version =20
+VersionRequired =20
+Checksum =1678677409
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    ScrollBars =2
+    ViewsAllowed =1
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =20
+    Width =7993
+    DatasheetFontHeight =10
+    ItemSuffix =28
+    Left =3090
+    Top =510
+    Right =11085
+    Bottom =6765
+    DatasheetGridlinesColor =12632256
+    Toolbar ="gFrmToolbar"
+    RecSrcDt = Begin
+        0xfbe71ab4805fe340
+    End
+    RecordSource ="SELECT [~imp_tijden_was2005_wedstrijden].*, [dtWedstrijden].Datum AS odat, [dtWe"
+        "dstrijden].Beschrijving AS obes, [dtWedstrijden].Plaats AS opl, [dtWedstrijden]."
+        "Baanlengte AS obn FROM [~imp_tijden_was2005_wedstrijden] LEFT JOIN [dtWedstrijde"
+        "n] ON [~imp_tijden_was2005_wedstrijden].Def_matching_wed_nr = [dtWedstrijden].[W"
+        "edstrijd nummer];"
+    Caption ="Wedstrijden"
+    OnCurrent ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    MenuBar ="gMnBasic"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =1117
+            BackColor =65280
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =2324
+                    Top =283
+                    Width =3330
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =16776960
+                    Name ="Label0"
+                    Caption ="Wedstrijden bewerken"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Top =907
+                    Width =1605
+                    Height =210
+                    Name ="Label25"
+                    Caption ="In te lezen wedstrijd   "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =3004
+                    Top =878
+                    Width =3675
+                    Height =210
+                    Name ="Label26"
+                    Caption ="Toevoegen / Koppelen met bestaande wedstrijd:   "
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =4882
+                    Width =3111
+                    Name ="Text20"
+                    ControlSource ="=IIf(IsNull([odat]),\"\",Format([odat],\"dd-mm-yyyy\") & \" / \" & [opl] & \" / "
+                        "\" & [obn] & \" / \" & [obes])"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =93
+                    Width =3186
+                    TabIndex =1
+                    Name ="Text17"
+                    ControlSource ="=Format([datum],\"dd-mm-yyyy\") & \" / \" & [plaats] & \" / \" & [baanlengte] & "
+                        "\" / \" & [beschrijving]"
+                End
+                Begin ComboBox
+                    LimitToList = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =5
+                    ListWidth =5040
+                    Left =3572
+                    Width =1131
+                    TabIndex =3
+                    ColumnInfo ="\"\";\"\";\"\";\"dd/mm/yyyy\";\"\";\"\";\"\";\"\";\"\";\"\";\"4\";\"4\""
+                    Name ="wedcmb"
+                    ControlSource ="Def_matching_wed_nr"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [Wedstrijd nummer], Datum,Beschrijving, Plaats, Baanlengte FR"
+                        "OM dtWedstrijden WHERE (((Datum)=[forms]![~imp_tijden_wed_form]![datum]));"
+                    ColumnWidths ="960;1005;1290;1290;495"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3288
+                    Top =28
+                    Height =195
+                    TabIndex =2
+                    Name ="Def_toevoegen"
+                    ControlSource ="Def_toevoegen"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =247
+                    Left =1870
+                    Width =906
+                    Height =120
+                    TabIndex =4
+                    Name ="Datum"
+                    ControlSource ="Datum"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =595
+            BackColor =65280
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =79
+                    Left =6122
+                    Top =113
+                    Height =373
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnOK"
+                    Caption ="&OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =67
+                    Left =113
+                    Top =141
+                    Width =1806
+                    Height =373
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnCancel"
+                    Caption ="&Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Function check() As Boolean
+On Error Resume Next
+check = False
+
+Dim geg As Recordset
+Set geg = Me.RecordsetClone
+
+geg.MoveFirst
+Do Until geg.EOF
+  If ((Not geg("def_toevoegen")) And Nz(geg("def_matching_wed_nr")) = "") Then
+    MsgBox "De wedstrijd van " & Format(geg("datum"), "dd-mm-yyyy") & " is niet goed bewerkt." & Chr(13) & _
+      "Vink ""Toevoegen"" aan of selecteer een bestaande wedstrijd.", 16
+    
+    Exit Function
+  End If
+  
+  
+  
+  geg.MoveNext
+Loop
+check = True
+End Function
+
+Private Sub btnOK_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+If Not check() Then Exit Sub
+DoCmd.Close
+import_nieuw_tijden_from_was2005_post_wed_form
+End Sub
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+DoCmd.Close
+import_nieuw_tijden_from_was2005_cleanup
+
+End Sub
+
+Private Sub Form_Current()
+On Error Resume Next
+wedcmb.Requery
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+DoCmd.Maximize
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

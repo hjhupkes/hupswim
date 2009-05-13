@@ -1,0 +1,31 @@
+Option Compare Database
+Option Explicit
+
+Public Function instGetProgOpmaak() As String
+On Error Resume Next
+instGetProgOpmaak = ""
+instGetProgOpmaak = Nz(DLookup("ProgrammaOpmaakNaam", "dtSettings"))
+End Function
+
+Public Function instSetProgOpmaak(ByVal sProgOpmaak) As Boolean
+On Error GoTo fout
+instSetProgOpmaak = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtSettings")
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Internal error. Tabel met instellingen is leeg!"
+End If
+
+rs.Edit
+rs("ProgrammaOpmaakNaam") = hzn(sProgOpmaak)
+rs.Update
+
+instSetProgOpmaak = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " instSetProgOpmaak" & vbCrLf & Error$, 16
+Exit Function
+End Function

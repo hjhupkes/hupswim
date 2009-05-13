@@ -1,0 +1,55 @@
+Option Compare Database
+Option Explicit
+
+Public Function cat_get_prioriteit() As Long
+cat_get_prioriteit = -1
+End Function
+Public Function cat_check_prioriteit(priorLid As Long, priorTarget As Long) As Boolean
+cat_check_prioriteit = True
+End Function
+
+
+
+Private Function inv(x As String) As String
+On Error Resume Next
+If x = "N" Then inv = "J"
+If x = "J" Then inv = "N"
+Exit Function
+End Function
+
+Function categorie_bm_bare(Categorie As String, ageDate As Date) As String
+On Error Resume Next
+If Forms![wed_master]![WE_Vervangende_tijd] = "J" Then
+    categorie_bm_bare = inv(categorie_telt_mee_bare(Categorie, ageDate))
+Else
+    categorie_bm_bare = "N"
+End If
+End Function
+
+Public Function categorie_aant_meetel(Categorie As String, Afstand As String) As Integer
+  categorie_aant_meetel = categorie_aant_meetel_bare(Categorie, Nz(wed_age_date(), #1/1/1900#), Afstand)
+End Function
+
+Public Function categorie_bm(Categorie As String) As String
+  categorie_bm = categorie_bm_bare(Categorie, Nz(wed_age_date(), #1/1/1900#))
+End Function
+
+
+
+Function categorie_aant_meetel_bare(Categorie As String, ageDate As Date, Afstand As String) As Integer
+On Error Resume Next
+Dim BM
+If Forms![wed_master]![WE_Vervangende_tijd] = "J" Then
+    BM = inv(categorie_telt_mee_bare(Categorie, ageDate))
+    If Afstand Like "*x*" Then
+        categorie_aant_meetel_bare = 1
+    Else
+        categorie_aant_meetel_bare = 2
+    End If
+    If BM = "J" Then
+        categorie_aant_meetel_bare = 0
+    End If
+Else
+    categorie_aant_meetel_bare = 0
+End If
+End Function
