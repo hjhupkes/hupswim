@@ -1,31 +1,35 @@
 Version =20
 VersionRequired =20
-Checksum =1517095584
+Checksum =-1454722409
 Begin Form
-    AllowFilters = NotDefault
     RecordSelectors = NotDefault
     NavigationButtons = NotDefault
     AllowDeletions = NotDefault
+    DividingLines = NotDefault
     AllowAdditions = NotDefault
-    ScrollBars =2
     ViewsAllowed =1
-    BorderStyle =3
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
     GridY =20
-    Width =6576
+    Width =9987
     DatasheetFontHeight =10
-    ItemSuffix =17
-    Left =4530
-    Top =495
-    Right =14100
-    Bottom =6885
+    ItemSuffix =25
+    Left =2640
+    Top =375
+    Right =12630
+    Bottom =3015
     DatasheetGridlinesColor =12632256
     RecSrcDt = Begin
-        0x312dfee654cae240
+        0xbe00d44aa584e340
     End
-    RecordSource ="~imp_tijden_was2005_zwemmers"
-    Caption ="Zwemmers importeren"
+    RecordSource ="SELECT IIf(nz([imp_naam])=\"\",[V_Naam],[IMP_Naam]) AS VER_NAAM, gIMP_LEN_zwemme"
+        "rs.*, fmtName(nz([zw_voornaam]),nz([zw_voegsel]),nz([zw_achternaam])) AS ZW_NAAM"
+        ", fmtName(nz([voornaam]),nz([voegsel]),nz([achternaam])) AS NAAM FROM (gIMP_LEN_"
+        "zwemmers LEFT JOIN dtLeden ON gIMP_LEN_zwemmers.IMP_Startnummer = dtLeden.Startn"
+        "ummer) INNER JOIN gIMP_LEN_VER ON gIMP_LEN_zwemmers.ZW_VER_ID = gIMP_LEN_VER.V_I"
+        "D WHERE (((gIMP_LEN_VER.IMP_Import)=True) AND ((gIMP_LEN_zwemmers.ZW_PartOfTimeA"
+        "rchive)=True)) ORDER BY IIf(nz([imp_naam])=\"\",[V_Naam],[IMP_Naam]), stnrExpand"
+        "(nz([gIMP_LEN_zwemmers.ZW_Startnummer]));"
     DatasheetFontName ="Arial"
     OnLoad ="[Event Procedure]"
     Begin
@@ -51,46 +55,48 @@ Begin Form
             Width =1701
             LabelX =-1701
         End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
         Begin FormHeader
-            Height =266
+            Height =435
             BackColor =-2147483633
             Name ="FormHeader"
             Begin
                 Begin Label
+                    BackStyle =1
                     OverlapFlags =85
-                    Left =56
-                    Top =56
-                    Width =630
-                    Height =210
-                    Name ="Label10"
-                    Caption ="Startnr  "
+                    Left =60
+                    Top =165
+                    Width =2325
+                    Height =240
+                    FontWeight =700
+                    Name ="Label15"
+                    Caption ="Te importeren zwemmer: "
                 End
                 Begin Label
+                    BackStyle =1
                     OverlapFlags =85
-                    Left =1019
-                    Top =56
-                    Width =630
-                    Height =210
-                    Name ="Label11"
-                    Caption ="Naam   "
+                    Left =5910
+                    Top =170
+                    Width =510
+                    Height =240
+                    FontWeight =700
+                    Name ="Label16"
+                    Caption ="Imp."
                 End
                 Begin Label
+                    BackStyle =1
                     OverlapFlags =85
-                    Left =3570
-                    Top =56
-                    Width =405
-                    Height =210
-                    Name ="Label12"
-                    Caption ="Ges."
-                End
-                Begin Label
-                    OverlapFlags =85
-                    Left =4988
-                    Top =56
-                    Width =915
-                    Height =210
-                    Name ="Label13"
-                    Caption ="Importeren: "
+                    Left =6630
+                    Top =170
+                    Width =1365
+                    Height =240
+                    FontWeight =700
+                    Name ="lbImpAls"
+                    Caption ="Importeren als:"
                 End
             End
         End
@@ -105,65 +111,89 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =85
                     Left =56
-                    Width =801
-                    Name ="startnummer"
-                    ControlSource ="startnummer"
-                End
-                Begin TextBox
-                    Enabled = NotDefault
-                    Locked = NotDefault
-                    SpecialEffect =0
-                    OverlapFlags =85
-                    Left =1019
-                    Width =2436
-                    TabIndex =1
+                    Width =3681
                     Name ="nm"
-                    ControlSource ="=fmtName(nz([voornaam]),nz([voegsel]),nz([achternaam]))"
-                End
-                Begin TextBox
-                    Enabled = NotDefault
-                    Locked = NotDefault
-                    SpecialEffect =0
-                    OverlapFlags =85
-                    Left =3570
-                    Width =336
-                    TabIndex =2
-                    Name ="geslacht"
-                    ControlSource ="geslacht"
+                    ControlSource ="=[ZW_Naam] & \" (\" & [VER_Naam] & \")\""
                 End
                 Begin CheckBox
                     SpecialEffect =0
                     OverlapFlags =85
-                    Left =5328
+                    Left =6080
                     Top =28
                     Height =165
-                    TabIndex =3
-                    Name ="importeren"
-                    ControlSource ="importeren"
+                    TabIndex =1
+                    Name ="blImp"
+                    ControlSource ="IMP_Import"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =2
+                    ListWidth =3660
+                    Left =6631
+                    Width =1131
+                    TabIndex =2
+                    ColumnInfo ="\"\";\"00-@@@@@\";\"\";\"\";\"10\";\"16\""
+                    Name ="cmbNaam"
+                    ControlSource ="IMP_Startnummer"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW startnummer, fmtName(nz([voornaam]), nz([voegsel]),nz([achter"
+                        "naam])) as NAAM FROM dtLeden order by stnrExpand(nz([startnummer]));"
+                    ColumnWidths ="851;2326"
                 End
                 Begin TextBox
                     Enabled = NotDefault
                     Locked = NotDefault
                     SpecialEffect =0
                     OverlapFlags =85
-                    Left =4024
-                    Width =846
+                    Left =3855
+                    Width =966
+                    TabIndex =3
+                    Name ="V_Depot"
+                    ControlSource ="ZW_Startnummer"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    BackStyle =0
+                    IMESentenceMode =3
+                    Left =7934
+                    Width =1866
                     TabIndex =4
+                    Name ="NAAM"
+                    ControlSource ="NAAM"
+                    GUID = Begin
+                        0x7f4e6dfff6fb50408acced5a1f65a2cc
+                    End
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =4896
+                    Width =846
+                    TabIndex =5
                     Name ="Text8"
-                    ControlSource ="=IIf([bekend],\"Bekend\",\"Onbekend\")"
+                    ControlSource ="=IIf([imp_isZwmKnown],\"Bekend\",\"Onbekend\")"
+                    GUID = Begin
+                        0x9f8227bfc75f1944a54616c86d7198aa
+                    End
                 End
             End
         End
         Begin FormFooter
-            Height =481
+            Height =538
             BackColor =-2147483633
             Name ="FormFooter"
             Begin
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =68
-                    Left =2948
-                    Top =56
+                    Left =56
+                    Top =85
                     Height =358
                     Name ="btnDeselAll"
                     Caption ="Alles &deselecteren"
@@ -172,13 +202,27 @@ Begin Form
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =83
-                    Left =4762
-                    Top =56
+                    Left =1870
+                    Top =85
                     Height =358
                     TabIndex =1
                     Name ="btnSelAll"
                     Caption ="Alles &selecteren"
                     OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =6048
+                    Top =85
+                    Width =3006
+                    Height =358
+                    TabIndex =2
+                    Name ="cmdSelKnown"
+                    Caption ="Alle bekende zwemmers selecteren"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xdb7cf3c9cca35e4ab86e6cd38edfaa2f
+                    End
                 End
             End
         End
@@ -192,44 +236,78 @@ Attribute VB_Exposed = False
 Option Compare Database
 Option Explicit
 
-Private Sub btnDeselAll_Click()
+
+Private Sub updateView()
 On Error Resume Next
 
-DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
 
-Dim geg As Recordset
-Set geg = Me.Form.RecordsetClone
-geg.MoveFirst
-Do Until geg.EOF
-    geg.Edit
-    geg("importeren") = False
-    geg.Update
-    geg.MoveNext
-Loop
-Me.Form.Requery
+
+Exit Sub
 End Sub
 
 
-
-Private Sub btnSelAll_Click()
+Private Sub selectAll(sel As Boolean)
 On Error Resume Next
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(Me.RecordSource)
+
 
 DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
 
-Dim geg As Recordset
-Set geg = Me.Form.RecordsetClone
-geg.MoveFirst
-Do Until geg.EOF
-    geg.Edit
-    geg("importeren") = True
-    geg.Update
-    geg.MoveNext
+rs.MoveFirst
+Do Until rs.EOF
+  rs.Edit
+  rs("IMP_Import") = sel
+  rs.Update
+  rs.MoveNext
 Loop
-Me.Form.Requery
+
+appCleanRS rs
+
+Me.Requery
+
+End Sub
+
+Private Sub cmdSelKnown_Click()
+On Error Resume Next
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(Me.RecordSource)
+
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+rs.MoveFirst
+Do Until rs.EOF
+  rs.Edit
+    If (Nz(rs("imp_isZwmKnown"))) Then
+      rs("IMP_Import") = True
+    Else
+      rs("IMP_Import") = False
+    End If
+  rs.Update
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+Me.Requery
+
+End Sub
+
+Private Sub btnDeselAll_Click()
+On Error Resume Next
+selectAll (False)
+End Sub
+
+Private Sub btnSelAll_Click()
+On Error Resume Next
+selectAll (True)
 End Sub
 
 Private Sub Form_Load()
 On Error Resume Next
-Me.OrderBy = ""
-'DoCmd.Maximize
+updateView
 End Sub

@@ -3319,7 +3319,7 @@ End Function
 Public Function recLkp_FindData(ByRef rsInfo As RECSET_BASIC_INFO, ByVal recnr As Long, ByVal recIsExt As Boolean, _
 ByRef skInt As Recordset, ByRef skExt As Recordset, ByRef skEst As Recordset, ByRef skZwm As Recordset, ByRef skVer As Recordset, ByRef skWed As Recordset, _
 ByRef recActTime As Double, ByRef recNDecimals As Integer, ByRef recVer As String, ByRef recVerDepot As String, ByRef recVerNation As String, recVerCode As String, ByRef recVerWasEmpty As Boolean, _
-ByRef recWedDatum As Date, ByRef recWedPlaats As String, ByRef recWedNation As String, ByRef recWedBaanlengte As Integer, _
+ByRef recWedDatum As Date, ByRef recWedPlaats As String, ByRef recWedDes As String, ByRef recWedNation As String, ByRef recWedBaanlengte As Integer, _
 ByRef zwmIsValid As Boolean, ByRef zwmStart As String, ByRef zwmName As String, ByRef zwmVoornaam As String, ByRef zwmVoegsel As String, ByRef zwmAchternaam As String, ByRef zwmGes As String, ByRef zwmGebDate As Date, _
 ByRef estIsValid As Boolean, ByRef nEstZwemmers As Integer, ByRef estStarts() As String, ByRef estNames() As String, ByRef estDeelnemers As String, _
 ByRef estVoornaam() As String, ByRef estVoegsel() As String, ByRef estAchternaam() As String, ByRef estGes() As String, _
@@ -3341,6 +3341,7 @@ zwmGebDate = #1/1/1900#
 
 recWedDatum = #1/1/1900#
 recWedPlaats = ""
+recWedDes = ""
 recWedNation = ""
 recWedBaanlengte = 0
 
@@ -3421,6 +3422,7 @@ Dim tpRecAf As String
       recWedPlaats = Nz(skExt("RC_Plaats"))
       recWedDatum = Nz(skExt("RC_Datum"))
       recWedNation = Nz(skExt("RC_Nation"))
+      recWedDes = ""
     End If
   Else
     skInt.Seek "=", rsInfo.Code, recnr
@@ -3509,6 +3511,7 @@ Dim tpRecAf As String
         recWedDatum = Nz(skWed("Datum"), #1/1/1900#)
         recWedBaanlengte = Nz(skWed("Baanlengte"))
         recWedPlaats = Nz(skWed("Plaats"))
+        recWedDes = Nz(skWed("Beschrijving"))
       End If
       
     End If 'if not skInt.nomatch
@@ -3561,7 +3564,7 @@ recOutputLenex_HandleTime = False
 Dim zwmStart As String, zwmName As String, zwmVoornaam As String, zwmVoegsel As String, zwmAchternaam As String
 Dim zwmGes As String, zwmGebDate As Date
 
-Dim recWedDatum As Date, recWedPlaats As String, recWedNation As String, recWedBaanlengte As Integer
+Dim recWedDatum As Date, recWedPlaats As String, recWedDes As String, recWedNation As String, recWedBaanlengte As Integer
 Dim recVer As String, recVerDepot As String, recVerNation As String, recVerCode As String, recVerWasEmpty As Boolean
 Dim nEstZwemmers As Integer, estDeelnemers As String
 
@@ -3595,7 +3598,7 @@ If (blShouldOutput) Then
 
   If Not recLkp_FindData(rsInfo, recnr, recIsExt, _
     skInt, skExt, skEst, skZwm, skVer, skWed, _
-    recActTime, recNDecimals, recVer, recVerDepot, recVerNation, recVerCode, recVerWasEmpty, recWedDatum, recWedPlaats, recWedNation, recWedBaanlengte, _
+    recActTime, recNDecimals, recVer, recVerDepot, recVerNation, recVerCode, recVerWasEmpty, recWedDatum, recWedPlaats, recWedDes, recWedNation, recWedBaanlengte, _
     zwmIsValid, zwmStart, zwmName, zwmVoornaam, zwmVoegsel, zwmAchternaam, zwmGes, zwmGebDate, _
     estIsValid, nEstZwemmers, estStartnummers, estNames, estDeelnemers, estVoornaam, estVoegsel, estAchternaam, estGeslacht, estGebDate) Then
     Exit Function
@@ -3637,11 +3640,13 @@ If (blShouldOutput) Then
       Else
         rsRec("REC_Plaats") = "Onbekend"
       End If
+      rsRec("REC_WedDescription") = hzn(recWedDes)
       rsRec("REC_Nation") = hzn(recWedNation)
     Else
       rsRec("REC_Datum") = Null
       rsRec("REC_Plaats") = Null
       rsRec("REC_Nation") = Null
+      rsRec("REC_WedDescription") = Null
     End If
     
     
@@ -3682,6 +3687,7 @@ If (blShouldOutput) Then
       rsPl("PL_ID") = luPlID
       rsPl("PL_VER_ID") = luVerID
       rsPl("PL_PartOfRecord") = True
+      rsPl("PL_PartOfTimeArchive") = False
     rsPl.Update
     
     Dim i As Integer
@@ -3694,6 +3700,10 @@ If (blShouldOutput) Then
         rsPll("PLL_Record_ID") = luRecID
         rsPll("PLL_PLOEG_ID") = luPlID
         
+        
+        rsPll("PLL_Deelnemer_ID") = Null
+        rsPll("PLL_Tijd_ID") = Null
+        rsPll("PLL_TMA_TIJD_ID") = Null
         
         rsPll("PLL_Zwemmer_ID") = luZwmID
         rsPll("PLL_Volgorde") = (i + 1)
@@ -3724,6 +3734,7 @@ If (blShouldOutput) Then
         End If
         rsZwm("ZW_Startnummer") = hzn(estStartnummers(i))
         rsZwm("ZW_PartOfRecord") = True
+        rsZwm("ZW_PartOfTimeArchive") = False
       rsZwm.Update
           
           
@@ -3761,6 +3772,7 @@ If (blShouldOutput) Then
         End If
         rsZwm("ZW_Startnummer") = hzn(zwmStart)
         rsZwm("ZW_PartOfRecord") = True
+        rsZwm("ZW_PartOfTimeArchive") = False
       rsZwm.Update
   End If 'if not isEstaf and swmValid
     
@@ -3772,6 +3784,7 @@ If (blShouldOutput) Then
       rsVer("V_Depot") = hzn(recVerDepot)
       rsVer("V_Land") = hzn(recVerNation)
       rsVer("V_PartOfRecord") = True
+      rsVer("V_PartOfTimeArchive") = False
     rsVer.Update
   End If
     
@@ -4028,7 +4041,7 @@ recBuildHolders_HandleTime = False
 Dim zwmStart As String, zwmName As String, zwmVoornaam As String, zwmVoegsel As String, zwmAchternaam As String
 Dim zwmGes As String, zwmGebDate As Date
 
-Dim recWedDatum As Date, recWedPlaats As String, recWedNation As String, recWedBaanlengte As Integer
+Dim recWedDatum As Date, recWedPlaats As String, recWedDes As String, recWedNation As String, recWedBaanlengte As Integer
 Dim recVer As String, recVerDepot As String, recVerNation As String, recVerCode As String, recVerWasEmpty As Boolean
 Dim nEstZwemmers As Integer, estDeelnemers As String
 
@@ -4063,7 +4076,7 @@ If (blShouldOutput) Then
 
   If Not recLkp_FindData(rsInfo, recnr, recIsExt, _
     skInt, skExt, skEst, skZwm, skVer, skWed, _
-    recActTime, recNDecimals, recVer, recVerDepot, recVerNation, recVerCode, recVerWasEmpty, recWedDatum, recWedPlaats, recWedNation, recWedBaanlengte, _
+    recActTime, recNDecimals, recVer, recVerDepot, recVerNation, recVerCode, recVerWasEmpty, recWedDatum, recWedPlaats, recWedNation, recWedDes, recWedBaanlengte, _
     zwmIsValid, zwmStart, zwmName, zwmVoornaam, zwmVoegsel, zwmAchternaam, zwmGes, zwmGebDate, _
     estIsValid, nEstZwemmers, estStartnummers, estNames, estDeelnemers, estVoornaam, estVoegsel, estAchternaam, estGeslacht, estGebDate) Then
     Exit Function
@@ -4597,7 +4610,7 @@ recBuildList_HandleTime = False
 Dim oldZwmStart As String, oldZwmName As String, oldZwmVoornaam As String, oldZwmVoegsel As String, oldZwmAchternaam As String
 Dim oldZwmGes As String, oldZwmGebDate As Date
 
-Dim oldRecWedDatum As Date, oldRecWedPlaats As String, oldRecWedNation As String, oldRecWedBaanlengte As Integer
+Dim oldRecWedDatum As Date, oldRecWedPlaats As String, oldRecWedNation As String, oldRecWedDes As String, oldRecWedBaanlengte As Integer
 Dim oldRecVer As String, oldRecVerDepot As String, oldRecVerNation As String, oldRecVerCode As String, oldRecVerWasEmpty As Boolean
 Dim oldNEstZwemmers As Integer, oldEstDeelnemers As String
 
@@ -4665,6 +4678,7 @@ If (blShouldOutput) Then
     oldRecVerNation = ""
     oldRecWedDatum = recExtOldDate
     oldRecWedPlaats = recExtOldPlaats
+    oldRecWedDes = ""
     oldRecWedNation = ""
     oldRecWedBaanlengte = recExtOldBaan
     
@@ -4690,7 +4704,7 @@ If (blShouldOutput) Then
       'lookup old record data
       If Not recLkp_FindData(rsInfo, oldRecnr, oldRecIsExt, _
         skInt, skExt, skEst, skZwm, skVer, skWed, _
-        oldRecActTime, oldRecNDecimals, oldRecVer, oldRecVerDepot, oldRecVerNation, oldRecVerCode, oldRecVerWasEmpty, oldRecWedDatum, oldRecWedPlaats, oldRecWedNation, oldRecWedBaanlengte, _
+        oldRecActTime, oldRecNDecimals, oldRecVer, oldRecVerDepot, oldRecVerNation, oldRecVerCode, oldRecVerWasEmpty, oldRecWedDatum, oldRecWedPlaats, oldRecWedDes, oldRecWedNation, oldRecWedBaanlengte, _
         oldZwmIsValid, oldZwmStart, oldZwmName, oldZwmVoornaam, oldZwmVoegsel, oldZwmAchternaam, oldZwmGes, oldZwmGebDate, _
         oldEstIsValid, oldNEstZwemmers, oldEstStartnummers, oldEstNames, oldEstDeelnemers, oldEstVoornaam, oldEstVoegsel, oldEstAchternaam, oldEstGeslacht, oldEstGebDate) Then
         Exit Function

@@ -14,9 +14,29 @@ Global Const LX_UNKNOWN_FAILURE = 5
 'Special numbering conventions:
 
 'ageGroups:
-'  id for special single agegroup for a prog nr is 3* prID
-'  id for agegroups in gIMP_LEN_Leeftijdsgroepen is 3* lftID + 1
-'  id for other agegroups in 2 mod 3
+'  xid for special single agegroup for a prog nr is 3* prID
+'  xid for agegroups in gIMP_LEN_Leeftijdsgroepen is 3* lftID + 1
+'  xid for other agegroups in 2 mod 3
+
+
+
+'Elements ENTRIES, RESULTS and ARCHIVEDTIMES are shared by ATHLETE and RELAY.
+'Therefore: ATHELETEXID = 0 mod 2
+'           RELAYXID = 1 Mod 2
+
+'Element RELAYPOSITIONS is shared by RELAY, ENTRY, RESULT and ARCHIVEDTIME
+'Therefore chose: ENTRY = 0 mod 7
+'                 RESULT = 1 mod 7
+'                 RELAY = 2 Mod 7
+'                 ARCHIVEDTIME = 3 mod 7
+            
+'This can be realized by the choice:
+'RELAYXID = RELAY_ID * 14 + 9
+'ATHLETEXID = ATHLETE_ID * 2
+'ENTRYXID = ENTRY_ID * 7
+'RESULTXID = RESULT_ID * 7 + 1
+'ARCHIVEDTIMEXID = ARCHIVEDTIME_ID * 7 + 3
+
 
 
 
@@ -394,21 +414,6 @@ End If
 
 End Function
 
-Private Function lenIsValidStartnr(st As String) As Boolean
-On Error Resume Next
-lenIsValidStartnr = False
-If (Len(st) = 8) Then
-  If (Mid(st, 3, 1) = "-") Then
-    If (Left(st, 2) Like "[0-9][0-9]") Then
-      lenIsValidStartnr = True
-    End If
-  End If
-ElseIf (Len(st) = 7) Then
-  If (Left(st, 2) Like "[0-9][0-9]") Then
-    lenIsValidStartnr = True
-  End If
-End If
-End Function
 
 
 Private Function lenParseDepotnr(Code As String, nation As String, ByRef maxUsedExtDepNr As Long, ByRef isCodeValid As Boolean) As String
@@ -442,8 +447,8 @@ Exit Function
 End Function
 
 
-
-Private Function lenIsValidDepotnr(dp As String) As Boolean
+'Todo: move to module gLenex
+Public Function lenIsValidDepotnr(dp As String) As Boolean
 On Error Resume Next
 lenIsValidDepotnr = False
 If Len(dp) = 6 Then
@@ -1291,7 +1296,7 @@ Set rsFees = CurrentDb().OpenRecordset("LEN_FEES")
 
 
 Dim wed As Recordset
-Set wed = CurrentDb().OpenRecordset("select * from gIMP_LEN_WEDSTRIJDEN order by we_id")
+Set wed = CurrentDb().OpenRecordset("select * from gIMP_LEN_WEDSTRIJDEN where (not nz([we_PartOfTimeArchive], false) ) order by we_id")
 wed.MoveFirst
 
 Dim blIsFirst As Boolean
@@ -1337,7 +1342,7 @@ Do Until wed.EOF
       'check to see if there are clubs.
       Dim nClubs As Long
       nClubs = 0
-      nClubs = Nz(DCount("V_ID", "gIMP_LEN_VER"))
+      nClubs = Nz(DCount("V_ID", "gIMP_LEN_VER", "not (nz([v_partOfRecord], false) or nz([v_partOfTimeArchive], false) )"))
       
       If (nClubs > 0) Then
         mtOutp("SYS_REF_CLUBS") = 1
@@ -1549,7 +1554,7 @@ End Function
 
 
 
-Private Function lenReadSessionsFromXMLTables(ByVal lxVersion As Long, ByRef glbWedDate As Date, ByRef glbAgeDate As Date, ByRef lftBep As String, ByRef glbBaanLengte As Integer, ByRef maxUsedContID As Long) As Boolean
+Private Function lenReadSessionsFromXMLTables(ByVal lxVersion As Long, ByRef glbWedDate As Date, ByRef glbAgeDate As Date, ByRef lftBep As String, ByRef glbBaanLengte As Integer, ByRef maxUsedWedID As Long, ByRef maxUsedContID As Long) As Boolean
 On Error GoTo fout
 lenReadSessionsFromXMLTables = False
 
@@ -1666,8 +1671,17 @@ Do Until ss.EOF
     wedOutp("WE_Contact_ID") = Null
   End If
   
+  Dim tpWedID As Long
+  tpWedID = Nz(ss("ID_Session"), -1)
   
-  wedOutp("WE_ID") = ss("ID_SESSION")
+  wedOutp("WE_ID") = tpWedID
+  
+  If (tpWedID > maxUsedWedID) Then
+    maxUsedWedID = tpWedID
+  End If
+  
+  
+  
   
   Dim datStr As String
   Dim wedDat As Date
@@ -1808,6 +1822,8 @@ Do Until ss.EOF
   
    
    wedOutp("WE_NATION") = ss("LEN_NATION")
+   
+   wedOutp("WE_PartOfTimeArchive") = False
   
   
   
@@ -3290,7 +3306,9 @@ On Error GoTo 0
 Resume
 End Function
 
-
+'Prerequisite for calling this function:
+'lenReadClubsFromXMLTables should have been called
+'This is necessary to ensure that ZW_PartOfRecord and ZW_PartOfTimeArchive are set correctly
 Private Function lenReadAthletesFromXMLTables() As Boolean
 On Error GoTo fout
 lenReadAthletesFromXMLTables = False
@@ -3320,6 +3338,9 @@ Do Until ats.EOF
     zwOutp("ZW_ID") = ats("ID_ATHLETE")
     
     zwOutp("INT_LEN_ID") = ats("LEN_ATHLETEID")
+    
+    'ZW_PartOfTimeArchive will be updated later.
+    zwOutp("ZW_PartOfTimeArchive") = False
     
     Dim verID As Long
     
@@ -3389,6 +3410,16 @@ Loop
 appCleanRS zwOutp
 appCleanRS ats
 
+'Update ZW_PartOfTimeArchive
+Dim sql As String
+sql = "UPDATE gIMP_LEN_Zwemmers INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Zwemmers.ZW_VER_ID = " & _
+  "gIMP_LEN_Ver.V_ID SET gIMP_LEN_Zwemmers.ZW_PartOfTimeArchive = [v_partOfTimeArchive];"
+
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
 
 
 lenReadAthletesFromXMLTables = True
@@ -3396,7 +3427,10 @@ Exit Function
 fout:
 If (Err = 3021) Then Resume Next
 
-MsgBox Err & " " & Error$, 16
+
+DoCmd.SetWarnings True
+
+MsgBox Err & " lenReadAthletesFromXMLTables" & Error$, 16
 
 Exit Function
 
@@ -3407,6 +3441,8 @@ Resume
 Exit Function
 End Function
 
+
+'Prerequisite: lenReadClubsFromXMLTables must have been called
 Private Function lenReadRelayTeamsFromXMLTables() As Boolean
 On Error GoTo fout
 lenReadRelayTeamsFromXMLTables = False
@@ -3427,29 +3463,28 @@ Do Until pl.EOF
 
 
   plOutp.AddNew
-  plOutp("PL_ID") = pl("ID_RELAY")
-  Dim verID As Long
-  Dim partOfRecord As Boolean
-  partOfRecord = True
-  verID = Nz(pl("SYS_REF_CLUB"), -1)
-  If (verID = -1) Then
-    partOfRecord = False
-    verID = Nz(pl("ID_CLUB"))
-  End If
-  plOutp("PL_PartOfRecord") = partOfRecord
-  plOutp("PL_VER_ID") = verID
-  plOutp("PL_Geslacht") = hzn(lenParseGender(Nz(pl("LEN_GENDER"))))
-  plOutp("PL_Naam") = pl("LEN_NAME")
-
-  
-  'note: lenex standard changed: len_number may now be null without penalty
-  plOutp("PL_Nummer") = IIf(IsNull(pl("LEN_NUMBER")), 1, CInt(val(Nz(pl("LEN_NUMBER")))))
-  
-
-  plOutp("PL_MinTotAge") = IIf(IsNull(pl("LEN_AGETOTALMIN")), Null, CInt(val(Nz(pl("LEN_AGETOTALMIN")))))
-  plOutp("PL_MaxTotAge") = IIf(IsNull(pl("LEN_AGETOTALMAX")), Null, CInt(val(Nz(pl("LEN_AGETOTALMAX")))))
-  plOutp("PL_MinAge") = IIf(IsNull(pl("LEN_AGEMIN")), Null, CInt(val(Nz(pl("LEN_AGEMIN")))))
-  plOutp("PL_MaxAge") = IIf(IsNull(pl("LEN_AGEMAX")), Null, CInt(val(Nz(pl("LEN_AGEMAX")))))
+    plOutp("PL_ID") = pl("ID_RELAY")
+    
+    'PL_PartOfTimeArchive will be updated later.
+    plOutp("PL_PartOfTimeArchive") = False
+    
+    Dim verID As Long
+    Dim partOfRecord As Boolean
+    partOfRecord = True
+    verID = Nz(pl("SYS_REF_CLUB"), -1)
+    If (verID = -1) Then
+      partOfRecord = False
+      verID = Nz(pl("ID_CLUB"))
+    End If
+    plOutp("PL_PartOfRecord") = partOfRecord
+    plOutp("PL_VER_ID") = verID
+    plOutp("PL_Geslacht") = hzn(lenParseGender(Nz(pl("LEN_GENDER"))))
+    plOutp("PL_Naam") = pl("LEN_NAME")
+    plOutp("PL_Nummer") = IIf(IsNull(pl("LEN_NUMBER")), Null, CInt(val(Nz(pl("LEN_NUMBER")))))
+    plOutp("PL_MinTotAge") = IIf(IsNull(pl("LEN_AGETOTALMIN")), Null, CInt(val(Nz(pl("LEN_AGETOTALMIN")))))
+    plOutp("PL_MaxTotAge") = IIf(IsNull(pl("LEN_AGETOTALMAX")), Null, CInt(val(Nz(pl("LEN_AGETOTALMAX")))))
+    plOutp("PL_MinAge") = IIf(IsNull(pl("LEN_AGEMIN")), Null, CInt(val(Nz(pl("LEN_AGEMIN")))))
+    plOutp("PL_MaxAge") = IIf(IsNull(pl("LEN_AGEMAX")), Null, CInt(val(Nz(pl("LEN_AGEMAX")))))
   plOutp.Update
   
 
@@ -3463,6 +3498,17 @@ appCleanRS pl
 appCleanRS plOutp
 
 
+'Update PL_PartOfTimeArchive
+sql = "UPDATE gIMP_LEN_Ploeg INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Ploeg.PL_VER_ID = " & _
+  "gIMP_LEN_Ver.V_ID SET gIMP_LEN_Ploeg.PL_PartOfTimeArchive = [v_partOfTimeArchive];"
+
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
 
 
 
@@ -3470,7 +3516,10 @@ lenReadRelayTeamsFromXMLTables = True
 Exit Function
 fout:
 If (Err = 3021) Then Resume Next
-MsgBox Err & " " & Error$, 16
+
+DoCmd.SetWarnings True
+
+MsgBox Err & " lenReadRelayTeamsFromXMLTables" & Error$, 16
 
 Exit Function
 
@@ -3482,7 +3531,7 @@ Exit Function
 End Function
 
 
-Private Function lenReadRelaySwimmersFromRS(ByRef rs As Recordset, ByRef rsOutp As Recordset, ByRef skMtInfo As Recordset, ByVal isResult As Boolean, ByVal isEntry As Boolean, ByVal isRecord As Boolean) As Boolean
+Private Function lenReadRelaySwimmersFromRS(ByRef rs As Recordset, ByRef rsOutp As Recordset, ByRef skMtInfo As Recordset, ByVal isResult As Boolean, ByVal isEntry As Boolean, ByVal isRecord As Boolean, ByVal isArchivedTime As Boolean) As Boolean
 On Error GoTo fout
 lenReadRelaySwimmersFromRS = False
 
@@ -3505,22 +3554,33 @@ Do Until rs.EOF
   
   rsOutp("PLL_ID") = rs("ID_RELAYPOSITION")
   rsOutp("PLL_PLOEG_ID") = rs("ID_RELAY")
+  
   If (isResult) Then
     rsOutp("PLL_Deelnemer_ID") = Null
     rsOutp("PLL_Record_ID") = Null
     rsOutp("PLL_TIJD_ID") = rs("ID_RESULT")
+    rsOutp("PLL_TMA_Tijd_ID") = Null
     rsOutp("PLL_ZWEMMER_ID") = Null
     rsOutp("INT_ZWEMMER_LEN_ID") = rs("LEN_ATHLETEID")
   ElseIf (isRecord) Then
     rsOutp("PLL_TIJD_ID") = Null
     rsOutp("PLL_Deelnemer_ID") = Null
     rsOutp("PLL_RECORD_ID") = rs("ID_RECORD")
+    rsOutp("PLL_TMA_Tijd_ID") = Null
     rsOutp("PLL_ZWEMMER_ID") = Nz(rs("SYS_REF_ATHLETE"), -1)
     rsOutp("INT_ZWEMMER_LEN_ID") = Null
   ElseIf (isEntry) Then
     rsOutp("PLL_RECORD_ID") = Null
     rsOutp("PLL_TIJD_ID") = Null
     rsOutp("PLL_Deelnemer_ID") = rs("ID_ENTRY")
+    rsOutp("PLL_TMA_Tijd_ID") = Null
+    rsOutp("PLL_ZWEMMER_ID") = Null
+    rsOutp("INT_ZWEMMER_LEN_ID") = rs("LEN_ATHLETEID")
+  ElseIf (isArchivedTime) Then
+    rsOutp("PLL_RECORD_ID") = Null
+    rsOutp("PLL_TIJD_ID") = Null
+    rsOutp("PLL_Deelnemer_ID") = Null
+    rsOutp("PLL_TMA_Tijd_ID") = rs("ID_ARCHIVEDTIME")
     rsOutp("PLL_ZWEMMER_ID") = Null
     rsOutp("INT_ZWEMMER_LEN_ID") = rs("LEN_ATHLETEID")
   End If
@@ -3556,13 +3616,14 @@ Do Until rs.EOF
   Dim qlfDatum As Date
   Dim qlfPlaats As String
   Dim qlfNation As String
+  Dim qlfWedName As String
   
   
   Dim tpMeetInfXID As Long
   tpMeetInfXID = Nz(rs("SYS_REF_MEETINFO"), -1)
   
   If (tpMeetInfXID > 0) Then
-    If Not lenLoadLXMeetInfo(skMtInfo, tpMeetInfXID, qlfBaan, qlfPlaats, qlfNation, qlfDatum, qlfTime) Then
+    If Not lenLoadLXMeetInfo(skMtInfo, tpMeetInfXID, qlfBaan, qlfPlaats, qlfNation, qlfDatum, qlfWedName, qlfTime) Then
       Exit Function
     End If
   Else
@@ -3571,6 +3632,7 @@ Do Until rs.EOF
     qlfDatum = lenParseDate(Nz(rs("LEN_hup_entrytimedate")))
     qlfPlaats = Nz(rs("LEN_hup_entrytimecity"))
     qlfNation = Nz(rs("LEN_hup_entrytimenation"))
+    qlfWedName = ""
   End If
   
   If (swtIsValid(qlfTime)) Then
@@ -3580,6 +3642,7 @@ Do Until rs.EOF
       rsOutp("PLL_QLF_Plaats") = hzn(qlfPlaats)
       rsOutp("PLL_QLF_Land") = hzn(qlfNation)
       rsOutp("PLL_QLF_Baan") = qlfBaan
+      rsOutp("PLL_QLF_WedDescription") = hzn(qlfWedName)
     End If
   End If
 
@@ -3598,6 +3661,10 @@ fout:
 If (Err = 3021) Then Resume Next
 MsgBox Err & " " & Error$, 16
 Exit Function
+
+'debug
+On Error GoTo 0
+Resume
 
 End Function
 
@@ -3635,7 +3702,7 @@ sql = "SELECT LEN_RELAYPOSITION.*, LEN_RELAY.ID_RELAY, LEN_RESULT.ID_RESULT " & 
       
 Set rs = CurrentDb().OpenRecordset(sql)
 
-If (Not lenReadRelaySwimmersFromRS(rs, rsOutp, skMtInf, True, False, False)) Then
+If (Not lenReadRelaySwimmersFromRS(rs, rsOutp, skMtInf, True, False, False, False)) Then
   Exit Function
 End If
 
@@ -3650,7 +3717,7 @@ sql = "SELECT LEN_RELAYPOSITION.*, LEN_RELAY.ID_RELAY, LEN_RECORD.ID_RECORD " & 
       
 Set rs = CurrentDb().OpenRecordset(sql)
       
-If (Not lenReadRelaySwimmersFromRS(rs, rsOutp, skMtInf, False, False, True)) Then
+If (Not lenReadRelaySwimmersFromRS(rs, rsOutp, skMtInf, False, False, True, False)) Then
   Exit Function
 End If
 
@@ -3668,12 +3735,33 @@ sql = "SELECT LEN_RELAYPOSITION.*, LEN_ENTRY.ID_ENTRY, LEN_RELAY.ID_RELAY " & _
      
 Set rs = CurrentDb().OpenRecordset(sql)
       
-If (Not lenReadRelaySwimmersFromRS(rs, rsOutp, skMtInf, False, True, False)) Then
+If (Not lenReadRelaySwimmersFromRS(rs, rsOutp, skMtInf, False, True, False, False)) Then
   Exit Function
 End If
 
 
 appCleanRS rs
+
+
+sql = "SELECT LEN_RELAYPOSITION.*, LEN_RELAY.ID_RELAY, LEN_ARCHIVEDTIME.ID_ARCHIVEDTIME " & _
+      "FROM (((((LEN_RELAYPOSITION INNER JOIN LEN_RELAYPOSITION_COLL ON LEN_RELAYPOSITION.ID_RELAYPOSITION = " & _
+      "LEN_RELAYPOSITION_COLL.SYS_REF_CH_RELAYPOSITION) INNER JOIN LEN_RELAYPOSITIONS ON LEN_RELAYPOSITION_COLL.ID_RELAYPOSITION_COLL = " & _
+      "LEN_RELAYPOSITIONS.SYS_REF_RELAYPOSITION_COLL) INNER JOIN LEN_ARCHIVEDTIME ON LEN_RELAYPOSITIONS.ID_RELAYPOSITIONS = " & _
+      "LEN_ARCHIVEDTIME.SYS_REF_RELAYPOSITIONS) INNER JOIN LEN_ARCHIVEDTIME_COLL ON LEN_ARCHIVEDTIME.ID_ARCHIVEDTIME = LEN_ARCHIVEDTIME_COLL.SYS_REF_CH_ARCHIVEDTIME) " & _
+      "INNER JOIN LEN_ARCHIVEDTIMES ON LEN_ARCHIVEDTIME_COLL.ID_ARCHIVEDTIME_COLL = LEN_ARCHIVEDTIMES.SYS_REF_ARCHIVEDTIME_COLL) INNER JOIN " & _
+      "LEN_RELAY ON LEN_ARCHIVEDTIMES.ID_ARCHIVEDTIMES = LEN_RELAY.SYS_REF_ARCHIVEDTIMES ORDER BY LEN_RELAY.ID_RELAY, " & _
+      "IIf(nz([LEN_RELAYPOSITION].[LEN_NUMBER])<0,100,nz([len_relayposition].[len_number]));"
+      
+      
+Set rs = CurrentDb().OpenRecordset(sql)
+
+If (Not lenReadRelaySwimmersFromRS(rs, rsOutp, skMtInf, False, False, False, True)) Then
+  Exit Function
+End If
+
+appCleanRS rs
+
+
 appCleanRS rsOutp
 appCleanRS skMtInf
      
@@ -3745,14 +3833,21 @@ Do Until inp.EOF
    athlID = Nz(inp("SYS_REF_ATHLETES"), -1)
    relID = Nz(inp("SYS_REF_RELAYS"), -1)
    
-   Dim partOfRecord As Boolean
-   partOfRecord = False
    
-   If (athlID = -1 And relID = -1) Then
-     partOfRecord = True
-   End If
+   'V_PartOfRecord and V_PartOfTimeArchive are set properly at the end of this procedure.
+   'Initial values: V_PartOfRecord = true and V_PartOfTimeArchive = false
    
-   verOutp("V_PartOfRecord") = partOfRecord
+   verOutp("V_PartOfRecord") = True
+   verOutp("V_PartOfTimeArchive") = False
+   
+   'Dim partOfRecord As Boolean
+   'partOfRecord = False
+   
+   'If (athlID = -1 And relID = -1) Then
+   '  partOfRecord = True
+   'End If
+   
+   'verOutp("V_PartOfRecord") = partOfRecord
    
    
    
@@ -3765,6 +3860,7 @@ Do Until inp.EOF
    verOutp("V_Extern_Code") = inp("LEN_CODE")
    verOutp("V_Land") = hzn(nation)
    verOutp("V_LEN_TYPE") = inp("LEN_TYPE")
+   verOutp("V_Region") = inp("LEN_Region")
    
    Dim contID As Long
    contID = Nz(inp("SYS_REF_CONTACT"), -1)
@@ -3797,13 +3893,41 @@ appCleanRS inp
 appCleanRS cntOutp
 
 
+'Need to correctly set V_PartOfRecord and V_PartOfTimeArchive
+
+Dim sql As String
+
+'Remember that V_PartOfRecord was automatically set to true and V_PartOfTimeArchive was automatically set to false
+
+'Update V_PartOfRecord for MEET clubs
+sql = "UPDATE gIMP_LEN_Ver INNER JOIN ((LEN_CLUB_COLL INNER JOIN LEN_CLUBS ON LEN_CLUB_COLL.ID_CLUB_COLL = " & _
+  "LEN_CLUBS.SYS_REF_CLUB_COLL) INNER JOIN LEN_MEET ON LEN_CLUBS.ID_CLUBS = LEN_MEET.SYS_REF_CLUBS) ON " & _
+  "gIMP_LEN_Ver.V_ID = LEN_CLUB_COLL.SYS_REF_CH_CLUB SET gIMP_LEN_Ver.V_PartOfRecord = False;"
+  
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+'Update V_PartOfRecord and  V_PartOfTimeArchive for TIMEARCHIVE clubs
+sql = "UPDATE (gIMP_LEN_Ver INNER JOIN (LEN_CLUB_COLL INNER JOIN LEN_CLUBS ON LEN_CLUB_COLL.ID_CLUB_COLL = " & _
+  "LEN_CLUBS.SYS_REF_CLUB_COLL) ON gIMP_LEN_Ver.V_ID = LEN_CLUB_COLL.SYS_REF_CH_CLUB) INNER JOIN LEN_TIMEARCHIVE " & _
+  "ON LEN_CLUBS.ID_CLUBS = LEN_TIMEARCHIVE.SYS_REF_CLUBS " & _
+  "SET gIMP_LEN_Ver.V_PartOfRecord = False, gIMP_LEN_Ver.V_PartOfTimeArchive = True;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
 
 lenReadClubsFromXMLTables = True
 Exit Function
 fout:
 If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
 
-MsgBox Err & " " & Error$, 16
+MsgBox Err & " lenReadClubsFromXMLTables" & Error$, 16
 Exit Function
 
 End Function
@@ -4399,6 +4523,415 @@ Resume
 Exit Function
 End Function
 
+Private Function lenReadArchivedTimesFromRS(ByRef tma As Recordset, ByRef tmaOutp As Recordset, ByRef impWed As Recordset, ByRef skMtInfXIDConv As Recordset, ByRef mt As Recordset, ByRef swst As Recordset, ByVal isEstaf As Boolean) As Boolean
+On Error GoTo fout
+lenReadArchivedTimesFromRS = False
+
+
+tma.MoveFirst
+Do Until tma.EOF
+
+    
+  Dim blProcessTime As Boolean
+  blProcessTime = True
+  
+  Dim saf As String
+  Dim sSl As String
+    
+    
+  Dim lSwstXID As Long
+  lSwstXID = Nz(tma("SYS_REF_SWIMSTYLE"), -1)
+  
+  
+  
+  If (lSwstXID < 0) Then
+    blProcessTime = False
+  Else
+    Dim sDummy As String
+    If Not lenLoadLXSwimStyle(swst, lSwstXID, saf, sSl, sDummy) Then
+      Exit Function
+    End If
+  End If
+  
+  
+  Dim lWedID As Long
+  lWedID = -1
+  
+  If blProcessTime Then
+    Dim lMtInfXID As Long
+    lMtInfXID = Nz(tma("SYS_REF_MEETINFO"), -1)
+    If (lMtInfXID < 0) Then
+      blProcessTime = False
+    Else
+    
+      skMtInfXIDConv.Seek "=", lMtInfXID
+      If skMtInfXIDConv.NoMatch Then
+        Err.Raise 1, , "Internal error"
+      End If
+      
+      lWedID = Nz(skMtInfXIDConv("CV_WED_ID"), -1)
+      
+      If (lWedID < 0) Then
+        blProcessTime = False
+      End If
+    End If
+  End If
+  
+  
+  'Check to see if match has been added to gIMP_LEN_Wedstrijden table
+  If (blProcessTime) Then
+    impWed.Seek "=", lWedID
+    
+    If (impWed.NoMatch) Then
+    
+      Dim dDummy As Double
+      Dim iWedBn As Integer, sWedPlaats As String, sWedNation As String, sWedDes As String, dWedDate As Date
+      
+      If Not lenLoadLXMeetInfo(mt, lMtInfXID, iWedBn, sWedPlaats, sWedNation, dWedDate, sWedDes, dDummy) Then
+        Exit Function
+      End If
+      
+      impWed.AddNew
+        impWed("WE_ID") = lWedID
+        If (lenDateIsValid(dWedDate)) Then
+          impWed("WE_Datum") = dWedDate
+        End If
+        impWed("WE_Plaats") = hzn(sWedPlaats)
+        impWed("WE_Beschrijving") = hzn(sWedDes)
+        impWed("WE_Beschrijving_Extra") = hzn(sWedDes)
+        impWed("WE_Baanlengte") = iWedBn
+        impWed("WE_Nation") = hzn(sWedNation)
+        
+        impWed("WE_PartOfTimeArchive") = True
+        
+      impWed.Update
+      
+    
+    End If
+  End If
+  
+        
+    
+      
+      
+  If (blProcessTime) Then
+
+  
+    tmaOutp.AddNew
+   
+      tmaOutp("TD_ID") = tma("ID_ArchivedTime")
+    
+      tmaOutp("TD_IsEstaf") = isEstaf
+    
+      If (isEstaf) Then
+        tmaOutp("TD_Zwemmer_ID") = Null
+        tmaOutp("TD_Ploeg_ID") = tma("ID_RELAY")
+      Else
+        tmaOutp("TD_Zwemmer_ID") = tma("ID_ATHLETE")
+        tmaOutp("TD_Ploeg_ID") = Null
+      End If
+    
+      
+    
+      Dim swt As Double
+      swt = lenParseSwimtime(Nz(tma("LEN_SWIMTIME")))
+    
+      tmaOutp("TD_tijd") = swt
+      
+      tmaOutp("TD_Afstand") = hzn(saf)
+      tmaOutp("TD_Slag") = hzn(sSl)
+    
+      Dim dis As String
+      dis = Nz(tma("LEN_DSQCODE"))
+    
+    
+      tmaOutp("TD_DIS") = hzn(dis)
+    
+      tmaOutp("TD_Opm") = hzn(Nz(tma("LEN_Comment")))
+      
+      tmaOutp("TD_IsTusTijd") = lenParseBoolean(Nz(tma("LEN_IsSplitTime")))
+    
+    
+    
+      tmaOutp("TD_WED_ID") = lWedID
+    
+    tmaOutp.Update
+    
+  End If 'if blProcessTime
+  
+
+  tma.MoveNext
+Loop
+
+
+lenReadArchivedTimesFromRS = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lenReadArchivedTimesFromRS" & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+
+Private Function lenReadArchivedTimesFromXMLTables_createTmpTable() As Boolean
+On Error GoTo fout
+lenReadArchivedTimesFromXMLTables_createTmpTable = False
+
+If Not lenReadArchivedTimesFromXMLTables_cleanTmpTable() Then
+  Exit Function
+End If
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+
+Set tb = db.CreateTableDef("~len_read_archivedtimes_xid_conv")
+
+tb.Fields.Append tb.CreateField("CV_MTINF_XID", dbLong)
+tb.Fields.Append tb.CreateField("CV_WED_ID", dbLong)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("CV_MTINF_XID", dbLong)
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+Set idx = Nothing
+Set tb = Nothing
+Set db = Nothing
+
+lenReadArchivedTimesFromXMLTables_createTmpTable = True
+Exit Function
+
+fout:
+MsgBox Err & " lenReadArchivedTimesFromXMLTables_createTmpTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Private Function lenReadArchivedTimesFromXMLTables_cleanTmpTable() As Boolean
+On Error GoTo fout
+lenReadArchivedTimesFromXMLTables_cleanTmpTable = False
+
+DoCmd.DeleteObject acTable, "~len_read_archivedtimes_xid_conv"
+
+
+lenReadArchivedTimesFromXMLTables_cleanTmpTable = True
+Exit Function
+
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+MsgBox Err & " lenReadArchivedTimesFromXMLTables_cleanTmpTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function lenReadArchivedTimesFromXMLTables_fillConvTable(ByRef muWedID As Long) As Boolean
+On Error GoTo fout
+lenReadArchivedTimesFromXMLTables_fillConvTable = False
+
+If Not lenReadArchivedTimesFromXMLTables_createTmpTable() Then
+  Exit Function
+End If
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("~len_read_archivedtimes_xid_conv")
+rsOut.Index = "PrimaryKey"
+
+
+Dim rsMtInf As Recordset
+Dim sql As String
+sql = " SELECT LEN_MEETINFO.* FROM LEN_MEETINFO INNER JOIN LEN_ARCHIVEDTIME ON LEN_MEETINFO.ID_MEETINFO = LEN_ARCHIVEDTIME.SYS_REF_MEETINFO " & _
+      "ORDER BY LEN_MEETINFO.LEN_date, LEN_MEETINFO.LEN_course, LEN_MEETINFO.LEN_city, LEN_MEETINFO.LEN_name, LEN_MEETINFO.LEN_nation;"
+
+Set rsMtInf = CurrentDb().OpenRecordset(sql)
+
+Dim curDates As String, curCourseS As String, curCityS As String, curNameS As String, curNationS As String
+Dim curWedID As Long
+
+curDates = ""
+curCourseS = ""
+curCityS = ""
+curNameS = ""
+curNationS = ""
+curWedID = -1
+
+rsMtInf.MoveFirst
+Do Until rsMtInf.EOF
+  Dim tpDateS As String, tpCourseS As String, tpCityS As String, tpNames As String, tpNationS As String
+  tpDateS = Nz(rsMtInf("LEN_Date"))
+  tpCourseS = Nz(rsMtInf("LEN_Course"))
+  tpCityS = Nz(rsMtInf("LEN_City"))
+  tpNames = Nz(rsMtInf("LEN_Name"))
+  tpNationS = Nz(rsMtInf("LEN_Nation"))
+  
+  
+  
+  If (tpDateS <> curDates) Or (tpCourseS <> curCourseS) Or (tpCityS <> curCityS) Or (tpNames <> curNameS) Or (tpNationS <> curNationS) Then
+    'new match encountered.
+    curDates = tpDateS
+    curCourseS = tpCourseS
+    curCityS = tpCityS
+    curNameS = tpNames
+    curNationS = tpNationS
+    
+    curWedID = muWedID + 1
+    muWedID = curWedID
+    
+  End If
+  
+  
+  rsOut.AddNew
+    rsOut("CV_MTINF_XID") = rsMtInf("ID_MEETINFO")
+    rsOut("CV_WED_ID") = curWedID
+  rsOut.Update
+    
+  
+  rsMtInf.MoveNext
+Loop
+
+appCleanRS rsOut
+appCleanRS rsMtInf
+
+
+
+
+lenReadArchivedTimesFromXMLTables_fillConvTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lenReadArchivedTimesFromXMLTables_fillConvTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function lenReadArchivedTimesFromXMLTables(ByRef muWedID As Long) As Boolean
+On Error GoTo fout
+lenReadArchivedTimesFromXMLTables = False
+
+Dim impWed As Recordset, impPloegleden As Recordset
+
+Set impWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+impWed.Index = "PrimaryKey"
+
+Dim swst As Recordset
+Set swst = CurrentDb().OpenRecordset("LEN_SWIMSTYLE")
+swst.Index = "P"
+
+Dim mtInf As Recordset
+Set mtInf = CurrentDb().OpenRecordset("LEN_MEETINFO")
+mtInf.Index = "P"
+
+
+Dim tmaOutp As Recordset
+Set tmaOutp = CurrentDb().OpenRecordset("gIMP_LEN_ArchiefTijden")
+
+
+
+Dim skMtXIDConv As Recordset
+
+
+If Not lenReadArchivedTimesFromXMLTables_fillConvTable(muWedID) Then
+  Exit Function
+End If
+Set skMtXIDConv = CurrentDb().OpenRecordset("~len_read_archivedtimes_xid_conv")
+skMtXIDConv.Index = "PrimaryKey"
+ 
+ 
+Dim tma As Recordset
+
+Dim sql As String
+
+sql = "SELECT LEN_ARCHIVEDTIME.*, LEN_RELAY.ID_RELAY FROM ((LEN_ARCHIVEDTIME INNER JOIN LEN_ARCHIVEDTIME_COLL ON LEN_ARCHIVEDTIME.ID_ARCHIVEDTIME = " & _
+"LEN_ARCHIVEDTIME_COLL.SYS_REF_CH_ARCHIVEDTIME) INNER JOIN LEN_ARCHIVEDTIMES ON LEN_ARCHIVEDTIME_COLL.ID_ARCHIVEDTIME_COLL = LEN_ARCHIVEDTIMES.SYS_REF_ARCHIVEDTIME_COLL) " & _
+"INNER JOIN LEN_RELAY ON LEN_ARCHIVEDTIMES.ID_ARCHIVEDTIMES = LEN_RELAY.SYS_REF_ARCHIVEDTIMES; "
+
+Set tma = CurrentDb().OpenRecordset(sql)
+
+If Not lenReadArchivedTimesFromRS(tma, tmaOutp, impWed, skMtXIDConv, mtInf, swst, True) Then
+  Exit Function
+End If
+
+appCleanRS tma
+
+sql = "SELECT LEN_ARCHIVEDTIME.*, LEN_ATHLETE.ID_ATHLETE FROM ((LEN_ARCHIVEDTIME INNER JOIN LEN_ARCHIVEDTIME_COLL ON LEN_ARCHIVEDTIME.ID_ARCHIVEDTIME = " & _
+"LEN_ARCHIVEDTIME_COLL.SYS_REF_CH_ARCHIVEDTIME) INNER JOIN LEN_ARCHIVEDTIMES ON LEN_ARCHIVEDTIME_COLL.ID_ARCHIVEDTIME_COLL = LEN_ARCHIVEDTIMES.SYS_REF_ARCHIVEDTIME_COLL) " & _
+"INNER JOIN LEN_ATHLETE ON LEN_ARCHIVEDTIMES.ID_ARCHIVEDTIMES = LEN_ATHLETE.SYS_REF_ARCHIVEDTIMES ;"
+
+Set tma = CurrentDb().OpenRecordset(sql)
+
+If Not lenReadArchivedTimesFromRS(tma, tmaOutp, impWed, skMtXIDConv, mtInf, swst, False) Then
+  Exit Function
+End If
+
+appCleanRS tma
+
+
+appCleanRS skMtXIDConv
+appCleanRS tmaOutp
+appCleanRS swst
+appCleanRS mtInf
+appCleanRS impWed
+
+
+If Not lenReadArchivedTimesFromXMLTables_cleanTmpTable() Then
+  Exit Function
+End If
+
+
+
+
+
+'now have to update the following field:
+'TD_VER_ID.
+
+
+
+DoCmd.SetWarnings False
+
+sql = "UPDATE gIMP_LEN_ArchiefTijden INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_ArchiefTijden.TD_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_ArchiefTijden.TD_Ver_ID = [ZW_VER_ID];"
+DoCmd.RunSQL sql
+
+sql = "UPDATE gIMP_LEN_ArchiefTijden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_ArchiefTIJDEN.TD_PLOEG_ID = gIMP_LEN_PLOEG.PL_ID SET gIMP_LEN_ArchiefTIJDEN.TD_Ver_ID = [PL_VER_ID];"
+DoCmd.RunSQL sql
+
+
+
+
+
+
+DoCmd.SetWarnings True
+
+
+
+
+
+
+lenReadArchivedTimesFromXMLTables = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+On Error GoTo 0
+Resume
+
+
+Exit Function
+End Function
+
 
 
 Public Function lenCleanTransferTables() As Boolean
@@ -4421,6 +4954,7 @@ DoCmd.RunSQL "delete * from gIMP_LEN_tijden;"
 DoCmd.RunSQL "Delete * from gIMP_LEN_limieten;"
 DoCmd.RunSQL "delete * from gIMP_LEN_records;"
 DoCmd.RunSQL "delete * from gIMP_LEN_Officials;"
+DoCmd.RunSQL "delete * from gIMP_LEN_ArchiefTijden;"
 
 
 DoCmd.SetWarnings True
@@ -4458,7 +4992,7 @@ Resume
 Exit Function
 End Function
 
-Private Function lenLoadLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByRef baan As Integer, ByRef Plaats As String, ByRef nation As String, ByRef Datum As Date, ByRef qlfTime As Double) As Boolean
+Private Function lenLoadLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByRef baan As Integer, ByRef Plaats As String, ByRef nation As String, ByRef Datum As Date, ByRef sWedName As String, ByRef qlfTime As Double) As Boolean
 On Error GoTo fout
 lenLoadLXMeetInfo = False
 
@@ -4476,6 +5010,7 @@ If (meetInfID >= 0) Then
     Datum = lenParseDate(Nz(mt("LEN_DATE")))
     nation = Nz(mt("LEN_NATION"))
     qlfTime = lenParseSwimtime(Nz(mt("LEN_QUALIFICATIONTIME")))
+    sWedName = Nz(mt("LEN_Name"))
   End If
 End If
 
@@ -4487,7 +5022,7 @@ MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
 
-Private Function lenAppendLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByVal baan As Integer, ByVal Plaats As String, ByVal nation As String, ByVal Datum As Date, ByVal qlfTime As Double) As Boolean
+Private Function lenAppendLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByVal baan As Integer, ByVal Plaats As String, ByVal nation As String, ByVal Datum As Date, ByVal sWedName As String, ByVal qlfTime As Double) As Boolean
 On Error GoTo fout
 lenAppendLXMeetInfo = False
 
@@ -4504,6 +5039,7 @@ mt.AddNew
   If (qlfTime > 0.01) Then
     mt("LEN_QUALIFICATIONTIME") = hzn(lenFormatSwimTime(qlfTime))
   End If
+  mt("LEN_Name") = hzn(sWedName)
 mt.Update
 
 
@@ -4547,8 +5083,8 @@ Do Until dln.EOF
   Dim meetInfID As Long
   meetInfID = Nz(dln("SYS_REF_MEETINFO"), -1)
   
-  Dim qlfBn As Integer, qlfTime As Double, qlfPlaats As String, qlfLand As String, qlfDate As Date
-  If Not (lenLoadLXMeetInfo(mtInf, meetInfID, qlfBn, qlfPlaats, qlfLand, qlfDate, qlfTime)) Then
+  Dim qlfBn As Integer, qlfTime As Double, qlfPlaats As String, qlfLand As String, qlfDate As Date, qlfWedName As String
+  If Not (lenLoadLXMeetInfo(mtInf, meetInfID, qlfBn, qlfPlaats, qlfLand, qlfDate, qlfWedName, qlfTime)) Then
     Exit Function
   End If
   
@@ -4561,6 +5097,7 @@ Do Until dln.EOF
   dlnOutp("DE_QLF_BAAN") = qlfBn
   dlnOutp("DE_QLF_Plaats") = hzn(qlfPlaats)
   dlnOutp("DE_QLF_LAND") = hzn(qlfLand)
+  dlnOutp("DE_QLF_WedDescription") = hzn(qlfWedName)
   If (lenDateIsValid(qlfDate)) Then
     dlnOutp("DE_QLF_Datum") = qlfDate
   End If
@@ -4988,8 +5525,8 @@ Do Until rec.EOF
    
    Dim mtInfID As Long
    mtInfID = Nz(rec("SYS_REF_MEETINFO"), -1)
-   Dim mtBaan As Integer, mtPlaats As String, mtNation As String, mtDate As Date, dbDummy As Double
-   If Not (lenLoadLXMeetInfo(mt, mtInfID, mtBaan, mtPlaats, mtNation, mtDate, dbDummy)) Then
+   Dim mtBaan As Integer, mtPlaats As String, mtNation As String, mtDate As Date, mtWedDes As String, dbDummy As Double
+   If Not (lenLoadLXMeetInfo(mt, mtInfID, mtBaan, mtPlaats, mtNation, mtDate, mtWedDes, dbDummy)) Then
      Exit Function
    End If
    recOutp("REC_Plaats") = hzn(mtPlaats)
@@ -4997,6 +5534,7 @@ Do Until rec.EOF
    If (lenDateIsValid(mtDate)) Then
      recOutp("REC_Datum") = mtDate
    End If
+   recOutp("REC_WedDescription") = hzn(mtWedDes)
    
    
    
@@ -5730,6 +6268,9 @@ DoCmd.SetWarnings True
 Dim firstMeetClubEnc As Boolean
 firstMeetClubEnc = False
 
+Dim firstTimeArchiveClubEnc As Boolean
+firstTimeArchiveClubEnc = False
+
 
 clInp.MoveFirst
 
@@ -5739,18 +6280,44 @@ End If
 
 Do Until clInp.EOF
 
-  Dim partOfRec As Boolean
+  Dim partOfRec As Boolean, partOfTimeArchive As Boolean
   partOfRec = Nz(clInp("V_PartOfRecord"))
+  partOfTimeArchive = Nz(clInp("V_PartOfTimeArchive"))
   
-  If (Not partOfRec And Not firstMeetClubEnc) Then
-    firstMeetClubEnc = True
-    
-    If Not lenWriteSimpleCollection(CurrentDb().OpenRecordset("LEN_CLUBS"), 1, "CLUB") Then Exit Function
-    
+  
+  Dim rsClubs As Recordset
+  
+  If (partOfRec) Then
+  
+    'don't need to build collection
+  
+  ElseIf (partOfTimeArchive) Then
+  
+    If (Not firstTimeArchiveClubEnc) Then
+      firstTimeArchiveClubEnc = True
+      
+      Set rsClubs = CurrentDb().OpenRecordset("LEN_CLUBS")
+      If Not lenWriteSimpleCollection(rsClubs, 2, "CLUB") Then Exit Function
+      appCleanRS rsClubs
+      
+    End If
+  
+  Else
+  
+    'partOfMeet
+  
+    If (Not firstMeetClubEnc) Then
+      firstMeetClubEnc = True
+      
+      Set rsClubs = CurrentDb().OpenRecordset("LEN_CLUBS")
+      If Not lenWriteSimpleCollection(rsClubs, 1, "CLUB") Then Exit Function
+      appCleanRS rsClubs
+      
+    End If
+  
   End If
   
-
-
+  
   clOutp.AddNew
   Dim clubID As Long
   clubID = Nz(clInp("V_ID"), -1)
@@ -5772,6 +6339,8 @@ Do Until clInp.EOF
   End If
   clOutp("LEN_CODE") = hzn(extCode)
   
+  clOutp("LEN_Region") = clInp("V_Region")
+  
   
   If Not partOfRec Then
     clOutp("SYS_REF_CONTACT") = clInp("V_CONTACT_ID")
@@ -5787,8 +6356,7 @@ Do Until clInp.EOF
   clOutp("LEN_NAME") = hzn(langNaam)
   clOutp("LEN_NATION") = clInp("V_LAND")
   clOutp("SYS_REF_OFFICIALS") = Null
-  clOutp("LEN_REGION") = Null
-  
+    
   
   If (Not partOfRec) Then
     If (Nz(clInp("INT_HAS_RELAYS"))) Then
@@ -5802,8 +6370,10 @@ Do Until clInp.EOF
   
   clOutp.Update
   
-  
-  If (Not partOfRec) Then
+  If (partOfRec) Then
+  ElseIf (partOfTimeArchive) Then
+    If Not lenAddToCollection(clColl, 2, clubID, "CLUB") Then Exit Function
+  Else
     If Not lenAddToCollection(clColl, 1, clubID, "CLUB") Then Exit Function
   End If
   
@@ -5851,6 +6421,8 @@ Dim entries As Recordset
 Set entries = CurrentDb().OpenRecordset("LEN_ENTRIES")
 Dim results As Recordset
 Set results = CurrentDb().OpenRecordset("LEN_RESULTS")
+Dim archivedTimes As Recordset
+Set archivedTimes = CurrentDb().OpenRecordset("LEN_ARCHIVEDTIMES")
 
 'first need to set INT_LEN_ID,
 'INT_HAS_RESULTS and INT_HAS_ENTRIES
@@ -5859,7 +6431,7 @@ Set results = CurrentDb().OpenRecordset("LEN_RESULTS")
 
 DoCmd.SetWarnings False
 Dim updSQL As String
-updSQL = "update gIMP_LEN_zwemmers set int_has_results= false, int_has_entries = false, int_len_id = zw_id;"
+updSQL = "update gIMP_LEN_zwemmers set int_has_results= false, int_has_entries = false, int_has_archivedtimes = false,  int_len_id = zw_id;"
 DoCmd.RunSQL updSQL
 
 
@@ -5869,6 +6441,9 @@ updSQL = "UPDATE gIMP_LEN_Deelnemers INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_De
 DoCmd.RunSQL updSQL
 updSQL = "UPDATE gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Tijden.TY_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Zwemmers.INT_HAS_RESULTS = True;"
 DoCmd.RunSQL updSQL
+updSQL = "UPDATE gIMP_LEN_ArchiefTijden INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_ArchiefTijden.TD_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Zwemmers.INT_HAS_ARCHIVEDTIMES = True;"
+DoCmd.RunSQL updSQL
+
 DoCmd.SetWarnings True
 
 
@@ -5912,6 +6487,7 @@ Do Until atInp.EOF
       End If
       atOutp("SYS_REF_ENTRIES") = Null
       atOutp("SYS_REF_RESULTS") = Null
+      atOutp("SYS_REF_ARCHIVEDTIMES") = Null
     Else
       atOutp("LEN_ATHLETEID") = atInp("INT_LEN_ID")
       atOutp("SYS_REF_CLUB") = Null
@@ -5919,12 +6495,25 @@ Do Until atInp.EOF
       If (Nz(atInp("INT_HAS_RESULTS"))) Then
         atOutp("SYS_REF_RESULTS") = athID
         If Not lenWriteSimpleCollection(results, athID, "RESULT") Then Exit Function
+      Else
+        atOutp("SYS_REF_RESULTS") = Null
       End If
       
       If (Nz(atInp("INT_HAS_ENTRIES"))) Then
         atOutp("Sys_ref_Entries") = athID
         If Not lenWriteSimpleCollection(entries, athID, "ENTRY", "ENTRIES") Then Exit Function
+      Else
+        atOutp("Sys_ref_Entries") = Null
       End If
+      
+      If (Nz(atInp("INT_HAS_ARCHIVEDTIMES"))) Then
+        atOutp("Sys_ref_ArchivedTimes") = athID
+        If Not lenWriteSimpleCollection(archivedTimes, athID, "ARCHIVEDTIME") Then Exit Function
+      Else
+        atOutp("Sys_ref_ArchivedTimes") = Null
+      End If
+      
+      
       
       If Not lenAddToCollection(atColl, clubID, athID, "ATHLETE") Then Exit Function
       
@@ -5973,7 +6562,7 @@ appCleanRS atOutp
 appCleanRS atColl
 appCleanRS entries
 appCleanRS results
-
+appCleanRS archivedTimes
 
 lenWriteAthletesToXMLTables = True
 Exit Function
@@ -6047,7 +6636,7 @@ End Function
 
 Private Function lenWriteDeelnemersToXMLTables(ByVal lxVersion As Long, ByRef maxUsedMeetInfoID As Long, ByRef maxUsedHeatID As Long) As Boolean
 On Error GoTo fout
-lenWriteDeelnemersToXMLTables = True
+lenWriteDeelnemersToXMLTables = False
 
 Dim dlnInp As Recordset
 Set dlnInp = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
@@ -6122,8 +6711,8 @@ Do Until dlnInp.EOF
   et.AddNew
     Dim entryID As Long
     Dim clubID As Long
-    ' all entrries are 0 mod 3, in order to account for relay positions.
-    entryID = 3 * Nz(dlnInp("DE_ID"))
+    ' all entrries are 0 mod 7, in order to account for relay positions.
+    entryID = 7 * Nz(dlnInp("DE_ID"))
     clubID = Nz(dlnInp("DE_VER_ID"))
     et("ID_Entry") = entryID
     et("LEN_AGEGROUPID") = dlnInp("INT_AGEGROUP_LEN_ID")
@@ -6182,17 +6771,18 @@ Do Until dlnInp.EOF
     
     Dim qlfTime As Double
     Dim qlfBaan As Integer
-    Dim qlfPlaats As String, qlfNation As String, qlfDatum As Date
+    Dim qlfPlaats As String, qlfNation As String, qlfDatum As Date, qlfWedName As String
     qlfTime = Nz(dlnInp("DE_QLF_Tijd"))
     qlfBaan = Nz(dlnInp("DE_QLF_Baan"))
     qlfPlaats = Nz(dlnInp("DE_QLF_Plaats"))
     qlfNation = Nz(dlnInp("DE_QLF_Land"))
     qlfDatum = Nz(dlnInp("DE_QLF_Datum"), #1/1/1900#)
+    qlfWedName = Nz(dlnInp("DE_QLF_WedDescription"))
     
     
     If (lenDateIsValid(qlfDatum)) And Nz(qlfPlaats <> "") Then
       maxUsedMeetInfoID = maxUsedMeetInfoID + 1
-      If Not lenAppendLXMeetInfo(mtInf, maxUsedMeetInfoID, qlfBaan, qlfPlaats, qlfNation, qlfDatum, qlfTime) Then Exit Function
+      If Not lenAppendLXMeetInfo(mtInf, maxUsedMeetInfoID, qlfBaan, qlfPlaats, qlfNation, qlfDatum, qlfWedName, qlfTime) Then Exit Function
       et("SYS_REF_MEETINFO") = maxUsedMeetInfoID
     End If
     
@@ -6205,7 +6795,7 @@ Do Until dlnInp.EOF
     
     Dim collID As Long
     If (Nz(dlnInp("DE_IsEstaf"))) Then
-      collID = 2 * Nz(dlnInp("DE_Ploeg_ID")) + 1
+      collID = 14 * Nz(dlnInp("DE_Ploeg_ID")) + 9
     Else
       collID = (2 * Nz(dlnInp("DE_Zwemmer_ID")))
     End If
@@ -6269,20 +6859,25 @@ Dim entries As Recordset
 Set entries = CurrentDb().OpenRecordset("LEN_ENTRIES")
 Dim relaypos As Recordset
 Set relaypos = CurrentDb().OpenRecordset("LEN_RELAYPOSITIONS")
+Dim archivedTimes As Recordset
+Set archivedTimes = CurrentDb().OpenRecordset("LEN_ARCHIVEDTIMES")
 
 
-'have to set INT_HAS_ENTRIES and INT_HAS_RESULTS and INT_HAS_RELAYPOS
+'have to set INT_HAS_ENTRIES and INT_HAS_RESULTS and INT_HAS_RELAYPOS and INT_HAS_ARCHIVEDTIMES
 Dim updSQL As String
 DoCmd.SetWarnings False
 
 
-updSQL = "Update gIMP_LEN_ploeg set int_has_entries = false, int_has_results = false"
+updSQL = "Update gIMP_LEN_ploeg set int_has_entries = false, int_has_results = false,  int_has_relaypos = false, int_has_archivedtimes = false"
 DoCmd.RunSQL updSQL
 
 updSQL = "UPDATE gIMP_LEN_Deelnemers INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_Deelnemers.DE_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID SET gIMP_LEN_Ploeg.INT_HAS_ENTRIES = True;"
 DoCmd.RunSQL updSQL
 
 updSQL = "UPDATE gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_Tijden.TY_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID SET gIMP_LEN_Ploeg.INT_HAS_RESULTS = True;"
+DoCmd.RunSQL updSQL
+
+updSQL = "UPDATE gIMP_LEN_ArchiefTijden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_ArchiefTijden.TD_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID SET gIMP_LEN_Ploeg.INT_HAS_ArchivedTimes = True;"
 DoCmd.RunSQL updSQL
 
 updSQL = "UPDATE gIMP_LEN_Ploegleden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_Ploegleden.PLL_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID SET gIMP_LEN_Ploeg.INT_HAS_RELAYPOS = True;"
@@ -6301,15 +6896,16 @@ plInp.MoveFirst
 Do Until plInp.EOF
 
   Dim plID As Long
-  'ploeg ids are always UNEVEN.
-  plID = 2 * Nz(plInp("PL_ID")) + 1
+  'ploeg ids are always UNEVEN and 2 mod 7
+  plID = 14 * Nz(plInp("PL_ID")) + 9
   
   rl.AddNew
     rl("ID_RELAY") = plID
     
     
-    Dim partOfRec As Boolean
+    Dim partOfRec As Boolean, partOfTimeArchive As Boolean
     partOfRec = Nz(plInp("PL_PartOfRecord"))
+    partOfTimeArchive = Nz(plInp("PL_PartOfTimeArchive"))
     If (partOfRec) Then
       rl("SYS_REF_CLUB") = plInp("PL_VER_ID")
       If Nz(plInp("INT_HAS_RELAYPOS")) Then
@@ -6320,30 +6916,33 @@ Do Until plInp.EOF
       End If
       rl("SYS_REF_RESULTS") = Null
       rl("SYS_REF_ENTRIES") = Null
+      rl("SYS_REF_ARCHIVEDTIMES") = Null
     Else
     
       'modification jan 2008: moved age processing part to here.
     
-      Dim plSatCat As String
-      Dim gender As String, minAge As Integer, maxAge As Integer, isTotAge As Boolean, name As String, isMCat As Boolean
-    
-      plSatCat = Nz(plInp("PL_SatisfiedCategorie"))
-      If Not lenFormatCategorie(plSatCat, wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat) Then
-        Err.Raise 1, , "Ongeldige categorie: " + Trim(plSatCat)
-        Exit Function
-      End If
-    
-    
-      If (isTotAge) Then
-        rl("LEN_AGETOTALMAX") = hzn(lenFormatAge(maxAge))
-        rl("LEN_AGETOTALMIN") = hzn(lenFormatAge(minAge))
-        rl("LEN_AGEMIN") = hzn(lenFormatAge(-1))
-        rl("LEN_AGEMAX") = hzn(lenFormatAge(-1))
-      Else
-        rl("LEN_AGEMIN") = hzn(lenFormatAge(minAge))
-        rl("LEN_AGEMAX") = hzn(lenFormatAge(maxAge))
-        rl("LEN_AGETOTALMAX") = hzn(lenFormatAge(-1))
-        rl("LEN_AGETOTALMIN") = hzn(lenFormatAge(-1))
+      If (Not partOfTimeArchive) Then
+        Dim plSatCat As String
+        Dim gender As String, minAge As Integer, maxAge As Integer, isTotAge As Boolean, name As String, isMCat As Boolean
+      
+        plSatCat = Nz(plInp("PL_SatisfiedCategorie"))
+        If Not lenFormatCategorie(plSatCat, wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat) Then
+          Err.Raise 1, , "Ongeldige categorie: " + Trim(plSatCat)
+          Exit Function
+        End If
+      
+      
+        If (isTotAge) Then
+          rl("LEN_AGETOTALMAX") = hzn(lenFormatAge(maxAge))
+          rl("LEN_AGETOTALMIN") = hzn(lenFormatAge(minAge))
+          rl("LEN_AGEMIN") = hzn(lenFormatAge(-1))
+          rl("LEN_AGEMAX") = hzn(lenFormatAge(-1))
+        Else
+          rl("LEN_AGEMIN") = hzn(lenFormatAge(minAge))
+          rl("LEN_AGEMAX") = hzn(lenFormatAge(maxAge))
+          rl("LEN_AGETOTALMAX") = hzn(lenFormatAge(-1))
+          rl("LEN_AGETOTALMIN") = hzn(lenFormatAge(-1))
+        End If
       End If
     
     
@@ -6353,7 +6952,13 @@ Do Until plInp.EOF
       If Not lenAddToCollection(rlColl, verID, plID, "RELAY") Then Exit Function
     
       rl("SYS_REF_CLUB") = Null
+      
+      
       rl("SYS_REF_RELAYPOSITIONS") = Null
+      
+      
+      
+      
       If (Nz(plInp("INT_HAS_RESULTS"))) Then
         If Not lenWriteSimpleCollection(results, plID, "RESULT") Then Exit Function
         rl("SYS_REF_RESULTS") = plID
@@ -6367,9 +6972,19 @@ Do Until plInp.EOF
         rl("SYS_REF_ENTRIES") = Null
       End If
       
+      
+      If (Nz(plInp("INT_HAS_ARCHIVEDTIMES"))) Then
+        If Not lenWriteSimpleCollection(archivedTimes, plID, "ARCHIVEDTIME") Then Exit Function
+        rl("SYS_REF_ARCHIVEDTIMES") = plID
+      Else
+        rl("SYS_REF_ARCHIVEDTIMES") = Null
+      End If
+      
       'The following two are only allowed in MEET context
-      rl("LEN_GENDER") = hzn(lenFormatGeslacht(Nz(plInp("PL_Geslacht"))))
-      rl("LEN_Number") = plInp("PL_Nummer")
+      If (Not partOfTimeArchive) Then
+        rl("LEN_GENDER") = hzn(lenFormatGeslacht(Nz(plInp("PL_Geslacht"))))
+        rl("LEN_Number") = plInp("PL_Nummer")
+      End If
     End If
     
     
@@ -6390,7 +7005,7 @@ appCleanRS rlColl
 appCleanRS results
 appCleanRS entries
 appCleanRS relaypos
-
+appCleanRS archivedTimes
 
 
 
@@ -6444,10 +7059,12 @@ Do Until pllInp.EOF
     Dim recID As Long
     Dim tdID As Long
     Dim dlnID As Long
+    Dim tmaID As Long
     
     recID = Nz(pllInp("PLL_Record_ID"), -1)
     tdID = Nz(pllInp("PLL_TIJD_ID"), -1)
     dlnID = Nz(pllInp("PLL_Deelnemer_ID"), -1)
+    tmaID = Nz(pllInp("PLL_TMA_TIJD_ID"), -1)
        
     Dim pllID As Long
     pllID = Nz(pllInp("PLL_ID"), -1)
@@ -6458,10 +7075,11 @@ Do Until pllInp.EOF
     
     rp("ID_RelayPosition") = pllID
     
-    Dim isRec As Boolean, isTd As Boolean, isDln As Boolean
+    Dim isRec As Boolean, isTd As Boolean, isDln As Boolean, isTMA As Boolean
     isRec = recID <> -1
     isTd = tdID <> -1
     isDln = dlnID <> -1
+    isTMA = tmaID <> -1
     
     
     Dim collID As Long
@@ -6470,14 +7088,16 @@ Do Until pllInp.EOF
     If (isRec) Then
        'remember that athlete id's are always even.
        rp("SYS_REF_ATHLETE") = 2 * Nz(pllInp("PLL_Zwemmer_ID"))
-       collID = 2 * plID + 1
+       collID = 14 * plID + 9
     Else
        rp("SYS_REF_ATHLETE") = Null
        rp("LEN_ATHLETEID") = Nz(pllInp("INT_ZWEMMER_LEN_ID"))
        If (isTd) Then
-         collID = 3 * tdID + 1
+         collID = 7 * tdID + 1
        ElseIf (isDln) Then
-         collID = 3 * dlnID
+         collID = 7 * dlnID
+       ElseIf (isTMA) Then
+          collID = 7 * tmaID + 3
        End If
     End If
     
@@ -6504,12 +7124,14 @@ Do Until pllInp.EOF
     Dim qlfDatum As Date
     Dim qlfPlaats As String
     Dim qlfNation As String
+    Dim qlfWedName As String
     
     qlfTime = Nz(pllInp("PLL_QLF_Tijd"))
     qlfBaan = Nz(pllInp("PLL_QLF_Baan"))
     qlfDatum = Nz(pllInp("PLL_QLF_Datum"), #1/1/1900#)
     qlfPlaats = Nz(pllInp("PLL_QLF_Plaats"))
     qlfNation = Nz(pllInp("PLL_QLF_Land"))
+    qlfWedName = Nz(pllInp("PLL_QLF_WedDescription"))
     
     If (swtIsValid(qlfTime)) Then
     
@@ -6517,7 +7139,7 @@ Do Until pllInp.EOF
     
       If (lenDateIsValid(qlfDatum)) And Nz(qlfPlaats <> "") Then
         maxUsedMeetInfoXID = maxUsedMeetInfoXID + 1
-        If Not lenAppendLXMeetInfo(mtInf, maxUsedMeetInfoXID, qlfBaan, qlfPlaats, qlfNation, qlfDatum, qlfTime) Then
+        If Not lenAppendLXMeetInfo(mtInf, maxUsedMeetInfoXID, qlfBaan, qlfPlaats, qlfNation, qlfDatum, qlfWedName, qlfTime) Then
           Exit Function
         End If
         rp("SYS_REF_MEETINFO") = maxUsedMeetInfoXID
@@ -6564,6 +7186,169 @@ Resume
 Exit Function
 
 End Function
+
+
+Private Function lenWriteArchivedTimesToXMLTables(ByRef maxUsedMeetInfoXID As Long, ByRef maxUsedSwimstyleXID As Long) As Boolean
+On Error GoTo fout
+lenWriteArchivedTimesToXMLTables = False
+
+Dim atmInp As Recordset
+Set atmInp = CurrentDb().OpenRecordset("gIMP_LEN_ArchiefTijden")
+
+Dim atmColl As Recordset
+Set atmColl = CurrentDb().OpenRecordset("LEN_ARCHIVEDTIME_COLL")
+
+
+Dim atm As Recordset
+Set atm = CurrentDb().OpenRecordset("LEN_ARCHIVEDTIME")
+
+Dim mtInf As Recordset
+Set mtInf = CurrentDb().OpenRecordset("LEN_MEETINFO")
+
+Dim swst As Recordset
+Set swst = CurrentDb().OpenRecordset("LEN_SWIMSTYLE")
+
+Dim relaypos As Recordset
+Set relaypos = CurrentDb().OpenRecordset("LEN_RELAYPOSITIONS")
+
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+skWed.Index = "PrimaryKey"
+
+'Have to update INT_HAS_Ploegleden
+DoCmd.SetWarnings False
+
+Dim updSQL As String
+updSQL = "update gIMP_LEN_ArchiefTijden set int_has_ploegleden = false"
+DoCmd.RunSQL updSQL
+
+updSQL = "UPDATE gIMP_LEN_Ploegleden INNER JOIN gIMP_LEN_ArchiefTijden ON gIMP_LEN_Ploegleden.PLL_TMA_Tijd_ID = " & _
+"gIMP_LEN_ArchiefTijden.TD_ID SET gIMP_LEN_ArchiefTijden.INT_HAS_Ploegleden = True;"
+DoCmd.RunSQL updSQL
+
+DoCmd.SetWarnings True
+
+
+
+
+atmInp.MoveFirst
+Do Until atmInp.EOF
+  atm.AddNew
+    Dim atmXID As Long
+    
+    ' all tam xids are 3 mod 7 , in order to account for relay positions.
+    atmXID = 7 * Nz(atmInp("TD_ID")) + 3
+    
+    atm("ID_ArchivedTime") = atmXID
+    
+    atm("LEN_Swimtime") = hzn(lenFormatSwimTime(Nz(atmInp("TD_Tijd"))))
+    atm("LEN_dsqcode") = atmInp("TD_Dis")
+    
+    atm("LEN_IsSplitTime") = lenFormatBoolean(Nz(atmInp("TD_IsTusTijd"), False))
+    
+    atm("LEN_Comment") = atmInp("TD_Opm")
+    
+    Dim tpSlag As String, tpAf As String
+    tpSlag = Nz(atmInp("TD_Slag"))
+    tpAf = Nz(atmInp("TD_Afstand"))
+    
+    Dim tpSwstXID As Long
+    maxUsedSwimstyleXID = maxUsedSwimstyleXID + 1
+    tpSwstXID = maxUsedSwimstyleXID
+    
+    If Not lenAppendLXSwimStyle(swst, tpSwstXID, tpAf, tpSlag, "") Then
+      Exit Function
+    End If
+    
+    atm("SYS_REF_SWIMSTYLE") = tpSwstXID
+    
+    
+    
+    
+    Dim tpWedID As Long
+    tpWedID = Nz(atmInp("TD_WED_ID"))
+    
+    Dim tpTdBaan As Integer, tpTdPlaats As String, tpTdNation As String, tpTdDatum As Date, tpTdWedDes As String
+    tpTdBaan = 25
+    tpTdPlaats = ""
+    tpTdNation = "NED"
+    tpTdDatum = #1/1/1900#
+    
+    skWed.Seek "=", tpWedID
+    If Not skWed.NoMatch Then
+      tpTdBaan = Nz(skWed("WE_Baanlengte"), 25)
+      tpTdPlaats = Nz(skWed("WE_Plaats"))
+      tpTdDatum = Nz(skWed("WE_Datum"), #1/1/1900#)
+      tpTdWedDes = Nz(skWed("WE_Beschrijving"))
+      tpTdNation = Nz(skWed("WE_Nation"))
+    End If
+    
+    
+    If (lenDateIsValid(tpTdDatum)) And (tpTdPlaats <> "") Then
+      Dim tpMtInfXID As Long
+      maxUsedMeetInfoXID = maxUsedMeetInfoXID + 1
+      tpMtInfXID = maxUsedMeetInfoXID
+       
+      If Not lenAppendLXMeetInfo(mtInf, tpMtInfXID, tpTdBaan, tpTdPlaats, tpTdNation, tpTdDatum, tpTdWedDes, 0) Then Exit Function
+      atm("SYS_REF_MEETINFO") = tpMtInfXID
+    End If
+    
+    
+    atm("SYS_REF_RELAYPOSITIONS") = Null
+   
+   
+    Dim collID As Long
+    If (Nz(atmInp("TD_IsEstaf"))) Then
+      collID = 14 * Nz(atmInp("TD_Ploeg_ID")) + 9
+      If Nz(atmInp("INT_HAS_PLOEGLEDEN")) Then
+        atm("SYS_REF_RELAYPOSITIONS") = atmXID
+        If Not lenWriteSimpleCollection(relaypos, atmXID, "RELAYPOSITION") Then Exit Function
+      End If
+    Else
+      collID = (2 * Nz(atmInp("TD_Zwemmer_ID")))
+    End If
+    
+    
+    
+    If Not lenAddToCollection(atmColl, collID, atmXID, "ARCHIVEDTIME") Then Exit Function
+    
+    
+  
+  atm.Update
+
+
+  atmInp.MoveNext
+Loop
+
+
+appCleanRS atmInp
+appCleanRS atmColl
+appCleanRS atm
+appCleanRS mtInf
+appCleanRS swst
+appCleanRS skWed
+appCleanRS relaypos
+
+
+lenWriteArchivedTimesToXMLTables = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+DoCmd.SetWarnings True
+MsgBox Err & " lenWriteArchivedTimesToXMLTables" & vbCrLf & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
 
 
 
@@ -6700,8 +7485,8 @@ tdInp.MoveFirst
 Do Until tdInp.EOF
 
   Dim tdXID As Long
-  'Time ids are always 1 mod 3, so as to avoid confusions with relaypositions sub object.
-  tdXID = 3 * Nz(tdInp("TY_ID")) + 1
+  'Time ids are always 1 mod 7, so as to avoid confusions with relaypositions sub object.
+  tdXID = 7 * Nz(tdInp("TY_ID")) + 1
   
   rs.AddNew
   
@@ -6802,7 +7587,7 @@ Do Until tdInp.EOF
    
    Dim collID As Long
    If (isEstaf) Then
-     collID = 2 * Nz(tdInp("TY_Ploeg_ID")) + 1
+     collID = 14 * Nz(tdInp("TY_Ploeg_ID")) + 9
      If Nz(tdInp("INT_HAS_PLOEGLEDEN")) Then
        rs("SYS_REF_RELAYPOSITIONS") = tdXID
        If Not lenWriteSimpleCollection(relaypos, tdXID, "RELAYPOSITION") Then Exit Function
@@ -7095,7 +7880,11 @@ End Select
 
 Dim maxUsedContID As Long
 maxUsedContID = 0
-If Not lenReadSessionsFromXMLTables(lxVersion, wedDate, wedAgeDate, lftBep, glbBaanLengte, maxUsedContID) Then
+
+Dim maxUsedWedID As Long
+maxUsedWedID = 0
+
+If Not lenReadSessionsFromXMLTables(lxVersion, wedDate, wedAgeDate, lftBep, glbBaanLengte, maxUsedWedID, maxUsedContID) Then
   Exit Function
 End If
 
@@ -7110,6 +7899,7 @@ End If
 
 
 
+'lenReadClubsFromXMLTables must be called  before lenReadAthletesFromXMLTables and lenReadRelayTeamsFromXMLTables
 If Not lenReadClubsFromXMLTables(maxUsedContID) Then
   Exit Function
 End If
@@ -7153,6 +7943,10 @@ If (blReadOfficials) Then
   End If
 End If
 
+If Not lenReadArchivedTimesFromXMLTables(maxUsedWedID) Then
+  Exit Function
+End If
+
   
 
 
@@ -7172,6 +7966,7 @@ lenWriteLenexHeader = False
 Dim hasMeets As Boolean
 Dim hasRecordLists As Boolean
 Dim hasTimeStandardLists As Boolean
+Dim hasTimeArchive As Boolean
 
 Dim mts As Recordset
 Set mts = CurrentDb().OpenRecordset("LEN_MEETS")
@@ -7187,9 +7982,10 @@ Set cst = CurrentDb().OpenRecordset("LEN_CONSTRUCTOR")
 
 
 
-hasMeets = (Nz(DCount("WE_ID", "gIMP_LEN_WEDSTRIJDEN")) > 0)
+hasMeets = (Nz(DCount("WE_ID", "gIMP_LEN_WEDSTRIJDEN", "(not nz([we_partOfTimeArchive], false))")) > 0)
 hasRecordLists = (Nz(DCount("REC_ID", "gIMP_LEN_RECORDS")) > 0)
 hasTimeStandardLists = (Nz(DCount("LIM_ID", "gIMP_LEN_LIMIETEN")) > 0)
+hasTimeArchive = (Nz(DCount("V_ID", "gIMP_LEN_Ver", "nz([v_partOfTimeArchive],false)")) > 0)
 
 
 Dim lx As Recordset
@@ -7215,6 +8011,19 @@ lx.AddNew
     lx("SYS_REF_TIMESTANDARDLISTS") = 1
   Else
     lx("SYS_REF_TIMESTANDARDLISTS") = Null
+  End If
+  
+  If (hasTimeArchive) Then
+    lx("SYS_REF_TIMEARCHIVE") = 1
+    Dim rsTMA As Recordset
+    Set rsTMA = CurrentDb().OpenRecordset("LEN_TIMEARCHIVE")
+    rsTMA.AddNew
+      rsTMA("ID_TIMEARCHIVE") = 1
+      rsTMA("SYS_REF_CLUBS") = 2
+    rsTMA.Update
+    appCleanRS rsTMA
+  Else
+    lx("SYS_REF_TIMEARCHIVE") = Null
   End If
   
   lx("SYS_REF_CONSTRUCTOR") = 1
@@ -7585,6 +8394,7 @@ Do Until inp.EOF
   
   Dim recID As Long
   'remember....
+  'I think this is not necessary
   recID = 3 * Nz(inp("REC_ID")) + 2
   
   rec.AddNew
@@ -7597,7 +8407,7 @@ Do Until inp.EOF
       If (IsNull(inp("REC_PLOEG_ID"))) Then
         rec("SYS_REF_RELAY") = Null
       Else
-        rec("SYS_REF_RELAY") = (2 * Nz(inp("REC_PLOEG_ID"))) + 1
+        rec("SYS_REF_RELAY") = (14 * Nz(inp("REC_PLOEG_ID"))) + 9
       End If
       rec("SYS_REF_ATHLETE") = Null
     Else
@@ -7648,17 +8458,18 @@ Do Until inp.EOF
     
     
     
-    Dim mtPlaats As String, mtDate As Date, mtNation As String
+    Dim mtPlaats As String, mtDate As Date, mtNation As String, mtWedDes As String
     mtPlaats = Nz(inp("REC_PLaats"))
     mtDate = Nz(inp("REC_Datum"), #1/1/1900#)
     mtNation = Nz(inp("REC_NATION"))
+    mtWedDes = Nz(inp("REC_WedDescription"))
     
     
     If (mtPlaats <> "") And (lenDateIsValid(mtDate)) Then
 
       maxUsedMeetInfo = maxUsedMeetInfo + 1
     
-      If Not lenAppendLXMeetInfo(mtInf, maxUsedMeetInfo, Nz(inp("REC_BAAN")), mtPlaats, mtNation, mtDate, 0) Then Exit Function
+      If Not lenAppendLXMeetInfo(mtInf, maxUsedMeetInfo, Nz(inp("REC_BAAN")), mtPlaats, mtNation, mtDate, mtWedDes, 0) Then Exit Function
       rec("SYS_REF_MEETINFO") = maxUsedMeetInfo
     Else
       rec("SYS_REF_MEETINFO") = Null
@@ -7983,6 +8794,8 @@ If Not lenWriteDeelnemersToXMLTables(lxVersion, maxUsedMeetInfoID, maxUsedHeatXI
 
 If Not lenWriteTijdenToXMLTables(lxVersion, maxUsedSplitID, maxUsedHeatXID) Then Exit Function
 
+If Not lenWriteArchivedTimesToXMLTables(maxUsedMeetInfoID, maxUsedSwimStyleID) Then Exit Function
+
 
 If Not lenWriteTimestandardsToXMLTables(lxVersion, wedDate, lftMode, maxUsedAgeGroupID, maxUsedSwimStyleID) Then Exit Function
 
@@ -8154,774 +8967,63 @@ End Function
 
 
 
-'This function is used during the import sequence to fill the AUX fields with information.
-Public Function lenFillAuxFields() As Boolean
-On Error GoTo fout
-lenFillAuxFields = False
 
-DoCmd.SetWarnings False
-'start with programma.
-Dim sql As String
 
-sql = "UPDATE gIMP_LEN_Programma INNER JOIN gIMP_LEN_Wedstrijden ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID SET gIMP_LEN_Programma.AUX_Wedstrijdnummer = [corr_wedstrijdnummer];"
-DoCmd.RunSQL sql
 
-'update aux_vorig_prog field.
-sql = "UPDATE gIMP_LEN_Programma INNER JOIN gIMP_LEN_Programma AS gIMP_LEN_Programma_1 ON gIMP_LEN_Programma.PR_Vorig_Prog_ID = gIMP_LEN_Programma_1.PR_ID SET gIMP_LEN_Programma.AUX_Vorig_Prog = [gIMP_LEN_programma_1].[corr_programmanummer];"
-DoCmd.RunSQL sql
 
-'update zwemmer_depot nr field
-sql = "UPDATE gIMP_LEN_Zwemmers INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Zwemmers.ZW_VER_ID = gIMP_LEN_Ver.V_ID SET gIMP_LEN_Zwemmers.AUX_Depotnummer = [CORR_DEPOT];"
-DoCmd.RunSQL sql
 
-'update ploeg_depot nr field.
-sql = "UPDATE gIMP_LEN_Ploeg INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID SET gIMP_LEN_Ploeg.AUX_Depotnummer = [CORR_DEPOT];"
-DoCmd.RunSQL sql
 
-'update deelneemr_depot nr field.
-sql = "UPDATE gIMP_LEN_Deelnemers INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Deelnemers.DE_VER_ID = gIMP_LEN_Ver.V_ID SET gIMP_LEN_Deelnemers.AUX_Depotnummer = [CORR_DEPOT];"
-DoCmd.RunSQL sql
-'update tijden  depot nr field
-sql = "UPDATE gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Tijden.TY_VER_ID = gIMP_LEN_Ver.V_ID SET gIMP_LEN_Tijden.AUX_Depotnummer = [CORR_DEPOT];"
-DoCmd.RunSQL sql
 
-sql = "UPDATE gIMP_LEN_Wedstrijden INNER JOIN gIMP_LEN_Programma ON gIMP_LEN_Wedstrijden.WE_ID = gIMP_LEN_Programma.PR_WED_ID SET gIMP_LEN_Programma.AUX_Wedstrijdnummer = [corr_wedstrijdnummer];"
-DoCmd.RunSQL sql
 
 
-sql = "UPDATE (gIMP_LEN_Leeftijdsgroepen INNER JOIN gIMP_LEN_Programma ON gIMP_LEN_Leeftijdsgroepen.LF_PR_ID = gIMP_LEN_Programma.PR_ID) INNER JOIN gIMP_LEN_Wedstrijden " & _
-"ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID SET gIMP_LEN_Leeftijdsgroepen.AUX_Programmanummer = [corr_programmanummer], " & _
-"gIMP_LEN_Leeftijdsgroepen.AUX_Wedstrijdnummer = [corr_wedstrijdnummer];"
-DoCmd.RunSQL sql
 
-sql = "UPDATE (gIMP_LEN_Deelnemers INNER JOIN gIMP_LEN_Programma ON gIMP_LEN_Deelnemers.DE_PROG_ID = gIMP_LEN_Programma.PR_ID) INNER JOIN gIMP_LEN_Wedstrijden " & _
-"ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID SET gIMP_LEN_Deelnemers.AUX_Programmanummer = [corr_programmanummer], " & _
-"gIMP_LEN_Deelnemers.AUX_Wedstrijdnummer = [corr_wedstrijdnummer];"
-DoCmd.RunSQL sql
-
-sql = "UPDATE (gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Programma ON gIMP_LEN_Tijden.TY_PROG_ID = gIMP_LEN_Programma.PR_ID) INNER JOIN gIMP_LEN_Wedstrijden " & _
-"ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID SET gIMP_LEN_Tijden.AUX_Programmanummer = [corr_programmanummer], " & _
-"gIMP_LEN_Tijden.AUX_Wedstrijdnummer = [corr_wedstrijdnummer];"
-DoCmd.RunSQL sql
-
-'sql = "UPDATE (gIMP_LEN_Ploegleden INNER JOIN gIMP_LEN_Programma ON gIMP_LEN_Ploegleden.PLL_PROG_ID = gIMP_LEN_Programma.PR_ID) INNER JOIN gIMP_LEN_Wedstrijden " & _
-'"ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID SET gIMP_LEN_Ploegleden.AUX_Programmanummer = [corr_programmanummer], " & _
-'"gIMP_LEN_Ploegleden.AUX_Wedstrijdnummer = [corr_wedstrijdnummer];"
-
-'now have to update estafette nummers.
-sql = "UPDATE (gIMP_LEN_Deelnemers INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_Deelnemers.DE_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID) INNER JOIN gIMP_LEN_Ver " & _
-"ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID SET gIMP_LEN_Deelnemers.AUX_Estafettenummer = [pl_nummer], gIMP_LEN_Deelnemers.AUX_Depotnummer = [CORR_DEPOT];"
-DoCmd.RunSQL sql
-
-sql = "UPDATE (gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_Tijden.TY_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID) INNER JOIN gIMP_LEN_Ver " & _
-"ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID SET gIMP_LEN_Tijden.AUX_Estafettenummer = [pl_nummer], gIMP_LEN_Tijden.AUX_Depotnummer = [CORR_DEPOT];"
-DoCmd.RunSQL sql
-
-
-'update ploegleden.
-sql = "UPDATE gIMP_LEN_Ploegleden INNER JOIN gIMP_LEN_Deelnemers ON gIMP_LEN_Ploegleden.PLL_Deelnemer_ID = " & _
-"gIMP_LEN_Deelnemers.DE_ID SET gIMP_LEN_Ploegleden.AUX_Wedstrijdnummer = [gIMP_LEN_Deelnemers].[aux_wedstrijdnummer], " & _
-"gIMP_LEN_Ploegleden.AUX_Estafettenummer = [gIMP_LEN_Deelnemers].[aux_estafettenummer], gIMP_LEN_Ploegleden.AUX_Programmanummer = " & _
-"[gIMP_LEN_Deelnemers].[aux_programmanummer], gIMP_LEN_Ploegleden.AUX_Depotnummer = [gIMP_LEN_Deelnemers].[aux_depotnummer];"
-DoCmd.RunSQL sql
-
-sql = "UPDATE gIMP_LEN_Ploegleden INNER JOIN gIMP_LEN_Tijden ON gIMP_LEN_Ploegleden.PLL_Tijd_ID = " & _
-"gIMP_LEN_Tijden.TY_ID SET gIMP_LEN_Ploegleden.AUX_Wedstrijdnummer = [gIMP_LEN_Tijden].[aux_wedstrijdnummer], " & _
-"gIMP_LEN_Ploegleden.AUX_Estafettenummer = [gIMP_LEN_Tijden].[aux_estafettenummer], gIMP_LEN_Ploegleden.AUX_Programmanummer = " & _
-"[gIMP_LEN_Tijden].[aux_programmanummer], gIMP_LEN_Ploegleden.AUX_Depotnummer = [gIMP_LEN_Tijden].[aux_depotnummer];"
-DoCmd.RunSQL sql
-
-
-'now update startnummers everywhere.
-'deelnemers
-sql = "UPDATE gIMP_LEN_Deelnemers INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Deelnemers.DE_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Deelnemers.AUX_Startnummer = [CORR_startnummer];"
-DoCmd.RunSQL sql
-
-'tijden
-sql = "UPDATE gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Tijden.TY_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Tijden.AUX_Startnummer = [corr_startnummer];"
-DoCmd.RunSQL sql
-
-'tijden startzwemmers.
-sql = "UPDATE gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Tijden.TY_StartZwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Tijden.AUX_Startzwemmer = [corr_startnummer];"
-DoCmd.RunSQL sql
-
-
-'ploegleden
-sql = "UPDATE gIMP_LEN_Ploegleden INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Ploegleden.PLL_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Ploegleden.AUX_Startnummer = [corr_startnummer];"
-DoCmd.RunSQL sql
-
-'records
-sql = "UPDATE gIMP_LEN_Records INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Records.REC_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Records.AUX_Startnummer = [corr_startnummer], gIMP_LEN_records.aux_Depotnummer = gIMP_LEN_zwemmers.aux_depotnummer;"
-DoCmd.RunSQL sql
-
-'records with relay.
-sql = "UPDATE (gIMP_LEN_Records INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_Records.REC_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID) INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID SET gIMP_LEN_Records.AUX_Depotnummer = [CORR_DEPOT];"
-DoCmd.RunSQL sql
-
-
-
-
-
-
-
-
-
-
-DoCmd.SetWarnings True
-lenFillAuxFields = True
-Exit Function
-fout:
-DoCmd.SetWarnings True
-MsgBox Err & " " & Error$, 16
-
-Exit Function
-End Function
-
-
-Private Function lenCheckDepotnummers() As Boolean
-On Error GoTo fout
-lenCheckDepotnummers = False
-
-Dim impVer As Recordset
-Set impVer = CurrentDb().OpenRecordset("select * from gIMP_LEN_ver where nz([imp_import]) order by nz([corr_depot])")
-
-Dim lastDep As String
-lastDep = "---"
-
-impVer.MoveFirst
-Do Until impVer.EOF
-  Dim tpD As String
-  tpD = Nz(impVer("CORR_DEPOT"))
-  Dim tpNaam As String
-  tpNaam = Nz(impVer("V_Naam"))
-  
-  If (tpD = lastDep) Then
-    Err.Raise 1, , "Dubbel depotnummer gevonden: " & tpD & ", " & tpNaam
-  End If
-  
-  lastDep = tpD
-  impVer.MoveNext
-  
-Loop
-
-
-appCleanRS impVer
-
-
-lenCheckDepotnummers = True
-Exit Function
-fout:
-If (Err = 3021) Then Resume Next
-MsgBox Err & " " & Error$, 16
-Exit Function
-End Function
-
-Private Function lenCheckProgrammanummers() As Boolean
-On Error GoTo fout
-lenCheckProgrammanummers = False
-
-Dim impProg As Recordset
-Set impProg = CurrentDb().OpenRecordset("select * from gIMP_LEN_programma where( nz( [imp_import] ) = true ) and ( nz([aux_wedstrijdnummer]) > 0 ) order by nz([aux_wedstrijdnummer]), nz([corr_programmanummer]) ;")
-
-
-Dim lastWednr As Long
-Dim lastProg As String
-lastProg = ""
-lastWednr = -1
-
-impProg.MoveFirst
-Do Until impProg.EOF
-  Dim wednr As Long
-  Dim prognr As String
-  wednr = Nz(impProg("AUX_Wedstrijdnummer"))
-  prognr = Nz(impProg("CORR_Programmanummer"))
-  
-  If (wednr = lastWednr And lastProg = prognr) Then
-    Err.Raise 1, , "Dubbel programmanr gevonden: " & wednr & "," & prognr
-  End If
-  
-  lastWednr = wednr
-  lastProg = prognr
-
-  impProg.MoveNext
-Loop
-
-
-appCleanRS impProg
-
-
-lenCheckProgrammanummers = True
-Exit Function
-fout:
-If (Err = 3021) Then Resume Next
-MsgBox Err & " " & Error$, 16
-
-Exit Function
-
-'debug
-'On Error GoTo 0
-'Resume
-
-
-Exit Function
-End Function
-
-Private Function lenFinishImportShowStats(ByRef lnhTransferdata As LNH_TRANSFER_DATA, ByVal nNewWeds As Integer, ByVal nNewProgs As Integer, ByVal newWedMinNr As Long, ByVal nNewSwimmer As Long) As Boolean
-On Error GoTo fout
-
-lenFinishImportShowStats = False
-
-Dim wedS As Recordset
-Set wedS = CurrentDb().OpenRecordset("gIMP_LEN_WEDSTRIJDEN")
-
-Dim inpCnt As Long
-inpCnt = 0
-
-
-wedS.MoveFirst
-Do Until wedS.EOF
-  If (Nz(wedS("IMP_IMPORT"))) Then
-    inpCnt = inpCnt + 1
-  End If
-  
-  wedS.MoveNext
-Loop
-
-appCleanRS wedS
-
-Dim lxImpStats As LX_IMP_STATS
-
-lxImpStats.nImpWed = inpCnt
-lxImpStats.newWedMinNr = newWedMinNr
-lxImpStats.nNewProgs = nNewProgs
-lxImpStats.nNewSwimmer = nNewSwimmer
-lxImpStats.nNewWeds = nNewWeds
-
-If Not lnhDisplaySuccessMessage(lnhTransferdata, lxImpStats) Then
- Exit Function
-End If
-
-
-
-
-lenFinishImportShowStats = True
-Exit Function
-fout:
-If (Err = 3021) Then Resume Next ' no current record
-
-appCleanRS wedS
-
-MsgBox Err & " " & Error$, 16
-Exit Function
-End Function
-
-
-Private Function lenCheckZwemmers() As Boolean
-On Error GoTo fout
-lenCheckZwemmers = False
-
-'The tactic will be to look for swimmers with AUX_Depotnummer <> "" and IMP_Import = true
-'The user needs to know about such swimmers.
-
-'Also need to find duplicate startnummers
-
-Dim sql As String
-sql = "select gIMP_LEN_zwemmers.*, gIMP_LEN_ver.v_naam from gIMP_LEN_Zwemmers inner join gIMP_LEN_ver on [gIMP_LEN_zwemmers].zw_ver_id = [gIMP_LEN_ver].v_id where [gIMP_LEN_ver].imp_Import order by v_naam, [corr_startnummer];"
-
-Dim zwms As Recordset
-Set zwms = CurrentDb().OpenRecordset(sql)
-
-
-Dim nBlockedSwm  As Integer
-nBlockedSwm = 0
-Dim sBlockedSwm As String
-sBlockedSwm = ""
-
-
-Dim lastImpStartnummer As String
-Dim lastImpVer As String
-lastImpStartnummer = ""
-lastImpVer = ""
-
-zwms.MoveFirst
-Do Until zwms.EOF
-  Dim blImport As Boolean
-  blImport = Nz(zwms("IMP_Import"))
-  
-  Dim tpCorrStart As String
-  tpCorrStart = Nz(zwms("CORR_Startnummer"))
-  Dim tpVer As String
-  tpVer = Nz(zwms("V_Naam"))
-  
-  If (blImport) Then
-
-    If (tpCorrStart = lastImpStartnummer) And (tpVer = lastImpVer) Then
-      Err.Raise 1, , "Het volgende startnummer werd dubbel aangetroffen: " & vbCrLf & "(" & tpVer & ", " & tpCorrStart & " )" & vbCrLf & "(" & lastImpVer & ", " & lastImpStartnummer & ")"
-    End If
-    lastImpStartnummer = tpCorrStart
-    lastImpVer = tpVer
-  Else
-    Dim tpName As String
-    Dim tpActStart As String
-    tpActStart = Nz(zwms("ZW_Startnummer"))
-    tpName = fmtName(Nz(zwms("ZW_Voornaam")), Nz(zwms("ZW_Voegsel")), Nz(zwms("ZW_Achternaam")))
-    nBlockedSwm = nBlockedSwm + 1
-    If (nBlockedSwm < 10) Then
-      If (Len(sBlockedSwm) > 0) Then
-        sBlockedSwm = sBlockedSwm & ", "
-      End If
-      sBlockedSwm = sBlockedSwm & tpName & " (" & tpVer & ", " & tpActStart & ")"
-    End If
-  End If
-  zwms.MoveNext
-Loop
-
-
-appCleanRS zwms
-
-
-If (nBlockedSwm >= 10) Then
-  sBlockedSwm = sBlockedSwm & " en anderen "
-End If
-
-
-
-If (nBlockedSwm > 0) Then
-  'Have to ask whether to continue.
-  Dim msg As String
-  
-  msg = "Er zijn " & nBlockedSwm & " zwemmer(s) die niet zullen worden geimporteerd." & vbCrLf & _
-  "Dit zijn de zwemmers: " & sBlockedSwm & "." & vbCrLf & _
-  "Estafette ploegen met deze zwemmers zullen niet of onvolledig worden geimporteerd." & vbCrLf & _
-  "Om deze zwemmers toch te importeren, dient u terug te gaan naar het scherm met zwemmergegevens en uw selectie aan te passen. " & vbCrLf & _
-  "Wilt u nu zonder deze zwemmers doorgaan met importeren?"
-  
-  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
-    Exit Function
-  End If
-End If
-
-
-lenCheckZwemmers = True
-Exit Function
-fout:
-If (Err = 3021) Then Resume Next ' no current record.
-MsgBox Err & " lenCheckZwemmers" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-Private Function lenFinishTransferTimes_perform(ByVal blIsCheck As Boolean, ByRef blCheckFailed As Boolean, ByRef lnhTransferdata As LNH_TRANSFER_DATA) As Boolean
-On Error GoTo fout
-lenFinishTransferTimes_perform = False
-
-blCheckFailed = False
-
-
-
-Dim blTransferTimes As Boolean
-blTransferTimes = Nz(DLookup("IMP_VerwerkTijden", "gIMP_LEN_Options"), False)
-
-Dim blImpTimes As Boolean
-blImpTimes = Nz(DLookup("IMP_Tijden", "gImp_LEN_Options"))
-
-
-If (blTransferTimes And blImpTimes) Then
-  'Need to get the wedstrijden for which times have been imported.
-  Dim sql As String
-  sql = "SELECT gIMP_LEN_Tijden.AUX_Wedstrijdnummer FROM gIMP_LEN_Tijden " & _
-        "WHERE (((Nz([AUX_Programmanummer])) <> """") And ((Nz([AUX_Depotnummer])) <> """") " & _
-        "And ((Nz([AUX_Wedstrijdnummer])) > 0)) GROUP BY gIMP_LEN_Tijden.AUX_Wedstrijdnummer;"
-
-  Dim rs As Recordset
-  Set rs = CurrentDb().OpenRecordset(sql)
-  rs.MoveFirst
-  Do Until rs.EOF
-    Dim tpWed As Long
-    tpWed = Nz(rs("AUX_Wedstrijdnummer"))
-    
-    If (blIsCheck) Then
-      Dim tpCannotProcess As Boolean
-      tpCannotProcess = False
-      If Not lnhTransferTimes_checkWed(tpWed, tpCannotProcess) Then
-        Exit Function
-      End If
-      If (tpCannotProcess) Then
-        blCheckFailed = True
-      End If
-    Else
-    
-      If Not lnhTransferTimes_processWed(lnhTransferdata, tpWed) Then
-        Exit Function
-      End If
-    End If
-    
-    rs.MoveNext
-  Loop
-  appCleanRS rs
-End If
-
-
-lenFinishTransferTimes_perform = True
-Exit Function
-
-fout:
-If (Err = 3021) Then Resume Next
-MsgBox Err & " lenFinishTransferTimes_perform" & vbCrLf & Error$, 16
-Exit Function
-
-End Function
-
-
-Private Function lenCheckTransferTimes() As Boolean
-On Error GoTo fout
-lenCheckTransferTimes = False
-
-Dim tpCheckFailed As Boolean, lnhDummy As LNH_TRANSFER_DATA
-If Not lenFinishTransferTimes_perform(True, tpCheckFailed, lnhDummy) Then
-  Exit Function
-End If
-
-
-If (tpCheckFailed) Then
-
-  'Have to ask whether to continue.
-  Dim msg As String
-  
-  msg = "Voor een of meerdere van de te importeren wedstrijden staan er in de hoofdadministratie al tijden geregistreerd." & vbCrLf & _
-  "Voor deze wedstrijden zal de optie <Tijden verwerken> niet worden uitgevoerd." & vbCrLf & _
-  "Wilt u desondanks doorgaan met importeren?"
-  
-  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
-    Exit Function
-  End If
-End If
-
-
-
-lenCheckTransferTimes = True
-Exit Function
-fout:
-MsgBox Err & " lenCheckTransferTimes" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-
-
-
-Private Function lenCheckLftProblemProgrammanummers() As Boolean
-On Error GoTo fout
-lenCheckLftProblemProgrammanummers = False
-
-'The tactic will be to look for programmanummers met IMP_Import = true en IMP_blLftProblem = true.
-'These programmanummers have a leeftijdsgroep problem
-
-Dim progs As Recordset
-Dim sql As String
-sql = "select * from gIMP_LEN_Programma where (nz([IMP_Import],false) = true and nz([imp_blLftProblem],false) = true ) order by val(nz([pr_programmanummer]));"
-Set progs = CurrentDb().OpenRecordset(sql)
-
-
-Dim nProbs  As Integer
-nProbs = 0
-Dim sProbs As String
-sProbs = ""
-
-progs.MoveFirst
-Do Until progs.EOF
-  nProbs = nProbs + 1
-  If (Len(sProbs) > 0) Then
-    sProbs = sProbs + ", "
-  End If
-  sProbs = sProbs & Nz(progs("PR_Programmanummer"))
-  progs.MoveNext
-Loop
-
-
-appCleanRS progs
-
-
-
-If (nProbs > 0) Then
-  'Have to ask whether to continue.
-  Dim msg As String
-  
-  msg = "Er zijn " & nProbs & " programmanummers die een probleem met de leeftijdsgroep hebben." & Chr(13) & _
-  "Dit zijn de prognrs " & sProbs & "." & vbCrLf & _
-  "De minimale en/of maximale leeftijden van deze programmanummers vertonen een afwijking." & vbCrLf & _
-  "U wordt aangeraden om NIET verder te gaan met importeren voordat u hebt uitgezocht waar deze verschillen vandaan komen." & vbCrLf & _
-  "Wilt u doorgaan met importeren?"
-  
-  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
-    Exit Function
-  End If
-End If
-
-
-lenCheckLftProblemProgrammanummers = True
-Exit Function
-fout:
-If (Err = 3021) Then Resume Next ' no current record.
-MsgBox Err & " lenCheckLftProblemProgrammanummers" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-
-
-Private Function lenCheckUnmatchableProgrammanummers() As Boolean
-On Error GoTo fout
-lenCheckUnmatchableProgrammanummers = False
-
-'The tactic will be to look for programmanummers met IMP_Import = true en IMP_Programmanummer = null.
-'These programmanummers could not be matched!
-
-Dim progs As Recordset
-Dim sql As String
-sql = "select * from gIMP_LEN_Programma where (nz([IMP_Import],false) = true and nz([imp_programmanummer]) = """" ) order by val(nz([pr_programmanummer]));"
-Set progs = CurrentDb().OpenRecordset(sql)
-
-
-Dim nUnmatchable  As Integer
-nUnmatchable = 0
-Dim sUnmatchable As String
-sUnmatchable = ""
-
-progs.MoveFirst
-Do Until progs.EOF
-  nUnmatchable = nUnmatchable + 1
-  If (Len(sUnmatchable) > 0) Then
-    sUnmatchable = sUnmatchable + ", "
-  End If
-  sUnmatchable = sUnmatchable & Nz(progs("PR_Programmanummer"))
-  progs.MoveNext
-Loop
-
-
-appCleanRS progs
-
-
-
-If (nUnmatchable > 0) Then
-  'Have to ask whether to continue.
-  Dim msg As String
-  
-  msg = "Er zijn " & nUnmatchable & " programmanummers die niet zonder meer verwerkt konden worden." & Chr(13) & _
-  "Dit zijn de prognrs " & sUnmatchable & "." & vbCrLf & _
-  "Oorzaken kunnen zijn dat afstand/slag niet overeenkomen met de programmanummers die nu al in de wedstrijd aanwezig zijn." & vbCrLf & _
-  "Als u nu doorgaat, zullen deze " & nUnmatchable & " programmanummer(s) worden toegevoegd met een nieuw nummer." & vbCrLf & _
-  "Aangeraden wordt om nu NIET door te gaan met importeren, maar eerst in het wizardscherm met programmanummers te kijken wat er precies mis gaat." & vbCrLf & _
-  "Wilt u doorgaan?"
-  
-  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
-    Exit Function
-  End If
-End If
-
-
-lenCheckUnmatchableProgrammanummers = True
-Exit Function
-fout:
-If (Err = 3021) Then Resume Next ' no current record.
-MsgBox Err & " " & Error$, 16
-Exit Function
-End Function
-
-
-
-Public Function lenIntFinishImportSequence(ByRef blErrorRecoverable As Boolean) As Boolean
-On Error GoTo fout
-lenIntFinishImportSequence = False
-
-Dim wrkSpace  As Workspace
-
-'Set wrkSpace = DBEngine.Workspaces(0)
-'wrkSpace.BeginTrans
-
-If (lenIntFinishImportSequence_perform(blErrorRecoverable)) Then
-  'wrkSpace.CommitTrans
-Else
-  'wrkSpace.Rollback
-  Exit Function
-End If
-    
-
-
-'Set wrkSpace = Nothing
-
-lenIntFinishImportSequence = True
-Exit Function
-fout:
-MsgBox Err & " " & Error$, 16
-Exit Function
-End Function
-
-Private Function lenIntFinishImportSequence_perform(ByRef blErrorRecoverable As Boolean) As Boolean
-On Error GoTo fout
-lenIntFinishImportSequence_perform = False
-
-'First check to see if there are any problematic programmanummers.
-
-blErrorRecoverable = True
-If Not lenCheckUnmatchableProgrammanummers() Then Exit Function
-
-If Not lenCheckLftProblemProgrammanummers() Then Exit Function
-
-blErrorRecoverable = False
-
-
-If Not lnhProcessUserImportSettings() Then Exit Function
-
-If Not lenFillAuxFields() Then Exit Function
-
-'now need to test if everything is OK.
-
-blErrorRecoverable = True
-
-If Not lenCheckDepotnummers() Then Exit Function
-
-If Not lenCheckProgrammanummers() Then Exit Function
-
-If Not lenCheckZwemmers() Then Exit Function
-
-If Not lenCheckTransferTimes() Then Exit Function
-
-blErrorRecoverable = False
-
-Dim nNewWeds As Integer, nNewProgs As Integer, newWedMinNr As Long, nNewSwimmers As Long
-
-
-
-If Not lnhImportWedstrijd(nNewWeds, newWedMinNr, nNewProgs, nNewSwimmers) Then
-  Exit Function
-End If
-
-
-
-Dim lnhTransferdata As LNH_TRANSFER_DATA
-
-If Not lnhTransferTimes_Init(lnhTransferdata) Then
-  Exit Function
-End If
-
-
-If Not lenFinishImportTransferTimes(lnhTransferdata) Then
-  Exit Function
-End If
-
-
-'Show some statistics and query user if he wants to keep the changes
-If Not lenFinishImportShowStats(lnhTransferdata, nNewWeds, nNewProgs, newWedMinNr, nNewSwimmers) Then
-  Exit Function
-End If
-
-
-
-
-If Not lnhTransferTimes_Clean(lnhTransferdata) Then
-  Exit Function
-End If
-
-
-lenIntFinishImportSequence_perform = True
-Exit Function
-fout:
-MsgBox Err & " lenIntFinishImportSequence_perform" & vbCrLf & Error$, 16
-End Function
-
-
-Private Function lenFinishImportTransferTimes(ByRef lnhTransferdata As LNH_TRANSFER_DATA) As Boolean
-lenFinishImportTransferTimes = lenFinishTransferTimes_perform(False, False, lnhTransferdata)
-End Function
 
 
 Private Function lenWriteFromXMLTables(lxfDir As String, lxfFileName As String, ByVal strictLenex As Boolean, ByVal lxVersion As Long, ByRef actFileName As String) As Boolean
 On Error GoTo fout
 
-Dim ext As String
-
-If Len(lxfFileName) <= 4 Then
-  Err.Raise 1, , "Invalid name for lenex file."
-End If
-ext = Right(lxfFileName, 3)
-
 Dim lxfCompleteName As String
-
 lxfCompleteName = directory_goedmaak(lxfDir) & "\" & lxfFileName
 
-If ext = "lef" Then
-  If Not gXMLWriter.exportStructureToXML(lxfCompleteName, "fdtgLEN_XML_OBJECTS", "fdtgLEN_XML_OBJECT_RELATIONS", "LEN_", lxVersion, , strictLenex) Then Exit Function
-ElseIf ext = "lxf" Then
-  
-  'Need to zip the file.
-  
-  'First create pack directory.
-  
-  Dim packDir As String
-  packDir = directory_goedmaak(lxfDir) & "\__hupswim__unzip__volatile"
-  'Now need to unpack file.
-  
-  On Error Resume Next
-  If (Not DirectoryExists(packDir)) Then
-    FileSystem.MkDir (packDir)
-  End If
-  
-  If (Not DirectoryExists(packDir)) Then
-    On Error GoTo fout
-    Err.Raise 1, , "Error creating temporary pack directory: " & packDir
-  End If
- 
-  Dim fToZip As String
-  fToZip = Left(lxfFileName, Len(lxfFileName) - 3) & "lef"
- 
-  Dim fToZipComplete As String
-  fToZipComplete = packDir & "\" & fToZip
-  
-  'Now test if archive exists. If so, delete.
- 
-  If (FileExists(lxfCompleteName)) Then
-    FileSystem.Kill (lxfCompleteName)
-  End If
-  
-  If (FileExists(lxfCompleteName)) Then
-    On Error GoTo fout
-    Err.Raise 1, , "Error deleting existing file: " & lxfCompleteName
-  End If
-  
-  
-  'We are now going to write files, so ensure that on error everything is cleaned up.
-  
-  
-  On Error GoTo fout_cleanup
-  
-  Dim ok As Boolean
-  ok = gXMLWriter.exportStructureToXML(fToZipComplete, "fdtgLEN_XML_OBJECTS", "fdtgLEN_XML_OBJECT_RELATIONS", "LEN_", lxVersion, , , strictLenex)
-  
-  If Not ok Then
-    lenKillTemp packDir, fToZipComplete
+Dim sLefFileName As String
+
+
+Dim zipData As ZIP_INTERNAL
+
+If Not zipWrite(lxfCompleteName, "lef", "lxf", sLefFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+Dim isOK As Boolean
+
+isOK = gXMLWriter.exportStructureToXML(sLefFileName, "fdtgLEN_XML_OBJECTS", "fdtgLEN_XML_OBJECT_RELATIONS", "LEN_", lxVersion, , , strictLenex)
+
+
+On Error GoTo fout
+
+Dim sDummy As String, isPackedOK As Boolean
+
+If (Not isOK) Then
+  If Not zipWrite_finish(False, isPackedOK, False, sDummy, zipData) Then
     Exit Function
   End If
-  
-  'Now zip the file.
-  Dim okk As Boolean
-  okk = zipFile(lxfCompleteName, fToZipComplete)
-  'This weird construction is necessary due to a bug in dll boolean extraction.
-  Dim okkk As Boolean
-  okkk = False
-  If okk Then
-    okkk = True
-  End If
-  
-  If Not okkk Then
-    Err.Raise 1, , "There was an error writing the file: " & Chr(13) & fToZipComplete & Chr(13) & "to the archive: " & lxfCompleteName & "."
-  End If
-  
-  lenKillTemp packDir, fToZipComplete
-  
-  On Error GoTo fout
-  
-  
 Else
-  Err.Raise 1, , "Invalid lenex file extension requested: " & ext
+  If Not zipWrite_finish(True, isPackedOK, True, sDummy, zipData) Then
+    Exit Function
+  End If
+  If Not isPackedOK Then
+    Exit Function
+  End If
 End If
+
+If (Not isOK) Then
+  Exit Function
+End If
+
+
+
 
 
 actFileName = lxfCompleteName
@@ -8956,7 +9058,9 @@ errCode = Err
 
 msg = errCode & " lenWriteFromXMLTables" & Error$
 
-lenKillTemp packDir, fToZipComplete
+
+zipWrite_finish False, isPackedOK, False, sDummy, zipData
+
 
 
 If (errCode = 1) Then
@@ -9121,172 +9225,56 @@ Private Function lenAnalyzeFile_Perform(ByVal lxfDir As String, ByVal lxfFileNam
 On Error GoTo fout
 lenAnalyzeFile_Perform = False
 
+
 blValid = False
+lxInvalidReason = LX_INVALID_FNAME
+lxInvalidString = ""
 
-Dim ext As String
-If Len(lxfFileName) <= 4 Then
- lxInvalidReason = LX_INVALID_FNAME
- lxInvalidString = "Invalid name for lenex file: " & lxfFileName
- Err.Raise 1, , lxInvalidString
+
+Dim zipData As ZIP_INTERNAL
+Dim blExtracted As Boolean, zipInvalidReason As Integer, zipInvalidString As String
+Dim sLefFileName As String
+
+'Do not display an error message. We will do so ourselves here if necessary.
+If Not zipRead(directory_goedmaak(lxfDir) & "\" & lxfFileName, "lef", "lxf", blExtracted, False, zipInvalidReason, zipInvalidString, sLefFileName, zipData) Then
+  Exit Function
 End If
-ext = Right(lxfFileName, 3)
 
-Dim lxfCompleteName As String
-  lxfCompleteName = directory_goedmaak(lxfDir) & "\" & lxfFileName
 
-If (ext = "lxf") Then
-  Dim cnt As Long
-  cnt = countZip(lxfCompleteName)
-  If cnt <> 1 Then
-    If (cnt >= 0) Then
+If (Not blExtracted) Then
+  lxInvalidString = zipInvalidString
+  Select Case zipInvalidReason
+    Case ZIP_INVALID_CNT
       lxInvalidReason = LX_ZIP_CNT_INVALID
-      lxInvalidString = "Invalid lenex file. Archive was expected to contain 1 file. Found: " & cnt & " file(s)"
-      Err.Raise 1, , lxInvalidString
-    Else
+    Case ZIP_INVALID_FILE_NAME
+      lxInvalidReason = LX_INVALID_FNAME
+    Case ZIP_UNKNOWN_FILE
+      lxInvalidReason = LX_INVALID_FNAME
+    Case ZIP_UZIP_FAILURE
       lxInvalidReason = LX_UZIP_FAILURE
-      lxInvalidString = "Error accessing zip file: " + lxfCompleteName
-      Err.Raise 1, , lxInvalidString
-    End If
-  End If
-  
-  Dim upackDir As String
-  upackDir = directory_goedmaak(lxfDir) & "\__hupswim__unzip__volatile"
-  'Now need to unpack file.
-  
-  On Error Resume Next
-  If (Not DirectoryExists(upackDir)) Then
-    FileSystem.MkDir (upackDir)
-  End If
-  
-  If (Not DirectoryExists(upackDir)) Then
-    On Error GoTo fout
-    lxInvalidReason = LX_UZIP_FAILURE
-    lxInvalidString = "Error creating temporary unpack directory: " & upackDir
-    Err.Raise 1, , lxInvalidString
-  End If
- 
-  Dim fToUnzip As String
-  fToUnzip = Left(lxfFileName, Len(lxfFileName) - 3) & "lef"
- 
-  Dim fToUnzipComplete As String
-  fToUnzipComplete = upackDir & "\" & fToUnzip
- 
-  If (FileExists(fToUnzipComplete)) Then
-    FileSystem.Kill (fToUnzipComplete)
-  End If
-  
-  If (FileExists(fToUnzipComplete)) Then
-    On Error GoTo fout
-    lxInvalidReason = LX_UZIP_FAILURE
-    lxInvalidString = "Error deleting existing file: " & fToUnzipComplete
-    Err.Raise 1, , lxInvalidString
-  End If
-  
-  
-  
-  
-  On Error GoTo fout_cleanup
-  
-  Dim okk As Boolean
-  okk = unzipFile(lxfCompleteName, upackDir, fToUnzip)
-  'This weird construction is necessary due to a bug in dll boolean extraction.
-  Dim okkk As Boolean
-  okkk = False
-  If okk Then
-    okkk = True
-  End If
-  'End if.
-    
-  If Not okkk Then
-  
-    'Modification Nov 2006. Support of packed file names that do not match the name of the archive.
-    Dim tpList As String
-    tpList = FileSystem.dir(upackDir & "\*.lef")
-    If tpList <> "" Then
-      lxInvalidReason = LX_UZIP_FAILURE
-      lxInvalidString = "The temporary directory: " & vbCrLf & upackDir & vbCrLf & "already contains .lef files."
-      Err.Raise 1, , lxInvalidString
-    End If
-      
-    okk = unzipAll(lxfCompleteName, upackDir)
-    'This weird construction is necessary due to a bug in dll boolean extraction.
-    
-    okkk = False
-    If okk Then
-      okkk = True
-    End If
-    
-    If Not okkk Then
-      lxInvalidReason = LX_UZIP_FAILURE
-      lxInvalidString = "There was an error unpacking the archive: " & vbCrLf & lxfCompleteName
-      Err.Raise 1, , lxInvalidString
-    End If
-    
-    'We know there is at least one file
-    tpList = FileSystem.dir(upackDir & "\*.*")
-    
-    lxfCompleteName = upackDir & "\" & tpList
-    fToUnzipComplete = lxfCompleteName
-    
-    'This is to ensure that we are able to delete the directory on termination. Weird, but...
-    FileSystem.dir
-    
-    If Not (tpList Like "*.lef") Then
-      lxInvalidReason = LX_ZIP_CNT_INVALID
-      lxInvalidString = "The archive: " & vbCrLf & lxfCompleteName & vbCrLf & "does not appear to contain a .lef file"
-      Err.Raise 1, , lxInvalidString
-    End If
-    
-    
-    
-    
-  
-  
-    'Err.Raise 1, , "There was an error extracting the lenex file: " & fToUnzip & " from the archive."
-  
-  Else
-     lxfCompleteName = upackDir & "\" & fToUnzip
-  
-  End If
-      
-    
-  
-  'Now read the lenex file
-  
-  Dim ok As Boolean
-  ok = lenAnalyzeFile_processLXFile(lxfCompleteName, blImpStructure, blGetInfo, blDisplayErr, blValid, lxInvalidReason, lxInvalidString, wedDate, wedDescription, wedPlace)
-  
-  lenKillTemp upackDir, fToUnzipComplete
-   
-  On Error GoTo fout
-    
-  If Not ok Then
-    Exit Function
-  End If
-  
-  
-  
-  
-  
-  
-ElseIf (ext = "lef") Then
-  
-  If Not (lenAnalyzeFile_processLXFile(lxfCompleteName, blImpStructure, blGetInfo, blDisplayErr, blValid, lxInvalidReason, lxInvalidString, wedDate, wedDescription, wedPlace)) Then
-    Exit Function
-  End If
-
-Else
-
-  lxInvalidReason = LX_INVALID_FNAME
-  lxInvalidString = "Invalid extension for lenex file. Should be .lef or .lxf. Found: " & ext
+  End Select
   Err.Raise 1, , lxInvalidString
 End If
 
 
 
+On Error GoTo fout_cleanup
+
+Dim ok As Boolean
+ok = lenAnalyzeFile_processLXFile(sLefFileName, blImpStructure, blGetInfo, blDisplayErr, blValid, lxInvalidReason, lxInvalidString, wedDate, wedDescription, wedPlace)
+  
+zipRead_finish zipData
+
+On Error GoTo fout
+
+If Not ok Then
+  Exit Function
+End If
+
 
 lenAnalyzeFile_Perform = True
 Exit Function
+
 fout:
 Dim msg As String
 Dim errCode As Long
@@ -9314,7 +9302,7 @@ errCode = Err
 
 msg = errCode & " lenAnalyzeFile_perform" & vbCrLf & Error$
 
-lenKillTemp upackDir, fToUnzipComplete
+zipRead_finish zipData
 
 
 If (errCode = 1) Then
@@ -9326,6 +9314,7 @@ Else
   MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
   Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
 End If
+
 Exit Function
 
 'debug
@@ -9365,80 +9354,6 @@ FileSystem.RmDir dirName
 End Sub
 
 
-Public Function lenHandleCompleteMMImpSequence(splFDir As String, splFName As String, wedIsOpen As Boolean, curOpenWedNr As Long, curOpenWedDate As Date, curOpenWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
-On Error GoTo fout
-lenHandleCompleteMMImpSequence = False
-
-Dim splFCompleteName As String
-splFCompleteName = directory_goedmaak(splFDir) & "\" & splFName
-
-'Clean up the transfer tables.
-If Not lenCleanTransferTables() Then
-  Exit Function
-End If
-
-'Read the file
-If Not splMMImpFillLenTransTables(splFCompleteName) Then
-  Exit Function
-End If
-
-
-Dim glbWedDate As Date, glbWedLftMode As String
-
-If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
-
-If Not lnhImportGenerateDefaultProgImportSettings(glbWedDate, glbWedLftMode) Then Exit Function
-
-
-'Now open the wizard.
-DoCmd.OpenForm "hxIMP_LEN_MASTER", acNormal, , , , acDialog
-
-lenHandleCompleteMMImpSequence = True
-Exit Function
-fout:
-MsgBox Err & " " & Error$, 16
-Exit Function
-End Function
-
-
-Public Function lenHandleCompleteWasImpSequence(wasFDir As String, wasFName As String, wedIsOpen As Boolean, curOpenWedNr As Long, curOpenWedDate As Date, curOpenWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
-On Error GoTo fout
-lenHandleCompleteWasImpSequence = False
-
-Dim wasFCompleteName As String
-wasFCompleteName = directory_goedmaak(wasFDir) & "\" & wasFName
-
-If Not wedIsOpen Then
-  Err.Raise 1, , "There must be an open wedstrijd nummer for this option to be supported."
-End If
-
-'Clean up the transfer tables.
-If Not lenCleanTransferTables() Then
-  Exit Function
-End If
-
-'Read the file
-If Not wasImpFillLenTransTables(wasFCompleteName, curOpenWedNr) Then
-  Exit Function
-End If
-
-
-Dim glbWedDate As Date, glbWedLftMode As String
-
-If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
-
-If Not lnhImportGenerateDefaultProgImportSettings(glbWedDate, glbWedLftMode) Then Exit Function
-
-
-'Now open the wizard.
-DoCmd.OpenForm "hxIMP_LEN_MASTER", acNormal, , , , acDialog
-
-lenHandleCompleteWasImpSequence = True
-Exit Function
-fout:
-MsgBox Err & " lenHandleCompleteWasImpSequence" & vbCrLf & Error$, 16
-Exit Function
-End Function
 
 
 
@@ -9578,209 +9493,11 @@ End Function
 
 
 
-Public Function lenQuickStart(defDir As String) As Boolean
-On Error GoTo fout
-lenQuickStart = False
-
-Dim fName As String
-
-
-If (DirectoryExists(directory_goedmaak(defDir))) Then
-  fName = directory_goedmaak(defDir) & "\*.l?f"
-Else
-  fName = "c:\*.l?f"
-End If
-
-
-If Not fileNamePromptUser(FILE_DLG_OPEN, "Lenex file inlezen ", "Lenex bestanden (*.lef, *.lxf)|*.l?f", fName, True, True) Then
-  Exit Function
-End If
-
-If FileExists(fName) Then
-  If Not lenHandleCompleteImportSequence(extractFilePath(fName), extractFileName(fName), False, -1, #1/1/1900#, #12:00:00 AM#, False, -1) Then
-    Exit Function
-  End If
-End If
 
 
 
 
-lenQuickStart = True
-Exit Function
-
-fout:
-MsgBox Err & " " & Error$, 16
-End Function
-
-
-Private Function lenImportKNZBFiles_prepareImport(tbName As String, depotFName As String, blSingleClub As Boolean, sClubDepot As String, blAll As Boolean, blImpRegion() As Boolean)
-On Error GoTo fout
-lenImportKNZBFiles_prepareImport = False
-
-Dim sql As String
-
-DoCmd.SetWarnings False
-If (blSingleClub) Then
-  sql = "Delete * from [" & tbName & "] where [" & depotFName & "] <> """ & sClubDepot & """;"
-  DoCmd.RunSQL sql
-ElseIf (blAll) Then
- 'do nothing
-Else
-  Dim i As Integer
-    For i = 1 To REG_N_REGIONS
-    If Not blImpRegion(i) Then
-      sql = "Delete * from [" & tbName & "] where [" & depotFName & "] like """ & Format(i, "00") & "[-]*"";"
-      DoCmd.RunSQL sql
-    End If
-  Next i
-End If
-DoCmd.SetWarnings True
-
-
-lenImportKNZBFiles_prepareImport = True
-Exit Function
-fout:
-MsgBox Err & " lenImportKNZBFiles_prepareImport" & vbCrLf & Error$, 16
-Exit Function
-
-End Function
-
-Private Function lenImportKNZBFiles_importClubs(clubLxfFName As String, blSingleClub As Boolean, sClubDepot As String, blAll As Boolean, blImpRegion() As Boolean) As Boolean
-On Error GoTo fout
-lenImportKNZBFiles_importClubs = False
-
-If Not lenReadFile(extractFilePath(clubLxfFName), extractFileName(clubLxfFName), False) Then
-  Exit Function
-End If
-
-If Not lenImportKNZBFiles_prepareImport("gIMP_LEN_ver", "V_depot", blSingleClub, sClubDepot, blAll, blImpRegion) Then
-  Exit Function
-End If
-
-If Not lnhKNZBImpVers() Then
-  Exit Function
-End If
-
-
-lenImportKNZBFiles_importClubs = True
-Exit Function
-fout:
-MsgBox Err & " lenImportKNZBFiles_importClubs" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-Private Function lenImportKNZBFiles_importZwms(zwmLxfFName As String, blSingleClub As Boolean, sClubDepot As String, blAll As Boolean, blImpRegion() As Boolean) As Boolean
-On Error GoTo fout
-lenImportKNZBFiles_importZwms = False
-
-If Not lenReadFile(extractFilePath(zwmLxfFName), extractFileName(zwmLxfFName), False) Then
-  Exit Function
-End If
-
-If Not lenImportKNZBFiles_prepareImport("gIMP_LEN_zwemmers", "ZW_FlatClubCode", blSingleClub, sClubDepot, blAll, blImpRegion) Then
-  Exit Function
-End If
-
-If Not lnhKNZBImpZwemmers() Then
-  Exit Function
-End If
-
-lenImportKNZBFiles_importZwms = True
-Exit Function
-fout:
-MsgBox Err & " lenImportKNZBFiles_importZwms" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-Private Function lenImportKNZBFiles_importOffs(offLxfFName As String, blSingleClub As Boolean, sClubDepot As String, blAll As Boolean, blImpRegion() As Boolean) As Boolean
-On Error GoTo fout
-lenImportKNZBFiles_importOffs = False
-
-If Not lenReadFile(extractFilePath(offLxfFName), extractFileName(offLxfFName), True) Then
-  Exit Function
-End If
-
-If Not lenImportKNZBFiles_prepareImport("gIMP_LEN_officials", "OFF_FlatClubCode", blSingleClub, sClubDepot, blAll, blImpRegion) Then
-  Exit Function
-End If
-
-If Not lnhKNZBImpOfficials() Then
-  Exit Function
-End If
-
-lenImportKNZBFiles_importOffs = True
-Exit Function
-fout:
-MsgBox Err & " lenImportKNZBFiles_importOffs" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-
-'blImpRegion should be a 1..12 array, corresponding to the 12 kringen.
-Public Function lenImportKNZBFiles(blImpZwemmers As Boolean, blImpOffs As Boolean, blSingleClub As Boolean, sClubDepot As String, blAll As Boolean, blImpRegion() As Boolean) As Boolean
-On Error GoTo fout
-lenImportKNZBFiles = False
-
-'Need to download the files.
-Dim clubLXF As String
-Dim zwmLXF As String
-Dim offLXF As String
-
-clubLXF = downloadFile("http://lijsten.knzb.nl/clubs.lxf")
-If (clubLXF = "") Then
-  Err.Raise 1, , "Error downloading file: http://lijsten.knzb.nl/clubs.lxf"
-  Exit Function
-End If
-
-If (blImpZwemmers) Then
-  zwmLXF = downloadFile("http://lijsten.knzb.nl/athletes_zwemmen.lxf")
-  If (zwmLXF = "") Then
-    Err.Raise 1, , "Error downloading file: http://lijsten.knzb.nl/athletes_zwemmen.lxf"
-    Exit Function
-  End If
-End If
-
-If (blImpOffs) Then
-  offLXF = downloadFile("http://lijsten.knzb.nl/officials_zwemmen.lxf")
-  If (offLXF = "") Then
-    Err.Raise 1, , "Error downloading file: http://lijsten.knzb.nl/officials_zwemmen.lxf"
-    Exit Function
-  End If
-End If
-
-
-If Not lenImportKNZBFiles_importClubs(clubLXF, blSingleClub, sClubDepot, blAll, blImpRegion) Then
-  Exit Function
-End If
-
-
-If (blImpZwemmers) Then
-  If Not lenImportKNZBFiles_importZwms(zwmLXF, blSingleClub, sClubDepot, blAll, blImpRegion) Then
-    Exit Function
-  End If
-End If
- 
-If (blImpOffs) Then
-  If Not lenImportKNZBFiles_importOffs(offLXF, blSingleClub, sClubDepot, blAll, blImpRegion) Then
-    Exit Function
-  End If
-End If
-
-
-
-
-
-lenImportKNZBFiles = True
-Exit Function
-fout:
-MsgBox Err & " lenImportKNZBFiles" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-
-
-
-Public Function lenRecList_BuildTable(tbName As String) As Boolean
+Private Function lenRecList_BuildTable(tbName As String) As Boolean
 On Error GoTo fout
 lenRecList_BuildTable = False
 

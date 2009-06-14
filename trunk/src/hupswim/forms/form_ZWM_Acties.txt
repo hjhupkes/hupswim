@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =392026772
+Checksum =-1544622768
 Begin Form
     RecordSelectors = NotDefault
     NavigationButtons = NotDefault
@@ -11,7 +11,7 @@ Begin Form
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
     GridY =10
-    Width =8310
+    Width =8370
     DatasheetFontHeight =10
     ItemSuffix =5
     Left =3720
@@ -49,8 +49,8 @@ Begin Form
                     OverlapFlags =85
                     AccessKey =69
                     TextFontFamily =2
-                    Left =225
-                    Top =150
+                    Left =285
+                    Top =465
                     Width =2406
                     Height =330
                     FontSize =10
@@ -69,8 +69,8 @@ Begin Form
                 Begin Label
                     OverlapFlags =85
                     TextAlign =1
-                    Left =3195
-                    Top =120
+                    Left =3255
+                    Top =435
                     Width =5115
                     Height =480
                     Name ="Label3"
@@ -85,8 +85,8 @@ Begin Form
                     OverlapFlags =85
                     AccessKey =83
                     TextFontFamily =2
-                    Left =225
-                    Top =750
+                    Left =285
+                    Top =1065
                     Width =2406
                     Height =330
                     FontSize =10
@@ -106,8 +106,8 @@ Begin Form
                 Begin Label
                     OverlapFlags =85
                     TextAlign =1
-                    Left =3195
-                    Top =750
+                    Left =3255
+                    Top =1065
                     Width =5115
                     Height =330
                     Name ="Label1"
@@ -121,8 +121,8 @@ Begin Form
                     OverlapFlags =85
                     AccessKey =68
                     TextFontFamily =2
-                    Left =225
-                    Top =1350
+                    Left =285
+                    Top =1665
                     Width =2406
                     Height =330
                     FontSize =10
@@ -142,12 +142,12 @@ Begin Form
                 Begin Label
                     OverlapFlags =85
                     TextAlign =1
-                    Left =3195
-                    Top =1350
+                    Left =3255
+                    Top =1665
                     Width =5115
                     Height =330
                     Name ="Label4"
-                    Caption ="Dubbele zwemmers in het bestand opsporen & corrigeren"
+                    Caption ="Dubbele zwemmers in het bestand opsporen en corrigeren"
                     FontName ="MS Sans Serif"
                     GUID = Begin
                         0xebe982edf13d0b4fbbe8e4eb384b7490
@@ -179,22 +179,7 @@ End Sub
 Private Sub btnExp_Click()
 On Error Resume Next
 
-
-Dim sFileName As String
-If (DirectoryExists(dbdir_op())) Then
-  sFileName = directory_goedmaak(dbdir_op()) & "\kringty" & Format(Now(), "yyyy\-mm\-dd") & "=" & GoedTekens(ver()) & "=" & waarde_zwemmer() & ".xml"
-Else
-  sFileName = "c:\kringty" & Format(Now(), "yyyy\-mm\-dd") & "=" & GoedTekens(ver()) & "=" & waarde_zwemmer() & ".xml"
-End If
- 
-If Not fileNamePromptUser(FILE_DLG_SAVE, "Kies bestandsnaam ", "*.xml", sFileName, True) Then
-  Exit Sub
-End If
-
-If Not timExportTimes(sFileName, False, #1/1/1900#, True, waarde_zwemmer(), False, -1) Then
-  Exit Sub
-End If
-
+DoCmd.OpenForm "ZWM_DLG_ExportTimes", , , , , acDialog
 
 End Sub
 

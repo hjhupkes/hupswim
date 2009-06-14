@@ -3,6 +3,24 @@ Option Compare Database
 
 
 
+Public Function verGetRegion(ByVal sDepot As String) As String
+On Error Resume Next
+
+verGetRegion = ""
+
+If (Len(sDepot) = 6) Then
+  Dim lRegionCode As Long
+  
+  lRegionCode = CLng(val(Left(sDepot, 2)))
+  
+  If (lRegionCode >= 1) And (lRegionCode <= 14) Then
+    verGetRegion = CStr(lRegionCode)
+  End If
+  
+End If
+
+End Function
+
 Public Function verListPromptUser(ByRef isOK As Boolean, ByRef nVers As Integer, ByRef ordVers() As String) As Boolean
 On Error GoTo fout
 verListPromptUser = False
