@@ -629,6 +629,9 @@ Private Sub file_afterUpdate_was()
 On Error GoTo fout
 
 
+Dim sDummy As String
+Dim wasFileType As Integer
+
 Dim wasValid As Boolean, wasInvalidReason As Integer, wasInvalidString As String
 Dim wasDate As Date, wasPlaceS As String, wasDesS As String
 Dim wasDateS As String
@@ -638,10 +641,16 @@ Dim errS As String
 Dim wasFName As String
 wasFName = directory_goedmaak(Nz(Me.dir)) & "\" & Nz(Me.file)
 
-If Not wasAnalyzeFile(wasFName, wasValid, wasInvalidReason, wasInvalidString, wasDate, wasDesS, wasPlaceS) Then
+If Not wasAnalyzeFile(wasFName, wasValid, wasInvalidReason, wasInvalidString, wasDate, wasDesS, wasPlaceS, sDummy, sDummy, sDummy, wasFileType) Then
   wasValid = False
   wasInvalidReason = WAS_XML_UNKNOWN_FAILURE
 End If
+
+If (wasFileType <> WAS_FILE_TYPE_DLN) And (wasFileType <> WAS_FILE_TYPE_PROG) And (wasFileType <> WAS_FILE_TYPE_UIT) Then
+  wasValid = False
+  wasInvalidReason = WAS_XML_INVALID_ROOT
+End If
+
 
 wasDateS = ""
 If (lenDateIsValid(wasDate)) Then
@@ -669,10 +678,12 @@ Else
       blAppendWasMsg = False
     Case WAS_XML_UNKNOWN_FILE
       errS = "De bestandsnaam is ongeldig."
-    Case WAS_XML_INVALID_ROOT
+    Case WAS_XML_INVALID_ROOT, WAS_XML_INV_STR
       errS = "De inhoud van het .xml bestand voldoet niet aan de verwachtingen."
     Case WAS_XML_NOT_XML_FILE
       errS = "Het bestand is geen xml-bestand."
+    Case WAS_XML_INV_SYNTAX
+      errS = "Er is een probleem met de xml-syntax."
   End Select
   
   If (blAppendWasMsg) Then

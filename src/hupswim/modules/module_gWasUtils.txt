@@ -4,18 +4,21 @@ Option Explicit
 Public Const WAS_FILE_TYPE_DLN = 0
 Public Const WAS_FILE_TYPE_UIT = 1
 Public Const WAS_FILE_TYPE_PROG = 2
+Public Const WAS_FILE_TYPE_TIME_ARCHIVE = 3
 
 Public Const WAS_XML_VALID = -1
 Public Const WAS_XML_UNKNOWN_FILE = 0
 Public Const WAS_XML_NOT_XML_FILE = 1
 Public Const WAS_XML_INVALID_ROOT = 2
-Public Const WAS_XML_UNKNOWN_FAILURE = 3
+Public Const WAS_XML_INV_SYNTAX = 3
+Public Const WAS_XML_INV_STR = 4
+Public Const WAS_XML_UNKNOWN_FAILURE = 5
 
 
 
 
 'Read the external files.
-Private Function wasAnalyzeFile_Perform(ByVal fName As String, ByVal blDisplayErrDlg As Boolean, ByRef wasValid As Boolean, ByRef wasInvalidReason As Integer, ByRef wasInvalidString As String, ByRef wasWedDate As Date, ByRef wasWedPlaats As String, ByRef wasWedDescription As String, ByRef wasFileType As Integer) As Boolean
+Private Function wasAnalyzeFile_Perform(ByVal fName As String, ByVal blDisplayErrDlg As Boolean, ByRef wasValid As Boolean, ByRef wasInvalidReason As Integer, ByRef wasInvalidString As String, ByRef wasWedDate As Date, ByRef wasWedPlaats As String, ByRef wasWedDescription As String, ByRef wasFileDateS As String, ByRef wasFileTimeS As String, ByRef wasKrtyClub As String, ByRef wasFileType As Integer) As Boolean
 On Error GoTo fout
 wasAnalyzeFile_Perform = False
 
@@ -48,9 +51,11 @@ ElseIf gXMLReader.isNodePresent(fName, "VFPData/deelnemers", True, 5) Then
   wasFileType = WAS_FILE_TYPE_DLN
 ElseIf gXMLReader.isNodePresent(fName, "VFPData/prog", True, 5) Then
   wasFileType = WAS_FILE_TYPE_PROG
+ElseIf gXMLReader.isNodePresent(fName, "VFPDATA/kringty", True, 5) Then
+  wasFileType = WAS_FILE_TYPE_TIME_ARCHIVE
 Else
   wasInvalidReason = WAS_XML_INVALID_ROOT
-  wasInvalidString = "Dit xml-bestand werd niet herkend als was2005-bestand." & vbCrLf & "Geen van de volgende xml-elementen werden herkend:" & vbCrLf & "VFPDATA/uitslagxml" & vbCrLf & "VFPDATA/deelnemers" & vbCrLf & "VFPDATA/prog"
+  wasInvalidString = "Dit xml-bestand werd niet herkend als was2005-bestand." & vbCrLf & "Geen van de volgende xml-elementen werden herkend:" & vbCrLf & "VFPDATA/uitslagxml" & vbCrLf & "VFPDATA/deelnemers" & vbCrLf & "VFPDATA/prog" & vbCrLf & "VFPDATA/kringty"
   
   Err.Raise 1, , wasInvalidString
 End If
@@ -66,13 +71,29 @@ Select Case wasFileType
     tgs(1) = "datum"
     tgs(2) = "soort"
     
-    If Not gXMLReader.readFirstTagsData(fName, tgs, vals, fndTag, 3) Then
+    
+    Dim xmlErrCode As Integer
+    Dim xmlErrMsg As String
+
+    xmlErrCode = -1
+    xmlErrMsg = ""
+    
+    On Error GoTo xmlFout
+    If Not gXMLReader.readFirstTagsData(fName, tgs, vals, fndTag, 3, False, 100, False) Then
       Exit Function
+    End If
+    On Error GoTo fout
+    
+    If (xmlErrCode >= 0) Then
+      wasInvalidReason = WAS_XML_INV_SYNTAX
+      wasInvalidString = xmlErrMsg
+      Err.Raise 1, , wasInvalidString
     End If
     
     wasWedDate = #1/1/1900#
     wasWedPlaats = ""
     wasWedDescription = ""
+    wasKrtyClub = ""
     
     
     If (fndTag(0)) Then
@@ -88,11 +109,42 @@ Select Case wasFileType
     wasWedDate = #1/1/1900#
     wasWedPlaats = "Onbekend"
     wasWedDescription = "WAS2005 XML deelnemers file"
+    wasKrtyClub = ""
   Case WAS_FILE_TYPE_PROG
     wasWedDate = #1/1/1900#
     wasWedPlaats = "Onbekend"
     wasWedDescription = "WAS2005 XML programma file"
+    wasKrtyClub = ""
+  Case WAS_FILE_TYPE_TIME_ARCHIVE
+  
+    wasWedDate = #1/1/1900#
+    wasWedPlaats = ""
+    wasWedDescription = ""
+    
+    
+    
+    xmlErrCode = -1
+    xmlErrMsg = ""
+    On Error GoTo xmlFout
+    wasKrtyClub = gXMLReader.readFirstTagData(fName, "VFPData/kringty/verenig", True, 100, False)
+    On Error GoTo fout
+    
+    If (xmlErrCode >= 0) Then
+      wasInvalidReason = WAS_XML_INV_SYNTAX
+      wasInvalidString = xmlErrMsg
+      Err.Raise 1, , wasInvalidString
+    ElseIf (wasKrtyClub = "") Then
+      wasInvalidReason = WAS_XML_INV_STR
+      wasInvalidString = "Het bestand: " & vbCrLf & fName & vbCrLf & "is geen geldig kringtijden bestand." & vbCrLf & "Het xml-object <VFPData/kringty/verenig> kon niet worden gevonden."
+      Err.Raise 1, , wasInvalidString
+    End If
+    
+   
 End Select
+
+
+wasFileTimeS = FileTimeStr(fName)
+wasFileDateS = FileDateStr(fName)
 
 wasValid = True
   
@@ -124,18 +176,24 @@ End If
 Exit Function
 
 
+
+xmlFout:
+xmlErrCode = Err
+xmlErrMsg = Error$
+Resume Next
+
+
 End Function
 
 
 'Read the external files and extract some statistics
-Public Function wasAnalyzeFile(ByVal fName As String, ByRef blValid As Boolean, ByRef wasInvalidReason As Integer, ByRef sInvalidString As String, ByRef wasWedDate As Date, ByRef wasPlaats As String, ByRef wasDescription As String) As Boolean
+Public Function wasAnalyzeFile(ByVal fName As String, ByRef blValid As Boolean, ByRef wasInvalidReason As Integer, ByRef sInvalidString As String, ByRef wasWedDate As Date, ByRef wasPlaats As String, ByRef wasDescription As String, ByRef wasFileDateS As String, ByRef wasFileTimeS As String, ByRef wasKrtyClub As String, ByRef wasFileType As Integer) As Boolean
 On Error GoTo fout
 wasAnalyzeFile = False
 
 'Delegate to perform function with default arguments.
-Dim wasFileType As Integer
 
-If Not wasAnalyzeFile_Perform(fName, False, blValid, wasInvalidReason, sInvalidString, wasWedDate, wasPlaats, wasDescription, wasFileType) Then
+If Not wasAnalyzeFile_Perform(fName, False, blValid, wasInvalidReason, sInvalidString, wasWedDate, wasPlaats, wasDescription, wasFileDateS, wasFileTimeS, wasKrtyClub, wasFileType) Then
   Exit Function
 End If
 
@@ -144,12 +202,13 @@ Exit Function
 fout:
 MsgBox Err & " wasAnalyzeFile" & vbCrLf & Error$, 16
 Exit Function
+
 End Function
 
 
 
 
-Public Function wasImpFillLenTransTables(ByVal fName As String, ByVal lOpenWedNr As Long) As Boolean
+Public Function wasImpFillLenTransTables(ByVal fName As String, ByVal lOpenWedNr As Long, ByVal blTMAUseDateCrit As Boolean, ByVal dTMAMinDate As Date) As Boolean
 On Error GoTo fout
 wasImpFillLenTransTables = False
 
@@ -158,8 +217,9 @@ Dim wasFileType As Integer
 
 Dim wasWedDate As Date, wasWedPlaats As String, wasWedDes As String
 Dim wasIsValid As Boolean, wasInvalidReason As Integer, wasInvalidString As String
+Dim wasFileTimeS As String, wasFileDateS As String, wasKrtyClub As String
 
-If Not wasAnalyzeFile_Perform(fName, True, wasIsValid, wasInvalidReason, wasInvalidString, wasWedDate, wasWedPlaats, wasWedDes, wasFileType) Then
+If Not wasAnalyzeFile_Perform(fName, True, wasIsValid, wasInvalidReason, wasInvalidString, wasWedDate, wasWedPlaats, wasWedDes, wasFileDateS, wasFileTimeS, wasKrtyClub, wasFileType) Then
   Exit Function
 End If
 
@@ -180,6 +240,10 @@ Select Case wasFileType
     End If
   Case WAS_FILE_TYPE_PROG
     If Not wasImpProgramma(fName, lOpenWedNr) Then
+      Exit Function
+    End If
+  Case WAS_FILE_TYPE_TIME_ARCHIVE
+    If Not wasiImpTimeArchive(fName, blTMAUseDateCrit, dTMAMinDate) Then
       Exit Function
     End If
 End Select
@@ -209,6 +273,10 @@ Select Case wasFileType
     End If
   Case WAS_FILE_TYPE_PROG
     Err.Raise 1, , "Mode Not supported"
+  Case WAS_FILE_TYPE_TIME_ARCHIVE
+    If Not wasiExpTimeArchive(fName) Then
+      Exit Function
+    End If
 End Select
 
 
@@ -216,7 +284,7 @@ wasExpFromLenTransTables = True
 Exit Function
 
 fout:
-MsgBox Err & " wasImpFillLenTransTables" & vbCrLf & Error$, 16
+MsgBox Err & " wasExpFromLenTransTables" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
@@ -1006,6 +1074,7 @@ uitWed.AddNew
   uitWed("WE_Plaats") = "Onbekend"
   uitWed("WE_Baanlengte") = wedInf.baan
   uitWed("WE_Beschrijving") = "Onbekend wegens was2005-xml bestand"
+  uitWed("WE_PartOfTimeArchive") = False
 uitWed.Update
 
 
@@ -1147,6 +1216,7 @@ Do Until inv.EOF
         uitPloeg("PL_VER_ID") = curVerID
         uitPloeg("PL_Nummer") = maxEstafNrCurVer
         uitPloeg("PL_PartOfRecord") = False
+        uitPloeg("PL_PartOfTimeArchive") = False
       uitPloeg.Update
     End If
     curENo = tpENo
@@ -1234,6 +1304,7 @@ Do Until inv.EOF
         uitDeeln("DE_QLF_Plaats") = inv("plaats")
         uitDeeln("DE_QLF_Datum") = inv("datum")
         uitDeeln("DE_QLF_Baan") = inv("baanlen")
+        uitDeeln("DE_QLF_WedDescription") = Null
       End If
       
       uitDeeln("DE_Reserve") = inv("res")
@@ -1257,6 +1328,9 @@ Do Until inv.EOF
     uitPloegLeden.AddNew
       uitPloegLeden("PLL_ID") = curPloegLidID
       uitPloegLeden("PLL_Deelnemer_ID") = curPloegDlnID
+      uitPloegLeden("PLL_Tijd_ID") = Null
+      uitPloegLeden("PLL_Record_ID") = Null
+      uitPloegLeden("PLL_TMA_Tijd_ID") = Null
       uitPloegLeden("PLL_Ploeg_ID") = curPloegID
       uitPloegLeden("PLL_Zwemmer_ID") = curZwmID
       uitPloegLeden("PLL_Volgorde") = tpVno
@@ -1265,6 +1339,7 @@ Do Until inv.EOF
       uitPloegLeden("PLL_QLF_Baan") = inv("baanlen")
       uitPloegLeden("PLL_QLF_Plaats") = inv("plaats")
       uitPloegLeden("PLL_QLF_Datum") = inv("datum")
+      uitPloegLeden("PLL_QLF_WedDescription") = Null
     uitPloegLeden.Update
       
   End If
@@ -1945,6 +2020,8 @@ Do Until inv.EOF
         uitWed("WE_Aanvang") = Null
       End If
       
+      uitWed("WE_PartOfTimeArchive") = False
+      
     uitWed.Update
     
     curWedDate = tpWedDate
@@ -2112,6 +2189,7 @@ Do Until inv.EOF
         uitPloeg("PL_VER_ID") = curVerID
         uitPloeg("PL_Nummer") = maxEstafNrCurVer
         uitPloeg("PL_PartOfRecord") = False
+        uitPloeg("PL_PartOfTimeArchive") = False
       uitPloeg.Update
     End If
     curENo = tpENo
@@ -2323,6 +2401,9 @@ Do Until inv.EOF
     uitPloegLeden.AddNew
       uitPloegLeden("PLL_ID") = curPloegLidID
       uitPloegLeden("PLL_Tijd_ID") = curPloegTdID
+      uitPloegLeden("PLL_Record_ID") = Null
+      uitPloegLeden("PLL_Deelnemer_ID") = Null
+      uitPloegLeden("PLL_TMA_Tijd_ID") = Null
       uitPloegLeden("PLL_Ploeg_ID") = curPloegID
       uitPloegLeden("PLL_Zwemmer_ID") = curZwmID
       uitPloegLeden("PLL_Volgorde") = tpVno
@@ -2906,6 +2987,7 @@ uitWed.AddNew
   uitWed("WE_Plaats") = "Onbekend"
   uitWed("WE_Baanlengte") = wedInf.baan
   uitWed("WE_Beschrijving") = "Onbekend wegens was2005-xml bestand"
+  uitWed("WE_PartOfTimeArchive") = False
 uitWed.Update
 
 

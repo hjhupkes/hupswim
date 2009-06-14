@@ -1,0 +1,641 @@
+Option Compare Database
+Option Explicit
+
+Public Function lnhKNZBImpZwemmers() As Boolean
+On Error GoTo fout
+lnhKNZBImpZwemmers = False
+
+Err.Raise 1, , "Operation is not yet implemented."
+
+
+lnhKNZBImpZwemmers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhKNZBImpZwemmers" & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function lnhKNZBImpVers() As Boolean
+On Error GoTo fout
+lnhKNZBImpVers = False
+
+Err.Raise 1, , "Operation not yet implemented."
+
+
+
+lnhKNZBImpVers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhKNZBImpVers" & vbCrLf & Error$, 16
+
+
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Public Function lnhKNZBImpOfficials() As Boolean
+On Error GoTo fout
+lnhKNZBImpOfficials = False
+
+Err.Raise 1, , "Operation not yet implemented."
+
+
+
+lnhKNZBImpOfficials = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhKNZBImpOfficials" & vbCrLf & Error$, 16
+
+
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function trfGenerateDefaultZwmImportSettings() As Boolean
+On Error GoTo fout
+trfGenerateDefaultZwmImportSettings = False
+
+Dim sql As String
+sql = "SELECT gIMP_LEN_Ver.IMP_Naam, gIMP_LEN_Zwemmers.* " & _
+      "FROM gIMP_LEN_Zwemmers INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Zwemmers.ZW_VER_ID = gIMP_LEN_Ver.V_ID " & _
+      "WHERE gIMP_LEN_Ver.IMP_Import=True;"
+
+Dim impZwms As Recordset
+Set impZwms = CurrentDb().OpenRecordset(sql)
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+impZwms.MoveFirst
+Do Until impZwms.EOF
+  Dim tpVerName As String
+  Dim tpStart As String
+  tpVerName = Nz(impZwms("IMP_Naam"))
+  tpStart = Nz(impZwms("ZW_Startnummer"))
+  
+  skZwm.Seek "=", tpStart
+  
+  If (dbIsMultipleVer()) Then
+    impZwms.Edit
+      impZwms("IMP_Import") = True
+      impZwms("IMP_Startnummer") = hzn(tpStart)
+      impZwms("IMP_isZwmKnown") = Not skZwm.NoMatch
+    impZwms.Update
+  Else
+    
+    If skZwm.NoMatch Then
+      impZwms.Edit
+        impZwms("IMP_Import") = False
+        impZwms("IMP_Startnummer") = Null
+        impZwms("IMP_isZwmKnown") = False
+      impZwms.Update
+    Else
+      impZwms.Edit
+        impZwms("IMP_Import") = True
+        impZwms("IMP_Startnummer") = tpStart
+        impZwms("IMP_isZwmKnown") = True
+      impZwms.Update
+    End If
+  End If
+  
+  impZwms.MoveNext
+  
+Loop
+
+
+appCleanRS impZwms
+appCleanRS skZwm
+      
+
+
+
+trfGenerateDefaultZwmImportSettings = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " trfGenerateDefaultZwmImportSettings" & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function trfGenerateDefaultOptsImportSettings() As Boolean
+On Error GoTo fout
+trfGenerateDefaultOptsImportSettings = False
+
+
+Dim sql As String
+
+'First create default options
+sql = "Delete * from gIMP_LEN_options;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim isMultiVer As Boolean
+isMultiVer = dbIsMultipleVer()
+
+Dim opts As Recordset
+Set opts = CurrentDb().OpenRecordset("gIMP_LEN_options")
+
+opts.AddNew
+  opts("IMP_Overwrite_Wedstrijden") = False
+  opts("IMP_Overwrite_Programmanummers") = False
+  
+  'feb 2007: modification. We want to keep an accurate list of vers in Hupswim,
+  'do not want to import settings from files by default.
+  
+  opts("IMP_Overwrite_Verenigingen") = False
+  
+  'nov 2008: modification. In case of multi ver, we want to import the
+  'swimmer settings from the file by default, since these will be more accurate.
+  If (isMultiVer) Then
+    opts("IMP_Overwrite_Zwemmers") = True
+  Else
+    opts("IMP_Overwrite_Zwemmers") = False
+  End If
+  
+  
+  
+  opts("IMP_Clear_All_Deelnemers") = False
+  opts("IMP_Clear_All_Tijden") = False
+  opts("IMP_Deelnemers") = True
+  opts("IMP_Tijden") = True
+  'opts("IMP_Clear_All_Deelnemers_Per_Ver") = True
+  'opts("IMP_Clear_All_Tijden_Per_Ver") = True
+  
+  
+  opts("IMP_VerwerkTijden") = True
+  
+  opts("IMP_TMA_AddNewWedsInActYear") = isMultiVer
+  opts("IMP_TMA_BlockRecords") = Not isMultiVer
+  opts("IMP_TMA_ReadEstafTimes") = True
+  
+  opts("IMP_TMA_MergeDuplicateStarts") = True
+  
+opts.Update
+
+appCleanRS opts
+
+
+trfGenerateDefaultOptsImportSettings = True
+Exit Function
+
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " trfGenerateDefaultOptsImportSettings" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function trfGenerateDefaultVerImportSettings() As Boolean
+On Error GoTo fout
+trfGenerateDefaultVerImportSettings = False
+
+
+
+
+Dim depNr As String
+depNr = depot()
+
+Dim verCurMainName As String
+verCurMainName = ver()
+
+Dim impVer As Recordset
+
+
+'modification feb 2007: we now have multiple vereniging candidates.
+
+Dim verRS As Recordset
+Set verRS = CurrentDb().OpenRecordset("dtVerenigingen")
+verRS.Index = "Depot"
+
+
+Dim isMultiVer As Boolean
+isMultiVer = dbIsMultipleVer()
+
+
+Dim impVerSQL As String
+impVerSQL = "select * from gIMP_LEN_ver;"
+
+Set impVer = CurrentDb().OpenRecordset(impVerSQL)
+impVer.MoveFirst
+Do Until impVer.EOF
+  Dim verNaam As String
+  Dim verDepot As String
+  verNaam = Nz(impVer("V_Naam"))
+  verDepot = Nz(impVer("V_Depot"))
+  
+  Dim verDepotInCurDB As String
+  Dim verNameInCurDB As String
+  Dim verAfkInCurDB As String
+  
+  verDepotInCurDB = ""
+  verNameInCurDB = ""
+  verAfkInCurDB = ""
+  
+  If (verDepot <> "" And isMultiVer) Then
+    verRS.Seek "=", verDepot
+    If (Not verRS.NoMatch) Then
+      verDepotInCurDB = Nz(verRS("V_Depotnummer"))
+      verNameInCurDB = Nz(verRS("V_Naam"))
+      verAfkInCurDB = Nz(verRS("V_Afkorting"))
+    End If
+  End If
+  
+  
+  
+  
+  If (verDepot = depNr) Or (verDepotInCurDB <> "") Then
+    If (verDepot = depNr) Then
+      verNameInCurDB = verCurMainName
+    End If
+  
+    impVer.Edit
+    impVer("IMP_Import") = True
+    impVer("IMP_IsVerKnown") = True
+    
+    'feb 2007: modification from Hupprog
+    'we change the name into the name we know.
+    
+    If (verNameInCurDB <> "") Then
+      impVer("IMP_Naam") = hzn(verNameInCurDB)
+      impVer("IMP_Afkorting") = hzn(verAfkInCurDB)
+    Else
+      impVer("IMP_Naam") = hzn(verNaam)
+      impVer("IMP_Afkorting") = Null
+    End If
+    'impVer("IMP_Naam") = hzn(verNaam)
+    impVer.Update
+  Else
+    impVer.Edit
+    impVer("IMP_IMPORT") = False
+    impVer("IMP_Naam") = Null
+    impVer("IMP_Afkorting") = Null
+    impVer("IMP_IsVerKnown") = False
+    impVer.Update
+  End If
+  
+  impVer.MoveNext
+Loop
+
+
+appCleanRS impVer
+appCleanRS verRS
+
+
+
+
+
+trfGenerateDefaultVerImportSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " trfGenerateDefaultVerImportSettings" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function trfProcessWedImportSettings() As Boolean
+On Error GoTo fout
+trfProcessWedImportSettings = False
+
+
+Dim blTMAAddWedsInActYear As Boolean
+blTMAAddWedsInActYear = Nz(DLookup("IMP_TMA_AddNewWedsInActYear", "gIMP_LEN_Options"), False)
+
+
+'Have to determine new wedstrijdnummers
+Dim impWed As Recordset
+Set impWed = CurrentDb().OpenRecordset("Select *, clng(val(format(nz([we_datum],#01-01-1900#),""yyyy"" ))) as YR from gIMP_LEN_wedstrijden  order by clng(val(format(nz([we_datum],#01-01-1900#),""yyyy""))), isnull(imp_wedstrijdnummer) desc, we_datum,we_aanvang;")
+
+
+Dim curYear As Long
+curYear = -1
+Dim maxWednrCurYear As Long
+maxWednrCurYear = -1
+
+Dim maxWednrNoYear As Long
+maxWednrNoYear = Nz(DMax("[wedstrijd nummer]", "dtWedstrijden", "[wedstrijd nummer] < 1905000"), 0)
+
+impWed.MoveFirst
+Do Until impWed.EOF
+  Dim blImport As Boolean
+  blImport = Nz(impWed("IMP_IMPORT"))
+  
+  Dim blIsTMA As Boolean
+  blIsTMA = Nz(impWed("WE_PartOfTimeArchive"), False)
+  
+  If (blIsTMA) Then
+    If (Not Nz(impWed("IMP_TMA_ShowInSelList"), False)) Then
+      blImport = False
+    End If
+  End If
+  
+  If (Not blImport) Then
+    impWed.Edit
+      impWed("Corr_Wedstrijdnummer") = Null
+    impWed.Update
+  Else
+      
+    
+      
+    
+    Dim tpYear As Long
+    tpYear = Nz(impWed("YR"))
+    If (tpYear <> curYear) Then
+      'determine maxVol.
+      curYear = tpYear
+      Dim maxVolg As Long
+      maxVolg = Nz(DMax("[wedstrijd nummer]", "dtWedstrijden", "[wedstrijd nummer] >= " & tpYear * 1000 & " and [wedstrijd nummer] < " & (tpYear + 1) * 1000), 0)
+      If (maxVolg = 0) Then
+        maxWednrCurYear = tpYear * 1000
+      Else
+        maxWednrCurYear = maxVolg
+      End If
+    End If
+    
+    Dim curWedNr As Long
+    curWedNr = Nz(impWed("imp_wedstrijdnummer"), -1)
+    If (curWedNr >= curYear * 1000 And curWedNr < (curYear + 1) * 1000) Then
+      If (curWedNr > maxWednrCurYear) Then
+        maxWednrCurYear = curWedNr
+      End If
+    ElseIf (curWedNr < 1905000) Then
+      If (curWedNr > maxWednrNoYear) Then
+        maxWednrNoYear = curWedNr
+      End If
+    End If
+    
+    If (curWedNr = -1) Then
+      'Have to generate new wedstrijdnummer.
+      Dim newWedstrijdNr As Long
+      
+      
+      
+      If (Not blIsTMA) Or (blTMAAddWedsInActYear) Then
+        Dim maxVolgNr As Integer
+        maxVolgNr = maxWednrCurYear Mod 1000
+        If (maxVolgNr < 999) Then
+          maxWednrCurYear = maxWednrCurYear + 1
+          newWedstrijdNr = maxWednrCurYear
+        Else
+          Err.Raise 1, , "Het jaar " & curYear & " zit vol. Verwijder wedstrijden uit dit jaar."
+        End If
+      Else
+        If (maxWednrNoYear < 1904999) Then
+          maxWednrNoYear = maxWednrNoYear + 1
+          newWedstrijdNr = maxWednrNoYear
+        Else
+          Err.Raise 1, , "Er zijn niet genoeg vrije wedstrijdnummers < 1905-000"
+        End If
+      End If
+        
+      impWed.Edit
+      impWed("CORR_Wedstrijdnummer") = newWedstrijdNr
+      impWed.Update
+    Else
+      impWed.Edit
+      impWed("CORR_Wedstrijdnummer") = curWedNr
+      impWed.Update
+    End If
+    
+  End If
+      
+  
+    
+
+  impWed.MoveNext
+Loop
+
+appCleanRS impWed
+
+
+
+
+
+
+trfProcessWedImportSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " trfProcessWedImportSettings" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function trfProcessVerImportSettings() As Boolean
+On Error GoTo fout
+trfProcessVerImportSettings = False
+
+Dim blImport As Boolean
+
+
+Dim impVer As Recordset
+Set impVer = CurrentDb().OpenRecordset("gIMP_LEN_ver")
+
+impVer.MoveFirst
+Do Until impVer.EOF
+  Dim verNaam As String, impNaam As String
+  blImport = Nz(impVer("IMP_Import"))
+  
+  If Not blImport Then
+    impVer.Edit
+      impVer("CORR_DEPOT") = Null
+    impVer.Update
+  Else
+  
+    verNaam = Nz(impVer("V_Naam"))
+    impNaam = Nz(impVer("IMP_Naam"))
+    
+    impVer.Edit
+      impVer("CORR_DEPOT") = impVer("V_Depot")
+      If impNaam <> "" Then
+        impVer("V_Naam") = impNaam
+      End If
+    impVer.Update
+  End If
+
+  impVer.MoveNext
+Loop
+
+appCleanRS impVer
+
+
+trfProcessVerImportSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " trfProcessVerImportSettings" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+Public Function trfProcessProgImportSettings() As Boolean
+On Error GoTo fout
+trfProcessProgImportSettings = False
+
+
+Dim impProg As Recordset
+Dim sql As String
+
+sql = "SELECT gIMP_LEN_Wedstrijden.CORR_Wedstrijdnummer, gIMP_LEN_Programma.* " & _
+     "FROM gIMP_LEN_Programma INNER JOIN gIMP_LEN_Wedstrijden ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID;"
+    
+
+Set impProg = CurrentDb().OpenRecordset(sql)
+
+Dim blImport As Boolean
+Dim curWedNr As Long
+
+curWedNr = -1
+
+Dim maxProgNumPartCurWed As Long
+maxProgNumPartCurWed = -1
+
+impProg.MoveFirst
+Do Until impProg.EOF
+  
+  blImport = Nz(impProg("IMP_IMPORT"))
+  Dim corrWedNr As Long
+  corrWedNr = Nz(impProg("CORR_Wedstrijdnummer"))
+  
+  
+  If (Not blImport Or corrWedNr <= 0) Then
+    impProg.Edit
+      impProg("CORR_Programmanummer") = Null
+    impProg.Update
+  Else
+    Dim tpWedNr As Long
+    tpWedNr = Nz(impProg("corr_wedstrijdnummer"), -1)
+    If (tpWedNr <> curWedNr) Then
+      curWedNr = tpWedNr
+      maxProgNumPartCurWed = Nz(DMax("val(nz([programmanummer]))", "dtProgrammanummers", "wedstrijdnr=" & tpWedNr), 0)
+      If (maxProgNumPartCurWed < 0) Then maxProgNumPartCurWed = 0
+    End If
+    
+    Dim curProgNr As String
+    curProgNr = Nz(impProg("IMP_Programmanummer"))
+    
+    If (curProgNr <> "") Then
+      If (CLng(val(curProgNr)) > maxProgNumPartCurWed) Then
+        maxProgNumPartCurWed = CLng(val(curProgNr))
+      End If
+    End If
+    
+    If (curProgNr = "") Then
+      'need to gennerate new
+      maxProgNumPartCurWed = maxProgNumPartCurWed + 1
+      impProg.Edit
+        impProg("CORR_Programmanummer") = maxProgNumPartCurWed
+      impProg.Update
+    Else
+      impProg.Edit
+        impProg("CORR_Programmanummer") = curProgNr
+      impProg.Update
+    End If
+  
+  
+  End If
+
+  impProg.MoveNext
+Loop
+     
+appCleanRS impProg
+
+
+
+trfProcessProgImportSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " trfProcessProgImportSettings" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function trfProcessZwmImportSettings() As Boolean
+On Error GoTo fout
+trfProcessZwmImportSettings = False
+
+
+Dim impZwms As Recordset
+Set impZwms = CurrentDb().OpenRecordset("gIMP_LEN_zwemmers")
+
+Dim blImport As Boolean
+
+impZwms.MoveFirst
+Do Until impZwms.EOF
+  Dim zwmStart As String, zwmImpStart As String
+  blImport = Nz(impZwms("IMP_Import"))
+  
+  If Not blImport Then
+    impZwms.Edit
+      impZwms("CORR_Startnummer") = Null
+    impZwms.Update
+  Else
+  
+        
+    impZwms.Edit
+      If (Nz(impZwms("IMP_Startnummer")) = "") Then
+        impZwms("CORR_Startnummer") = impZwms("ZW_Startnummer")
+      Else
+        impZwms("CORR_Startnummer") = impZwms("IMP_Startnummer")
+      End If
+    impZwms.Update
+  End If
+
+  impZwms.MoveNext
+Loop
+
+appCleanRS impZwms
+
+
+
+
+trfProcessZwmImportSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " trfProcessZwmImportSettings" & vbCrLf & Error$, 16
+Exit Function
+End Function

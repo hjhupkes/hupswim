@@ -1,39 +1,35 @@
 Version =20
 VersionRequired =20
-Checksum =1776531959
+Checksum =-283986881
 Begin Form
-    AllowFilters = NotDefault
     RecordSelectors = NotDefault
     NavigationButtons = NotDefault
     AllowDeletions = NotDefault
+    DividingLines = NotDefault
     AllowAdditions = NotDefault
-    ScrollBars =2
     ViewsAllowed =1
-    BorderStyle =3
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
+    GridX =20
     GridY =20
-    Width =8049
+    Width =12816
     DatasheetFontHeight =10
-    ItemSuffix =28
-    Left =3780
+    ItemSuffix =24
+    Left =600
     Top =165
-    Right =15480
-    Bottom =6270
+    Right =13500
+    Bottom =3000
     DatasheetGridlinesColor =12632256
     RecSrcDt = Begin
-        0x58edc2a67f5fe340
+        0x253eb2234085e340
     End
-    RecordSource ="SELECT [~imp_tijden_was2005_wedstrijden].*, [dtWedstrijden].Datum AS odat, [dtWe"
-        "dstrijden].Beschrijving AS obes, [dtWedstrijden].Plaats AS opl, [dtWedstrijden]."
-        "Baanlengte AS obn FROM [~imp_tijden_was2005_wedstrijden] LEFT JOIN [dtWedstrijde"
-        "n] ON [~imp_tijden_was2005_wedstrijden].Def_matching_wed_nr = [dtWedstrijden].[W"
-        "edstrijd nummer];"
-    Caption ="Wedstrijden"
-    OnCurrent ="[Event Procedure]"
-    OnOpen ="[Event Procedure]"
+    RecordSource ="SELECT gIMP_LEN_Wedstrijden.*, dtWedstrijden.Beschrijving AS curBes, dtWedstrijd"
+        "en.Datum AS curDat, dtWedstrijden.Baanlengte AS curBn, dtWedstrijden.Plaats AS c"
+        "urPl FROM gIMP_LEN_Wedstrijden LEFT JOIN dtWedstrijden ON gIMP_LEN_Wedstrijden.I"
+        "MP_Wedstrijdnummer = dtWedstrijden.[Wedstrijd nummer] WHERE (((gIMP_LEN_Wedstrij"
+        "den.IMP_TMA_ShowInSelList)=True)) ORDER BY gIMP_LEN_Wedstrijden.WE_Datum, gIMP_L"
+        "EN_Wedstrijden.WE_ID;"
     DatasheetFontName ="Arial"
-    OnLoad ="[Event Procedure]"
     Begin
         Begin Label
             BackStyle =0
@@ -63,27 +59,51 @@ Begin Form
             LabelX =-1701
         End
         Begin FormHeader
-            Height =295
+            Height =435
             BackColor =-2147483633
             Name ="FormHeader"
             Begin
                 Begin Label
+                    BackStyle =1
                     OverlapFlags =85
                     Left =56
-                    Top =85
-                    Width =1605
-                    Height =210
-                    Name ="Label25"
-                    Caption ="In te lezen wedstrijd   "
+                    Top =165
+                    Width =2265
+                    Height =240
+                    FontWeight =700
+                    Name ="Label15"
+                    Caption ="Te importeren wedstrijd: "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =6195
+                    Top =170
+                    Width =510
+                    Height =240
+                    FontWeight =700
+                    Name ="Label16"
+                    Caption ="Imp."
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =6771
+                    Top =170
+                    Width =1365
+                    Height =240
+                    FontWeight =700
+                    Name ="Label17"
+                    Caption ="Importeren als:"
                 End
                 Begin Label
                     OverlapFlags =85
-                    Left =3060
-                    Top =85
-                    Width =3675
-                    Height =210
-                    Name ="Label26"
-                    Caption ="Toevoegen / Koppelen met bestaande wedstrijd:   "
+                    Left =8179
+                    Top =185
+                    Width =2430
+                    Height =225
+                    Name ="Label18"
+                    Caption ="(leeg = nieuwe wedstrijd maken) "
                 End
             End
         End
@@ -97,67 +117,165 @@ Begin Form
                     Locked = NotDefault
                     SpecialEffect =0
                     OverlapFlags =85
-                    Left =4938
-                    Width =3111
-                    Name ="Text20"
-                    ControlSource ="=IIf(IsNull([odat]),\"\",Format([odat],\"dd-mm-yyyy\") & \" / \" & [opl] & \" / "
-                        "\" & [obn] & \" / \" & [obes])"
+                    Left =56
+                    Width =3186
+                    Name ="bes"
+                    ControlSource ="=IIf(nz([we_beschrijving_extra],\"\")=\"\",nz([we_beschrijving]),nz([we_beschrij"
+                        "ving_extra]))"
                 End
                 Begin TextBox
                     Enabled = NotDefault
                     Locked = NotDefault
                     SpecialEffect =0
-                    OverlapFlags =93
-                    Left =56
-                    Width =3186
-                    TabIndex =1
-                    Name ="Text17"
-                    ControlSource ="=Format([datum],\"dd-mm-yyyy\") & \" / \" & [plaats] & \" / \" & [baanlengte] & "
-                        "\" / \" & [beschrijving]"
-                End
-                Begin ComboBox
-                    LimitToList = NotDefault
-                    SpecialEffect =0
                     OverlapFlags =85
-                    ColumnCount =5
-                    ListWidth =5040
-                    Left =3628
-                    Width =1131
-                    TabIndex =3
-                    ColumnInfo ="\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"4\";\"4\""
-                    Name ="wedcmb"
-                    ControlSource ="Def_matching_wed_nr"
-                    RowSourceType ="Table/Query"
-                    RowSource ="SELECT DISTINCTROW [Wedstrijd nummer], Datum, Beschrijving, Plaats, Baanlengte F"
-                        "ROM dtWedstrijden WHERE (((Datum)=[forms]![WIZ_FU_MASTER]![subfrm]![datum]));"
-                    ColumnWidths ="960;1005;1290;1290;495"
+                    Left =3312
+                    Width =951
+                    TabIndex =1
+                    Name ="WE_Datum"
+                    ControlSource ="WE_Datum"
+                    Format ="dd-mm-yyyy"
                 End
                 Begin CheckBox
                     SpecialEffect =0
                     OverlapFlags =85
-                    Left =3344
+                    Left =6365
                     Top =28
-                    Height =195
+                    Height =165
                     TabIndex =2
-                    Name ="Def_toevoegen"
-                    ControlSource ="Def_toevoegen"
+                    Name ="blImp"
+                    ControlSource ="IMP_Import"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =3
+                    ListWidth =4245
+                    Left =6771
+                    Width =1086
+                    TabIndex =3
+                    ColumnInfo ="\"\";\"\";\"\";\"dd/mm/yyyy\";\"\";\"\";\"10\";\"0\""
+                    Name ="impWed"
+                    ControlSource ="IMP_Wedstrijdnummer"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW Format([Wedstrijd nummer],\"0\") AS Expr1, Datum, Beschrijvin"
+                        "g FROM dtWedstrijden order by [wedstrijd nummer] desc;"
+                    ColumnWidths ="840;1020;2385"
                 End
                 Begin TextBox
-                    Visible = NotDefault
-                    OverlapFlags =247
-                    Left =1926
-                    Width =906
-                    Height =195
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =7963
+                    Width =1026
                     TabIndex =4
-                    Name ="Datum"
-                    ControlSource ="Datum"
+                    Name ="curDat"
+                    ControlSource ="curDat"
+                    Format ="dd-mm-yyyy"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =9501
+                    Width =1686
+                    TabIndex =5
+                    Name ="curBes"
+                    ControlSource ="curBes"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =4320
+                    Width =366
+                    TabIndex =6
+                    Name ="WE_Aanvang"
+                    ControlSource ="WE_Baanlengte"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =9043
+                    Width =380
+                    TabIndex =7
+                    Name ="curAv"
+                    ControlSource ="curBn"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =4752
+                    Width =1446
+                    TabIndex =8
+                    Name ="WE_Plaats"
+                    ControlSource ="WE_Plaats"
+                    GUID = Begin
+                        0x59790bf00cebc440ae804d681153462f
+                    End
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =11301
+                    Width =1446
+                    TabIndex =9
+                    Name ="curPl"
+                    ControlSource ="curPl"
+                    StatusBarText ="Plaats van de wedstrijd"
+                    GUID = Begin
+                        0xcc1f2766577940458455cd90a84bdeeb
+                    End
                 End
             End
         End
         Begin FormFooter
-            Height =0
+            Height =566
             BackColor =-2147483633
             Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    Left =56
+                    Top =85
+                    Height =358
+                    Name ="btnDeselAll"
+                    Caption ="Alles &deselecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    Left =1870
+                    Top =85
+                    Height =358
+                    TabIndex =1
+                    Name ="btnSelAll"
+                    Caption ="Alles &selecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =3628
+                    Top =85
+                    Width =5775
+                    Height =405
+                    Name ="Label19"
+                    Caption ="NB: Indien u het veld <Importeren als> helemaal leeg maakt en <Imp> aanvinkt,\015"
+                        "\012wordt de wedstrijd als geheel nieuwe wedstrijd toegevoegd aan het bestand."
+                End
+            End
         End
     End
 End
@@ -169,42 +287,37 @@ Attribute VB_Exposed = False
 Option Compare Database
 Option Explicit
 
-Private Function check() As Boolean
+
+Private Sub selectAll(sel As Boolean)
 On Error Resume Next
-check = False
 
-Dim geg As Recordset
-Set geg = Me.RecordsetClone
 
-geg.MoveFirst
-Do Until geg.EOF
-  If ((Not geg("def_toevoegen")) And Nz(geg("def_matching_wed_nr")) = "") Then
-    MsgBox "De wedstrijd van " & Format(geg("datum"), "dd-mm-yyyy") & " is niet goed bewerkt." & Chr(13) & _
-      "Vink ""Toevoegen"" aan of selecteer een bestaande wedstrijd.", 16
-    
-    Exit Function
-  End If
-  
-  
-  
-  geg.MoveNext
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(Me.RecordSource)
+
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+rs.MoveFirst
+Do Until rs.EOF
+  rs.Edit
+  rs("IMP_Import") = sel
+  rs.Update
+  rs.MoveNext
 Loop
-check = True
-End Function
 
+appCleanRS rs
 
-Private Sub Form_Current()
-On Error Resume Next
-wedcmb.Requery
+Me.Requery
+
 End Sub
 
-Private Sub Form_Load()
+Private Sub btnDeselAll_Click()
 On Error Resume Next
-Me.OrderBy = ""
-'DoCmd.Maximize
+selectAll (False)
 End Sub
 
-Private Sub Form_Open(Cancel As Integer)
+Private Sub btnSelAll_Click()
 On Error Resume Next
-setBackground Me
+selectAll (True)
 End Sub
