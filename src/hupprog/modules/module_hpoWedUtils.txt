@@ -161,14 +161,24 @@ Exit Function
 End Function
 
 
-Private Function wedBaanIndeling_perform_calcEstQlfBn(ByVal lProgWedNr As Long, ByVal sProgNr As String, ByVal sProgAf As String) As Boolean
+
+Public Function wedCalcEstQlfBn(ByRef wedInf As WED_BASIC_INFO, ByVal blHuidigProg As Boolean, ByVal blEntireMeet As Boolean, ByVal sCurProg As String) As Boolean
 On Error GoTo fout
-wedBaanIndeling_perform_calcEstQlfBn = False
+wedCalcEstQlfBn = False
+
+If (wedInf.qlfConvMode <> QLF_CONV_FINA_POINTS) And (wedInf.qlfConvMode <> QLF_CONV_PREFER_LCM) Then
+  wedCalcEstQlfBn = True
+  Exit Function
+End If
+
+'Calc estafette qlfBn for entire meet
+
+Dim sqlDln As String
+sqlDln = dlnGetDeelnemersEstSQL(blHuidigProg, blEntireMeet, sCurProg, wedInf.wednr, wedInf.meetMainNr, False, "")
+
 
 Dim rsDln As Recordset
 
-Dim sqlDln As String
-sqlDln = "select * from dtDeelnemers where de_wedstrijdnummer = " & lProgWedNr & " and de_programmanummer = """ & sProgNr & """ order by de_vereniging, de_estafettenummer;"
 Set rsDln = CurrentDb().OpenRecordset(sqlDln)
 
 Dim skPll As Recordset
@@ -176,18 +186,25 @@ Set skPll = CurrentDb().OpenRecordset("dtPloegen")
 skPll.Index = "nr"
 
 
-Dim nEstSwimmers As Integer
-nEstSwimmers = afstand_n_zwemmers(sProgAf)
 
 rsDln.MoveFirst
 
 Do Until rsDln.EOF
+
+  Dim tpWed As Long, tpProgNr As String
+  tpWed = Nz(rsDln(FNM_DE_EST_WEDNR))
+  tpProgNr = Nz(rsDln(FNM_DE_EST_PROG))
+  
   
   Dim tpDlnQlfBn As Integer
   Dim tpDlnQlfDate As Date
   
   tpDlnQlfBn = Nz(rsDln("DE_QLF_Baan"))
   tpDlnQlfDate = Nz(rsDln("DE_QLF_Datum"))
+  
+  Dim nEstSwimmers As Integer
+  nEstSwimmers = afstand_n_zwemmers(Nz(rsDln(FNM_PR_AF)))
+
   
   Dim tpDlnVer As String, tpDlnEstNr As Integer
   tpDlnVer = Nz(rsDln("DE_Vereniging"))
@@ -202,7 +219,7 @@ Do Until rsDln.EOF
     
     Dim i As Integer
     For i = 1 To nEstSwimmers
-      skPll.Seek "=", lProgWedNr, sProgNr, tpDlnVer, tpDlnEstNr, i
+      skPll.Seek "=", tpWed, tpProgNr, tpDlnVer, tpDlnEstNr, i
       If (Not skPll.NoMatch) Then
         Dim tpPllQlfTime As Double
         Dim tpPllQlfBn As Integer
@@ -246,12 +263,12 @@ appCleanRS rsDln
 appCleanRS skPll
 
 
-wedBaanIndeling_perform_calcEstQlfBn = True
+wedCalcEstQlfBn = True
 Exit Function
 
 fout:
 If (Err = 3021) Then Resume Next
-MsgBox Err & " wedBaanIndeling_perform_calcEstQlfBn" & vbCrLf & Error$, 16
+MsgBox Err & " wedCalcEstQlfBn" & vbCrLf & Error$, 16
 Exit Function
 
 
@@ -262,18 +279,63 @@ Resume
 End Function
 
 
+
+Public Sub wedInsTimeGetPriority(ByRef wedInf As WED_BASIC_INFO, ByVal dInsTime25 As Double, ByVal dInsTime50 As Double, ByVal sProgAf As String, ByVal sProgSl As String, ByVal sProgGes As String, ByRef bl25HasPriority As Boolean)
+
+    
+If (Not swtIsValid(dInsTime25)) Then
+  bl25HasPriority = False
+ElseIf (Not swtIsValid(dInsTime50)) Then
+  bl25HasPriority = True
+Else
+  'both times are valid
+  Dim bl25ActFastest As Boolean
+  bl25ActFastest = True
+  
+  If (dInsTime50 < dInsTime25) Then
+    bl25ActFastest = False
+  End If
+
+  If (wedInf.qlfConvMode = QLF_CONV_FINA_POINTS) Then
+    'we need to calculate and compare fina points.
+    Dim finP25 As Double
+    Dim finP50 As Double
+    
+    finP25 = lenCalcFinaPoints(dInsTime25, sProgAf, sProgSl, sProgGes, 25)
+    finP50 = lenCalcFinaPoints(dInsTime50, sProgAf, sProgSl, sProgGes, 50)
+    
+    Dim bl25FinaFastest As Boolean
+    bl25FinaFastest = True
+    
+    If (finP50 > 0.1) And (finP25 > 0.1) Then
+      If (finP50 > finP25) Then
+        bl25FinaFastest = False
+      End If
+    Else
+      'Use normal ordering.
+      bl25FinaFastest = bl25ActFastest
+    End If
+    
+    bl25HasPriority = bl25FinaFastest
+    
+  ElseIf (wedInf.qlfConvMode = QLF_CONV_PREFER_LCM) Then
+    bl25HasPriority = False
+  Else
+    bl25HasPriority = bl25ActFastest
+  End If
+
+End If 'both times are valid
+
+
+
+End Sub
+
+
+
 Private Function wedBaanIndeling_perform(ByVal lProgWedNr As Long, ByVal sProgNr As String, ByVal sProgAf As String, ByVal sProgSl As String, ByVal sProgGes As String, ByRef wedInf As WED_BASIC_INFO, ByVal blWisselBuiten As Boolean, ByVal blMinThreePerSer As Boolean, ByVal blOlympic As Boolean, ByRef wsLastUsedPosition As Integer) As Boolean
 On Error GoTo fout
 wedBaanIndeling_perform = False
 
-
-If (sProgAf Like "*x*") Then
- If (wedInf.qlfConvMode = QLF_CONV_FINA_POINTS) Or (wedInf.qlfConvMode = QLF_CONV_PREFER_LCM) Then
-   If Not wedBaanIndeling_perform_calcEstQlfBn(lProgWedNr, sProgNr, sProgAf) Then
-     Exit Function
-    End If
-  End If
-End If
 
 
 'We here check for nBanen again, allowing this number to change per programmanummer
@@ -370,50 +432,7 @@ Do Until (rs25.EOF And rs50.EOF)
     'Need to compare the two times
     tpInsTime25 = Nz(rs25("DE_Inschrijftijd"), 0)
     tpInsTime50 = Nz(rs50("DE_Inschrijftijd"), 0)
-    
-    If (Not swtIsValid(tpInsTime25)) Then
-      blProc25 = False
-    ElseIf (Not swtIsValid(tpInsTime50)) Then
-      blProc25 = True
-    Else
-      'both times are valid
-      Dim bl25ActFastest As Boolean
-      bl25ActFastest = True
-      
-      If (tpInsTime50 < tpInsTime25) Then
-        bl25ActFastest = False
-      End If
-    
-      If (wedInf.qlfConvMode = QLF_CONV_FINA_POINTS) Then
-        'we need to calculate and compare fina points.
-        Dim finP25 As Double
-        Dim finP50 As Double
-        
-        finP25 = lenCalcFinaPoints(tpInsTime25, sProgAf, sProgSl, sProgGes, 25)
-        finP50 = lenCalcFinaPoints(tpInsTime50, sProgAf, sProgSl, sProgGes, 50)
-        
-        Dim bl25FinaFastest As Boolean
-        bl25FinaFastest = True
-        
-        If (finP50 > 0.1) And (finP25 > 0.1) Then
-          If (finP50 > finP25) Then
-            bl25FinaFastest = False
-          End If
-        Else
-          'Use normal ordering.
-          bl25FinaFastest = bl25ActFastest
-        End If
-        
-        blProc25 = bl25FinaFastest
-        
-      ElseIf (wedInf.qlfConvMode = QLF_CONV_PREFER_LCM) Then
-        blProc25 = False
-      Else
-        blProc25 = bl25ActFastest
-      End If
-    
-    End If 'both times are valid
-
+    wedInsTimeGetPriority wedInf, tpInsTime25, tpInsTime50, sProgAf, sProgSl, sProgGes, blProc25
   End If 'if eof
 
   'position deelnemer
@@ -513,6 +532,11 @@ End If
 
 If (Not isFnd) Then
   Err.Raise 1, , "Kon wedstrijd: " & curWedNr & " niet vinden."
+End If
+
+
+If Not wedCalcEstQlfBn(wedInf, blHuidigProg, blEntireMeet, curProg) Then
+  Exit Function
 End If
 
 
