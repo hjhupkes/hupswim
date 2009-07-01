@@ -77,6 +77,7 @@ Public Const FNM_PR_NCOMP = "N_Meetellende_deelnemers"
 Public Const FNM_PR_BESAFW = "Beschrijving_Afwijkend"
 Public Const FNM_PR_TYPE = "Type"
 Public Const FNM_PR_REC_PRFX = ""
+Public Const FNM_PR_PRV_NR = "Vorig_programmanummer"
 
 Public Const FNM_PRL_PROG = "Programmanummer"
 Public Const FNM_PRL_WED = "Wedstrijdnr"
@@ -584,7 +585,8 @@ wedLookup = False
 
 isFound = False
 
-Dim rs As Recordset
+Dim rs As Recordset, skWed As Recordset
+
 
 Dim sqlBase As String, sql As String
 sqlBase = "SELECT [dtWedstrijden].*, [dtWedstrijdGegevens].* " & _
@@ -595,6 +597,9 @@ sql = sqlBase & wednr & ";"
 
 Set rs = CurrentDb().OpenRecordset(sql)
 
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
 rs.MoveFirst
 If (Not rs.EOF) Then
   isFound = True
@@ -604,8 +609,13 @@ If (Not rs.EOF) Then
   
   wedInfo.baan = Nz(rs("Baanlengte"))
   wedInfo.isMeet = Nz(rs("IsPartOfMeet"))
-  wedInfo.meetMainNr = Nz(rs("MainWedstrijdnummer"))
-  If (wedInfo.meetMainNr <= 0) Then
+  
+  If (wedInfo.isMeet) Then
+    wedInfo.meetMainNr = Nz(rs("MainWedstrijdnummer"))
+    If (wedInfo.meetMainNr <= 0) Then
+      wedInfo.meetMainNr = wednr
+    End If
+  Else
     wedInfo.meetMainNr = wednr
   End If
   
@@ -645,9 +655,58 @@ If (Not rs.EOF) Then
   
   wedInfo.lftBep = Nz(rs("Leeftijdsbepaling"))
   
+  
+  If (wedInfo.isMeet) Then
+    wedInfo.meetDes = Nz(rs("MainBeschrijving"))
+    If (wedInfo.meetDes = "") Then
+      wedInfo.meetDes = wedInfo.des
+    End If
+  Else
+    wedInfo.meetDes = wedInfo.des
+  End If
+  
+  
+  wedInfo.meetMinDate = wedInfo.date
+  wedInfo.meetMaxDate = wedInfo.date
+  
+  If (wedInfo.isMeet) Then
+    Dim lMinWedNr As Long, lMaxWedNr As Long
+    lMinWedNr = Nz(DMin("wedstrijd nummer", "dtWedstrijden", "mainWedstrijdnummer = " & wedInfo.meetMainNr), -1)
+    lMaxWedNr = Nz(DMax("wedstrijd nummer", "dtWedstrijden", "mainWedstrijdnummer = " & wedInfo.meetMainNr), -1)
+    
+    If (lMinWedNr <> wedInfo.wednr) Then
+      skWed.Seek "=", lMinWedNr
+      If Not skWed.NoMatch Then
+        Dim tpDate As Date
+        tpDate = Nz(skWed("datum"), #1/1/1900#)
+        If (lenDateIsValid(tpDate)) Then
+          If (tpDate < wedInfo.meetMinDate) Then
+            wedInfo.meetMinDate = tpDate
+          End If
+        End If
+      End If
+    End If
+    If (lMaxWedNr <> wedInfo.wednr) Then
+      skWed.Seek "=", lMaxWedNr
+      If Not skWed.NoMatch Then
+        tpDate = Nz(skWed("datum"), #1/1/1900#)
+        If (lenDateIsValid(tpDate)) Then
+          If (tpDate > wedInfo.meetMaxDate) Then
+            wedInfo.meetMaxDate = tpDate
+          End If
+        End If
+      End If
+    End If
+  End If
+  
+  
+  
 
 End If
 
+
+appCleanRS skWed
+appCleanRS rs
 
 
 wedLookup = True

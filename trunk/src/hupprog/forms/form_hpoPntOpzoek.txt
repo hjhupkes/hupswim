@@ -209,6 +209,7 @@ Private gAllowMeet As Boolean
 Private gAllowVerSec As Boolean
 Private gAllowVerPnt As Boolean
 Private gAllowInd As Boolean
+Private gAllowVerMed As Boolean
 
 
 Private Function perform() As Boolean
@@ -261,6 +262,7 @@ gMeetMainNr = Nz(DLookup("PNTO_ARG_MeetMainNr", "hpoPntOpzoek"))
 gAllowMeet = Nz(DLookup("PNTO_ARG_AllowMeet", "hpoPntOpzoek"))
 gAllowVerSec = Nz(DLookup("PNTO_ARG_AllowVerSec", "hpoPntOpzoek"))
 gAllowVerPnt = Nz(DLookup("PNTO_ARG_AllowVerPnt", "hpoPntOpzoek"))
+gAllowVerMed = Nz(DLookup("PNTO_ARG_AllowVerMed", "hpoPntOpzoek"))
 gAllowInd = Nz(DLookup("PNTO_ARG_AllowInd", "hpoPntOpzoek"))
 
 
@@ -279,6 +281,14 @@ If (gAllowVerPnt) Then
   End If
   sqlTypeClause = sqlTypeClause & "(ptg_type = """ & PNT_TYPE_VER_PNT & """)"
 End If
+
+If (gAllowVerMed) Then
+  If (sqlTypeClause <> "") Then
+    sqlTypeClause = sqlTypeClause & " OR "
+  End If
+  sqlTypeClause = sqlTypeClause & "(ptg_type = """ & PNT_TYPE_VER_MED & """)"
+End If
+
 
 If (gAllowInd) Then
   If (sqlTypeClause <> "") Then
