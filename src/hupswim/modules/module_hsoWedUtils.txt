@@ -2097,21 +2097,21 @@ Do Until rs.EOF
   If (tpWasPresent Or tpIsPresent) Then
   
     Dim tpWedNr As Long
-    Dim tpPrognr As String
+    Dim tpProgNr As String
     Dim tpStart As String
     tpWedNr = Nz(rs("PC_Wedstrijdnummer"))
-    tpPrognr = Nz(rs("PC_Programmanummer"))
+    tpProgNr = Nz(rs("PC_Programmanummer"))
     tpStart = Nz(rs("PC_Startnummer"))
   
     If (Not tpWasPresent) Then
       ins.AddNew
         ins(FNM_DE_PERS_WEDNR) = tpWedNr
-        ins(FNM_DE_PERS_PROG) = hzn(tpPrognr)
+        ins(FNM_DE_PERS_PROG) = hzn(tpProgNr)
         ins(FNM_DE_PERS_STARTNR) = hzn(tpStart)
       ins.Update
     End If
     
-    ins.Seek "=", tpWedNr, tpPrognr, tpStart
+    ins.Seek "=", tpWedNr, tpProgNr, tpStart
     If ins.NoMatch Then
       Err.Raise 1, , "Internal error"
     End If

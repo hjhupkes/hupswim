@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-2035674194
+Checksum =1540277358
 Begin Form
     AutoCenter = NotDefault
     NavigationButtons = NotDefault
@@ -8,7 +8,7 @@ Begin Form
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
     GridY =10
-    Width =10148
+    Width =10488
     DatasheetFontHeight =10
     ItemSuffix =31
     Left =2985
@@ -68,7 +68,7 @@ Begin Form
                 End
                 Begin Label
                     BackStyle =1
-                    OverlapFlags =85
+                    OverlapFlags =93
                     Left =2777
                     Top =113
                     Width =990
@@ -77,6 +77,45 @@ Begin Form
                     Caption ="Tussenstand"
                     GUID = Begin
                         0x0a3a3dd1ece576419ac0ca1606dd44c2
+                    End
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =215
+                    Left =3165
+                    Top =120
+                    Width =2010
+                    Height =240
+                    Name ="lbGold"
+                    Caption ="Tussenstand: Aantal Goud:"
+                    GUID = Begin
+                        0x29423927d4a4654cbc300807de61eec7
+                    End
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5325
+                    Top =113
+                    Width =1080
+                    Height =240
+                    Name ="lbSilver"
+                    Caption ="Aantal Zilver:"
+                    GUID = Begin
+                        0xb89aca748808314592ecad2622dcf1d5
+                    End
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =6477
+                    Top =113
+                    Width =1080
+                    Height =240
+                    Name ="lbBronze"
+                    Caption ="Aantal Brons:"
+                    GUID = Begin
+                        0x341085fe5a90994c9bbee5ddac0d448a
                     End
                 End
             End
@@ -89,7 +128,7 @@ Begin Form
                 Begin TextBox
                     Visible = NotDefault
                     OverlapFlags =85
-                    Left =7823
+                    Left =9510
                     Width =456
                     Height =255
                     Name ="PTVG_Wedstrijdnummer"
@@ -99,7 +138,7 @@ Begin Form
                 Begin TextBox
                     Visible = NotDefault
                     OverlapFlags =85
-                    Left =8390
+                    Left =10077
                     Width =276
                     Height =255
                     TabIndex =1
@@ -123,7 +162,7 @@ Begin Form
                 End
                 Begin TextBox
                     SpecialEffect =0
-                    OverlapFlags =85
+                    OverlapFlags =93
                     TextAlign =1
                     IMESentenceMode =3
                     Left =2777
@@ -133,6 +172,51 @@ Begin Form
                     ControlSource ="PTVG_InitValue"
                     GUID = Begin
                         0x0d3b473b54443b40995f486fc329b14e
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =247
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =3165
+                    Width =651
+                    Height =255
+                    TabIndex =4
+                    Name ="PTVG_Init_N_Gold"
+                    ControlSource ="PTVG_Init_N_Gold"
+                    GUID = Begin
+                        0x6d443be98b32e3439ca0b5b3dc326a88
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =5325
+                    Width =651
+                    Height =255
+                    TabIndex =5
+                    Name ="PTVG_Init_N_Silver"
+                    ControlSource ="PTVG_Init_N_Silver"
+                    GUID = Begin
+                        0x91e5509a77a9d34bae002ec044803632
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =6477
+                    Width =651
+                    Height =255
+                    TabIndex =6
+                    Name ="PTVG_Init_N_Bronze"
+                    ControlSource ="PTVG_Init_N_Bronze"
+                    GUID = Begin
+                        0x6c9a74838f98d04b97a6b7c64c4b5ac9
                     End
                 End
             End
@@ -222,6 +306,15 @@ Private Sub Form_Open(Cancel As Integer)
 On Error Resume Next
 setBackground Me
 
+Me.lbBronze.Visible = False
+Me.lbSilver.Visible = False
+Me.lbGold.Visible = False
+
+Me.PTVG_Init_N_Gold.Visible = False
+Me.PTVG_Init_N_Silver.Visible = False
+Me.PTVG_Init_N_Bronze.Visible = False
+
+
 lbTst.Visible = False
 fldTst.Visible = False
 
@@ -258,6 +351,23 @@ ElseIf pntInfo.type = PNT_TYPE_VER_SEC Then
   If pntVSOpts.blUseTst Then
     lbTst.Visible = True
     fldTst.Visible = True
+  End If
+ElseIf pntInfo.type = PNT_TYPE_VER_MED Then
+  Dim pntMedOpts As PNT_VER_MED_OPTIONS
+  If Not pntVerMedLookup(waarde(), waarde_pnt(), isFnd, pntMedOpts) Then
+    Exit Sub
+  End If
+  If Not isFnd Then
+    Exit Sub
+  End If
+  If pntMedOpts.blUseTst Then
+    Me.lbBronze.Visible = True
+    Me.lbSilver.Visible = True
+    Me.lbGold.Visible = True
+    
+    Me.PTVG_Init_N_Gold.Visible = True
+    Me.PTVG_Init_N_Silver.Visible = True
+    Me.PTVG_Init_N_Bronze.Visible = True
   End If
 End If
   

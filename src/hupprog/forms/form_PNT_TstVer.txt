@@ -1,16 +1,17 @@
 Version =20
 VersionRequired =20
-Checksum =280277848
+Checksum =-1940781612
 Begin Form
     AutoCenter = NotDefault
     NavigationButtons = NotDefault
     BorderStyle =1
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
-    GridY =10
-    Width =5435
+    GridX =20
+    GridY =20
+    Width =9123
     DatasheetFontHeight =10
-    ItemSuffix =24
+    ItemSuffix =27
     Left =1890
     Top =645
     Right =20790
@@ -66,13 +67,52 @@ Begin Form
                 End
                 Begin Label
                     BackStyle =1
-                    OverlapFlags =85
+                    OverlapFlags =93
                     Left =3004
                     Top =113
                     Width =750
                     Height =240
-                    Name ="Label23"
+                    Name ="lbPunten"
                     Caption ="Punten:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =215
+                    Left =3165
+                    Top =113
+                    Width =1065
+                    Height =240
+                    Name ="lbGold"
+                    Caption ="Aantal Goud:"
+                    GUID = Begin
+                        0x824d6103e3659c459b60dfcff7f0d2b0
+                    End
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4317
+                    Top =113
+                    Width =1080
+                    Height =240
+                    Name ="lbSilver"
+                    Caption ="Aantal Zilver:"
+                    GUID = Begin
+                        0x82d8c5c8ede2ce49b856609bcac3b2cf
+                    End
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5469
+                    Top =113
+                    Width =1080
+                    Height =240
+                    Name ="lbBronze"
+                    Caption ="Aantal Brons:"
+                    GUID = Begin
+                        0x7fd63a4f26c2dc498466d1e20750cb30
+                    End
                 End
             End
         End
@@ -84,7 +124,7 @@ Begin Form
                 Begin TextBox
                     Visible = NotDefault
                     OverlapFlags =85
-                    Left =4592
+                    Left =8280
                     Width =456
                     Height =255
                     Name ="PTT_Wedstrijdnummer"
@@ -94,7 +134,7 @@ Begin Form
                 Begin TextBox
                     Visible = NotDefault
                     OverlapFlags =85
-                    Left =5159
+                    Left =8847
                     Width =276
                     Height =255
                     TabIndex =1
@@ -122,7 +162,7 @@ Begin Form
                 End
                 Begin TextBox
                     SpecialEffect =0
-                    OverlapFlags =85
+                    OverlapFlags =93
                     TextAlign =1
                     Left =3004
                     Width =1251
@@ -130,6 +170,51 @@ Begin Form
                     TabIndex =3
                     Name ="PTT_Punten"
                     ControlSource ="PTT_Punten"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =247
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =3165
+                    Width =651
+                    Height =255
+                    TabIndex =4
+                    Name ="PTT_N_Gold"
+                    ControlSource ="PTT_N_Gold"
+                    GUID = Begin
+                        0x2ee30d3deb439f429acb996068b2969f
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =4317
+                    Width =651
+                    Height =255
+                    TabIndex =5
+                    Name ="PTT_N_Silver"
+                    ControlSource ="PTT_N_Silver"
+                    GUID = Begin
+                        0x425f0a01bd6c424191b82677a0effc13
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    IMESentenceMode =3
+                    Left =5469
+                    Width =651
+                    Height =255
+                    TabIndex =6
+                    Name ="PTT_N_Bronze"
+                    ControlSource ="PTT_N_Bronze"
+                    GUID = Begin
+                        0xa143cf5f3c691e49a75b4e4b527c3e01
+                    End
                 End
             End
         End
@@ -148,10 +233,50 @@ Attribute VB_Exposed = False
 Option Compare Database
 Option Explicit
 
+
+
+
+Private Sub initView()
+On Error Resume Next
+
+
+Dim blIsMed As Boolean
+blIsMed = False
+
+Dim pntInf As PNT_GLOBAL_BASIC_INFO, isFnd As Boolean
+If Not pntGlobalLookup(waarde(), waarde_pnt(), isFnd, pntInf) Then
+  Exit Sub
+End If
+If isFnd Then
+  If pntInf.type = PNT_TYPE_VER_MED Then
+    blIsMed = True
+  End If
+End If
+
+
+
+Me.lbBronze.Visible = blIsMed
+Me.lbSilver.Visible = blIsMed
+Me.lbGold.Visible = blIsMed
+
+Me.PTT_N_Gold.Visible = blIsMed
+Me.PTT_N_Silver.Visible = blIsMed
+Me.PTT_N_Bronze.Visible = blIsMed
+
+Me.lbPunten.Visible = Not blIsMed
+Me.PTT_Punten.Visible = Not blIsMed
+
+
+
+
+
+End Sub
+
 Private Sub Form_Load()
 On Error Resume Next
 Me.OrderBy = ""
 Me.filter = ""
+initView
 End Sub
 
 Private Sub Form_Open(Cancel As Integer)

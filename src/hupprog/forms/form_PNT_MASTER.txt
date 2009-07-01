@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-505018629
+Checksum =392567550
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -17,9 +17,9 @@ Begin Form
     DatasheetFontHeight =10
     ItemSuffix =32
     Left =6015
-    Top =1590
+    Top =810
     Right =17520
-    Bottom =8220
+    Bottom =7440
     DatasheetGridlinesColor =12632256
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
@@ -416,6 +416,7 @@ Private curPntInfo As PNT_GLOBAL_BASIC_INFO
 Private curPntIndOpts As PNT_IND_OPTIONS
 Private curPntVerPntOpts As PNT_VER_PNT_OPTIONS
 Private curPntVerSecOpts As PNT_VER_SEC_OPTIONS
+Private curPntVerMedOpts As PNT_VER_MED_OPTIONS
 
 Private isFirstActivation
 Private isNewViewShowTijden
@@ -484,7 +485,7 @@ If Not pvbAllowNewView() Then
   Exit Sub
 End If
 
-If Not pntGlobalPromptUser(waarde(), -1, False, True, True, True, isOK, lkpWedNr, lkpPntOrderID) Then
+If Not pntGlobalPromptUser(waarde(), -1, False, True, True, True, True, isOK, lkpWedNr, lkpPntOrderID) Then
   Exit Sub
 End If
 
@@ -588,6 +589,8 @@ If (glbPntOrderID > 0) Then
       Me.htmlhulp.HyperlinkAddress = htmlHelpRoot & "frm_puntentelling_vpt.htm"
     Case PNT_TYPE_VER_SEC
       Me.htmlhulp.HyperlinkAddress = htmlHelpRoot & "frm_puntentelling_vsc.htm"
+    Case PNT_TYPE_VER_MED
+      Me.htmlhulp.HyperlinkAddress = htmlHelpRoot & "frm_puntentelling_vmd.htm"
   End Select
 Else
   Me.fldPntDes = "Geen puntentelling geselecteerd."
@@ -724,6 +727,8 @@ Select Case curPage
         pName = "PNT_DetailsVerPnt"
       ElseIf (curPntInfo.type = PNT_TYPE_VER_SEC) Then
         pName = "PNT_DetailsVerSec"
+      ElseIf (curPntInfo.type = PNT_TYPE_VER_MED) Then
+        pName = "PNT_DetailsVerMed"
       End If
     Case PAGE_PLP
       pName = "PNT_PlaatsPunt"
@@ -746,6 +751,12 @@ Select Case curPage
         Else
           pName = "PNT_ProgVerSec"
         End If
+      ElseIf (curPntInfo.type = PNT_TYPE_VER_MED) Then
+        If (curPntVerMedOpts.blUseStdProgSettings) Then
+          pName = "PNT_PROG_Unbound"
+        Else
+          pName = "PNT_ProgVerMed"
+        End If
       End If
     Case PAGE_GRP
       If (curPntInfo.type = PNT_TYPE_IND) Then
@@ -758,6 +769,12 @@ Select Case curPage
         End If
       ElseIf (curPntInfo.type = PNT_TYPE_VER_SEC) Then
         If (Not curPntVerSecOpts.blGroupVers) Then
+          pName = "PNT_Group_Unbound"
+        Else
+          pName = "PNT_Group"
+        End If
+      ElseIf (curPntInfo.type = PNT_TYPE_VER_MED) Then
+        If (Not curPntVerMedOpts.blGroupVers) Then
           pName = "PNT_Group_Unbound"
         Else
           pName = "PNT_Group"
@@ -782,6 +799,12 @@ Select Case curPage
         Else
            pName = "PNT_DlnVer_Unbound"
         End If
+      ElseIf (curPntInfo.type = PNT_TYPE_VER_MED) Then
+        If (curPntVerMedOpts.blRestrictVers) Or (curPntVerMedOpts.blGroupVers) Then
+          pName = "PNT_DlnVer"
+        Else
+           pName = "PNT_DlnVer_Unbound"
+        End If
       End If
     Case PAGE_TST
       If (curPntInfo.type = PNT_TYPE_IND) Then
@@ -801,6 +824,12 @@ Select Case curPage
           pName = "PNT_TstVer"
         Else
            pName = "PNT_Tst_Unbound"
+        End If
+      ElseIf (curPntInfo.type = PNT_TYPE_VER_MED) Then
+        If (curPntVerMedOpts.blUseTst And (Not curPntVerMedOpts.blGroupVers)) Then
+          pName = "PNT_TstVer"
+        Else
+          pName = "PNT_Tst_Unbound"
         End If
       End If
 
@@ -836,6 +865,10 @@ Dim isFnd As Boolean
     End If
   ElseIf (curPntInfo.type = PNT_TYPE_VER_SEC) Then
     If Not pntVerSecLookup(waarde(), glbPntOrderID, isFnd, curPntVerSecOpts) Then
+      Exit Sub
+    End If
+  ElseIf (curPntInfo.type = PNT_TYPE_VER_MED) Then
+    If Not pntVerMedLookup(waarde(), glbPntOrderID, isFnd, curPntVerMedOpts) Then
       Exit Sub
     End If
   End If

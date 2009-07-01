@@ -78,7 +78,7 @@ End Function
 
 
 'Prerequisite: analyzeEstafs must have been performed and uitslagTransferSettings must have been called
-Public Function uitslagRanglijsten_Handle(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+Public Function uitslagRanglijsten_Handle(ByVal wednr As Long, ByVal blEntireMeet As Boolean, ByVal pntCalcMode As Integer) As Boolean
 On Error GoTo fout
 uitslagRanglijsten_Handle = False
 
@@ -134,7 +134,7 @@ Do Until rs.EOF
       Err.Raise 1, , "Could not find prognr: * " & rnkWedNr & ", " & rnkProgNr & " )"
     End If
     
-    If Not uitslagRanglijst_Perform(wedInf, rnkPrInf, rnkProgS, rnkOpts) Then
+    If Not uitslagRanglijst_Perform(wedInf, rnkPrInf, rnkProgS, rnkOpts, pntCalcMode) Then
       Exit Function
     End If
     
@@ -172,7 +172,7 @@ Resume
 End Function
 
 
-Private Function uitslagRanglijst_Perform(ByRef wedInf As WED_BASIC_INFO, ByRef prInf As PROG_BASIC_INFO, ByVal sProgs As String, ByRef rnkOpt As RANK_OPTIONS) As Boolean
+Private Function uitslagRanglijst_Perform(ByRef wedInf As WED_BASIC_INFO, ByRef prInf As PROG_BASIC_INFO, ByVal sProgs As String, ByRef rnkOpt As RANK_OPTIONS, ByVal pntCalcMode As Integer) As Boolean
 On Error GoTo fout
 uitslagRanglijst_Perform = False
 
@@ -213,15 +213,26 @@ End If
 
 
 
-'Get a list of all tijden from the selected progs.
-sql = "SELECT dtTijden.*, dtDeelnemers.*, TP_IsEstaf, TP_Afstand, TP_Slag " & _
-"FROM (dtDeelnemers INNER JOIN [gSelProgs] ON (dtDeelnemers.DE_Wedstrijdnummer = [gSelProgs].TP_Wedstrijdnummer) " & _
-"AND (dtDeelnemers.DE_Programmanummer = [gSelProgs].TP_Programmanummer)) INNER JOIN dtTijden ON (dtDeelnemers.DE_Estafettenummer = " & _
-"dtTijden.TY_Estafettenummer) AND (dtDeelnemers.DE_Buitenmededinging = dtTijden.TY_BM) AND (dtDeelnemers.DE_Programmanummer = " & _
-"dtTijden.TY_Programmanummer) AND (dtDeelnemers.DE_Wedstrijdnummer = dtTijden.TY_Wedstrijdnummer) AND " & _
-"(dtDeelnemers.DE_Index = dtTijden.TY_Index) WHERE ((([gSelProgs].TP_Teltmee) = True)) " & _
-"ORDER BY dtTijden.TY_Vereniging, dtTijden.TY_Estafettenummer, dtTijden.TY_Startnummer, dtTijden.TY_Eindtijd"
 
+
+
+If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
+  'Get a list of all tijden from the selected progs.
+  sql = "SELECT dtTijden.*, dtDeelnemers.*, TP_IsEstaf, TP_Afstand, TP_Slag " & _
+    "FROM (dtDeelnemers INNER JOIN [gSelProgs] ON (dtDeelnemers.DE_Wedstrijdnummer = [gSelProgs].TP_Wedstrijdnummer) " & _
+    "AND (dtDeelnemers.DE_Programmanummer = [gSelProgs].TP_Programmanummer)) INNER JOIN dtTijden ON (dtDeelnemers.DE_Estafettenummer = " & _
+    "dtTijden.TY_Estafettenummer) AND (dtDeelnemers.DE_Buitenmededinging = dtTijden.TY_BM) AND (dtDeelnemers.DE_Programmanummer = " & _
+    "dtTijden.TY_Programmanummer) AND (dtDeelnemers.DE_Wedstrijdnummer = dtTijden.TY_Wedstrijdnummer) AND " & _
+    "(dtDeelnemers.DE_Index = dtTijden.TY_Index) WHERE ((([gSelProgs].TP_Teltmee) = True)) " & _
+    "ORDER BY dtTijden.TY_Vereniging, dtTijden.TY_Estafettenummer, dtTijden.TY_Startnummer, dtTijden.TY_Eindtijd"
+  
+Else
+  If (prInf.isEstaf) Then
+    sql = dlnGetDeelnemersEstSQL(False, True, "", wedInf.wednr, wedInf.meetMainNr, True, "")
+  Else
+    sql = dlnGetDeelnemersPersSQL(False, True, "", wedInf.wednr, wedInf.meetMainNr, True)
+  End If
+End If
 
 
 Dim td As Recordset
@@ -267,6 +278,10 @@ Dim tpTime As Double
 
 Dim tpProgNr As String
 Dim tpWedNr As Long
+Dim tpABCCode As String
+Dim tpIsBM As Boolean
+      
+
 
 curVer = ""
 curStart = ""
@@ -292,18 +307,56 @@ Dim i As Integer
 td.MoveFirst
 Do Until td.EOF
 
-  tpProgNr = Nz(td("TY_Programmanummer"))
-  tpWedNr = Nz(td("TY_Wedstrijdnummer"))
 
-  tpVer = Nz(td("TY_Vereniging"))
-  tpStart = Nz(td("TY_Startnummer"))
-  tpEst = Nz(td("TY_Estafettenummer"))
+  If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
+    tpProgNr = Nz(td("TY_Programmanummer"))
+    tpWedNr = Nz(td("TY_Wedstrijdnummer"))
+
+    tpVer = Nz(td("TY_Vereniging"))
+    tpStart = Nz(td("TY_Startnummer"))
+    tpEst = Nz(td("TY_Estafettenummer"))
   
   
-  tpAfstand = Nz(td("TP_Afstand"))
-  tpSlag = Nz(td("TP_Slag"))
+    tpAfstand = Nz(td("TP_Afstand"))
+    tpSlag = Nz(td("TP_Slag"))
   
-  tpTime = Nz(td("TY_Eindtijd"))
+    tpTime = Nz(td("TY_Eindtijd"))
+    
+    tpABCCode = Nz(td("DE_A/B/C"))
+    
+    tpIsBM = (Nz(td("DE_Buitenmededinging"), "N") <> "N")
+    
+    tpDis = Nz(td("TY_Dis"))
+    
+  Else
+  
+    tpProgNr = Nz(td("DE_Programmanummer"))
+    tpWedNr = Nz(td("DE_Wedstrijdnummer"))
+
+    tpVer = Nz(td("DE_Vereniging"))
+    tpStart = Nz(td("DE_Startnummer"))
+    tpEst = Nz(td("DE_Estafettenummer"))
+  
+  
+    tpAfstand = Nz(td("PR_Afstand"))
+    tpSlag = Nz(td("PR_Slag"))
+  
+    tpTime = Nz(td("DE_Inschrijftijd"))
+    
+    tpABCCode = Nz(td("DE_A/B/C"))
+    
+    tpIsBM = (Nz(td("DE_Buitenmededinging"), "N") <> "N")
+    
+    tpDis = ""
+    
+    If (pntCalcMode = PNT_CALC_MODE_TEST) Then
+      If ((CLng(tpTime * 100) Mod 10) = 9) Then
+        tpDis = "DQ"
+      End If
+    End If
+    
+  
+  End If
   
   Dim blOK As Boolean
   blOK = True
@@ -356,7 +409,7 @@ Do Until td.EOF
   End If
     
     
-  If (Nz(td("TY_BM")) <> "N") Then
+  If tpIsBM Then
     blOK = False
   End If
   
@@ -421,8 +474,6 @@ Do Until td.EOF
   If (blOK) Then
     'check out abc codes.
     If (rnkOpt.blRestrictABC) Then
-      Dim tpABCCode As String
-      tpABCCode = Nz(td("DE_A/B/C"))
       If (bSearchString(tpABCCode, nValidABC, sValidABC) < 0) Then
         'The abc code was not listed as valid.
         blOK = False
@@ -505,23 +556,37 @@ Do Until td.EOF
         tdOut("TY_Startnummer") = hzn(curStart)
       End If
       
-      tdOut("TY_Eindafstand") = td("TY_Eindafstand")
-      tdOut("TY_Eindtijd") = td("TY_Eindtijd")
-      tdOut("TY_Ab") = td("TY_Ab")
-      tdOut("TY_Dis") = td("TY_Dis")
+      If (rnkOpt.blRespectABC) Then
+        tdOut("TY_A/B/C") = td("DE_A/B/C")
+      End If
       
-      tdOut("TY_Afstand1") = td("TY_Afstand1")
-      tdOut("TY_Afstand2") = td("TY_Afstand2")
-      tdOut("TY_Afstand3") = td("TY_Afstand3")
-      tdOut("TY_Afstand4") = td("TY_Afstand4")
       
-      tdOut("TY_Tijd1") = td("TY_Tijd1")
-      tdOut("TY_Tijd2") = td("TY_Tijd2")
-      tdOut("TY_Tijd3") = td("TY_Tijd3")
-      tdOut("TY_Tijd4") = td("TY_Tijd4")
       
-      tdOut("TY_Opmerking") = td("TY_Opmerking")
-      tdOut("TY_ExtraTussentijden") = td("TY_ExtraTussentijden")
+      If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
+        tdOut("TY_Eindafstand") = td("TY_Eindafstand")
+        tdOut("TY_Eindtijd") = td("TY_Eindtijd")
+        tdOut("TY_Ab") = td("TY_Ab")
+        tdOut("TY_Dis") = td("TY_Dis")
+      
+        tdOut("TY_Afstand1") = td("TY_Afstand1")
+        tdOut("TY_Afstand2") = td("TY_Afstand2")
+        tdOut("TY_Afstand3") = td("TY_Afstand3")
+        tdOut("TY_Afstand4") = td("TY_Afstand4")
+        
+        tdOut("TY_Tijd1") = td("TY_Tijd1")
+        tdOut("TY_Tijd2") = td("TY_Tijd2")
+        tdOut("TY_Tijd3") = td("TY_Tijd3")
+        tdOut("TY_Tijd4") = td("TY_Tijd4")
+        
+        tdOut("TY_Opmerking") = td("TY_Opmerking")
+        tdOut("TY_ExtraTussentijden") = td("TY_ExtraTussentijden")
+        
+      Else
+        tdOut("TY_Eindafstand") = hzn(prInf.Afstand)
+        tdOut("TY_Eindtijd") = tpTime
+        tdOut("TY_Ab") = Null
+        tdOut("TY_Dis") = hzn(tpDis)
+      End If
       
       tdOut("TY_BM") = "N"
       
@@ -576,7 +641,7 @@ End Function
 'Uitslag puntentellingen
 
 'Prerequisite: analyzeEstafs must have been performed and uitslagTransferSettings must have been called
-Public Function uitslagPunten_Handle(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+Public Function uitslagPunten_Handle(ByVal wednr As Long, ByVal blEntireMeet As Boolean, ByVal pntCalcMode As Integer) As Boolean
 On Error GoTo fout
 uitslagPunten_Handle = False
 
@@ -640,7 +705,7 @@ Do Until rs.EOF
           If (isFnd) Then
             curPntCleanOnly = False
           
-            If Not pntCalc(tpPntWedNr, tpPntOrderID, PNT_CALC_MODE_RESULT) Then
+            If Not pntCalc(tpPntWedNr, tpPntOrderID, pntCalcMode) Then
               Exit Function
             End If
           End If
@@ -907,6 +972,11 @@ Do Until td.EOF
       tdOut("TY_Eindafstand") = Null
       
       tdOut("TY_Eindtijd") = Null
+      
+      
+      If (pntOpt.blRespectABC) Then
+        tdOut("TY_A/B/C") = td("UT_ABC")
+      End If
       
       
       If (pntIndOptions.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Then
@@ -1431,10 +1501,10 @@ If (blIsForUitslag) Then
     Exit Function
   End If
 
-  If Not uitslagRanglijsten(wednr, False) Then
+  If Not uitslagRanglijsten(wednr, False, PNT_CALC_MODE_RESULT) Then
     Exit Function
   End If
-  If Not uitslagPunten_Handle(wednr, False) Then
+  If Not uitslagPunten(wednr, False, PNT_CALC_MODE_RESULT) Then
     Exit Function
   End If
 End If

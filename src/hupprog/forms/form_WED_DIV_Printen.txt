@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1460106218
+Checksum =-1175845986
 Begin Form
     AllowFilters = NotDefault
     RecordSelectors = NotDefault
@@ -16,10 +16,11 @@ Begin Form
     GridX =30
     GridY =30
     Width =10875
-    ItemSuffix =476
-    Left =3345
-    Right =16350
-    Bottom =8490
+    ItemSuffix =478
+    Left =4080
+    Top =855
+    Right =14955
+    Bottom =8055
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
         0x926524e4d12ce340
@@ -505,7 +506,7 @@ Begin Form
                                     Left =222
                                     Top =650
                                     Width =8242
-                                    Height =4180
+                                    Height =4600
                                     Name ="optRepPnt"
                                     AfterUpdate ="[Event Procedure]"
                                     DefaultValue ="31"
@@ -544,7 +545,7 @@ Begin Form
                                             SpecialEffect =0
                                             OverlapFlags =247
                                             Left =415
-                                            Top =2895
+                                            Top =3103
                                             OptionValue =4
                                             Name ="optPntEind"
                                             Begin
@@ -552,7 +553,7 @@ Begin Form
                                                     BackStyle =1
                                                     OverlapFlags =247
                                                     Left =743
-                                                    Top =2872
+                                                    Top =3080
                                                     Width =1890
                                                     Height =240
                                                     Name ="Label181"
@@ -564,7 +565,7 @@ Begin Form
                                             SpecialEffect =0
                                             OverlapFlags =247
                                             Left =420
-                                            Top =3853
+                                            Top =4061
                                             OptionValue =5
                                             Name ="optPntTel"
                                             Begin
@@ -572,7 +573,7 @@ Begin Form
                                                     BackStyle =1
                                                     OverlapFlags =247
                                                     Left =755
-                                                    Top =3825
+                                                    Top =4033
                                                     Width =630
                                                     Height =240
                                                     Name ="Label187"
@@ -587,7 +588,7 @@ Begin Form
                                     OverlapFlags =247
                                     ListWidth =1885
                                     Left =2253
-                                    Top =4221
+                                    Top =4429
                                     Width =1450
                                     TabIndex =1
                                     ColumnInfo ="\"\";\"\";\"10\";\"100\""
@@ -602,7 +603,7 @@ Begin Form
                                     BackStyle =1
                                     OverlapFlags =247
                                     Left =893
-                                    Top =4221
+                                    Top =4429
                                     Width =1200
                                     Height =240
                                     Name ="Text43"
@@ -725,7 +726,7 @@ Begin Form
                                     SpecialEffect =0
                                     OverlapFlags =247
                                     Left =415
-                                    Top =3339
+                                    Top =3547
                                     TabIndex =7
                                     Name ="blPntKlein"
                                     DefaultValue ="False"
@@ -734,7 +735,7 @@ Begin Form
                                             BackStyle =1
                                             OverlapFlags =247
                                             Left =749
-                                            Top =3315
+                                            Top =3523
                                             Width =1995
                                             Height =240
                                             Name ="Label388"
@@ -750,6 +751,34 @@ Begin Form
                                     Height =210
                                     Name ="Label389"
                                     Caption ="(Zo nee, kies hieronder een van de extra puntentellingen)"
+                                End
+                                Begin CheckBox
+                                    Enabled = NotDefault
+                                    SpecialEffect =0
+                                    OverlapFlags =247
+                                    Left =963
+                                    Top =2653
+                                    TabIndex =8
+                                    Name ="blPntHideEmptySubtotals"
+                                    DefaultValue ="True"
+                                    GUID = Begin
+                                        0xcc68f83b0710e744ba7308509298fc1e
+                                    End
+                                    Begin
+                                        Begin Label
+                                            BackStyle =1
+                                            OverlapFlags =247
+                                            Left =1194
+                                            Top =2626
+                                            Width =5850
+                                            Height =240
+                                            Name ="Label477"
+                                            Caption ="Bij elk programmanr alleen verenigingen weergeven die punten hebben gescoord "
+                                            GUID = Begin
+                                                0x66d5dc9682025e4cb98e609b228a645c
+                                            End
+                                        End
+                                    End
                                 End
                             End
                         End
@@ -2457,17 +2486,17 @@ Select Case choice
     If (pntType <> PNT_TYPE_IND) Then
       'Apply some settings
       If choice = OPT_PNT_EIND Then
-        If Not rxpSetVerPntUitslagOptions("", "", "", True, "") Then
+        If Not rxpSetVerPntUitslagOptions("", "", "", True, "", False) Then
           Exit Function
         End If
       ElseIf (choice = OPT_TEL) Then
         'apply single ver
-        If Not rxpSetVerPntUitslagOptions("", "", "", False, Nz(Me.ver)) Then
+        If Not rxpSetVerPntUitslagOptions("", "", "", False, Nz(Me.ver), False) Then
           Exit Function
         End If
       ElseIf (choice = OPT_PNT_DET) Then
         'apply prog range
-        If Not rxpSetVerPntUitslagOptions("", Nz(Me.pntProgStart), Nz(Me.pntProgEind), False, "") Then
+        If Not rxpSetVerPntUitslagOptions("", Nz(Me.pntProgStart), Nz(Me.pntProgEind), False, "", Nz(Me.blPntHideEmptySubtotals, False)) Then
           Exit Function
         End If
       End If
@@ -2731,12 +2760,16 @@ If (pntType = PNT_TYPE_IND) Then
   End If
 Else
   Me.optPntDet.Enabled = True
-  Me.optPntTel.Enabled = True
+  Me.optPntTel.Enabled = (pntType = PNT_TYPE_VER_SEC) Or (pntType = PNT_TYPE_VER_PNT)
   Me.blPntKlein.Enabled = (choice = OPT_PNT_DET) Or (choice = OPT_PNT_EIND)
+  If (choice = OPT_TEL) And (pntType = PNT_TYPE_VER_MED) Then
+    Me.optRepPnt.value = Me.optPntEind.OptionValue
+  End If
 End If
 
 Me.pntProgStart.Enabled = (choice = OPT_PNT_DET)
 Me.pntProgEind.Enabled = (choice = OPT_PNT_DET)
+Me.blPntHideEmptySubtotals.Enabled = (choice = OPT_PNT_DET)
 Me.ver.Enabled = (choice = OPT_TEL)
 
 Me.medEntireMeet.Enabled = (choice = OPT_MDL)
