@@ -1,0 +1,370 @@
+Option Compare Database
+Option Explicit
+
+Private Function facCalcFees_ProcessMatch_processEstStarts(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByVal sVer As String, ByVal sStart As String, _
+ByRef kstInfo As WED_KOSTEN_INFO, ByRef calcData As FEE_CALC_DATA) As Boolean
+
+On Error GoTo fout
+facCalcFees_ProcessMatch_processEstStarts = False
+
+Dim sql As String
+
+If (Not blEntireMeet) Then
+  sql = " SELECT dtProgramma.PR_Afstand, dtProgramma.PR_Slag,dtProgramma.PR_Categorie,dtProgramma.PR_Kosten,dtDeelnemers.DE_OW_Capkleur, dtDeelnemers.DE_OW_Capnummer, dtDeelnemers.DE_Reserve, dtPloegen.* " & _
+      "FROM (dtProgramma INNER JOIN dtDeelnemers ON (dtProgramma.PR_Programmanummer = dtDeelnemers.DE_Programmanummer) AND (dtProgramma.PR_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer)) INNER JOIN dtPloegen ON (dtPloegen.PL_Estafettenummer = dtDeelnemers.DE_Estafettenummer) AND (dtDeelnemers.DE_Vereniging = dtPloegen.PL_Vereniging) AND (dtDeelnemers.DE_Programmanummer = dtPloegen.PL_Programmanummer) AND (dtDeelnemers.DE_Wedstrijdnummer = dtPloegen.PL_Wedstrijdnummer) " & _
+      "WHERE (((dtPloegen.PL_Vereniging)=""" & sVer + """) AND ((dtPloegen.PL_Startnummer)=""" & sStart + """) AND ((dtPloegen.PL_Wedstrijdnummer)= " & wedMainNr & "));"
+Else
+  sql = "SELECT dtProgramma.PR_Afstand, dtProgramma.PR_Slag, dtProgramma.PR_Categorie, dtProgramma.PR_Kosten, dtDeelnemers.DE_OW_Capkleur, dtDeelnemers.DE_OW_Capnummer,dtDeelnemers.DE_Reserve, dtPloegen.* " & _
+         "FROM dtWedstrijdGegevens INNER JOIN ((dtProgramma INNER JOIN dtDeelnemers ON (dtProgramma.PR_Programmanummer = dtDeelnemers.DE_Programmanummer) " & _
+         "AND (dtProgramma.PR_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer)) INNER JOIN dtPloegen ON (dtDeelnemers.DE_Estafettenummer = " & _
+         "dtPloegen.PL_Estafettenummer) AND (dtDeelnemers.DE_Vereniging = dtPloegen.PL_Vereniging) AND (dtDeelnemers.DE_Programmanummer = dtPloegen.PL_Programmanummer) " & _
+         "AND (dtDeelnemers.DE_Wedstrijdnummer = dtPloegen.PL_Wedstrijdnummer)) ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer " & _
+         "WHERE (((dtPloegen.PL_Vereniging)=""" & sVer & """) AND ((dtPloegen.PL_Startnummer)=""" & sStart & """) " & _
+         "AND (  ((dtWedstrijdGegevens.WE_Wedstrijdnummer)=" & wedMainNr & ")    or   (we_mainWedstrijdnummer=" & wedMainNr & ")    ));"
+End If
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpPlIsRes As Boolean, tpIsRes As Boolean
+  Dim tpEstNr As Long, tpVolg As Long
+  Dim tpProg As String, tpAf As String, tpSl As String, tpExtKosten As Double
+  
+  tpProg = Nz(rs("PL_Programmanummer"))
+  tpAf = Nz(rs("PR_Afstand"))
+  tpSl = Nz(rs("PR_Slag"))
+  tpExtKosten = Nz(rs("PR_Kosten"))
+  
+  tpPlIsRes = Nz(rs("DE_Reserve")) = "J"
+  tpIsRes = Nz(rs("PL_Reserve")) = "J"
+  tpEstNr = Nz(rs("PL_Estafettenummer"))
+  tpVolg = Nz(rs("PL_Volgorde"))
+  
+  Dim tpCapkleur As String, tpCapNr As Long
+  tpCapkleur = Nz(rs("DE_OW_Capkleur"))
+  tpCapNr = Nz(rs("DE_OW_Capnummer"))
+  
+  
+  intFacCalcFees_addPloeglid tpPlIsRes, tpIsRes, tpExtKosten, tpProg, tpAf, tpSl, tpEstNr, tpVolg, tpCapkleur, tpCapNr, kstInfo, calcData
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+facCalcFees_ProcessMatch_processEstStarts = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " facCalcFees_processMatch_processEstStarts" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function facCalcFees_ProcessMatch_processEstOnlySwimmers(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByVal sVer As String, _
+ByRef kstInfo As WED_KOSTEN_INFO, ByRef skZwm As Recordset, ByRef rsSwmOut As Recordset, ByRef calcData As FEE_CALC_DATA) As Boolean
+
+On Error GoTo fout
+facCalcFees_ProcessMatch_processEstOnlySwimmers = False
+
+Dim sql As String
+
+If (Not blEntireMeet) Then
+        
+  sql = "SELECT dtPloegen.PL_Vereniging, dtPloegen.PL_Startnummer, dtPloegen.PL_Naam " & _
+    "FROM dtPloegen LEFT JOIN [gFaktuurHoofd] ON (dtPloegen.PL_Startnummer = [gFaktuurHoofd].AS_Startnummer) AND (dtPloegen.PL_Vereniging = [gFaktuurHoofd].AS_Vereniging) " & _
+    "WHERE ((([gFaktuurHoofd].AS_Startnummer) Is Null) And ((dtPloegen.PL_Wedstrijdnummer) = " & wedMainNr & ") and " & _
+    " ((dtPloegen.PL_Vereniging) = """ & sVer & """ ) ) " & _
+    "GROUP BY dtPloegen.PL_Vereniging, dtPloegen.PL_Startnummer, dtPloegen.PL_Naam;"
+Else
+  sql = "SELECT dtPloegen.PL_Vereniging, dtPloegen.PL_Startnummer, dtPloegen.PL_Naam " & _
+    "FROM (dtPloegen INNER JOIN dtWedstrijdGegevens ON dtPloegen.PL_Wedstrijdnummer = dtWedstrijdGegevens.WE_Wedstrijdnummer) LEFT JOIN [gFaktuurHoofd] ON (dtPloegen.PL_Startnummer = [gFaktuurHoofd].AS_Startnummer) AND (dtPloegen.PL_Vereniging = [gFaktuurHoofd].AS_Vereniging) " & _
+    "WHERE ( ( ((dtWedstrijdGegevens.WE_Wedstrijdnummer) = " & wedMainNr & ") or (we_mainWedstrijdnummer = " & wedMainNr & ")   ) And ((dtPloegen.PL_Vereniging) = """ & sVer & """) And (([gFaktuurHoofd].AS_Startnummer) Is Null)) " & _
+    "GROUP BY dtPloegen.PL_Vereniging, dtPloegen.PL_Startnummer, dtPloegen.PL_Naam; "
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpStart As String, tpNaam As String
+  tpStart = Nz(rs("PL_Startnummer"))
+  tpNaam = Nz(rs("PL_Naam"))
+  
+  If Not facCalcFees_ProcessMatch_openStart(sVer, tpStart, tpNaam, kstInfo, skZwm, calcData) Then
+    Exit Function
+  End If
+  
+  If Not facCalcFees_ProcessMatch_closeStart(wedMainNr, blEntireMeet, sVer, tpStart, kstInfo, rsSwmOut, calcData) Then
+    Exit Function
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+facCalcFees_ProcessMatch_processEstOnlySwimmers = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " facCalcFees_ProcessMatch_processEstOnlySwimmers" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function facCalcFees_ProcessMatch_openStart(ByVal sVer As String, ByVal sStart As String, ByVal sNaam As String, _
+ByRef kstInfo As WED_KOSTEN_INFO, ByRef skZwm As Recordset, ByRef calcData As FEE_CALC_DATA) As Boolean
+
+On Error GoTo fout
+facCalcFees_ProcessMatch_openStart = False
+
+
+'lookup data for new swimmer
+Dim tpNaam As String, tpAchternaam As String, tpGes As String
+'skZwm.FindFirst "na_vereniging=""" & sVer & """ and na_startnummer = """ & sStart & """"
+'If (skZwm.NoMatch) Then
+  tpNaam = sNaam
+  tpAchternaam = ""
+  tpGes = "?"
+'Else
+'  tpNaam = Nz(skZwm("NA_Naam"))
+'  tpAchternaam = Nz(skZwm("NA_Achternaam"))
+'  tpGes = Nz(skZwm("NA_Geslacht"))
+'End If
+
+If (tpAchternaam = "") Then
+  tpAchternaam = nmExtractAchternaam(tpNaam)
+End If
+
+'open up new swimmer
+intFacCalcFees_openSwimmer sStart, tpNaam, tpAchternaam, calcData
+
+
+
+
+facCalcFees_ProcessMatch_openStart = True
+Exit Function
+
+fout:
+MsgBox Err & " facCalcFees_ProcessMatch_openStart" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function facCalcFees_ProcessMatch_closeStart(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByVal sVer As String, ByVal sStart As String, _
+ByRef kstInfo As WED_KOSTEN_INFO, ByRef rsSwmOut As Recordset, ByRef calcData As FEE_CALC_DATA) As Boolean
+
+On Error GoTo fout
+facCalcFees_ProcessMatch_closeStart = False
+
+
+If Not facCalcFees_ProcessMatch_processEstStarts(wedMainNr, blEntireMeet, sVer, sStart, kstInfo, calcData) Then
+  Exit Function
+End If
+
+intFacCalcFees_closeSwimmer sStart, rsSwmOut, kstInfo, calcData
+
+
+
+facCalcFees_ProcessMatch_closeStart = True
+Exit Function
+
+fout:
+MsgBox Err & " facCalcFees_ProcessMatch_openStart" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function facCalcFees_ProcessMatch_perform(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByRef kstInfo As WED_KOSTEN_INFO, _
+ByRef rsVerOut As Recordset, ByRef rsSwmOut As Recordset, ByRef calcData As FEE_CALC_DATA) As Boolean
+On Error GoTo fout
+facCalcFees_ProcessMatch_perform = False
+
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("dtVerenigingen")
+skVer.Index = "PrimaryKey"
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtNamen", dbOpenDynaset)
+'skZwm does not have an index unfortunately
+'skZwm.Index = "PrimaryKey"
+
+
+
+Dim sql As String
+If (Not blEntireMeet) Then
+  sql = "SELECT dtDeelnemers.*, dtProgramma.PR_Afstand, dtProgramma.PR_Slag, dtProgramma.PR_Categorie, dtProgramma.PR_Kosten from dtProgramma INNER JOIN dtDeelnemers ON (dtProgramma.PR_Programmanummer = dtDeelnemers.DE_Programmanummer) AND (dtProgramma.PR_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer) " & _
+    "WHERE (((dtDeelnemers.DE_Wedstrijdnummer)=" & wedMainNr & ") and finIsFirstRound(nz([PR_Type])) ) order by [de_Vereniging] , [de_startnummer];"
+Else
+  sql = "SELECT dtDeelnemers.*, dtProgramma.PR_Afstand, dtProgramma.PR_Slag, dtProgramma.PR_Categorie, dtProgramma.PR_Kosten, dtWedstrijdGegevens.WE_Wedstrijdnummer " & _
+        "FROM dtWedstrijdGegevens INNER JOIN (dtProgramma INNER JOIN dtDeelnemers ON (dtProgramma.PR_Programmanummer = dtDeelnemers.DE_Programmanummer) AND " & _
+        "(dtProgramma.PR_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer)) ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer " & _
+        "WHERE (((dtWedstrijdGegevens.WE_Wedstrijdnummer) = " & wedMainNr & ") or we_MainWedstrijdNummer = " & wedMainNr & ") and finIsFirstRound(nz([PR_Type]))" & _
+        "ORDER BY dtDeelnemers.DE_Vereniging, dtDeelnemers.DE_Startnummer;"
+End If
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+Dim curVer As String, curStart As String
+Dim tpVer As String, tpStart As String
+
+
+curVer = ""
+curStart = ""
+
+Dim blDone As Boolean
+
+geg.MoveFirst
+
+blDone = geg.EOF
+Do Until blDone
+  If (geg.EOF) Then
+    tpVer = ""
+    tpStart = ""
+  Else
+    tpVer = Nz(geg("DE_Vereniging"))
+    tpStart = Nz(geg("DE_Startnummer"))
+  End If
+  
+  Dim blIsNewVer As Boolean, blIsOldVer As Boolean
+  Dim blIsNewStart As Boolean, blIsOldStart As Boolean
+  
+  blIsNewVer = False
+  blIsOldVer = False
+  blIsNewStart = False
+  blIsOldStart = False
+  
+  
+  If (tpVer <> curVer) Then
+    blIsNewVer = (tpVer <> "")
+    blIsOldVer = (curVer <> "")
+  End If
+  
+  If (tpVer <> curVer) Or (tpStart <> curStart) Then
+    blIsNewStart = (tpStart <> "")
+    blIsOldStart = (curStart <> "")
+  End If
+  
+  If (blIsOldStart) Then
+    If Not facCalcFees_ProcessMatch_closeStart(wedMainNr, blEntireMeet, curVer, curStart, kstInfo, rsSwmOut, calcData) Then
+      Exit Function
+    End If
+  End If
+  
+  If (blIsOldVer) Then
+    If Not facCalcFees_ProcessMatch_processEstOnlySwimmers(wedMainNr, blEntireMeet, curVer, kstInfo, skZwm, rsSwmOut, calcData) Then
+      Exit Function
+    End If
+    
+    'need to close old ver
+    intFacCalcFees_closeVer curVer, rsVerOut, kstInfo, calcData
+  End If
+  
+  If (blIsNewVer) Then
+    'lookup data for new ver
+    Dim tpDepot As String
+    skVer.Seek "=", tpVer
+    If skVer.NoMatch Then
+      Err.Raise 1, , "Internal error. Could not find ver: " & tpVer
+    End If
+    tpDepot = Nz(skVer("V_Depot"))
+    
+    'open up the new ver
+    intFacCalcFees_openVer tpVer, tpDepot, calcData
+  End If
+  
+  If (blIsNewStart) Then
+    'open new start
+    If Not facCalcFees_ProcessMatch_openStart(tpVer, tpStart, Nz(geg("DE_Naam")), kstInfo, skZwm, calcData) Then
+      Exit Function
+    End If
+  End If
+  
+  
+  'update current settings
+  curVer = tpVer
+  curStart = tpStart
+  
+    
+    
+  'process the current start
+  If (Not geg.EOF) Then
+    
+    Dim tpProg As String
+    Dim tpIsEstaf As Boolean, tpAf As String, tpSl As String, tpExtKosten As Double, tpInsTd As Double, tpIsRes As Boolean
+    Dim tpCapkleur As String, tpCapNr As Long
+    
+    
+    tpProg = Nz(geg("DE_Programmanummer"))
+    tpExtKosten = Nz(geg("PR_Kosten"))
+    tpAf = Nz(geg("PR_Afstand"))
+    tpSl = Nz(geg("PR_Slag"))
+    tpIsRes = Nz(geg("DE_Reserve")) = "J"
+    tpInsTd = Nz(geg("DE_Inschrijftijd"))
+    tpCapkleur = Nz(geg("DE_OW_Capkleur"))
+    tpCapNr = Nz(geg("DE_OW_Capnummer"))
+    
+    
+    tpIsEstaf = (tpAf Like "*x*")
+    
+    If (tpIsEstaf) Then
+      intFacCalcFees_addEstaf tpIsRes, tpExtKosten, kstInfo, calcData
+    Else
+      intFacCalcFees_addPersoonlijk tpIsRes, tpExtKosten, tpProg, tpAf, tpSl, tpInsTd, tpCapkleur, tpCapNr, kstInfo, calcData
+    End If
+  
+  End If
+
+  If (geg.EOF) Then
+    blDone = True
+  Else
+    geg.MoveNext
+  End If
+Loop
+
+
+appCleanRS geg
+
+
+appCleanRS skVer
+appCleanRS skZwm
+
+facCalcFees_ProcessMatch_perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " facCalcFees_ProcessMatch_perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function

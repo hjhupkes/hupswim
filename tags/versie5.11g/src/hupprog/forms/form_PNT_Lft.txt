@@ -1,0 +1,504 @@
+Version =20
+VersionRequired =20
+Checksum =1343586510
+Begin Form
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =10318
+    DatasheetFontHeight =10
+    ItemSuffix =21
+    Left =6300
+    Top =1650
+    Right =18060
+    Bottom =10110
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    AfterInsert ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x70b1a2663e5fe340
+    End
+    RecordSource ="SELECT * from dtgPuntentellingCats where ptc_wedstrijdnummer= waarde() and ptc_o"
+        "rderID = waarde_pnt() order by ptc_catorder"
+    Caption ="Categoriën"
+    OnOpen ="[Event Procedure]"
+    OnClose ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =323
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =56
+                    Top =113
+                    Width =240
+                    Height =210
+                    Name ="Label3"
+                    Caption ="Nr"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =566
+                    Top =113
+                    Width =750
+                    Height =210
+                    Name ="Label4"
+                    Caption ="Categorie"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =1920
+                    Top =113
+                    Width =3165
+                    Height =210
+                    Name ="Label5"
+                    Caption ="Beschrijving Categorie (komt op de uitslag)"
+                End
+                Begin Label
+                    Visible = NotDefault
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5265
+                    Top =113
+                    Width =855
+                    Height =210
+                    Name ="Label16"
+                    Caption ="Finale pr.nr"
+                End
+                Begin Label
+                    Visible = NotDefault
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =6909
+                    Top =113
+                    Width =915
+                    Height =210
+                    Name ="Label17"
+                    Caption ="Aant. finlst."
+                End
+                Begin Label
+                    Visible = NotDefault
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =7929
+                    Top =113
+                    Width =585
+                    Height =210
+                    Name ="Label19"
+                    Caption ="LEN_#"
+                End
+            End
+        End
+        Begin Section
+            Height =284
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =56
+                    Width =396
+                    Height =284
+                    Name ="PTC_CatOrder"
+                    ControlSource ="PTC_CatOrder"
+                    ValidationRule ="<>0"
+                    ValidationText ="Deze waarde is niet toegestaan."
+                    DefaultValue ="1"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =566
+                    Width =861
+                    Height =284
+                    TabIndex =1
+                    Name ="PTC_Categorie"
+                    ControlSource ="PTC_Categorie"
+                    Format =">"
+                    AfterUpdate ="[Event Procedure]"
+                    InputMask =">CCCCCCCCCCCCCC;0;\" \""
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1920
+                    Width =3126
+                    Height =284
+                    ColumnWidth =3045
+                    TabIndex =2
+                    Name ="PTC_BeschrijvingCategorie"
+                    ControlSource ="PTC_BeschrijvingCategorie"
+                End
+                Begin ComboBox
+                    Visible = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =6
+                    ListWidth =5910
+                    Left =5265
+                    Width =861
+                    Height =284
+                    TabIndex =3
+                    BoundColumn =1
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"10\";\"100\""
+                    Name ="PTC_FinaleProgrammanummer"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW dtProgramma.PR_Wedstrijdnummer, dtProgramma.PR_Programmanumme"
+                        "r, dtProgramma.PR_Afstand, dtProgramma.PR_Slag, dtProgramma.PR_Categorie, dtProg"
+                        "ramma.PR_Opmerking FROM dtWedstrijdgegevens INNER JOIN dtProgramma ON dtWedstrij"
+                        "dgegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer WHERE (((dtProgram"
+                        "ma.PR_Wedstrijdnummer)=wed_MeetMainNr())) OR (((dtWedstrijdgegevens.WE_MainWedst"
+                        "rijdnummer)=wed_meetMainNr())) ORDER BY Val([pr_programmanummer]), dtProgramma.P"
+                        "R_Programmanummer;"
+                    ColumnWidths ="0;675;795;1050;1110;2280"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =6909
+                    Width =471
+                    Height =284
+                    TabIndex =4
+                    Name ="PTC_FinaleAantal"
+                    DefaultValue ="0"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =7930
+                    Width =441
+                    Height =284
+                    TabIndex =5
+                    Name ="PTC_Len_Aantal"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =6286
+                    Width =471
+                    Height =284
+                    TabIndex =6
+                    Name ="PTC_FinaleWedstrijdnummer"
+                    ControlSource ="PTC_FinaleWedstrijdnummer"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =9467
+                    Width =456
+                    TabIndex =7
+                    Name ="PTC_Wedstrijdnummer"
+                    ControlSource ="PTC_Wedstrijdnummer"
+                    DefaultValue ="=waarde()"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =10034
+                    Width =276
+                    TabIndex =8
+                    Name ="PTC_OrderID"
+                    ControlSource ="PTC_OrderID"
+                    DefaultValue ="=waarde_pnt()"
+                End
+                Begin CommandButton
+                    TabStop = NotDefault
+                    OverlapFlags =85
+                    TextFontFamily =2
+                    Left =8780
+                    Width =291
+                    Height =284
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =9
+                    ForeColor =0
+                    Name ="btnDown"
+                    Caption ="btnDown"
+                    OnClick ="[Event Procedure]"
+                    PictureData = Begin
+                        0x2800000010000000100000000100040000000000800000000000000000000000 ,
+                        0x0000000000000000000000000000800000800000008080008000000080008000 ,
+                        0x8080000080808000c0c0c0000000ff00c0c0c00000ffff00ff000000c0c0c000 ,
+                        0xffff0000ffffff00dadadadadadadadaadadadadadadadaddadadadadadadada ,
+                        0xadadada4adadadaddadada444adadadaadada44444adadaddada4444444adada ,
+                        0xada444444444adadda44444444444adaadadad444dadadaddadada444adadada ,
+                        0xadadad444dadadaddadada444adadadaadadad444dadadaddadada444adadada ,
+                        0xadadadadadadadad
+                    End
+                    FontName ="System"
+                    ObjectPalette = Begin
+                        0x0003100000000000800000000080000080800000000080008000800000808000 ,
+                        0x80808000c0c0c000ff000000c0c0c000ffff00000000ff00c0c0c00000ffff00 ,
+                        0xffffff0000000000
+                    End
+                End
+                Begin CommandButton
+                    TabStop = NotDefault
+                    OverlapFlags =85
+                    TextFontFamily =2
+                    Left =9092
+                    Width =291
+                    Height =284
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =10
+                    ForeColor =0
+                    Name ="btnUp"
+                    Caption ="btnUp"
+                    OnClick ="[Event Procedure]"
+                    PictureData = Begin
+                        0x2800000010000000100000000100040000000000800000000000000000000000 ,
+                        0x0000000000000000000000000000800000800000008080008000000080008000 ,
+                        0x8080000080808000c0c0c0000000ff00c0c0c00000ffff00ff000000c0c0c000 ,
+                        0xffff0000ffffff00dadadadadadadadaadadadadadadadaddadadadadadadada ,
+                        0xadadad444dadadaddadada444adadadaadadad444dadadaddadada444adadada ,
+                        0xadadad444dadadaddadada444adadadaad44444444444daddad444444444dada ,
+                        0xadad4444444dadaddadad44444dadadaadadad444dadadaddadadad4dadadada ,
+                        0xadadadadadadadad
+                    End
+                    FontName ="System"
+                    ObjectPalette = Begin
+                        0x0003100000000000800000000080000080800000000080008000800000808000 ,
+                        0x80808000c0c0c000ff000000c0c0c000ffff00000000ff00c0c0c00000ffff00 ,
+                        0xffffff0000000000
+                    End
+                End
+                Begin CommandButton
+                    TabStop = NotDefault
+                    OverlapFlags =85
+                    TextFontFamily =2
+                    Left =1474
+                    Width =336
+                    Height =284
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =11
+                    ForeColor =0
+                    Name ="btnPromptCat"
+                    Caption ="Command52"
+                    OnClick ="[Event Procedure]"
+                    PictureData = Begin
+                        0x2800000010000000100000000100040000000000800000000000000000000000 ,
+                        0x0000000000000000000000000000800000800000008080008000000080008000 ,
+                        0x8080000080808000c0c0c0000000ff00c0c0c00000ffff00ff000000c0c0c000 ,
+                        0xffff0000ffffff00dadadadadadadada000000000000000d088888888888880a ,
+                        0x080808080808080d000000000000000aa0eeeeeeee0dadadd0e0000ee0dadada ,
+                        0xa0e0a0ee00adadadd0e00ee0d00adadaa0e0ee0da000adadd0eee0dad0b70ada ,
+                        0xa0ee0dada0b80dadd0e0dadada0b70daa00dadadad0b00add0dadadadad0110a ,
+                        0xadadadadada000ad
+                    End
+                    FontName ="System"
+                    ObjectPalette = Begin
+                        0x0003100000000000800000000080000080800000000080008000800000808000 ,
+                        0x80808000c0c0c000ff000000c0c0c000ffff00000000ff00c0c0c00000ffff00 ,
+                        0xffffff0000000000
+                    End
+                    GUID = Begin
+                        0xad74418a3e6db74f9e4524d95b20601d
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =1020
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =60
+                    Top =60
+                    Width =10140
+                    Height =285
+                    Name ="Label10"
+                    Caption ="De uitslag wordt per categorie gesorteerd, in bovenstaande volgorde. "
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =77
+                    Left =56
+                    Top =453
+                    Width =2049
+                    Height =460
+                    Name ="btnOnd"
+                    Caption ="&Meetellende onderdelen"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+
+Private Sub btnOnd_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+If Not pntFillTables(waarde(), waarde_pnt()) Then
+  Exit Sub
+End If
+
+
+DoCmd.OpenForm "PNT_TeltMee", , , , , acDialog
+End Sub
+
+Private Sub btnPromptCat_Click()
+On Error Resume Next
+Dim sCurCat As String
+sCurCat = Nz([PTC_Categorie])
+Dim blIsOK As Boolean, sLkpCat As String
+If Not ctxPromptUser(sCurCat, False, False, wed_age_date(), wed_lft_mode(), blIsOK, sLkpCat) Then
+  Exit Sub
+End If
+
+If (blIsOK) Then
+  Me.PTC_Categorie = hzn(sLkpCat)
+  PTC_Categorie_AfterUpdate
+  Me.PTC_BeschrijvingCategorie.SetFocus
+End If
+End Sub
+
+Private Sub Form_AfterInsert()
+On Error Resume Next
+PTC_CatOrder_AfterUpdate
+End Sub
+
+
+
+Private Sub Form_Close()
+On Error Resume Next
+'Dim sql As String
+'sql = "INSERT INTO Teltmee (  TM_Cat, TM_Code, TM_Teltmee )" & _
+' " SELECT [Categorie tbl].CT_Index, [Onderdelen tbl].ON_Code, True AS Expr1" & _
+' " FROM [Categorie tbl], [Onderdelen tbl];"
+
+'DoCmd.SetWarnings False
+'DoCmd.RunSQL (sql)
+'DoCmd.SetWarnings True
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
+
+Private Sub PTC_Categorie_AfterUpdate()
+On Error Resume Next
+PTC_BeschrijvingCategorie = hzn(catBeschrijving(Nz(Me.PTC_Categorie)))
+End Sub
+
+Private Sub PTC_CatOrder_AfterUpdate()
+On Error Resume Next
+PTC_CatOrder.DefaultValue = PTC_CatOrder.value + 1
+
+End Sub
+
+Private Sub PTC_FinaleProgrammanummer_AfterUpdate()
+On Error Resume Next
+Me.PTC_FinaleWedstrijdnummer = Me.PTC_FinaleProgrammanummer.Column(0)
+End Sub
+
+
+
+Private Sub btnDown_Click()
+On Error Resume Next
+moveItem 1
+End Sub
+
+Private Sub btnUp_Click()
+On Error Resume Next
+moveItem -1
+End Sub
+Private Sub moveItem(direction As Integer)
+On Error GoTo fout
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+If Nz([PTC_Categorie]) = "" Then
+  Exit Sub
+End If
+
+Dim curOrder As Integer
+curOrder = Nz(Me.PTC_CatOrder)
+
+Dim newOrder As Integer
+newOrder = curOrder + direction
+
+If (curOrder > 0) Then
+  Me.RecordsetClone.FindFirst "[PTC_CatOrder] = " & newOrder
+  If (Not Me.RecordsetClone.NoMatch) Then
+    Me.RecordsetClone.Edit
+    Me.RecordsetClone("PTC_CatOrder") = -999
+    Me.RecordsetClone.Update
+    Me.PTC_CatOrder = newOrder
+    DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+    Me.RecordsetClone.Edit
+    Me.RecordsetClone("PTC_CatOrder") = curOrder
+    Me.RecordsetClone.Update
+  End If
+End If
+
+Dim tpB
+tpB = Me.Bookmark
+Me.Requery
+Me.Bookmark = tpB
+Exit Sub
+fout:
+If (Err = 3159) Then Resume Next 'invalid bookmark
+If (Err = 3021) Then Resume Next
+MsgBox Err & " moveItem" & vbCrLf & Error$, 16
+Exit Sub
+End Sub

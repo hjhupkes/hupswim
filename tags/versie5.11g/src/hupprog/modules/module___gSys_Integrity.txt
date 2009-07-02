@@ -1,0 +1,50 @@
+Option Compare Database
+Option Explicit
+
+Public Function testLxf()
+
+
+
+Dim startTime As Date
+startTime = Now()
+
+If Not lenReadFile("d:\temp\bug\lenex\knzb", "athletes_zwemmen.lxf", False) Then
+  Exit Function
+End If
+
+Dim endtime As Date
+endtime = Now()
+
+Debug.Print "Time needed: " & DateDiff("s", startTime, endtime)
+
+End Function
+
+
+Public Function testIntegrity()
+
+Dim lCnt As Long
+lCnt = 0
+Dim f As Form, db As Database
+Set db = CurrentDb()
+
+Dim c As Container
+Set c = db.Containers("forms")
+Dim d As Document
+For Each d In c.Documents
+  DoCmd.OpenForm d.name, acDesign
+  DoCmd.Close acForm, d.name
+  lCnt = lCnt + 1
+Next d
+
+Debug.Print "Opened " & lCnt & " forms"
+
+lCnt = 0
+Set c = db.Containers("reports")
+For Each d In c.Documents
+  DoCmd.OpenReport d.name, acDesign
+  DoCmd.Close acReport, d.name
+  lCnt = lCnt + 1
+Next d
+
+Debug.Print "Opened " & lCnt & " reports"
+End Function

@@ -1,0 +1,391 @@
+Version =20
+VersionRequired =20
+Checksum =-893833877
+Begin Form
+    NavigationButtons = NotDefault
+    AllowAdditions = NotDefault
+    ScrollBars =2
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =6860
+    DatasheetFontHeight =10
+    ItemSuffix =14
+    Left =2565
+    Top =810
+    Right =8055
+    Bottom =4605
+    DatasheetGridlinesColor =12632256
+    BeforeDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x10f532c3f5ece140
+    End
+    RecordSource ="SELECT [~FLTData].Nr, [~FLTData].FieldName, [~FLTData].FieldType, [~FLTData].Ord"
+        "erBy, [~FLTData].Criteria FROM [~FLTData] ORDER BY [~FLTData].Nr;"
+    AfterUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnActivate ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =453
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =56
+                    Top =165
+                    Width =390
+                    Height =210
+                    Name ="lab3"
+                    Caption ="Nr"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =566
+                    Top =165
+                    Width =780
+                    Height =210
+                    Name ="Label11"
+                    Caption ="Veldnaam"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2323
+                    Top =165
+                    Width =780
+                    Height =210
+                    Name ="Label12"
+                    Caption ="Sorteren"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =3684
+                    Top =165
+                    Width =780
+                    Height =210
+                    Name ="Label13"
+                    Caption ="Criteria"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =56
+                    Width =321
+                    Name ="t3"
+                    ControlSource ="Nr"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="1"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =93
+                    Left =509
+                    TabIndex =1
+                    Name ="FieldName"
+                    ControlSource ="FieldName"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =247
+                    Left =1700
+                    Width =516
+                    TabIndex =2
+                    Name ="FieldType"
+                    ControlSource ="FieldType"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3684
+                    Width =3066
+                    TabIndex =4
+                    Name ="Criteria"
+                    ControlSource ="Criteria"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin ComboBox
+                    RowSourceTypeInt =1
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =2
+                    ListWidth =1440
+                    Left =2323
+                    Width =1251
+                    TabIndex =3
+                    Name ="Combo9"
+                    ControlSource ="OrderBy"
+                    RowSourceType ="Value List"
+                    RowSource ="0;\"(niet sorteren)\";1;\"Oplopend\";2;\"Aflopend\""
+                    ColumnWidths ="0;1440"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =16776960
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub Criteria_AfterUpdate()
+On Error Resume Next
+Me.Criteria = sql_parse(Me.Criteria, Me.FieldType)
+
+End Sub
+
+Private Sub Form_Activate()
+On Error Resume Next
+Me.OrderBy = ""
+End Sub
+
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+t3_AfterUpdate
+Me.Requery
+End Sub
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
+    On Error Resume Next
+    Const OKCANCEL = 1, OKDELETE = 1, CANCELDELETE = 2
+    Dim answer As Integer
+    response = acDataErrContinue ' Suppress default delete confirm dialog box.
+' Display custom dialog box.
+    answer = MsgBox("Veld verwijderen?", 33, "Hupswim")
+    If answer = CANCELDELETE Then Cancel = True
+End Sub
+
+
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
+
+Private Sub t3_AfterUpdate()
+'On Error Resume Next
+t3.DefaultValue = t3.value + 1
+End Sub
+
+Public Function sql_parse(text, FieldType As Integer) 'soortgegeven = 1 -> tekst 2 -> integer
+On Error Resume Next
+
+
+Dim soort_gegeven As Integer
+Select Case FieldType
+  Case dbText
+    soort_gegeven = 1
+  Case Else
+    soort_gegeven = 2
+End Select
+
+
+
+
+If IsNull(text) Or text = "" Then
+    sql_parse = Null
+    Exit Function
+End If
+
+Dim tpsql As String
+Dim groterdan As Boolean
+groterdan = False
+
+tpsql = ""
+
+
+If text Like "Between * and *" Then
+    'between statement afhandelen
+    Dim deel1 As String
+    Dim deel2 As String
+    deel1 = Trim(Mid(text, 8, InStr(1, text, "and") - 8))
+    deel2 = Trim(Mid(text, InStr(1, text, "and") + 4))
+    
+    deel1 = Mid(sql_parse(deel1, soort_gegeven), 2)
+    deel2 = Mid(sql_parse(deel2, soort_gegeven), 2)
+    sql_parse = "Between " & deel1 & " and " & deel2
+    Exit Function
+End If
+    
+
+If text Like "Like *" Then
+    Dim l_deel1 As String
+    l_deel1 = "Like " & Mid(sql_parse(Right(text, Len(text) - 5), 1), 2) 'als text parsen..,
+    sql_parse = l_deel1
+    Exit Function
+End If
+
+
+
+
+Dim EChar 'eerste karakter
+EChar = Left(text, 1)
+If EChar = "=" Or EChar = "<" Or EChar = ">" Then 'operator is goed
+    If EChar = "<" Or EChar = ">" Then groterdan = True
+    tpsql = EChar
+    text = Right(text, Len(text) - 1) 'eerste operator uit de tekst halen
+Else
+    tpsql = "="
+End If
+
+'De eerste operator is er uitgefilterd.
+
+
+EChar = Left(text, 1) 'tweede karakter
+
+If EChar = "=" And groterdan Then
+    tpsql = tpsql & "="
+    text = Right(text, Len(text) - 1) '<= uit de text gefilterd.
+End If
+    
+EChar = Left(text, 1)
+    
+If (soort_gegeven = 1) And EChar <> """" Then
+    tpsql = tpsql & """"
+Else
+    If (soort_gegeven = 1) Then
+        tpsql = tpsql & EChar
+        text = Right(text, Len(text) - 1) 'operator uit de text halen
+    End If
+End If
+
+'We hebben nu een eventueel "" teken uit de text gefilterd. Nu staat er in de tekst alleen nog hetgeen we nodig hebben.
+
+tpsql = tpsql & text
+
+If Right(text, 1) <> """" And soort_gegeven = 1 Then
+    tpsql = tpsql & """"
+End If
+
+'Laatste "" er bij gezet.
+
+
+sql_parse = tpsql
+
+End Function
+
+Public Function verzin_filter() As String
+On Error GoTo fout
+Dim geg As Recordset
+Set geg = Me.RecordsetClone
+
+
+Dim filterleeg As Boolean, filter As String
+filter = ""
+filterleeg = True
+
+geg.MoveFirst
+Do Until geg.EOF
+  If Nz(geg("Criteria"), "") <> "" Then
+    If filterleeg Then
+      filter = "([" & geg("FieldName") & "] " & geg("Criteria") & ")"
+      filterleeg = False
+    Else
+      filter = filter & " and ([" & geg("FieldName") & "] " & geg("Criteria") & ")"
+    End If
+  End If
+  geg.MoveNext
+Loop
+
+
+verzin_filter = Nz(filter, "")
+Exit Function
+
+fout:
+If Err = 3021 Then 'no current record
+  verzin_filter = ""
+  Exit Function
+End If
+MsgBox Error$, 16
+
+verzin_filter = ""
+Exit Function
+
+
+End Function
+
+Public Function verzin_orderby() As String
+On Error GoTo fout
+Dim geg As Recordset
+Set geg = Me.RecordsetClone
+
+Dim orderleeg As Boolean, order As String
+order = ""
+orderleeg = True
+
+geg.MoveFirst
+Do Until geg.EOF
+  If Nz(geg("Orderby"), 0) <> 0 Then
+    If geg("Orderby") = 1 Then 'ascending
+      If orderleeg Then
+        order = geg("FieldName")
+        orderleeg = False
+      Else
+        order = order & ", " & geg("FieldName")
+      End If
+    Else
+      If orderleeg Then
+        order = geg("FieldName") & " DESC"
+        orderleeg = False
+      Else
+        order = order & ", " & geg("FieldName") & " DESC"
+      End If
+    End If
+  End If
+  geg.MoveNext
+Loop
+
+verzin_orderby = Nz(order, "")
+Exit Function
+
+fout:
+If Err = 3021 Then 'no current record
+  verzin_orderby = ""
+  Exit Function
+End If
+MsgBox Error$, 16
+verzin_orderby = ""
+Exit Function
+      
+  
+
+End Function

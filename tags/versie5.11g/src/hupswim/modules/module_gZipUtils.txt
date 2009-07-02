@@ -1,0 +1,504 @@
+Option Compare Database
+Option Explicit
+
+Public Type ZIP_INTERNAL
+  zipIsZip As Boolean
+  zipTempDir As String
+  zipArchiveFullName As String
+  zipFileToProcess As String
+  zipFullFileNameToProcess As String
+End Type
+
+Public Const ZIP_UNKNOWN_FILE = 0
+Public Const ZIP_INVALID_CNT = 1
+Public Const ZIP_UZIP_FAILURE = 2
+Public Const ZIP_INVALID_FILE_NAME = 3
+
+
+Private Sub zipKillTemp(dirName As String, fFullName As String, Optional deleteDir As Boolean = True)
+On Error Resume Next
+'To reset the directory.
+FileSystem.dir "<Illegal>"
+FileSystem.Kill fFullName
+If (deleteDir) Then
+  FileSystem.Kill dirName & "\*.*"
+  FileSystem.RmDir dirName
+End If
+End Sub
+
+
+
+Public Function zipWrite_finish(ByVal blShouldPack As Boolean, ByRef isPackedOK As Boolean, ByVal blShowErrDlg As Boolean, ByRef sErrReason As String, ByRef zipData As ZIP_INTERNAL) As Boolean
+On Error GoTo fout
+zipWrite_finish = False
+
+isPackedOK = False
+
+If (zipData.zipIsZip) Then
+
+  On Error GoTo fout_cleanup
+
+  Dim fToZipComplete As String
+  fToZipComplete = zipData.zipFullFileNameToProcess
+
+  'Zip the file.
+  Dim okk As Boolean
+  okk = zipFile(zipData.zipArchiveFullName, fToZipComplete)
+  'This weird construction is necessary due to a bug in dll boolean extraction.
+  Dim okkk As Boolean
+  okkk = False
+  If okk Then
+    okkk = True
+  End If
+  
+  If Not okkk Then
+    sErrReason = "There was an error writing the file: " & Chr(13) & fToZipComplete & Chr(13) & "to the archive: " & zipData.zipArchiveFullName & "."
+    Err.Raise 1, , sErrReason
+  End If
+  
+  zipKillTemp zipData.zipTempDir, fToZipComplete
+  
+  On Error GoTo fout
+
+
+End If
+
+
+isPackedOK = True
+
+zipWrite_finish = True
+Exit Function
+
+fout:
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " zipWrite_finish" & vbCrLf & Error$
+
+
+If (errCode = 1) Then
+  'This is a recoverable error
+  If (blShowErrDlg) Then
+    MsgBox msg, 16
+  End If
+  zipWrite_finish = True
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_zip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+
+Exit Function
+
+
+fout_cleanup:
+
+errCode = Err
+
+msg = errCode & " zipWrite_finish" & vbCrLf & Error$
+
+zipKillTemp zipData.zipTempDir, fToZipComplete
+
+
+If (errCode = 1) Then
+  If (blShowErrDlg) Then
+    MsgBox msg, 16
+  End If
+  zipWrite_finish = True
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_zip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & _
+  "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+Exit Function
+   
+
+
+End Function
+
+
+
+'If function returns true, then need to clean up afterwards.
+Public Function zipWrite(fFullFileName As String, fActFileExt As String, fZipFileExt As String, ByRef fNameToWrite As String, ByRef zipData As ZIP_INTERNAL) As Boolean
+On Error GoTo fout
+zipWrite = False
+
+zipData.zipIsZip = False
+fNameToWrite = ""
+
+Dim fFileExt As String
+
+If Len(fFullFileName) <= 4 Then
+  Err.Raise 1, , "Invalid file name."
+End If
+fFileExt = Right(fFullFileName, 3)
+
+
+Dim fFilePath As String
+Dim fFileName As String
+fFilePath = extractFilePath(fFullFileName)
+fFileName = extractFileName(fFullFileName)
+
+
+If FileExists(fFullFileName) Then
+  If MsgBox("Het bestand: " & vbCrLf & fFullFileName & vbCrLf & "bestaat al. Wilt u het overschrijven?", vbOKCancel + vbQuestion) = vbCancel Then
+    Exit Function
+  End If
+  
+  FileSystem.Kill fFullFileName
+  
+  If FileExists(fFullFileName) Then
+    Err.Raise 1, , "Could not delete file: " & fFullFileName
+  End If
+End If
+  
+
+
+
+If fFileExt = fActFileExt Then
+  'Write the file.
+  zipData.zipIsZip = False
+  fNameToWrite = fFullFileName
+ElseIf fFileExt = fZipFileExt Then
+  zipData.zipIsZip = True
+  'Need to zip the file.
+  
+  'First create pack directory.
+  
+ 
+  Dim packDir As String
+  packDir = directory_goedmaak(fFilePath) & "\__hupswim__unzip__volatile"
+  
+  zipData.zipTempDir = packDir
+    
+  On Error Resume Next
+  If (Not DirectoryExists(packDir)) Then
+    FileSystem.MkDir (packDir)
+  End If
+  
+  On Error GoTo fout_cleanup
+  
+  If (Not DirectoryExists(packDir)) Then
+    On Error GoTo fout
+    Err.Raise 1, , "Error creating temporary pack directory: " & packDir
+  End If
+ 
+  Dim fToZip As String
+  fToZip = Left(fFileName, Len(fFileName) - 3) & fActFileExt
+ 
+ 
+  zipData.zipFileToProcess = fToZip
+ 
+  Dim fToZipComplete As String
+  fToZipComplete = packDir & "\" & fToZip
+  
+  'Now test if archive exists. If so, delete.
+ 
+  If (FileExists(fFullFileName)) Then
+    FileSystem.Kill (fFullFileName)
+  End If
+  
+  If (FileExists(fFullFileName)) Then
+    On Error GoTo fout
+    Err.Raise 1, , "Error deleting existing file: " & fFullFileName
+  End If
+  
+  
+  zipData.zipArchiveFullName = fFullFileName
+  
+    
+  zipData.zipFullFileNameToProcess = fToZipComplete
+  fNameToWrite = zipData.zipFullFileNameToProcess
+  
+  
+Else
+  Err.Raise 1, , "Invalid file extension: " & fFileExt & vbCrLf & "for filename: " & fFullFileName
+End If
+
+
+
+
+
+zipWrite = True
+Exit Function
+
+
+fout:
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " zipWrite" & vbCrLf & Error$
+
+
+If (errCode = 1) Then
+  MsgBox msg, 16
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_zip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+
+Exit Function
+
+
+fout_cleanup:
+
+errCode = Err
+
+msg = errCode & " zipWrite" & vbCrLf & Error$
+
+zipKillTemp packDir, ""
+
+
+If (errCode = 1) Then
+  MsgBox msg, 16
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_zip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & _
+  "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+Exit Function
+   
+
+
+End Function
+
+
+
+Public Function zipRead_finish(ByRef zipData As ZIP_INTERNAL) As Boolean
+On Error GoTo fout
+zipRead_finish = False
+
+If (zipData.zipIsZip) Then
+  zipKillTemp zipData.zipTempDir, zipData.zipFullFileNameToProcess
+End If
+
+
+zipRead_finish = True
+Exit Function
+fout:
+MsgBox Err & " zipRead_finish" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+'If function returns true and blIsExtracted = true, then need to clean up afterwards.
+Public Function zipRead(ByVal fFullFileName As String, ByVal fActFileExt As String, ByVal fZipFileExt As String, ByRef blIsExtracted As Boolean, ByVal blShowErrDlg As Boolean, ByRef zipInvalidReason As Integer, ByRef zipInvalidString As String, ByRef fExtractedFileFullName As String, ByRef zipData As ZIP_INTERNAL) As Boolean
+On Error GoTo fout
+zipRead = False
+
+blIsExtracted = False
+
+
+If fFullFileName = "" Or Not FileExists(fFullFileName) Then
+  zipInvalidReason = ZIP_UNKNOWN_FILE
+  zipInvalidString = "Het bestand: " & vbCrLf & fFullFileName & vbCrLf & "kon niet worden gevonden."
+  Err.Raise 1, , zipInvalidString
+End If
+
+
+If Len(fFullFileName) <= 4 Then
+  zipInvalidReason = ZIP_INVALID_FILE_NAME
+  zipInvalidString = "Invalid name for file: " & fFullFileName
+  Err.Raise 1, , zipInvalidString
+End If
+
+
+
+Dim fFileExt As String
+fFileExt = Right(fFullFileName, 3)
+
+
+Dim fFileName As String
+Dim fFilePath As String
+
+fFileName = extractFileName(fFullFileName)
+fFilePath = extractFilePath(fFullFileName)
+
+
+If (fFileExt = fZipFileExt) Then
+
+  zipData.zipIsZip = True
+  zipData.zipArchiveFullName = fFullFileName
+
+  Dim cnt As Long
+  cnt = countZip(fFullFileName)
+  If cnt <> 1 Then
+    If (cnt >= 0) Then
+      zipInvalidReason = ZIP_INVALID_CNT
+      zipInvalidString = "Invalid file. Archive was expected to contain 1 file. Found: " & cnt & " file(s)"
+      Err.Raise 1, , zipInvalidString
+    Else
+      zipInvalidReason = ZIP_UZIP_FAILURE
+      zipInvalidString = "Error accessing zip file: " + fFullFileName
+      Err.Raise 1, , zipInvalidString
+    End If
+  End If
+  
+  Dim upackDir As String
+  upackDir = directory_goedmaak(fFilePath) & "\__hupswim__unzip__volatile"
+  'Now need to unpack file.
+  
+  zipData.zipTempDir = upackDir
+  
+  On Error Resume Next
+  If (Not DirectoryExists(upackDir)) Then
+    FileSystem.MkDir (upackDir)
+  End If
+  
+  If (Not DirectoryExists(upackDir)) Then
+    On Error GoTo fout
+    zipInvalidReason = ZIP_UZIP_FAILURE
+    zipInvalidString = "Error creating temporary unpack directory: " & upackDir
+    Err.Raise 1, , zipInvalidString
+  End If
+ 
+  Dim fToUnzip As String
+  fToUnzip = Left(fFileName, Len(fFileName) - 3) & fActFileExt
+ 
+  Dim fToUnzipComplete As String
+  fToUnzipComplete = upackDir & "\" & fToUnzip
+  
+  zipData.zipFileToProcess = fToUnzip
+  zipData.zipFullFileNameToProcess = fToUnzipComplete
+ 
+  If (FileExists(fToUnzipComplete)) Then
+    FileSystem.Kill (fToUnzipComplete)
+  End If
+  
+  If (FileExists(fToUnzipComplete)) Then
+    On Error GoTo fout
+    zipInvalidReason = ZIP_UZIP_FAILURE
+    zipInvalidString = "Error deleting existing file: " & fToUnzipComplete
+    Err.Raise 1, , zipInvalidString
+  End If
+  
+  
+  
+  
+  On Error GoTo fout_cleanup
+  
+  Dim okk As Boolean
+  okk = unzipFile(fFullFileName, upackDir, fToUnzip)
+  'This weird construction is necessary due to a bug in dll boolean extraction.
+  Dim okkk As Boolean
+  okkk = False
+  If okk Then
+    okkk = True
+  End If
+  'End if.
+    
+  If Not okkk Then
+  
+    'Modification Nov 2006. Support of packed file names that do not match the name of the archive.
+    Dim tpList As String
+    tpList = FileSystem.dir(upackDir & "\*." & fActFileExt)
+    If tpList <> "" Then
+      zipInvalidReason = ZIP_UZIP_FAILURE
+      zipInvalidString = "The temporary directory: " & vbCrLf & upackDir & vbCrLf & "already contains ." & fActFileExt & " files."
+      Err.Raise 1, , zipInvalidString
+    End If
+      
+    okk = unzipAll(fFullFileName, upackDir)
+    'This weird construction is necessary due to a bug in dll boolean extraction.
+    
+    okkk = False
+    If okk Then
+      okkk = True
+    End If
+    
+    If Not okkk Then
+      zipInvalidReason = ZIP_UZIP_FAILURE
+      zipInvalidString = "There was an error unpacking the archive: " & vbCrLf & fFullFileName
+      Err.Raise 1, , zipInvalidString
+    End If
+    
+    tpList = FileSystem.dir(upackDir & "\*." & fActFileExt)
+    
+    'This is to ensure that we are able to delete the directory on termination. Weird, but...
+    'modification. Skip this. It has been moved to zipKillTemp
+    'FileSystem.dir
+    
+    If tpList = "" Then
+      zipInvalidReason = ZIP_INVALID_CNT
+      zipInvalidString = "The archive: " & vbCrLf & fFullFileName & vbCrLf & "does not appear to contain a ." & fActFileExt & " file"
+      Err.Raise 1, , zipInvalidString
+    End If
+    
+    
+    fToUnzipComplete = upackDir & "\" & tpList
+    
+    zipData.zipFileToProcess = tpList
+    zipData.zipFullFileNameToProcess = fToUnzipComplete
+    
+  End If
+      
+  On Error GoTo fout
+  
+  fExtractedFileFullName = zipData.zipFullFileNameToProcess
+  
+  
+  
+ElseIf (fFileExt = fActFileExt) Then
+  zipData.zipIsZip = False
+  
+  fExtractedFileFullName = fFullFileName
+  
+Else
+  zipInvalidReason = ZIP_INVALID_FILE_NAME
+  zipInvalidString = "Invalid extension for file. Should be ." & fActFileExt & " or ." & fZipFileExt & ". Found: " & fFileExt
+  Err.Raise 1, , zipInvalidString
+End If
+
+
+blIsExtracted = True
+
+
+
+zipRead = True
+Exit Function
+fout:
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " zipRead" & vbCrLf & Error$
+
+
+If (errCode = 1) Then
+  If (blShowErrDlg) Then
+    MsgBox msg, 16
+  End If
+  zipRead = True
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+
+Exit Function
+
+
+fout_cleanup:
+
+errCode = Err
+
+msg = errCode & " zipRead" & vbCrLf & Error$
+
+zipKillTemp upackDir, fToUnzipComplete
+
+
+If (errCode = 1) Then
+  If (blShowErrDlg) Then
+    MsgBox msg, 16
+  End If
+  zipRead = True
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function

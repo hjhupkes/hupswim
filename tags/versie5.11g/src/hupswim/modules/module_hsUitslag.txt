@@ -1,0 +1,63 @@
+Option Compare Database
+Option Explicit
+
+
+Public Function uitslagRanglijsten(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+uitslagRanglijsten = True
+End Function
+
+Public Function uitslagTransferSettings(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+On Error GoTo fout
+uitslagTransferSettings = False
+
+Dim sql As String
+
+If Not blEntireMeet Then
+
+  sql = "UPDATE dtDeelnemers INNER JOIN dtUitslagenPers ON (dtDeelnemers.Startnummer = dtUitslagenPers.TY_Startnummer) " & _
+  "AND (dtDeelnemers.Programmanr = dtUitslagenPers.TY_Programmanummer) AND " & _
+  "(dtDeelnemers.Wedstrijdnr = dtUitslagenPers.TY_Wedstrijdnummer) SET dtUitslagenPers.TY_BM = [BM] " & _
+  "WHERE (dtDeelnemers.Wedstrijdnr= " & wednr & ");"
+
+
+  DoCmd.SetWarnings False
+
+  DoCmd.RunSQL sql
+  
+  DoCmd.SetWarnings True
+
+Else
+
+  Dim lMeetNr As Long
+  Dim blFnd As Boolean, wedInf As WED_BASIC_INFO
+  If Not wedLookup(wednr, blFnd, wedInf) Then
+    Exit Function
+  End If
+  If Not blFnd Then
+    Err.Raise 1, , "Kon wedstrijd: " & lMeetNr & " niet vinden."
+  End If
+  lMeetNr = wedInf.meetMainNr
+  
+  sql = "UPDATE (dtDeelnemers INNER JOIN dtUitslagenPers ON (dtDeelnemers.Startnummer = dtUitslagenPers.TY_Startnummer) " & _
+  "AND (dtDeelnemers.Programmanr = dtUitslagenPers.TY_Programmanummer) AND (dtDeelnemers.Wedstrijdnr = dtUitslagenPers.TY_Wedstrijdnummer)) " & _
+  "INNER JOIN dtWedstrijden ON dtDeelnemers.Wedstrijdnr = dtWedstrijden.[Wedstrijd nummer] SET dtUitslagenPers.TY_BM = [BM] " & _
+  "WHERE (dtWedstrijden.[Wedstrijd nummer]=" & lMeetNr & ") OR (dtWedstrijden.MainWedstrijdNummer=" & lMeetNr & ");"
+
+
+  DoCmd.SetWarnings False
+  
+  DoCmd.RunSQL sql
+  
+  DoCmd.SetWarnings True
+  
+
+End If
+
+
+uitslagTransferSettings = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " uitslagTransferSettings" & vbCrLf & Error$, 16
+Exit Function
+End Function

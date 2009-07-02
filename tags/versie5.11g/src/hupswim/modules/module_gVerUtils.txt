@@ -1,0 +1,111 @@
+Option Explicit
+Option Compare Database
+
+
+
+Public Function verListPromptUser(ByRef isOK As Boolean, ByRef nVers As Integer, ByRef ordVers() As String) As Boolean
+On Error GoTo fout
+verListPromptUser = False
+
+
+Dim sql As String
+sql = "Delete * from gVerListOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Delete * from gVerListOpzoekVers;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gVerListOpzoek")
+
+rs.AddNew
+  rs("VLO_OK") = False
+rs.Update
+
+appCleanRS rs
+
+Set rs = CurrentDb().OpenRecordset("gVerListOpzoekVers")
+
+Dim vers As Recordset
+Set vers = CurrentDb().OpenRecordset(TNM_VER)
+
+vers.MoveFirst
+Do Until vers.EOF
+
+  Dim tpVName As String, tpVPlaats As String, tPVDepot As String
+  Dim tpRegion As Long
+  
+  tpVName = Nz(vers(FNM_VER_NAAM))
+  tpVPlaats = Nz(vers(FNM_VER_PLAATS))
+  tPVDepot = Nz(vers(FNM_VER_DEPOT))
+  
+  tpRegion = -1
+  If (Len(tPVDepot) = 6) Then
+    tpRegion = CLng(val(Left(tPVDepot, 2)))
+  End If
+  If (tpRegion <= 0) Or (tpRegion >= 14) Then
+    tpRegion = -1
+  End If
+  
+  Dim tpIsSel As Boolean
+  tpIsSel = False
+  
+  If bSearchString(tpVName, nVers, ordVers) >= 0 Then
+    tpIsSel = True
+  End If
+  
+  
+  rs.AddNew
+    rs("V_Naam") = hzn(tpVName)
+    rs("V_Plaats") = hzn(tpVPlaats)
+    rs("V_RegioCode") = tpRegion
+    rs("V_IsSelected") = tpIsSel
+  rs.Update
+  
+
+  vers.MoveNext
+Loop
+
+
+
+
+
+DoCmd.OpenForm "gVerListOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("gVerListOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel gVerListOpzoek is leeg."
+End If
+
+isOK = Nz(rs("VLO_OK"))
+
+appCleanRS rs
+
+If (isOK) Then
+  
+  nVers = 0
+  
+  Set rs = CurrentDb().OpenRecordset("select * from gVerListOpzoekVers where v_isSelected = true order by v_naam;")
+  rs.MoveFirst
+  Do Until rs.EOF
+    tpVName = Nz(rs("V_Naam"))
+    insString tpVName, nVers, ordVers
+    rs.MoveNext
+  Loop
+End If
+
+verListPromptUser = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " verListPromptUser" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function

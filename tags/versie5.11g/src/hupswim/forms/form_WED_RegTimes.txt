@@ -1,0 +1,463 @@
+Version =20
+VersionRequired =20
+Checksum =-536502236
+Begin Form
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =2
+    BorderStyle =1
+    GridX =5
+    GridY =5
+    Width =8503
+    ItemSuffix =76
+    Left =3105
+    Top =180
+    Right =14535
+    Bottom =5025
+    AfterInsert ="[Event Procedure]"
+    BeforeDelConfirm ="[Event Procedure]"
+    AfterDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x499da7b47f5fe340
+    End
+    RecordSource ="SELECT [dtLeden].Geslacht, [voornaam] & \" \" & [voegsel] & \" \" & [achternaam]"
+        " AS Naam, [dtTijden].* FROM [dtLeden] INNER JOIN [dtTijden] ON [dtLeden].Startnu"
+        "mmer = [dtTijden].[Start nr] WHERE ((([dtTijden].[Wedstr nr])=waarde())) ORDER B"
+        "Y [dtTijden].[Start nr], [dtTijden].Slag, Val([afstand]), [dtTijden].Afstand, [d"
+        "tTijden].Tijd;"
+    Caption ="Gezwommen tijden"
+    OnCurrent ="[Event Procedure]"
+    AfterUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin Line
+            Width =1701
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =355
+            BackColor =16776960
+            Name ="FormHeader3"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =3411
+                    Top =115
+                    Width =660
+                    Height =240
+                    Name ="Text2"
+                    Caption ="Afstand:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4204
+                    Top =115
+                    Width =567
+                    Height =240
+                    Name ="Text12"
+                    Caption ="Slag:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5102
+                    Top =115
+                    Width =375
+                    Height =240
+                    Name ="Text13"
+                    Caption ="Tijd:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =6010
+                    Top =115
+                    Width =345
+                    Height =240
+                    Name ="Text14"
+                    Caption ="Dis:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =630
+                    Height =240
+                    Name ="Text46"
+                    Caption ="Start.nr:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =1240
+                    Top =113
+                    Width =675
+                    Height =240
+                    Name ="Label68"
+                    Caption ="Naam:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =6567
+                    Top =113
+                    Width =585
+                    Height =240
+                    Name ="Label64"
+                    Caption ="Tustijd:"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =3411
+                    Width =681
+                    TabIndex =1
+                    Name ="Afstand"
+                    ControlSource ="Afstand"
+                    StatusBarText =" Afstand"
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =4204
+                    Width =801
+                    TabIndex =2
+                    Name ="Slag"
+                    ControlSource ="Slag"
+                    StatusBarText =" Slag"
+                    InputMask =">CCCCCCC;;\" \""
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    Left =5102
+                    Width =786
+                    TabIndex =3
+                    Name ="Tijd"
+                    ControlSource ="Tijd"
+                    Format ="# 00.0#"
+                    StatusBarText ="Tijd minsec.dec"
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =6018
+                    Width =456
+                    TabIndex =4
+                    Name ="Diskw code"
+                    ControlSource ="Diskw code"
+                    Format =">"
+                    StatusBarText =" Diskwalificatie code"
+                    InputMask =">CCCCCCC;;\" \""
+                    EventProcPrefix ="Diskw_code"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OverlapFlags =93
+                    Left =1240
+                    Width =2061
+                    TabIndex =5
+                    Name ="Naam"
+                    ControlSource ="Naam"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =247
+                    Left =1937
+                    Width =921
+                    Height =120
+                    ColumnWidth =1200
+                    TabIndex =6
+                    Name ="Text70"
+                    ControlSource ="Wedstr nr"
+                    Format ="0000-000"
+                    StatusBarText =" Wedstrijd nummer"
+                    DefaultValue ="=waarde()"
+                    InputMask ="0000/000;0;\" \""
+                End
+                Begin ComboBox
+                    OverlapFlags =85
+                    ColumnCount =4
+                    ListWidth =4690
+                    Left =113
+                    Width =970
+                    ColumnInfo ="\"\";\"00-@@@@@\";\"\";\"\";\"\";\"&&&&&&&&&&&&&&&\";\"\";\"\";\"10\";\"16\""
+                    Name ="Startnr"
+                    ControlSource ="Start nr"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT Startnummer, Voornaam, Voegsel, Achternaam FROM dtLeden where [actief lid"
+                        "] = true order by stnrExpand([startnummer]);"
+                    ColumnWidths ="720;1352;796;1577"
+                    OnKeyPress ="[Event Procedure]"
+                    OnGotFocus ="[Event Procedure]"
+                    OnLostFocus ="[Event Procedure]"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =6794
+                    Top =28
+                    Height =165
+                    TabIndex =7
+                    Name ="IsTusTijd"
+                    ControlSource ="IsTusTijd"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =7370
+                    Width =561
+                    TabIndex =8
+                    Name ="EST_GUID"
+                    ControlSource ="EST_GUID"
+                    GUID = Begin
+                        0x508c26e418fc204184e55821018298aa
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =566
+            BackColor =16776960
+            Name ="FormFooter4"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =70
+                    TextFontFamily =34
+                    Left =120
+                    Top =120
+                    Width =1020
+                    Height =345
+                    FontSize =8
+                    FontWeight =400
+                    Name ="btnFilter"
+                    Caption ="&Filter..."
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                    UnicodeAccessKey =70
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    TextFontFamily =34
+                    Left =1254
+                    Top =120
+                    Width =1140
+                    Height =345
+                    FontSize =8
+                    FontWeight =400
+                    TabIndex =1
+                    Name ="btnFilterUit"
+                    Caption ="Filter uit"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =80
+                    TextFontFamily =34
+                    Left =2501
+                    Top =120
+                    Width =1581
+                    Height =345
+                    FontSize =8
+                    FontWeight =400
+                    TabIndex =2
+                    Name ="btnPloeg"
+                    Caption ="&Ploegleden..."
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0x7b4c0a291ff69547bd6380f0e409143f
+                    End
+                    UnicodeAccessKey =80
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+
+
+
+
+Private Sub btnPloeg_Click()
+On Error GoTo fout
+
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim estGUID As Long
+estGUID = Nz(Me.est_guid, -1)
+
+If (estGUID <= 0) Then
+  Err.Raise 1, , "Bij deze tijd is geen estafette ploeg geregistreerd."
+End If
+  
+  
+Dim isModified As Boolean, lNewMinYOB As Long, lNewMaxYOB As Long, lNewSumYOB As Long, lNewCntYOB As Long, sNewGes As String, sNewVer As String
+If Not estEditPloeg(estGUID, isModified, lNewMinYOB, lNewMaxYOB, lNewSumYOB, lNewCntYOB, sNewGes, sNewVer) Then
+  Exit Sub
+End If
+
+If (isModified) Then
+  [EST_MinYOB] = lNewMinYOB
+  [EST_MaxYOB] = lNewMaxYOB
+  [EST_CntYOB] = lNewCntYOB
+  [EST_SumYOB] = lNewSumYOB
+  [EST_Geslacht] = hzn(sNewGes)
+  [EST_Vereniging] = hzn(sNewVer)
+End If
+  
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+  
+Exit Sub
+fout:
+MsgBox Err & " btnPloeg_Click" & vbCrLf & Error$, 16
+Exit Sub
+
+End Sub
+
+
+
+
+
+Private Sub btnFilter_Click()
+On Error Resume Next
+
+Dim fltSQL As String, isOK As Boolean
+
+If Not fltGetTijdFilter(isOK, fltSQL) Then
+  Exit Sub
+End If
+
+If (isOK) Then
+  Me.filter = fltSQL
+  Me.FilterOn = True
+End If
+
+
+End Sub
+
+
+
+Private Sub btnFilterUit_Click()
+On Error Resume Next
+Me.FilterOn = False
+End Sub
+
+
+
+Private Sub Form_AfterDelConfirm(Status As Integer)
+On Error Resume Next
+notifyTimeChange
+End Sub
+
+Private Sub Form_AfterInsert()
+On Error Resume Next
+notifyTimeChange
+End Sub
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+notifyTimeChange
+End Sub
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, Response As Integer)
+    On Error Resume Next
+    Dim answer As Integer
+    Const OKCANCEL = 1, OKDELETE = 1, CANCELDELETE = 2
+    Response = DATA_ERRCONTINUE ' Suppress default delete confirm dialog box.
+
+    answer = MsgBox("Tijd werkelijk verwijderen?", 33, "Hupswim")
+    If answer = CANCELDELETE Then Cancel = True
+End Sub
+
+
+
+Private Sub Form_Current()
+On Error Resume Next
+If Nz(Me.Afstand) Like "*x*" Then
+  Me.btnPloeg.Enabled = True
+Else
+  Me.btnPloeg.Enabled = False
+End If
+
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+
+
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
+
+
+
+
+
+
+
+Private Sub Startnr_GotFocus()
+On Error Resume Next
+n_char = 0
+End Sub
+
+Private Sub Startnr_KeyPress(KeyAscii As Integer)
+On Error Resume Next
+Dim a
+a = streepje(KeyAscii)
+End Sub
+
+Private Sub Startnr_LostFocus()
+On Error Resume Next
+n_char = 0
+End Sub

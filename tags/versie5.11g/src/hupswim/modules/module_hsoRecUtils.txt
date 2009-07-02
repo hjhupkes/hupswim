@@ -1,0 +1,5750 @@
+Option Compare Database
+Option Explicit
+
+
+Global Const REC_SUSPECT_UNKNOWN_SEQ = 1
+Global Const REC_SUSPECT_INVALID_REC = 2
+
+
+Type RECSET_BASIC_INFO
+  Code As String
+  nm As String
+  nmSingle As String
+  lftMode As String
+  blOnlyOwnAge As Boolean
+  blOwnAgeFirst As Boolean
+  blManagedExternally As Boolean
+  blSepBaan As Boolean
+  blAllowDis As Boolean
+  blIsMultiVer As Boolean
+  startDate As Date
+  blIsFrozen As Boolean
+End Type
+
+Public Const MAX_N_REC_AGES = 100
+Public Const MAX_N_RECSETS = 100
+Public Const MAX_N_REC_AFSL = 200
+
+
+Public Function recNewNr(ByVal Code As String) As Long
+On Error GoTo fout
+
+Dim curYear As Long
+curYear = CLng(val(Format(Now(), "yyyy")))
+
+Dim minNr As Long
+minNr = curYear * 1000 + 1
+Dim maxNr As Long
+maxNr = curYear * 1000 + 999
+
+Dim lastUsed As Long
+lastUsed = Nz(DMax("RC_Recordnummer", "dtRecordsInternal", "RC_Code = """ & Code & """ and RC_Recordnummer >= " & minNr & " and rc_recordnummer <= " & maxNr))
+
+recNewNr = lastUsed + 1
+
+If (recNewNr < minNr) Then
+  recNewNr = minNr
+ElseIf (recNewNr > maxNr) Then
+  recNewNr = maxNr
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " recNewNr" & vbCrLf & Error$
+End Function
+
+Public Function rcsGetList(ByRef nRecSets As Integer, ByRef recSetCodes() As String) As Boolean
+On Error GoTo fout
+rcsGetList = False
+
+nRecSets = 0
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtRecordSets")
+rs.MoveFirst
+Do Until rs.EOF
+    
+  recSetCodes(nRecSets) = Nz(rs("RS_Code"))
+  nRecSets = nRecSets + 1
+    
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+rcsGetList = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rcsGetList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rcsLookupNext(ByVal Code As String, ByRef isFound As Boolean, ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long) As Boolean
+rcsLookupNext = rcsLookup_Perform(Code, 1, isFound, rsInfo, nRecAges, recAges)
+End Function
+
+Public Function rcsLookupPrevious(ByVal Code As String, ByRef isFound As Boolean, ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long) As Boolean
+rcsLookupPrevious = rcsLookup_Perform(Code, -1, isFound, rsInfo, nRecAges, recAges)
+End Function
+
+Public Function rcsLookup(ByVal Code As String, ByRef isFound As Boolean, ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long) As Boolean
+rcsLookup = rcsLookup_Perform(Code, 0, isFound, rsInfo, nRecAges, recAges)
+End Function
+
+
+Private Function rcsLookup_readInfo(ByRef rs As Recordset, ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long) As Boolean
+On Error GoTo fout
+rcsLookup_readInfo = False
+
+rsInfo.blOnlyOwnAge = Nz(rs("RS_OnlyOwnAge"))
+rsInfo.blOwnAgeFirst = Nz(rs("RS_OwnAgeFirst"))
+rsInfo.lftMode = Nz(rs("RS_LftMode"))
+rsInfo.nm = Nz(rs("RS_Name"))
+rsInfo.nmSingle = Nz(rs("RS_NameSingle"))
+rsInfo.Code = Nz(rs("RS_Code"))
+rsInfo.blManagedExternally = Nz(rs("RS_ManagedExternally"))
+rsInfo.blSepBaan = Nz(rs("RS_SeparateBaanlengtes"))
+rsInfo.blAllowDis = Nz(rs("RS_AllowDis"))
+rsInfo.blIsMultiVer = Nz(rs("RS_IsMultiVer"))
+rsInfo.startDate = Nz(rs("RS_StartDate"), #1/1/1900#)
+rsInfo.blIsFrozen = Nz(rs("RS_IsFrozen"))
+
+
+Dim rsAge As Recordset
+Set rsAge = CurrentDb().OpenRecordset("select * from dtRecordsetAges where rsa_code = """ & rsInfo.Code & """ order by rsa_age")
+  
+rsAge.MoveFirst
+Do Until rsAge.EOF
+  Dim tpAge As Long
+  tpAge = Nz(rsAge("RSA_Age"))
+  If (tpAge < MAX_N_REC_AGES) Then
+    recAges(nRecAges) = tpAge
+    nRecAges = nRecAges + 1
+  End If
+  rsAge.MoveNext
+Loop
+'Add maximum age.
+  
+recAges(nRecAges) = CAT_MAX_AGE
+nRecAges = nRecAges + 1
+
+
+
+
+rcsLookup_readInfo = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next 'no current record
+MsgBox Err & " rcsLookup_readInfo" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function rcsLookup_Perform(ByVal Code As String, ByVal direction As Integer, ByRef isFnd As Boolean, ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long) As Boolean
+On Error GoTo fout
+rcsLookup_Perform = False
+
+isFnd = False
+
+Dim rs As Recordset
+
+Dim sql As String
+
+
+If (direction = 0) Then
+  sql = "select * from dtRecordSets where rs_code = """ & Code & """"
+Else
+  sql = "select * from dtRecordSets"
+End If
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+If (direction = 0) Then
+  rs.MoveFirst
+  If Not rs.EOF Then
+    If Not rcsLookup_readInfo(rs, rsInfo, nRecAges, recAges) Then
+      Exit Function
+    End If
+    isFnd = True
+  End If
+Else
+  rs.FindFirst "rs_code = """ & Code & """"
+  If Not rs.NoMatch Then
+    If (direction < 0) Then
+      rs.MovePrevious
+    Else
+      rs.MoveNext
+    End If
+    If (Not rs.BOF) And (Not rs.EOF) Then
+      If Not rcsLookup_readInfo(rs, rsInfo, nRecAges, recAges) Then
+        Exit Function
+      End If
+      isFnd = True
+    End If
+  End If
+End If
+
+appCleanRS rs
+
+rcsLookup_Perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rcsLookup_Perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recLkp_handleExternal_findTime(ByRef rs As Recordset, ByVal Code As String, ByVal tpAf As String, tpSl As String, tpBn As Integer, tpLft As Long, tpGes As String, ByVal afslIdx As Integer, ByVal lftIdx As Integer, ByRef recTimes() As Double, ByRef recNrs() As Long, ByRef recIsExt() As Boolean) As Boolean
+On Error GoTo fout
+recLkp_handleExternal_findTime = False
+
+rs.Seek "=", Code, tpAf, tpSl, tpBn, tpLft, tpGes
+If Not rs.NoMatch Then
+  recTimes(afslIdx, lftIdx) = sqlRecTimeOrder(Nz(rs("RC_Tijd")), Nz(rs("RC_AantalDecimalen"), 2))
+  recNrs(afslIdx, lftIdx) = Nz(rs("RC_ID"))
+  recIsExt(afslIdx, lftIdx) = True
+Else
+  recTimes(afslIdx, lftIdx) = 0
+  recNrs(afslIdx, lftIdx) = -1
+  recIsExt(afslIdx, lftIdx) = False
+End If
+
+
+recLkp_handleExternal_findTime = True
+Exit Function
+fout:
+MsgBox Err & " recLkp_handleExternal_findTime" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function recLkp_handleExternal(ByVal Code As String, ByVal nAfSl As Integer, ByRef lkpOrdAf() As String, ByRef lkpOrdSl() As String, _
+  ByRef rsInfo As RECSET_BASIC_INFO, ByVal nRecAges As Integer, ByRef recAges() As Long, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+
+On Error GoTo fout
+recLkp_handleExternal = False
+
+'Simply look up everything from the external table.
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtRecordsExternal")
+
+rs.Index = "PrimaryKey"
+
+Dim i As Integer
+For i = 0 To nAfSl - 1
+  Dim tpAf As String, tpSl As String
+  tpAf = lkpOrdAf(i)
+  tpSl = lkpOrdSl(i)
+  
+  Dim j As Integer
+  For j = 0 To nRecAges - 1
+    Dim tpLft As Long
+    tpLft = recAges(j)
+    
+    
+    'lookup the data
+    
+    If Not recLkp_handleExternal_findTime(rs, Code, tpAf, tpSl, 25, tpLft, "M", i, j, recTimes25M, recNrs25M, recIsExt25M) Then
+      Exit Function
+    End If
+    
+    If Not recLkp_handleExternal_findTime(rs, Code, tpAf, tpSl, 50, tpLft, "M", i, j, recTimes50M, recNrs50M, recIsExt50M) Then
+      Exit Function
+    End If
+    
+    If Not recLkp_handleExternal_findTime(rs, Code, tpAf, tpSl, 25, tpLft, "V", i, j, recTimes25V, recNrs25V, recIsExt25V) Then
+      Exit Function
+    End If
+    
+    If Not recLkp_handleExternal_findTime(rs, Code, tpAf, tpSl, 50, tpLft, "V", i, j, recTimes50V, recNrs50V, recIsExt50V) Then
+      Exit Function
+    End If
+    
+    If Not recLkp_handleExternal_findTime(rs, Code, tpAf, tpSl, 25, tpLft, "*", i, j, recTimes25X, recNrs25X, recIsExt25X) Then
+      Exit Function
+    End If
+    
+    If Not recLkp_handleExternal_findTime(rs, Code, tpAf, tpSl, 50, tpLft, "*", i, j, recTimes50X, recNrs50X, recIsExt50X) Then
+      Exit Function
+    End If
+    
+  Next j
+
+Next i
+
+appCleanRS rs
+
+
+
+'Now update with data from internal records, taking faster records where applicable
+If Not recLkp_handleReadSet(Code, nAfSl, lkpOrdAf, lkpOrdSl, rsInfo, nRecAges, recAges, _
+  recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+  recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+  
+  Exit Function
+  
+End If
+
+
+
+recLkp_handleExternal = True
+Exit Function
+fout:
+MsgBox Err & " recLkp_handleExternal" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recLkp_handleReadSet_cleanup() As Boolean
+On Error GoTo fout
+recLkp_handleReadSet_cleanup = False
+
+
+DoCmd.DeleteObject acTable, "~RecAfs"
+
+
+recLkp_handleReadSet_cleanup = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next 'could not find table
+MsgBox Err & " recLkp_handleReadSet_cleanup" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recLkp_handleReadSet_buildTable(tbName As String) As Boolean
+On Error GoTo fout
+recLkp_handleReadSet_buildTable = False
+
+
+DoCmd.DeleteObject acTable, tbName
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("AF_Afstand", dbText, 20)
+tb.Fields.Append tb.CreateField("AF_Slag", dbText, 20)
+tb.Fields.Append tb.CreateField("AF_Idx", dbInteger)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+
+idx.Fields.Append idx.CreateField("AF_Afstand", dbText, 20)
+idx.Fields.Append idx.CreateField("AF_Slag", dbText, 20)
+
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+
+
+recLkp_handleReadSet_buildTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next 'could not find table
+MsgBox Err & " recLkp_handleReadSet_buildTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function recLkp_handleReadSet(ByVal Code As String, ByVal nAfSl As Integer, ByRef lkpOrdAf() As String, ByRef lkpOrdSl() As String, _
+  ByRef rsInfo As RECSET_BASIC_INFO, ByVal nRecAges As Integer, ByRef recAges() As Long, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+
+On Error GoTo fout
+recLkp_handleReadSet = False
+
+'Slightly different approach.
+'First build table of all af-slag pairs, and then link this table.
+
+If Not recLkp_handleReadSet_buildTable("~RecAfs") Then
+  Exit Function
+End If
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~RecAfs")
+
+
+Dim i As Integer
+For i = 0 To nAfSl - 1
+  outp.AddNew
+    outp("AF_AFstand") = hzn(lkpOrdAf(i))
+    outp("AF_Slag") = hzn(lkpOrdSl(i))
+    outp("AF_Idx") = i
+  outp.Update
+Next i
+
+appCleanRS outp
+
+
+'Now join this ~RecAfs table with the table of marked records.
+Dim sql As String
+sql = "SELECT [__marked_recs].*, [~RecAfs].AF_Idx " & _
+      "FROM [~RecAfs] INNER JOIN __marked_recs ON ([~RecAfs].AF_Slag = [__marked_recs].RC_Slag) AND " & _
+      "([~RecAfs].AF_Afstand = [__marked_recs].RC_Afstand) WHERE ((([__marked_recs].RC_Code)=""" & Code & """));"
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpAfSlIdx As Integer
+  Dim tpBn As Integer
+  Dim tpGes As String
+  Dim tpNr As Long
+  Dim tpLft As Long
+  Dim tpTime As Double
+  
+  tpAfSlIdx = Nz(rs("AF_Idx"))
+  
+  tpNr = Nz(rs("RC_recordnummer"))
+  tpGes = Nz(rs("RC_Geslacht"))
+  tpBn = Nz(rs("RC_Baanlengte"))
+  tpLft = Nz(rs("RC_Leeftijd"))
+  tpTime = sqlRecTimeOrder(Nz(rs("RC_Tijd")), Nz(rs("RC_AantalDecimalen"), 2))
+  
+  Dim tpLftIdx As Integer
+  tpLftIdx = bSearchLong(tpLft, nRecAges, recAges)
+  
+  If (tpLftIdx >= 0) Then
+  
+    Dim refTime As Double
+  
+    'Insert into tables
+    If (tpGes = "M") Then
+      If (tpBn = 25) Then
+        refTime = recTimes25M(tpAfSlIdx, tpLftIdx)
+        If (Not swtIsValid(refTime)) Or (tpTime < refTime) Then
+          recTimes25M(tpAfSlIdx, tpLftIdx) = tpTime
+          recNrs25M(tpAfSlIdx, tpLftIdx) = tpNr
+          recIsExt25M(tpAfSlIdx, tpLftIdx) = False
+        End If
+      ElseIf (tpBn = 50) Then
+        refTime = recTimes50M(tpAfSlIdx, tpLftIdx)
+        If (Not swtIsValid(refTime)) Or (tpTime < refTime) Then
+          recTimes50M(tpAfSlIdx, tpLftIdx) = tpTime
+          recNrs50M(tpAfSlIdx, tpLftIdx) = tpNr
+          recIsExt50M(tpAfSlIdx, tpLftIdx) = False
+        End If
+      End If
+    ElseIf (tpGes = "V") Then
+      If (tpBn = 25) Then
+        refTime = recTimes25V(tpAfSlIdx, tpLftIdx)
+        If (Not swtIsValid(refTime)) Or (tpTime < refTime) Then
+          recTimes25V(tpAfSlIdx, tpLftIdx) = tpTime
+          recNrs25V(tpAfSlIdx, tpLftIdx) = tpNr
+          recIsExt25V(tpAfSlIdx, tpLftIdx) = False
+        End If
+      ElseIf (tpBn = 50) Then
+        refTime = recTimes50V(tpAfSlIdx, tpLftIdx)
+        If (Not swtIsValid(refTime)) Or (tpTime < refTime) Then
+          recTimes50V(tpAfSlIdx, tpLftIdx) = tpTime
+          recNrs50V(tpAfSlIdx, tpLftIdx) = tpNr
+          recIsExt50V(tpAfSlIdx, tpLftIdx) = False
+        End If
+      End If
+    ElseIf (tpGes = "*") Then
+      If (tpBn = 25) Then
+        refTime = recTimes25X(tpAfSlIdx, tpLftIdx)
+        If (Not swtIsValid(refTime)) Or (tpTime < refTime) Then
+          recTimes25X(tpAfSlIdx, tpLftIdx) = tpTime
+          recNrs25X(tpAfSlIdx, tpLftIdx) = tpNr
+          recIsExt25X(tpAfSlIdx, tpLftIdx) = False
+        End If
+      ElseIf (tpBn = 50) Then
+        refTime = recTimes50X(tpAfSlIdx, tpLftIdx)
+        If (Not swtIsValid(refTime)) Or (tpTime < refTime) Then
+          recTimes50X(tpAfSlIdx, tpLftIdx) = tpTime
+          recNrs50X(tpAfSlIdx, tpLftIdx) = tpNr
+          recIsExt50X(tpAfSlIdx, tpLftIdx) = False
+        End If
+      End If
+    End If
+    
+    
+  
+  End If 'if tpLftIdx >= 0
+  
+
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+
+If Not recLkp_handleReadSet_cleanup() Then
+  Exit Function
+End If
+
+
+recLkp_handleReadSet = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recLkp_handleReadSet" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function recLkp_handleInternal(ByVal Code As String, ByVal nAfSl As Integer, ByRef lkpOrdAf() As String, ByRef lkpOrdSl() As String, _
+  ByRef rsInfo As RECSET_BASIC_INFO, ByVal nRecAges As Integer, ByRef recAges() As Long, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+
+On Error GoTo fout
+recLkp_handleInternal = False
+
+
+If Not recLkp_handleReadSet(Code, nAfSl, lkpOrdAf, lkpOrdSl, rsInfo, nRecAges, recAges, recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+  recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+    Exit Function
+End If
+
+
+recLkp_handleInternal = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recLkp_handleInternal" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recLkp_Init(ByVal nAfSl As Integer, ByVal nRecAges As Integer, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+
+On Error GoTo fout
+recLkp_Init = False
+
+Dim i As Integer
+Dim j As Integer
+For i = 0 To nAfSl - 1
+  For j = 0 To nRecAges - 1
+    recTimes25M(i, j) = 0
+    recTimes50M(i, j) = 0
+    recTimes25V(i, j) = 0
+    recTimes50V(i, j) = 0
+    recTimes25X(i, j) = 0
+    recTimes50X(i, j) = 0
+    
+    recNrs25M(i, j) = -1
+    recNrs50M(i, j) = -1
+    recNrs25V(i, j) = -1
+    recNrs50V(i, j) = -1
+    recNrs25X(i, j) = -1
+    recNrs50X(i, j) = -1
+    
+    recIsExt25M(i, j) = False
+    recIsExt50M(i, j) = False
+    recIsExt25V(i, j) = False
+    recIsExt50V(i, j) = False
+    recIsExt25X(i, j) = False
+    recIsExt50X(i, j) = False
+  Next j
+Next i
+  
+
+
+recLkp_Init = True
+Exit Function
+fout:
+MsgBox Err & " recLkp_Init" & vbCrLf & Error$, 16
+Exit Function
+End Function
+  
+'Get a list with all af-slag pairs for the specified recordset.
+Public Function recLkp_SetAllAfSlPairs(ByVal Code As String, ByRef nAfSl As Integer, ByRef lkpOrdAf() As String, ByRef lkpOrdSl() As String) As Boolean
+On Error GoTo fout
+recLkp_SetAllAfSlPairs = False
+
+nAfSl = 0
+
+Dim sql As String
+sql = "SELECT dtRecordsInternal.RC_Afstand, dtRecordsInternal.RC_Slag FROM dtRecordsInternal " & _
+      "WHERE (((dtRecordsInternal.RC_Code) = """ & Code & """ )) " & _
+      "GROUP BY dtRecordsInternal.RC_Afstand, dtRecordsInternal.RC_Slag order by RC_Afstand, rc_slag"
+      
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpAf As String, tpSl As String
+  tpAf = Nz(rs("RC_Afstand"))
+  tpSl = Nz(rs("RC_Slag"))
+  
+  insAfSlag tpAf, tpSl, nAfSl, lkpOrdAf, lkpOrdSl
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+'Now go for all external records
+sql = "SELECT dtRecordsExternal.RC_Afstand, dtRecordsExternal.RC_Slag FROM dtRecordsExternal " & _
+      "WHERE (((dtRecordsExternal.RC_Code) = """ & Code & """ )) " & _
+      "GROUP BY dtRecordsExternal.RC_Afstand, dtRecordsExternal.RC_Slag order by RC_Afstand, rc_slag"
+      
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  tpAf = Nz(rs("RC_Afstand"))
+  tpSl = Nz(rs("RC_Slag"))
+  
+  If (bSearchAfSlag(tpAf, tpSl, lkpOrdAf, lkpOrdSl, nAfSl) < 0) Then
+    insAfSlag tpAf, tpSl, nAfSl, lkpOrdAf, lkpOrdSl
+  End If
+  
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+recLkp_SetAllAfSlPairs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recLkp_SetAllAfSlPairs" & vbCrLf & Error$, 16
+Exit Function
+End Function
+  
+
+
+'Lookup records for the specified (af,sl) pairs. These pairs must be supplied in an ordered fashion.
+Public Function recLkp(ByVal Code As String, ByVal nAfSl As Integer, ByRef lkpOrdAf() As String, ByRef lkpOrdSl() As String, _
+  ByVal markDate As Date, ByVal markWedNr As Long, _
+  ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long, _
+  ByRef updVers() As String, ByRef updWeds() As Long, updItems() As String, ByRef nUpdItems As Integer, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+On Error GoTo fout
+recLkp = False
+
+
+Dim isFnd As Boolean
+
+If Not rcsLookup(Code, isFnd, rsInfo, nRecAges, recAges) Then
+  Exit Function
+End If
+If (Not isFnd) Then
+  Err.Raise 1, , "Could not find data for: " & Code
+End If
+
+
+If Not recLkp_Init(nAfSl, nRecAges, _
+    recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+    recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+    recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+  Exit Function
+End If
+
+nUpdItems = 0
+
+
+Dim blExt As Boolean
+blExt = rsInfo.blManagedExternally
+
+
+If Not recMarkRecords(markDate, markWedNr) Then
+  Exit Function
+End If
+
+If (blExt) Then
+
+  
+
+
+  If Not recLkp_handleExternal(Code, nAfSl, lkpOrdAf, lkpOrdSl, rsInfo, nRecAges, recAges, _
+    recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+    recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+    recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+      Exit Function
+  End If
+    
+  
+
+Else
+
+
+
+  If Not recLkp_handleInternal(Code, nAfSl, lkpOrdAf, lkpOrdSl, rsInfo, nRecAges, recAges, _
+    recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+    recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+    recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+      Exit Function
+  End If
+  
+End If
+
+
+recLkp = True
+Exit Function
+fout:
+MsgBox Err & " recLkp" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function recLkp_ExtractRec(ByVal extrRecGes As String, extrRecLft As Long, extrRecBn As Integer, _
+  ByVal af As String, ByVal sl As String, _
+  ByRef isFnd As Boolean, ByRef satAfSlIdx As Integer, ByRef satGes As String, _
+  ByRef satLft As Long, ByRef satLftIdx As Integer, ByRef satBn As Integer, _
+  ByRef oldRecTime As Double, ByRef oldRecIsJustUpdated As Boolean, ByRef oldRecnr As Long, ByRef oldRecIsExt As Boolean, _
+  ByRef oldJustUpdatedVer As String, ByRef oldJustUpdatedWed, ByRef oldJustUpdatedItem As String, _
+  ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long, _
+  ByVal nAfSl As Integer, ByRef lkpOrdAf() As String, ByRef lkpOrdSl() As String, _
+  ByRef updVers() As String, updWeds() As Long, updItems() As String, ByRef nUpdItems As Integer, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+On Error GoTo fout
+recLkp_ExtractRec = False
+
+
+'Need to extract the record for the given (af,sl,ges,lft,bn) combination
+
+Dim blDone As Boolean
+
+blDone = False
+
+  
+isFnd = False
+  
+Dim firstAgeIdx As Integer
+firstAgeIdx = -1
+
+Dim i As Integer
+For i = 0 To nRecAges - 1
+  If (extrRecLft <= recAges(i)) Then
+    firstAgeIdx = i
+    Exit For
+  End If
+Next i
+
+If (firstAgeIdx < 0) Then
+  blDone = True
+End If
+  
+
+
+If (Not blDone) Then
+  satAfSlIdx = bSearchAfSlag(af, sl, lkpOrdAf, lkpOrdSl, nAfSl)
+  If (satAfSlIdx < 0) Then
+    blDone = True
+  End If
+End If
+
+
+
+satGes = extrRecGes
+
+
+Dim tpBn As Integer
+tpBn = extrRecBn
+  
+
+If (Not blDone) Then
+  Dim lftIdx As Integer
+  lftIdx = firstAgeIdx
+    
+  Dim recTime As Double
+  Dim recnr As Long
+  Dim recIsExt As Boolean
+    
+  If satGes = "M" Then
+    If (tpBn = 25) Then
+      recTime = recTimes25M(satAfSlIdx, lftIdx)
+      recnr = recNrs25M(satAfSlIdx, lftIdx)
+      recIsExt = recIsExt25M(satAfSlIdx, lftIdx)
+    ElseIf (tpBn = 50) Then
+      recTime = recTimes50M(satAfSlIdx, lftIdx)
+      recnr = recNrs50M(satAfSlIdx, lftIdx)
+      recIsExt = recIsExt50M(satAfSlIdx, lftIdx)
+    End If
+  ElseIf (satGes = "V") Then
+    If (tpBn = 25) Then
+      recTime = recTimes25V(satAfSlIdx, lftIdx)
+      recnr = recNrs25V(satAfSlIdx, lftIdx)
+      recIsExt = recIsExt25V(satAfSlIdx, lftIdx)
+    ElseIf (tpBn = 50) Then
+      recTime = recTimes50V(satAfSlIdx, lftIdx)
+      recnr = recNrs50V(satAfSlIdx, lftIdx)
+      recIsExt = recIsExt50V(satAfSlIdx, lftIdx)
+    End If
+  ElseIf (satGes = "*") Then
+    If (tpBn = 25) Then
+      recTime = recTimes25X(satAfSlIdx, lftIdx)
+      recnr = recNrs25X(satAfSlIdx, lftIdx)
+      recIsExt = recIsExt25X(satAfSlIdx, lftIdx)
+    ElseIf (tpBn = 50) Then
+      recTime = recTimes50X(satAfSlIdx, lftIdx)
+      recnr = recNrs50X(satAfSlIdx, lftIdx)
+      recIsExt = recIsExt50X(satAfSlIdx, lftIdx)
+    End If
+  End If
+
+    
+      
+
+  satLftIdx = lftIdx
+  satLft = recAges(lftIdx)
+  satBn = tpBn
+  oldRecTime = recTime
+  
+  oldRecIsJustUpdated = (recnr <= -10)
+  If (oldRecIsJustUpdated) Then
+    oldJustUpdatedVer = updVers(-recnr - 10)
+    oldJustUpdatedItem = updItems(-recnr - 10)
+    oldJustUpdatedWed = updWeds(-recnr - 10)
+  Else
+    oldRecnr = recnr
+    oldRecIsExt = recIsExt
+  End If
+    
+  isFnd = True
+    
+End If 'if not blDone
+              
+
+
+
+
+
+recLkp_ExtractRec = True
+Exit Function
+
+fout:
+MsgBox Err & " recLkp_ExtractRec" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Public Function recLkp_AnalyzeTime(ByVal wedDate As Date, ByVal wedBaan As Integer, _
+  ByVal isEst As Boolean, ByVal start As String, ByVal gebDate As Date, ByVal ges As String, ByVal estGes As String, ByVal estMinYOB As Long, _
+  ByVal af As String, ByVal sl As String, ByVal time As Double, ByVal isDis As Boolean, _
+  ByRef nSatisfied As Integer, ByRef satAfSlIdx As Integer, ByRef satGes As String, _
+  ByRef satLft() As Long, ByRef satLftIdx() As Integer, ByRef satBn() As Integer, _
+  ByRef oldRecTimes() As Double, ByRef oldRecIsJustUpdated() As Boolean, ByRef oldRecNrs() As Long, ByRef oldRecIsExt() As Boolean, _
+  ByRef oldJustUpdatedVers() As String, ByRef oldJustUpdatedWeds() As Long, ByRef oldJustUpdatedItems() As String, _
+  ByRef rsInfo As RECSET_BASIC_INFO, ByRef nRecAges As Integer, ByRef recAges() As Long, _
+  ByVal nAfSl As Integer, ByRef lkpOrdAf() As String, ByRef lkpOrdSl() As String, _
+  ByRef updVers() As String, updWeds() As Long, updItems() As String, ByRef nUpdItems As Integer, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+On Error GoTo fout
+recLkp_AnalyzeTime = False
+
+
+'Need to analyze the time and determine which records have been improved.
+
+nSatisfied = 0
+
+
+Dim blDone As Boolean
+blDone = False
+
+
+If (isDis And Not rsInfo.blAllowDis) Then
+  blDone = True
+End If
+
+
+If (Not swtIsValid(time)) Then
+  blDone = True
+End If
+
+Dim firstAgeIdx As Integer
+firstAgeIdx = -1
+
+If Not blDone Then
+  'Now determine age and geslacht
+  Dim tpAge As Long
+  
+  If (Not isEst) Then
+    Dim yob As Long
+    yob = stnrExtractYOB(start, wedDate, gebDate)
+    tpAge = catGetAge(yob, gebDate, rsInfo.lftMode, wedDate)
+    satGes = ges
+  Else
+    tpAge = catGetAge(estMinYOB, #1/1/1900#, rsInfo.lftMode, wedDate)
+    satGes = estGes
+  End If
+
+  'find first lft.
+  
+  Dim i As Integer
+  For i = 0 To nRecAges - 1
+    If (tpAge <= recAges(i)) Then
+      firstAgeIdx = i
+      Exit For
+    End If
+  Next i
+  
+  If (firstAgeIdx < 0) Then
+    blDone = True
+  End If
+  
+End If
+
+If (Not blDone) Then
+  satAfSlIdx = bSearchAfSlag(af, sl, lkpOrdAf, lkpOrdSl, nAfSl)
+  If (satAfSlIdx < 0) Then
+    blDone = True
+  End If
+End If
+
+
+'Now need to test times.
+Dim tpBn As Integer
+tpBn = wedBaan
+  
+Dim bnFinished As Boolean
+bnFinished = False
+
+
+If (Not rsInfo.blSepBaan) Then
+  tpBn = 25
+End If
+
+
+
+If (Not blDone) Then
+  Do Until bnFinished
+  
+    Dim firstValidAgeIdx As Integer
+    firstValidAgeIdx = -1
+  
+    Dim lftIdx As Integer
+    For lftIdx = firstAgeIdx To nRecAges - 1
+      Dim recTime As Double
+      Dim recnr As Long
+      Dim recIsExt As Boolean
+    
+      If satGes = "M" Then
+        If (tpBn = 25) Then
+          recTime = recTimes25M(satAfSlIdx, lftIdx)
+          recnr = recNrs25M(satAfSlIdx, lftIdx)
+          recIsExt = recIsExt25M(satAfSlIdx, lftIdx)
+        ElseIf (tpBn = 50) Then
+          recTime = recTimes50M(satAfSlIdx, lftIdx)
+          recnr = recNrs50M(satAfSlIdx, lftIdx)
+          recIsExt = recIsExt50M(satAfSlIdx, lftIdx)
+        End If
+      ElseIf (satGes = "V") Then
+        If (tpBn = 25) Then
+          recTime = recTimes25V(satAfSlIdx, lftIdx)
+          recnr = recNrs25V(satAfSlIdx, lftIdx)
+          recIsExt = recIsExt25V(satAfSlIdx, lftIdx)
+        ElseIf (tpBn = 50) Then
+          recTime = recTimes50V(satAfSlIdx, lftIdx)
+          recnr = recNrs50V(satAfSlIdx, lftIdx)
+          recIsExt = recIsExt50V(satAfSlIdx, lftIdx)
+        End If
+      ElseIf (satGes = "*") Then
+        If (tpBn = 25) Then
+          recTime = recTimes25X(satAfSlIdx, lftIdx)
+          recnr = recNrs25X(satAfSlIdx, lftIdx)
+          recIsExt = recIsExt25X(satAfSlIdx, lftIdx)
+        ElseIf (tpBn = 50) Then
+          recTime = recTimes50X(satAfSlIdx, lftIdx)
+          recnr = recNrs50X(satAfSlIdx, lftIdx)
+          recIsExt = recIsExt50X(satAfSlIdx, lftIdx)
+        End If
+      End If
+      
+      If (firstValidAgeIdx = -1) Then
+        'Note that we intentionally
+        'only check if recTime > 1 instead of calling swtIsValid,
+        'since there is a difference between records set at 0 and records set at 9999.99
+        If (recTime > 1) Then
+          firstValidAgeIdx = lftIdx
+        End If
+      End If
+    
+  
+      If (time < recTime) Then
+      
+        Dim blIsRecord As Boolean
+        blIsRecord = True
+        'Need to see if this is a record.
+        If (rsInfo.blOnlyOwnAge) Then
+          If (lftIdx <> firstValidAgeIdx) Then
+          'If (lftIdx <> firstAgeIdx) Then
+            blIsRecord = False
+          End If
+        End If
+      
+        If (blIsRecord) Then
+          If (rsInfo.blOwnAgeFirst) And (lftIdx <> firstAgeIdx) And (Not swtIsValid(recTime)) Then
+            blIsRecord = False
+          End If
+        End If
+      
+      
+        If (blIsRecord) Then
+          'Okay; this is a record.
+          satLftIdx(nSatisfied) = lftIdx
+          satLft(nSatisfied) = recAges(lftIdx)
+          satBn(nSatisfied) = tpBn
+          oldRecTimes(nSatisfied) = recTime
+          
+          oldRecIsJustUpdated(nSatisfied) = (recnr <= -10)
+          If (oldRecIsJustUpdated(nSatisfied)) Then
+             oldJustUpdatedVers(nSatisfied) = updVers(-recnr - 10)
+             oldJustUpdatedItems(nSatisfied) = updItems(-recnr - 10)
+             oldJustUpdatedWeds(nSatisfied) = updWeds(-recnr - 10)
+          Else
+            oldRecNrs(nSatisfied) = recnr
+            oldRecIsExt(nSatisfied) = recIsExt
+          End If
+          nSatisfied = nSatisfied + 1
+        End If
+              
+    
+      End If
+  
+    Next lftIdx
+  
+    If (tpBn = 25) Then
+      bnFinished = True
+    Else
+      'We have just completed a 50m pass
+      tpBn = 25
+    End If
+  
+  Loop 'until bnFinished
+End If 'if not blDone
+
+
+
+
+
+recLkp_AnalyzeTime = True
+Exit Function
+
+fout:
+MsgBox Err & " recLkp_AnalyzeTime" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Public Function recLkp_UpdateRecord(ByVal time As Double, _
+  ByVal nSatisfied As Integer, ByRef satBn() As Integer, _
+  ByVal satAfSlIdx As Integer, ByVal satGes As String, ByRef satLftIdx() As Integer, _
+  ByRef isNewRecNrs() As Boolean, ByRef newRecNrs() As Long, ByRef newRecIsExt() As Boolean, _
+  ByVal juIsEst As Boolean, juVer As String, juStart As String, ByVal juEstDescription As String, ByVal juWed As Long, _
+  ByRef updVers() As String, ByRef updWeds() As Long, updItems() As String, ByRef nUpdItems As Integer, _
+  ByRef recTimes25M() As Double, ByRef recNrs25M() As Long, ByRef recIsExt25M() As Boolean, ByRef recTimes50M() As Double, ByRef recNrs50M() As Long, ByRef recIsExt50M() As Boolean, _
+  ByRef recTimes25V() As Double, ByRef recNrs25V() As Long, ByRef recIsExt25V() As Boolean, ByRef recTimes50V() As Double, ByRef recNrs50V() As Long, ByRef recIsExt50V() As Boolean, _
+  ByRef recTimes25X() As Double, ByRef recNrs25X() As Long, ByRef recIsExt25X() As Boolean, ByRef recTimes50X() As Double, ByRef recNrs50X() As Long, ByRef recIsExt50X() As Boolean) As Boolean
+On Error GoTo fout
+recLkp_UpdateRecord = False
+
+'Need to update the datastructures to reflect the improved records.
+
+Dim i As Integer
+For i = 0 To nSatisfied - 1
+  Dim tpBn As Integer
+  Dim tpLftIdx As Integer
+  
+  Dim tpTime As Double
+  Dim tpRecNr As Long
+  Dim tpRecIsExt As Double
+  
+  tpBn = satBn(i)
+  tpLftIdx = satLftIdx(i)
+  
+  tpTime = time
+  
+  If (isNewRecNrs(i)) Then
+    tpRecNr = newRecNrs(i)
+    tpRecIsExt = newRecIsExt(i)
+  Else
+    updVers(nUpdItems) = juVer
+    updWeds(nUpdItems) = juWed
+    If (Not juIsEst) Then
+      updItems(nUpdItems) = juStart
+    Else
+      updItems(nUpdItems) = juEstDescription
+    End If
+    tpRecNr = -10 - nUpdItems
+    nUpdItems = nUpdItems + 1
+  End If
+  
+  
+  If satGes = "M" Then
+    If (tpBn = 25) Then
+      recTimes25M(satAfSlIdx, tpLftIdx) = tpTime
+      recNrs25M(satAfSlIdx, tpLftIdx) = tpRecNr
+      recIsExt25M(satAfSlIdx, tpLftIdx) = tpRecIsExt
+    ElseIf (tpBn = 50) Then
+      recTimes50M(satAfSlIdx, tpLftIdx) = tpTime
+      recNrs50M(satAfSlIdx, tpLftIdx) = tpRecNr
+      recIsExt50M(satAfSlIdx, tpLftIdx) = tpRecIsExt
+    End If
+  ElseIf satGes = "V" Then
+    If (tpBn = 25) Then
+      recTimes25V(satAfSlIdx, tpLftIdx) = tpTime
+      recNrs25V(satAfSlIdx, tpLftIdx) = tpRecNr
+      recIsExt25V(satAfSlIdx, tpLftIdx) = tpRecIsExt
+    ElseIf (tpBn = 50) Then
+      recTimes50V(satAfSlIdx, tpLftIdx) = tpTime
+      recNrs50V(satAfSlIdx, tpLftIdx) = tpRecNr
+      recIsExt50V(satAfSlIdx, tpLftIdx) = tpRecIsExt
+    End If
+  ElseIf satGes = "*" Then
+    If (tpBn = 25) Then
+      recTimes25X(satAfSlIdx, tpLftIdx) = tpTime
+      recNrs25X(satAfSlIdx, tpLftIdx) = tpRecNr
+      recIsExt25X(satAfSlIdx, tpLftIdx) = tpRecIsExt
+    ElseIf (tpBn = 50) Then
+      recTimes50X(satAfSlIdx, tpLftIdx) = tpTime
+      recNrs50X(satAfSlIdx, tpLftIdx) = tpRecNr
+      recIsExt50X(satAfSlIdx, tpLftIdx) = tpRecIsExt
+    End If
+  End If
+Next i
+
+recLkp_UpdateRecord = True
+Exit Function
+
+fout:
+MsgBox Err & " recLkp_UpdateRecord" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Sub rec_NotifyExternalChange()
+On Error Resume Next
+
+  
+  Dim geg As Recordset
+  Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
+  geg.MoveFirst
+  If (geg.EOF) Then
+    geg.AddNew
+  Else
+    geg.Edit
+  End If
+  geg("blRecsMarked") = False
+  geg("blRecHoldersOK") = False
+  geg("blRecListOK") = False
+  geg.Update
+  
+  appCleanRS geg
+  
+
+End Sub
+
+
+Private Sub rec_SetMarkedOK(isMarkedOK As Boolean, markDate As Date, markWedNr As Long)
+On Error Resume Next
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
+geg.MoveFirst
+If (geg.EOF) Then
+  geg.AddNew
+Else
+  geg.Edit
+End If
+geg("blRecsMarked") = isMarkedOK
+geg("recsMarkDate") = markDate
+geg("recsMarkWednr") = markWedNr
+geg.Update
+
+appCleanRS geg
+
+End Sub
+Private Function rec_IsMarkedOK(ByVal markDate As Date, ByVal markWedNr As Long) As Boolean
+On Error Resume Next
+Dim geg As Recordset
+
+Dim blIsMarked As Boolean
+Dim oldMarkDate As Date
+Dim oldWedNr As Long
+
+Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
+geg.MoveFirst
+If Not geg.EOF Then
+  blIsMarked = Nz(geg("blRecsMarked"), False)
+  oldMarkDate = Nz(geg("recsMarkDate"))
+  oldWedNr = Nz(geg("recsMarkWedNr"))
+Else
+  blIsMarked = False
+End If
+
+appCleanRS geg
+
+rec_IsMarkedOK = False
+If (blIsMarked) And (markDate = oldMarkDate) And (markWedNr = oldWedNr) Then
+  rec_IsMarkedOK = True
+End If
+
+End Function
+
+
+
+
+Private Sub rec_SetRecHoldersOK(isRecHoldersOK As Boolean, markDate As Date, markCode As String)
+On Error Resume Next
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
+geg.MoveFirst
+If (geg.EOF) Then
+  geg.AddNew
+Else
+  geg.Edit
+End If
+geg("blRecHoldersOK") = isRecHoldersOK
+geg("recHoldersMarkDate") = markDate
+geg("recHoldersCode") = hzn(markCode)
+geg.Update
+
+appCleanRS geg
+
+End Sub
+Private Function rec_IsRecHoldersOK(ByVal markDate As Date, ByVal markCode As String) As Boolean
+On Error Resume Next
+
+rec_IsRecHoldersOK = False
+
+Dim geg As Recordset
+
+Dim blIsOK As Boolean
+Dim oldMarkDate As Date
+Dim oldCode As String
+
+Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
+geg.MoveFirst
+If (Not geg.EOF) Then
+  blIsOK = Nz(geg("blRecHoldersOK"), False)
+  oldMarkDate = Nz(geg("recHoldersMarkDate"))
+  oldCode = Nz(geg("recHoldersCode"))
+Else
+  blIsOK = False
+End If
+
+appCleanRS geg
+
+
+If (blIsOK) And (markDate = oldMarkDate) And (markCode = oldCode) Then
+  rec_IsRecHoldersOK = True
+End If
+
+End Function
+
+
+
+
+Private Sub rec_SetRecListOK(isRecListOK As Boolean, startDate As Date, endDate As Date, listCode As String)
+On Error Resume Next
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
+geg.MoveFirst
+If (geg.EOF) Then
+  geg.AddNew
+Else
+  geg.Edit
+End If
+geg("blRecListOK") = isRecListOK
+geg("recListStartDate") = startDate
+geg("recListEndDate") = endDate
+geg("recListCode") = hzn(listCode)
+geg.Update
+
+appCleanRS geg
+
+End Sub
+Private Function rec_IsRecListOK(ByVal startDate As Date, ByVal endDate As Date, ByVal listCode As String) As Boolean
+On Error Resume Next
+Dim geg As Recordset
+
+Dim blIsOK As Boolean
+Dim oldStartDate As Date
+Dim oldEndDate As Date
+Dim oldCode As String
+
+Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
+geg.MoveFirst
+If Not geg.EOF Then
+  blIsOK = Nz(geg("blRecListOK"), False)
+  oldStartDate = Nz(geg("recListStartDate"))
+  oldEndDate = Nz(geg("recListEndDate"))
+  oldCode = Nz(geg("recListCode"))
+Else
+  blIsOK = False
+End If
+
+appCleanRS geg
+
+rec_IsRecListOK = False
+If (blIsOK) And (startDate = oldStartDate) And (endDate = oldEndDate) And (listCode = oldCode) Then
+  rec_IsRecListOK = True
+End If
+
+End Function
+
+
+Public Function sqlRecTimeOrder(ByVal tm As Double, ByVal nDec As Integer) As Double
+On Error Resume Next
+sqlRecTimeOrder = tm
+If (nDec = 1) Then
+  sqlRecTimeOrder = sqlRecTimeOrder + 0.095
+End If
+End Function
+
+Public Function recMarkRecords(ByVal markDate As Date, markWedNr As Long)
+On Error GoTo fout
+recMarkRecords = False
+
+Dim isMarkedOK As Boolean
+isMarkedOK = rec_IsMarkedOK(markDate, markWedNr)
+
+If (isMarkedOK) Then
+  recMarkRecords = True
+  Exit Function
+End If
+
+
+Dim sql As String
+sql = "Update dtRecordsInternal set RC_IsMarked =false;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "SELECT dtRecordsInternal.*, [dtWedstrijden].datum FROM dtRecordsInternal LEFT JOIN [dtWedstrijden] ON " & _
+"dtRecordsInternal.RC_Wedstrijdnummer = [dtWedstrijden].[Wedstrijd nummer] " & _
+"WHERE ((nz([RC_Wedstrijdnummer]) = 0) or isNull([dtWedstrijden].datum) or ([dtWedstrijden].Datum) <= #" & Format(markDate, "mm\-dd\-yyyy") & "#)  " & _
+"ORDER BY dtRecordsInternal.RC_Code, dtRecordsInternal.RC_Afstand, dtRecordsInternal.RC_Slag, dtRecordsInternal.RC_Baanlengte, dtRecordsInternal.RC_Leeftijd, sqlRecTimeOrder(nz([dtRecordsInternal].RC_Tijd), nz([dtRecordsInternal].RC_AantalDecimalen, 2) ) "
+
+Dim cl As Recordset
+
+Set cl = CurrentDb().OpenRecordset(sql)
+
+cl.MoveFirst
+
+Dim curCode As String
+Dim curGes As String
+Dim curLft As Long
+Dim curAf As String
+Dim curSl As String
+Dim curBn As Integer
+
+
+
+Dim curRecFnd As Boolean
+
+curCode = ""
+curGes = ""
+curLft = -1
+curAf = ""
+curSl = ""
+curBn = -1
+
+
+Do Until cl.EOF
+  Dim tpCode As String
+  Dim tpGes As String
+  Dim tpLft As Long
+  Dim tpAf As String
+  Dim tpSl As String
+  Dim tpBn As Integer
+  
+  
+  
+  tpCode = Nz(cl("RC_Code"))
+  tpGes = Nz(cl("RC_Geslacht"))
+  tpLft = Nz(cl("RC_Leeftijd"))
+  tpAf = Nz(cl("RC_afstand"))
+  tpSl = Nz(cl("RC_slag"))
+  tpBn = Nz(cl("RC_baanlengte"))
+ 
+  
+  If (tpCode <> curCode Or tpGes <> curGes Or tpLft <> curLft Or curAf <> tpAf Or curSl <> tpSl Or tpBn <> curBn) Then
+    curCode = tpCode
+    curGes = tpGes
+    curLft = tpLft
+    curAf = tpAf
+    curSl = tpSl
+    curBn = tpBn
+    
+    curRecFnd = False
+
+  End If
+  
+  
+  
+  If (Not curRecFnd) Then
+  
+    Dim tpDate As Date
+    Dim tpWedNr As Long
+    tpDate = Nz(cl("Datum"), #1/1/1900#)
+    tpWedNr = Nz(cl("RC_Wedstrijdnummer"))
+    
+    Dim blOK As Boolean
+    blOK = True
+    
+    If (tpDate = markDate) Then
+       If (tpWedNr >= markWedNr) Then
+         blOK = False
+       End If
+    End If
+  
+    If (blOK) Then
+      cl.Edit
+        cl("RC_IsMarked") = True
+      cl.Update
+      curRecFnd = True
+    End If
+    
+    
+  End If
+
+  cl.MoveNext
+Loop
+
+appCleanRS cl
+
+
+
+
+'Mark that records have been set ok
+rec_SetMarkedOK True, markDate, markWedNr
+DoCmd.SetWarnings True
+recMarkRecords = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " recMarkRecords" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+Public Function fltGetRecFilter(ByRef isOK As Boolean, ByRef lkpFilter As String) As Boolean
+On Error GoTo fout
+fltGetRecFilter = False
+
+
+Dim sql As String
+sql = "Delete * from hsoFILTER_REC;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoFILTER_REC")
+
+rs.AddNew
+  rs("TF_SQL") = Null
+  rs("TF_OK") = False
+rs.Update
+
+rs.Close
+
+DoCmd.OpenForm "hsoFILTER_REC", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hsoFILTER_REC")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hsoFILTER_REC is leeg."
+End If
+
+isOK = Nz(rs("TF_OK"))
+
+
+lkpFilter = Nz(rs("TF_SQL"))
+
+rs.Close
+
+fltGetRecFilter = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " fltGetRecFilter" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+
+Public Function rcsPromptUser(ByRef isOK As Boolean, ByRef lkpRcsCode As String) As Boolean
+On Error GoTo fout
+rcsPromptUser = False
+
+
+Dim sql As String
+sql = "Delete * from hsoRcsOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRcsOpzoek")
+
+rs.AddNew
+  rs("RCSO_OK") = False
+rs.Update
+
+rs.Close
+
+DoCmd.OpenForm "hsoRcsOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hsoRCSOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hsoRCSOpzoek is leeg."
+End If
+
+isOK = Nz(rs("RCSO_OK"))
+
+
+lkpRcsCode = Nz(rs("RCSO_Code"))
+
+rs.Close
+
+rcsPromptUser = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " rcsPromptUser" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+Function waarde_rcs() As String
+On Error Resume Next
+
+waarde_rcs = ""
+
+waarde_rcs = Forms![rec_master].glbRcsCode
+
+
+
+Exit Function
+
+End Function
+
+
+Public Function recParseCat(cat As String, ByVal nRecAges As Integer, ByRef recAges() As Long, ByRef isValid As Boolean, ByRef ges As String, ByRef lft As Long, ByRef sInvalidReason) As Boolean
+On Error GoTo fout
+recParseCat = False
+
+
+isValid = False
+
+If (cat = "HEREN") Then
+  isValid = True
+  ges = "M"
+  lft = CAT_MAX_AGE
+ElseIf (cat = "DAMES") Then
+  isValid = True
+  ges = "V"
+  lft = CAT_MAX_AGE
+ElseIf (cat = "MIX") Then
+  isValid = True
+  ges = "*"
+  lft = CAT_MAX_AGE
+ElseIf (cat = "ZWEEDS") Then
+  isValid = True
+  ges = "z"
+  lft = CAT_MAX_AGE
+ElseIf (Left(cat, 2) = "MO") Then
+  Dim tpLft As Long
+  tpLft = CLng(val(Right(cat, Len(cat) - 2)))
+  If (bSearchLong(tpLft, nRecAges, recAges) >= 0) Then
+    isValid = True
+    ges = "V"
+    lft = tpLft
+  Else
+    sInvalidReason = "Leeftijd: " & tpLft & " is geen geldige record leeftijd voor dit type record."
+  End If
+ElseIf (Left(cat, 2) = "JO") Then
+  tpLft = CLng(val(Right(cat, Len(cat) - 2)))
+  If (bSearchLong(tpLft, nRecAges, recAges) >= 0) Then
+    isValid = True
+    ges = "M"
+    lft = tpLft
+  Else
+    sInvalidReason = "Leeftijd: " & tpLft & " is geen geldige record leeftijd voor dit type record."
+  End If
+ElseIf (Left(cat, 3) = "MJO") Then
+  tpLft = CLng(val(Right(cat, Len(cat) - 3)))
+  If (bSearchLong(tpLft, nRecAges, recAges) >= 0) Then
+    isValid = True
+    ges = "*"
+    lft = tpLft
+  Else
+    sInvalidReason = "Leeftijd: " & tpLft & " is geen geldige record leeftijd voor dit type record."
+  End If
+Else
+  sInvalidReason = "Keuze uit: MOXX, JOXX, MJOXX, DAMES, HEREN, MIX"
+End If
+
+
+
+recParseCat = True
+
+Exit Function
+fout:
+MsgBox Err & " recParseCat" & vbCrLf & Error$, 16
+Exit Function
+
+
+    
+
+End Function
+
+
+Public Function recRemoveGaps(ByVal Code As String, ByVal blRestrictYear As Long, ByVal startYear As Long) As Boolean
+On Error GoTo fout
+
+recRemoveGaps = False
+
+
+
+notifyRecordChange
+
+Dim rs As Recordset
+
+Dim sql As String
+
+Dim minNr As Long
+If (blRestrictYear) Then
+  minNr = startYear * 1000 + 1
+Else
+  minNr = 1905 * 1000
+End If
+sql = "select * from dtRecordsInternal where rc_code = """ & Code & """ and rc_recordnummer >= " & minNr & " order by rc_recordnummer"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+rs.MoveFirst
+
+Dim curYear As Long, curLastUsedVolg As Long
+curYear = -1
+
+Do Until rs.EOF
+  Dim tpNr As Long
+  Dim tpYear As Long
+  Dim tpVolg As Long
+  tpNr = Nz(rs("RC_Recordnummer"))
+  tpYear = tpNr \ 1000
+  tpVolg = tpNr Mod 1000
+  
+  If (tpYear <> curYear) Then
+    curLastUsedVolg = 0
+    curYear = tpYear
+  End If
+  
+  If (tpVolg <> curLastUsedVolg + 1) Then
+    rs.Edit
+      rs("RC_Recordnummer") = curYear * 1000 + curLastUsedVolg + 1
+    rs.Update
+  End If
+  curLastUsedVolg = curLastUsedVolg + 1
+  
+  rs.MoveNext
+Loop
+
+recRemoveGaps = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recRemoveGaps" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function recNumberChronological(ByVal Code As String, ByVal startDate As Date) As Boolean
+On Error GoTo fout
+recNumberChronological = False
+
+'=========================================================
+'Hernummert de records in chronologische volgorde.
+'Vereiste is dat in de geselecteerde periode geen records
+'van een andere periode liggen.
+'=========================================================
+
+
+If Not lenDateIsValid(startDate) Then
+  Err.Raise 1, , "Ongeldige startdatum gevonden!"
+End If
+
+notifyRecordChange
+
+
+Dim geg As Recordset
+
+Dim vrijNummers(0 To 1000) As Boolean
+Dim vrijNummer As Long
+Dim bookMarks(0 To 1000)
+Dim kleinsteNummer As Long
+Dim huidigjaar As Long
+Dim beginHuidigJaar
+Dim eindHuidigJaar As Long
+Dim tpNr As Long
+Dim tpBookmark
+Dim blDone As Boolean
+Dim klaar As Boolean
+Dim blVrijNummerBezet As Boolean
+Dim bmVrijNummerBezet 'as bookmark
+Dim i As Integer
+
+
+Dim sql As String
+sql = "SELECT dtRecordsInternal.* FROM [dtWedstrijden] INNER JOIN dtRecordsInternal ON " & _
+"[dtWedstrijden].[Wedstrijd nummer] = dtRecordsInternal.rc_wedstrijdnummer " & _
+"where rc_code= """ & Code & """ and  [datum] >= #" & Format(startDate, "mm\-dd\-yyyy") & "# and rc_recordnummer > 1905000 order by [datum], rc_recordnummer;"
+
+
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+geg.MoveFirst
+
+klaar = False
+Do Until klaar
+  If geg.EOF Then
+    klaar = True
+  Else
+    huidigjaar = Nz(geg("rc_recordnummer")) \ 1000
+    'Initialisaties
+    For i = 0 To 1000
+      bookMarks(i) = 0
+      vrijNummers(i) = True
+      kleinsteNummer = 1000
+    Next i
+    beginHuidigJaar = geg.Bookmark
+    blDone = False
+    Do Until blDone
+      If geg.EOF Then
+        blDone = True
+      End If
+      If Not blDone Then
+        If Nz(geg("rc_recordnummer")) \ 1000 <> huidigjaar Then
+           blDone = True
+        End If
+      End If
+      
+      If Not blDone Then
+        If (geg("rc_recordnummer") Mod 1000) < kleinsteNummer Then
+          kleinsteNummer = (geg("RC_Recordnummer") Mod 1000)
+        End If '
+        vrijNummers(geg("rc_recordnummer") Mod 1000) = False
+        bookMarks(geg("rc_recordnummer") Mod 1000) = geg.Bookmark
+        geg.MoveNext
+      End If
+
+
+    Loop
+    
+    'VrijNummer bepalen
+    vrijNummer = 1000
+    For i = kleinsteNummer To 1000
+      If vrijNummers(i) = True Then
+        vrijNummer = i
+        Exit For
+      End If
+    Next i
+      
+    If vrijNummer = 1000 Then
+      Err.Raise 9999, , "Geen vrije nummers meer beschikbaar."
+    End If
+    
+    geg.MovePrevious
+    eindHuidigJaar = geg.AbsolutePosition
+    
+    geg.Bookmark = beginHuidigJaar
+    
+    i = 0
+    blDone = False
+    blVrijNummerBezet = False
+    Do Until blDone
+      Dim tpGegNr As Long
+      tpGegNr = Nz(geg("rc_recordnummer"))
+
+      
+      If tpGegNr <> huidigjaar * 1000 + kleinsteNummer + i Then
+        If vrijNummers(kleinsteNummer + i) Then
+          If kleinsteNummer + i = vrijNummer Then 'we hebben de poppen aan het dansen...
+            blVrijNummerBezet = True
+            bmVrijNummerBezet = geg.Bookmark
+          Else
+            vrijNummers(geg("rc_recordnummer") Mod 1000) = True
+            geg.Edit
+            geg("rc_recordnummer") = huidigjaar * 1000 + kleinsteNummer + i
+            geg.Update
+          End If
+        Else
+          Dim tpRecNr As Long
+          tpRecNr = Nz(geg("rc_recordnummer"))
+          tpBookmark = geg.Bookmark
+          
+          geg.Bookmark = bookMarks(kleinsteNummer + i)
+          geg.Edit
+          geg("rc_recordnummer") = huidigjaar * 1000 + vrijNummer
+          geg.Update
+          
+          geg.Bookmark = tpBookmark
+          geg.Edit
+          geg("rc_recordnummer") = huidigjaar * 1000 + kleinsteNummer + i
+          geg.Update
+          
+          geg.Bookmark = bookMarks(kleinsteNummer + i)
+          geg.Edit
+          geg("rc_recordnummer") = tpRecNr
+          bookMarks(tpRecNr Mod 1000) = geg.Bookmark 'We moeten uitkijken, want gegevens gewijzigd...
+          geg.Update
+          geg.Bookmark = tpBookmark
+        End If
+      End If
+            
+      i = i + 1
+      
+      If geg.AbsolutePosition = eindHuidigJaar Then
+          blDone = True
+      End If
+      If Not blDone Then geg.MoveNext
+      If geg.EOF Then
+        blDone = True
+      End If
+    Loop
+    
+    If blVrijNummerBezet Then
+      geg.Bookmark = bmVrijNummerBezet
+      geg.Edit
+      geg("rc_recordnummer") = huidigjaar * 1000 + vrijNummer
+      geg.Update
+    End If
+    
+    geg.AbsolutePosition = eindHuidigJaar
+    geg.MoveNext 'En weer eentje naar voren...
+    
+  End If 'if not klaar
+Loop '{until klaar}
+
+
+recNumberChronological = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+If (Err = 3022) Then
+  MsgBox "Records van buiten de geselecteerde periode liggen qua nummering binnen de geselecteerde periode." & vbCrLf & _
+  "Kies een groter datumbereik", 16
+  Exit Function
+End If
+MsgBox Err & " recNumberChronological" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function recCleanup(ByVal Code As String, ByVal endDate As Date, aantal As Integer) As Boolean
+On Error GoTo fout
+recCleanup = False
+
+
+Dim sql As String
+sql = "SELECT dtRecordsInternal.*, [dtWedstrijden].Datum FROM [dtWedstrijden] INNER JOIN dtRecordsInternal ON  " & _
+"[dtWedstrijden].[Wedstrijd nummer] = dtRecordsInternal.rc_wedstrijdnummer where rc_code = """ & Code & """ and rc_recordnummer > 1950000 " & _
+"order by [rc_slag], [rc_afstand], rc_geslacht, rc_leeftijd,rc_baanlengte, rc_tijd"
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+Dim wkSpace As Workspace
+Set wkSpace = DBEngine.Workspaces(0)
+
+wkSpace.BeginTrans
+
+Dim curAf As String, curSl As String, curGes As String, curLft As Long, curBaan As Integer
+
+
+
+curAf = ""
+curSl = ""
+curGes = ""
+curLft = -1
+curBaan = -1
+
+Dim tpCount As Integer, tpVerwijderCount As Integer
+tpCount = 0
+tpVerwijderCount = 0
+
+geg.MoveFirst
+Do Until geg.EOF
+  Dim tpAf As String, tpSlag As String, tpGes As String, tpLft As Long, tpBn As Integer
+
+  tpAf = Nz(geg("rc_Afstand"))
+  tpSlag = Nz(geg("rc_slag"))
+  tpGes = Nz(geg("RC_Geslacht"))
+  tpLft = Nz(geg("RC_Leeftijd"))
+  tpBn = Nz(geg("RC_Baanlengte"))
+  
+  If tpAf <> curAf Or tpSlag <> curSl Or tpGes <> curGes Or tpLft <> curLft Or tpBn <> curBaan Then
+    'nieuw -> Count op 0 zetten...
+    curAf = tpAf
+    curSl = tpSlag
+    curGes = tpGes
+    curLft = tpLft
+    curBaan = tpBn
+    tpCount = 0
+  End If
+   
+  If tpCount >= aantal And Nz(geg("Datum"), #1/1/1900#) < endDate Then
+    'Verwijderen..
+    tpVerwijderCount = tpVerwijderCount + 1
+    geg.Delete
+  End If
+    
+  tpCount = tpCount + 1
+  geg.MoveNext
+Loop
+
+If (tpVerwijderCount = 0) Then
+  wkSpace.Rollback
+ElseIf MsgBox("Er zullen " & tpVerwijderCount & " records worden verwijderd?" & Chr$(13) & "Wilt u doorgaan?", vbQuestion + vbOKCancel) = vbCancel Then
+  wkSpace.Rollback
+Else
+  wkSpace.CommitTrans
+End If
+
+appCleanRS geg
+
+Set wkSpace = Nothing
+
+
+recCleanup = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recCleanup" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function recivGetMonthStr(mn As Integer) As String
+On Error Resume Next
+Dim tpS As String
+tpS = ""
+Select Case mn
+  Case 1
+    tpS = Format(DateAdd("m", 0, #1/1/2000#), "mm")
+  Case 2
+    tpS = Format(DateAdd("m", 1, #1/1/2000#), "mm")
+  Case 3
+    tpS = Format(DateAdd("m", 2, #1/1/2000#), "mm")
+  Case 4
+    tpS = Format(DateAdd("m", 3, #1/1/2000#), "mm")
+  Case 5
+    tpS = Format(DateAdd("m", 4, #1/1/2000#), "mm")
+  Case 6
+    tpS = Format(DateAdd("m", 5, #1/1/2000#), "mm")
+  Case 7
+    tpS = Format(DateAdd("m", 6, #1/1/2000#), "mm")
+  Case 8
+    tpS = Format(DateAdd("m", 7, #1/1/2000#), "mm")
+  Case 9
+    tpS = Format(DateAdd("m", 8, #1/1/2000#), "mm")
+  Case 10
+    tpS = Format(DateAdd("m", 9, #1/1/2000#), "mm")
+  Case 11
+    tpS = Format(DateAdd("m", 10, #1/1/2000#), "mm")
+  Case 12
+    tpS = Format(DateAdd("m", 11, #1/1/2000#), "mm")
+End Select
+recivGetMonthStr = tpS
+    
+End Function
+
+'Parse a date of the form yyyymmdd
+Private Function recivParseWasDate(ds As String) As Date
+On Error Resume Next
+If (ds = "") Then
+  recivParseWasDate = #1/1/1900#
+  Exit Function
+End If
+Dim yr As Integer
+Dim mn As Integer
+Dim dy As Integer
+yr = CInt(val(Left(ds, 4)))
+mn = CInt(val(Mid(ds, 5, 2)))
+dy = CInt(val(Right(ds, 2)))
+If (yr <= 0) Or (dy <= 0) Or (mn <= 0) Then
+  recivParseWasDate = #1/1/1900#
+Else
+  recivParseWasDate = CDate(dy & " " & recivGetMonthStr(mn) & " " & yr)
+End If
+
+End Function
+
+
+Public Function recivReadInitTableFromWas(ByVal Code As String, fName As String, ByVal blClearAll As Boolean) As Boolean
+On Error GoTo fout
+recivReadInitTableFromWas = False
+
+If Not FileExists(fName) Then
+  Err.Raise 1, , "Bestand: " & vbCrLf & fName & vbCrLf & "kon niet worden gevonden."
+End If
+
+
+If (blClearAll) Then
+  Dim delSQL As String
+  delSQL = "delete * from hsoRECStartwaardes;"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL delSQL
+  DoCmd.SetWarnings True
+End If
+
+DoCmd.DeleteObject acTable, "~WAS_Clubrecords"
+
+If Not (ImportDBase7Table(fName, "~WAS_Clubrecords")) Then
+  Exit Function
+End If
+
+
+Dim sql As String
+sql = "SELECT [~WAS_CLUBRECORDS].MJ, [~WAS_CLUBRECORDS].JR, [~WAS_CLUBRECORDS].AFSTAND, [~WAS_CLUBRECORDS].SLAG, " & _
+"[~WAS_CLUBRECORDS].BAANLEN, [~WAS_CLUBRECORDS].TIJD, parseTijd(nz([tijd])) AS TD, [~WAS_CLUBRECORDS].NAAM, " & _
+"[~WAS_CLUBRECORDS].PLAATS, [~WAS_CLUBRECORDS].DATUM FROM [~WAS_CLUBRECORDS] " & _
+"WHERE (((parseTijd(Nz([Tijd]))) > 0)) and (val(nz([JR])) > 1) " & _
+"ORDER BY [~WAS_CLUBRECORDS].MJ, [~WAS_CLUBRECORDS].JR, [~WAS_CLUBRECORDS].AFSTAND, [~WAS_CLUBRECORDS].SLAG, [~WAS_CLUBRECORDS].BAANLEN, parseTijd(nz([tijd])); "
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim curCat As String
+Dim curAf As String
+Dim curSl As String
+Dim curBn As Integer
+
+Dim tpCat As String
+Dim tpAf As String
+Dim tpSl As String
+Dim tpBn As Integer
+Dim tpTime As Double
+Dim tpDat As Date
+Dim tpPlaats As String
+Dim tpNaam As String
+
+curCat = ""
+curAf = ""
+curSl = ""
+curBn = -1
+
+Dim rsOutp As Recordset
+Set rsOutp = CurrentDb().OpenRecordset("hsoRECStartwaardes", dbOpenDynaset)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpMJ As String
+  Dim tpjr As String
+  tpMJ = Nz(rs("MJ"))
+  tpjr = Nz(rs("JR"))
+  If (tpjr = "20") Then
+    If (tpMJ = "m") Then
+      tpCat = "DAMES"
+    Else
+      tpCat = "HEREN"
+    End If
+  Else
+    tpCat = IIf(tpMJ = "m", "MO", "JO") & Format(CInt(val(tpjr)), "00")
+  End If
+  
+  tpTime = Nz(rs("TD"))
+  tpDat = recivParseWasDate(Nz(rs("Datum")))
+  
+  tpBn = IIf(Abs(Nz(rs("BAANLEN")) - 50) < 0.01, 50, 25)
+  tpPlaats = Nz(rs("Plaats"))
+  tpNaam = Nz(rs("Naam"))
+  
+  tpAf = Nz(rs("afstand"))
+  tpSl = slag_from_was(Nz(rs("slag")))
+  
+  
+  
+  If (tpCat <> curCat Or tpBn <> curBn Or tpAf <> curAf Or tpSl <> curSl) Then
+    If (Not blClearAll) Then
+      'first need to see if already exists
+      rsOutp.FindFirst "rc_code = """ & Code & """ and rc_afstand=""" & tpAf & """ and rc_slag=""" & tpSl & """ and rc_baanlengte = " & tpBn & " and rc_displayCategorie=""" & tpCat & """"
+      If rsOutp.NoMatch Then
+        rsOutp.AddNew
+      Else
+        rsOutp.Edit
+      End If
+    Else
+      rsOutp.AddNew
+    End If
+      'write out
+      rsOutp("RC_Code") = hzn(Code)
+      rsOutp("rc_Afstand") = hzn(tpAf)
+      rsOutp("rc_Slag") = hzn(tpSl)
+      rsOutp("rc_displayCategorie") = hzn(tpCat)
+      rsOutp("rc_Tijd") = tpTime
+      rsOutp("rc_Baanlengte") = tpBn
+      rsOutp("rc_Naam") = IIf(tpNaam = "", "Limiet", tpNaam)
+      rsOutp("rc_Plaats") = hzn(tpPlaats)
+      If (lenDateIsValid(tpDat)) Then
+        rsOutp("rc_Datum") = tpDat
+      End If
+      
+    rsOutp.Update
+    
+    curCat = tpCat
+    curBn = tpBn
+    curAf = tpAf
+    curSl = tpSl
+    
+  End If
+  
+  rs.MoveNext
+Loop
+
+rs.Close
+rsOutp.Close
+
+DoCmd.DeleteObject acTable, "~WAS_Clubrecords"
+
+recivReadInitTableFromWas = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " recivReadInitTableFromWas" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Public Function recivReadInitTableFromLenex(ByVal Code As String, ByVal blClearAll As Boolean) As Boolean
+On Error GoTo fout
+recivReadInitTableFromLenex = False
+
+Dim tpCntRecs As Long
+tpCntRecs = Nz(DCount("REC_Afstand", "gREC_ACQ_Recs"), 0)
+If (tpCntRecs <= 0) Then
+  Err.Raise 1, , "Geen records gevonden."
+End If
+
+
+
+If (blClearAll) Then
+  Dim delSQL As String
+  delSQL = "delete * from hsoRECStartwaardes;"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL delSQL
+  DoCmd.SetWarnings True
+End If
+
+
+
+
+
+Dim sql As String
+sql = "select * from gRec_Acq_Recs"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim curCat As String
+Dim curAf As String
+Dim curSl As String
+Dim curBn As Integer
+
+
+curCat = ""
+curAf = ""
+curSl = ""
+curBn = -1
+
+
+Dim tpCat As String
+Dim tpAf As String
+Dim tpSl As String
+Dim tpBn As Integer
+Dim tpTime As Double
+Dim tpDat As Date
+Dim tpPlaats As String
+Dim tpNaam As String
+
+
+Dim rsOutp As Recordset
+Set rsOutp = CurrentDb().OpenRecordset("hsoRECStartwaardes", dbOpenDynaset)
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpLft As String
+  Dim tpGes As String
+  tpLft = Nz(rs("REC_MAX_AGE"))
+  tpGes = Nz(rs("REC_Geslacht"))
+  
+  tpCat = fmtCatCode(tpGes, tpLft)
+  
+  tpAf = Nz(rs("REC_Afstand"))
+  tpSl = Nz(rs("REC_Slag"))
+  tpBn = Nz(rs("REC_Baanlengte"))
+  tpTime = Nz(rs("REC_Tijd"))
+  tpDat = Nz(rs("REC_Datum"), #1/1/1900#)
+  tpPlaats = Nz(rs("REC_Plaats"))
+  tpNaam = Nz(rs("REC_Name"))
+  
+  Dim tpVer As String, tpEstDlns As String
+  tpVer = Nz(rs("REC_Vereniging"))
+  tpEstDlns = Nz(rs("REC_EST_Deelnemers"))
+  
+  
+  
+  If (tpCat <> curCat Or tpBn <> curBn Or tpAf <> curAf Or tpSl <> curSl) Then
+    If (Not blClearAll) Then
+      'first need to see if already exists
+      rsOutp.FindFirst "rc_code = """ & Code & """ and rc_afstand=""" & tpAf & """ and rc_slag=""" & tpSl & """ and rc_baanlengte = " & tpBn & " and rc_displayCategorie=""" & tpCat & """"
+      If rsOutp.NoMatch Then
+        rsOutp.AddNew
+      Else
+        rsOutp.Edit
+      End If
+    Else
+      rsOutp.AddNew
+    End If
+      'write out
+      rsOutp("RC_Code") = hzn(Code)
+      rsOutp("rc_Afstand") = hzn(tpAf)
+      rsOutp("rc_Slag") = hzn(tpSl)
+      rsOutp("rc_displayCategorie") = hzn(tpCat)
+      rsOutp("rc_Tijd") = tpTime
+      rsOutp("rc_Baanlengte") = tpBn
+      
+      rsOutp("rc_Plaats") = hzn(tpPlaats)
+      If (lenDateIsValid(tpDat)) Then
+        rsOutp("rc_Datum") = tpDat
+      End If
+      
+      rsOutp("rc_vereniging") = hzn(tpVer)
+      
+      If (tpAf Like "*x*") Then
+        rsOutp("rc_naam") = hzn(IIf(tpEstDlns = "", IIf(tpNaam = "", "Limiet", tpNaam), tpEstDlns))
+      Else
+        rsOutp("rc_Naam") = IIf(tpNaam = "", "Limiet", tpNaam)
+      End If
+      
+      
+      
+      
+    rsOutp.Update
+    
+    curCat = tpCat
+    curBn = tpBn
+    curAf = tpAf
+    curSl = tpSl
+    
+  End If
+  
+  rs.MoveNext
+Loop
+
+rs.Close
+rsOutp.Close
+
+
+recivReadInitTableFromLenex = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " recivReadInitTableFromLenex" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+Public Function recivBuildInitValTable(ByVal Code As String, ByVal delCurInitVals As Boolean, ByVal delAllRecords, ByVal setMissingAtZero As Boolean) As Boolean
+On Error GoTo fout
+recivBuildInitValTable = False
+
+Dim blValid As Boolean
+blValid = False
+Dim sInvalid As String
+sInvalid = ""
+
+Dim nRecAges As Integer
+Dim recAges(0 To MAX_N_REC_AGES) As Long
+
+Dim rsInfo As RECSET_BASIC_INFO
+Dim isFnd As Boolean
+
+If Not rcsLookup(Code, isFnd, rsInfo, nRecAges, recAges) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Kon recordtype " & Code & " niet vinden"
+End If
+
+
+
+
+If Not recivBuildInitValTableValidate(rsInfo, nRecAges, recAges, blValid, sInvalid) Then
+  Exit Function
+End If
+
+If (Not blValid) Then
+  Err.Raise 1, , "De bewerking kon niet worden uitgevoerd omdat er problemen zijn met de ingevoerde startwaarden." & vbCrLf & "De foutmelding die dit bericht veroorzaakte wordt hieronder weergegeven: " & vbCrLf & sInvalid
+End If
+
+
+'Need to notify that the records will be changed!
+notifyRecordChange
+
+
+
+
+Dim delSQL As String
+
+If (delAllRecords) Then
+  delSQL = "delete * from [dtRecordsInternal] where rc_code = """ & Code & """ and [rc_recordnummer] >= 1905000;"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL delSQL
+  DoCmd.SetWarnings True
+End If
+If (delCurInitVals) Then
+  delSQL = "delete * from [dtRecordsInternal] where rc_code = """ & Code & """ and [rc_recordnummer] < 1905000;"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL delSQL
+  DoCmd.SetWarnings True
+End If
+
+
+
+If Not recivCreateTempTables() Then
+  Exit Function
+End If
+
+If Not recivProcessZwemmers() Then
+  Exit Function
+End If
+
+If Not recivProcessWedstrijden() Then
+  Exit Function
+End If
+
+If Not recivProcessRecords(rsInfo, nRecAges, recAges) Then
+  Exit Function
+End If
+
+
+If Not recivBuildInitValsAddMissing(rsInfo, nRecAges, recAges, setMissingAtZero) Then
+  Exit Function
+End If
+
+If Not recivClean() Then
+  Exit Function
+End If
+
+
+
+
+recivBuildInitValTable = True
+Exit Function
+fout:
+MsgBox Err & " recivBuildInitValTable" & Error$, 16
+DoCmd.SetWarnings True
+recivClean
+Exit Function
+End Function
+
+Private Function recivBuildInitValTableValidate(ByRef rsInfo As RECSET_BASIC_INFO, ByVal nRecAges As Integer, ByRef recAges() As Long, blValid As Boolean, sInvalid As String) As Boolean
+On Error GoTo fout
+recivBuildInitValTableValidate = False
+
+blValid = True
+
+
+
+Dim rs As Recordset
+Dim sql As String
+
+
+sql = "SELECT [hsoRecStartwaardes].RC_DisplayCategorie, [hsoRecStartwaardes].rc_Baanlengte FROM [hsoRecStartwaardes] " & _
+   "GROUP BY [hsoRecStartwaardes].RC_displayCategorie, [hsoRecStartwaardes].RC_Baanlengte;"
+
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+'We validate the input table by checking the category and baan.
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpCat As String
+  Dim tpBn As Integer
+  Dim tpMaxAge As Integer
+  
+  tpCat = Nz(rs("rc_displayCategorie"))
+  tpBn = Nz(rs("rc_Baanlengte"))
+  
+  Dim tpCatIsValid As Boolean
+  Dim tpCatGes As String
+  Dim tpCatLft As Long
+  Dim sInvalidReason As String
+  
+  If Not recParseCat(tpCat, nRecAges, recAges, tpCatIsValid, tpCatGes, tpCatLft, sInvalidReason) Then
+    Exit Function
+  End If
+  
+  If (Not tpCatIsValid) Then
+    blValid = False
+    sInvalid = "Ongeldige categorie aangetroffen: " & tpCat & vbCrLf & sInvalidReason
+    Exit Do
+  End If
+    
+  If (tpBn <> 25) And (tpBn <> 50) Then
+    blValid = False
+    sInvalid = "Ongeldige baanlengte aangetroffen: " & tpBn & vbCrLf & "Keuze uit 25 of 50"
+    Exit Do
+  End If
+    
+  
+  If (Not rsInfo.blSepBaan) And (tpBn = 50) Then
+    blValid = False
+    sInvalid = "Ongeldige baanlengte aangetroffen: " & tpBn & vbCrLf & "In het <Records-Instellingen> scherm heeft u aangeven dat er GEEN aparte clubrecords worden bijgehouden op de 50m baan. Pas eventueel deze optie aan."
+    Exit Do
+  End If
+    
+  rs.MoveNext
+Loop
+
+recivBuildInitValTableValidate = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next 'no current record
+MsgBox Err & " recivBuildInitValTableValidate" & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Private Function recivCreateTempTables() As Boolean
+On Error GoTo fout
+recivCreateTempTables = False
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+
+DoCmd.DeleteObject acTable, "~STW_REC_NAMEN_DEF"
+DoCmd.DeleteObject acTable, "~STW_REC_WED_DEF"
+
+Set tb = db.CreateTableDef("~STW_REC_NAMEN_DEF")
+tb.Fields.Append tb.CreateField("REC_NAAM", dbText, 255)
+tb.Fields.Append tb.CreateField("REC_STARTNR", dbText, 10)
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("REC_NAAM", dbText, 255)
+idx.Primary = True
+tb.Indexes.Append idx
+db.TableDefs.Append tb
+Set tb = Nothing
+
+Set tb = db.CreateTableDef("~STW_REC_WED_DEF")
+tb.Fields.Append tb.CreateField("REC_DATUM", dbDate)
+tb.Fields.Append tb.CreateField("REC_PLAATS", dbText, 255)
+tb.Fields.Append tb.CreateField("REC_WEDNR", dbLong)
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("REC_Datum", dbDate)
+idx.Fields.Append idx.CreateField("REC_PLAATS", dbText, 255)
+tb.Indexes.Append idx
+db.TableDefs.Append tb
+Set tb = Nothing
+
+Set db = Nothing
+
+
+
+recivCreateTempTables = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then 'could not find object to delete
+  Resume Next
+End If
+
+MsgBox Err & " recivCreateTempTables" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function recivProcessZwemmers() As Boolean
+On Error GoTo fout
+recivProcessZwemmers = False
+
+
+Dim nwlOut As Recordset, recs As Recordset, leden As Recordset
+
+Set recs = CurrentDb().OpenRecordset("Select * from hsoRECStartwaardes;", dbOpenDynaset)
+Set leden = CurrentDb().OpenRecordset("select [dtLeden].*, fmtName(nz([voornaam]), nz([voegsel]),nz([achternaam])) as NAAM from [dtLeden];")
+
+Set nwlOut = CurrentDb().OpenRecordset("~STW_REC_NAMEN_DEF")
+
+nwlOut.Index = "PrimaryKey"
+
+
+
+'clubrecord startnummers will be 00-CXXXX, where XXXX is a 4 digit number.
+Dim maxStartNr As Long
+maxStartNr = Nz(DMax("cint(val(right(nz([startnummer]),4)))", "dtLeden", "[startnummer]  like ""00-C[0-9][0-9][0-9][0-9]""  "))
+
+
+recs.MoveFirst
+Do Until recs.EOF
+  Dim sName As String
+  Dim tpName As String
+  sName = Nz(recs("rc_NAAM"))
+  
+  tpName = Trim(extractToken(sName, ","))
+  While tpName <> ""
+  
+    nwlOut.Seek "=", tpName
+    If (nwlOut.NoMatch) Then
+    
+      Dim newStartnr As String
+      'First check if already present in dtLeden.
+      
+      If (tpName <> "Limiet") Then
+        leden.FindFirst "naam =  """ & tpName & """"
+        If Not leden.NoMatch Then
+          newStartnr = Nz(leden("Startnummer"))
+        Else
+          maxStartNr = maxStartNr + 1
+          If (maxStartNr > 9999) Then
+            Err.Raise 1, , "Onvoldoende startnummers beschikbaar"
+          End If
+          newStartnr = "00-C" & Format(maxStartNr, "0000")
+          
+          leden.AddNew
+          leden("startnummer") = newStartnr
+          leden("Voornaam") = hzn(nmExtractVoornaam(tpName))
+          leden("Voegsel") = hzn(nmExtractVoegsel(tpName))
+          leden("Achternaam") = hzn(nmExtractAchternaam(tpName))
+          'leden("Vereniging") = nieuweleden("Vereniging")
+          leden("Actief lid") = False
+          leden("Geslacht") = "M"
+                 
+          leden.Update
+        End If
+     Else
+       newStartnr = "00-000"
+     End If
+    
+          
+      nwlOut.AddNew
+        nwlOut("REC_Naam") = tpName
+        nwlOut("REC_STARTNR") = newStartnr
+      nwlOut.Update
+    End If
+    tpName = Trim(extractToken(sName, ","))
+  Wend
+  
+  
+  recs.MoveNext
+Loop
+
+recivProcessZwemmers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " recivProcessZwemmers" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Private Function recivProcessWedstrijden() As Boolean
+On Error GoTo fout
+recivProcessWedstrijden = False
+
+Dim nwWed As Recordset, wed As Recordset
+
+Dim wdOut As Recordset
+
+Dim sql As String
+sql = "Select hsoRECStartwaardes.rc_datum , hsoRECStartwaardes.rc_plaats from hsoRECStartwaardes " & _
+    "GROUP BY hsoRECStartwaardes.rc_datum , hsoRECStartwaardes.rc_plaats HAVING (((hsoRECStartwaardes.rc_datum) is not null));"
+Set nwWed = CurrentDb().OpenRecordset(sql)
+
+
+Set wed = CurrentDb().OpenRecordset("dtWedstrijden", dbOpenDynaset)
+
+Set wdOut = CurrentDb().OpenRecordset("~STW_REC_WED_DEF")
+
+
+
+Dim maxWedNr As Long, tpWedNr As Long
+maxWedNr = Nz(DMax("[Wedstrijd nummer]", "dtWedstrijden", "[wedstrijd nummer]  < 1905000"))
+
+nwWed.MoveFirst
+Do Until nwWed.EOF
+  Dim tpDat As Date
+  tpDat = Nz(nwWed("rc_datum"), #1/1/1900#)
+  Dim tpPlaats As String
+  tpPlaats = Nz(nwWed("rc_Plaats"))
+  
+  Dim tpNewWedNr As Long
+  
+
+    wed.FindFirst "[datum]=#" & Format(tpDat, "mm\-dd\-yyyy") & "# and nz([plaats]) = """ & tpPlaats & """"
+    If Not wed.NoMatch Then
+      tpNewWedNr = Nz(wed("Wedstrijd nummer"))
+    Else
+      maxWedNr = maxWedNr + 1
+      If (maxWedNr >= 1905000) Then
+        Err.Raise 1, , "Er zijn onvoldoende vrije wedstrijdnummers < 1905000"
+      End If
+      tpNewWedNr = maxWedNr
+      
+      wed.AddNew
+      
+        wed("Wedstrijd nummer") = tpNewWedNr
+        wed("Datum") = tpDat
+        wed("Plaats") = hzn(tpPlaats)
+        wed("Baanlengte") = 25
+        If lenDateIsValid(tpDat) Then
+          wed("Seizoen") = hzn(ssGetSeason(tpDat))
+        End If
+        
+      wed.Update
+    End If
+    
+    
+    wdOut.AddNew
+      wdOut("REC_WEDNR") = tpNewWedNr
+      wdOut("REC_Datum") = tpDat
+      wdOut("REC_Plaats") = hzn(tpPlaats)
+    wdOut.Update
+
+
+
+
+  nwWed.MoveNext
+Loop
+
+
+
+recivProcessWedstrijden = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next  ' no current record.
+MsgBox Err & " recivProcessWedstrijden" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recivProcessRecords(ByRef rsInfo As RECSET_BASIC_INFO, ByVal nRecAges As Integer, ByRef recAges() As Long) As Boolean
+On Error GoTo fout
+recivProcessRecords = False
+
+Dim recs As Recordset
+Set recs = CurrentDb().OpenRecordset("Select * from hsoRECStartwaardes;")
+
+Dim recOutp As Recordset
+Set recOutp = CurrentDb().OpenRecordset("dtRecordsInternal", dbOpenDynaset)
+
+Dim est As Recordset
+Set est = CurrentDb().OpenRecordset("dtEstafettes")
+
+
+
+Dim nwLid As Recordset, nwWed As Recordset
+Set nwLid = CurrentDb().OpenRecordset("~STW_REC_NAMEN_DEF")
+Set nwWed = CurrentDb().OpenRecordset("~STW_REC_WED_DEF")
+nwLid.Index = "PrimaryKey"
+nwWed.Index = "PrimaryKey"
+
+
+Dim estNames(0 To 50) As String
+Dim estStarts(0 To 50) As String
+Dim estNZwms As Integer
+
+
+Dim newFreeEstGUID As Long
+newFreeEstGUID = estGetFreeGUID()
+
+
+Dim maxRecNr As Long
+maxRecNr = Nz(DMax("[rc_recordnummer]", "dtRecordsInternal", "[rc_recordnummer] < 1905000 and rc_code= """ & rsInfo.Code & """"))
+
+recs.MoveFirst
+Do Until recs.EOF
+
+  estNZwms = 0
+
+
+  Dim isEstaf As Boolean
+  Dim isZwmValid As Boolean
+  Dim isWedValid As Boolean
+  
+  
+  Dim tpDat As Date
+  tpDat = Nz(recs("rc_Datum"), #1/1/1900#)
+  
+  Dim tpPlaats As String
+  tpPlaats = Nz(recs("rc_Plaats"))
+  
+  Dim tpBaan As Integer
+  tpBaan = Nz(recs("rc_Baanlengte"))
+  
+  Dim tpName As String
+  tpName = Nz(recs("rc_Naam"))
+  
+  Dim tpStart As String
+  
+  isZwmValid = tpName <> "" And tpName <> "Limiet"
+  isWedValid = lenDateIsValid(tpDat) Or Nz(tpPlaats) <> ""
+  
+  isEstaf = Nz(recs("rc_Afstand")) Like "*x*"
+  
+  Dim tpTime As Double
+  tpTime = Nz(recs("rc_Tijd"), 0)
+  
+  Dim tpCat As String
+  tpCat = Nz(recs("rc_displayCategorie"))
+  
+  Dim tpCatLft As Long, tpCatGes As String, tpCatValid As Boolean, sDummy As String
+  
+  If Not recParseCat(tpCat, nRecAges, recAges, tpCatValid, tpCatGes, tpCatLft, sDummy) Then
+    Exit Function
+  End If
+  
+  If Not tpCatValid Then
+    Err.Raise 1, , "Internal error."
+  End If
+  
+  
+  Dim tpAf As String
+  tpAf = Nz(recs("rc_Afstand"))
+  
+  Dim tpSlag As String
+  tpSlag = Nz(recs("rc_Slag"))
+  
+  
+  
+  Dim tpWedNr As Long
+  tpWedNr = 0
+  
+  If (isWedValid) Then
+    nwWed.Seek "=", tpDat, hzn(tpPlaats)
+    If (nwWed.NoMatch) Then
+      Err.Raise 1, , "Internal error. Could not find corresponding wedstrijd."
+    End If
+    tpWedNr = nwWed("REC_WEDNR")
+  End If
+  
+  
+  
+  If (isEstaf And isZwmValid) Then
+    Dim tpEstName As String, tpEstStart As String
+    tpEstName = Trim(extractToken(tpName, ","))
+    While (estNZwms < 50) And tpEstName <> ""
+      nwLid.Seek "=", tpEstName
+      If (nwLid.NoMatch) Then
+        Err.Raise 1, , "Internal error. Could not find corresponding estafette zwemmer."
+      End If
+      tpEstStart = Nz(nwLid("REC_STARTNR"))
+      
+      estNames(estNZwms) = tpEstName
+      estStarts(estNZwms) = tpEstStart
+      estNZwms = estNZwms + 1
+      
+      tpEstName = Trim(extractToken(tpName, ","))
+    Wend
+  ElseIf (Not isEstaf) Then
+    nwLid.Seek "=", tpName
+    If (nwLid.NoMatch) Then
+      Err.Raise 1, , "Internal error. Could not find corresponding zwemmer."
+    End If
+    tpStart = Nz(nwLid("REC_STARTNR"))
+  End If
+  
+  If (isEstaf) Then
+    tpStart = "00-000"
+  End If
+  
+  
+  
+  Dim tpVer As String
+  tpVer = Nz(recs("RC_Vereniging"))
+  
+  
+  Dim tpRecNr As Long
+  
+  
+  'We are now ready to append.
+  
+  'First check if present.
+  
+  recOutp.FindFirst "[rc_afstand] = """ & tpAf & """ and [rc_slag] = """ & tpSlag & """ and [rc_geslacht] = """ & tpCatGes & """ and rc_leeftijd = " & tpCatLft & " and [rc_baanlengte] = " & tpBaan & " and [rc_recordnummer] < 1905000"
+  
+  Dim blExists As Boolean
+  blExists = Not recOutp.NoMatch
+      
+  If blExists Then
+    'It already exists
+    tpRecNr = recOutp("RC_Recordnummer")
+    recOutp.Edit
+  Else
+    maxRecNr = maxRecNr + 1
+      If (maxRecNr >= 1905000) Then
+        Err.Raise 1, , "Er zijn onvoldoende vrij clubrecordnummers < 1905000"
+      End If
+      tpRecNr = maxRecNr
+      recOutp.AddNew
+      recOutp("rc_recordnummer") = tpRecNr
+  End If
+        
+      recOutp("RC_Code") = hzn(rsInfo.Code)
+      recOutp("rc_startnummer") = hzn(tpStart)
+      recOutp("rc_Afstand") = hzn(tpAf)
+      recOutp("rc_Slag") = hzn(tpSlag)
+      
+      If (rsInfo.blIsMultiVer) Then
+        recOutp("RC_Vereniging") = hzn(tpVer)
+      End If
+        
+      recOutp("rc_Tijd") = tpTime
+      recOutp("rc_AantalDecimalen") = 2
+      recOutp("rc_displayCategorie") = hzn(fmtCatCode(tpCatGes, tpCatLft))
+      recOutp("RC_Geslacht") = hzn(tpCatGes)
+      recOutp("RC_Leeftijd") = hzn(tpCatLft)
+      recOutp("rc_wedstrijdnummer") = tpWedNr
+      recOutp("rc_baanlengte") = tpBaan
+      
+      Dim blOutputEstaf As Boolean, lEstafGUID As Long
+      blOutputEstaf = False
+      lEstafGUID = -1
+      If (isEstaf) Then
+        If estNZwms = afstand_n_zwemmers(tpAf) Then
+          lEstafGUID = newFreeEstGUID
+          newFreeEstGUID = newFreeEstGUID + 1
+          recOutp("RC_EST_GUID") = lEstafGUID
+          blOutputEstaf = True
+        End If
+      End If
+        
+      If (Not blOutputEstaf) Then
+        recOutp("RC_Est_GUID") = Null
+      End If
+      
+    
+    recOutp.Update
+    
+    If (blOutputEstaf) Then
+      If Not estWriteEst(lEstafGUID, estNZwms, estStarts, est) Then
+        Exit Function
+      End If
+    End If
+    
+    
+  
+  
+  recs.MoveNext
+Loop
+
+recivProcessRecords = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recivProcessRecords" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Private Function recivBuildInitValsAddMissing(ByRef rsInfo As RECSET_BASIC_INFO, ByVal nRecAges As Integer, ByRef recAges() As Long, setAtZero As Boolean) As Boolean
+On Error GoTo fout
+recivBuildInitValsAddMissing = False
+
+
+Dim cat(0 To 3 * MAX_N_REC_AGES) As String
+Dim catGes(0 To 3 * MAX_N_REC_AGES) As String
+Dim catMaxAge(0 To 3 * MAX_N_REC_AGES) As Integer
+
+Dim nCat As Integer
+
+Dim af(0 To MAX_N_REC_AFSL) As String
+Dim sl(0 To MAX_N_REC_AFSL) As String
+Dim is25Only(0 To MAX_N_REC_AFSL) As Boolean
+Dim isMV(0 To MAX_N_REC_AFSL) As Boolean
+Dim nAfSl As Integer
+
+Dim extSl(0 To MAX_N_REC_AFSL) As String
+Dim extAf(0 To MAX_N_REC_AFSL) As String
+Dim extCat(0 To MAX_N_REC_AFSL) As String
+Dim extCatGes(0 To MAX_N_REC_AFSL) As String
+Dim extCatLft(0 To MAX_N_REC_AFSL) As Long
+Dim nExtra As Integer
+
+
+
+If Not recivCreateCatList(cat, catGes, catMaxAge, nCat, nRecAges, recAges) Then
+  Exit Function
+End If
+
+If Not recivBuildAfSlagList(af, sl, is25Only, isMV, nAfSl, extAf, extSl, extCat, extCatGes, extCatLft, nExtra) Then
+  Exit Function
+End If
+
+'build a temp table.
+If Not recivBuildInitValsAddMissingCreateTemp() Then
+  Exit Function
+End If
+
+'Transfer the current af & sl &cat & bn to the temp table.
+Dim appSql As String
+appSql = "INSERT INTO [~STW_REC_InitVals] ( REC_AF, REC_SLAG, REC_GES, REC_LFT, REC_BN ) " & _
+         "SELECT [dtRecordsInternal].rc_Afstand, [dtRecordsInternal].rc_Slag, [dtRecordsInternal].rc_geslacht,[dtRecordsInternal].rc_leeftijd,   [dtRecordsInternal].rc_Baanlengte " & _
+        "FROM [dtRecordsInternal] WHERE ((([dtRecordsInternal].[rc_recordnummer]) < 1905000) and dtRecordsInternal.rc_code = """ & rsInfo.Code & """) " & _
+        "GROUP BY [dtRecordsInternal].rc_Afstand, [dtRecordsInternal].rc_Slag,[dtRecordsInternal].rc_geslacht,[dtRecordsInternal].rc_leeftijd, [dtRecordsInternal].rc_Baanlengte;"
+        
+DoCmd.SetWarnings False
+DoCmd.RunSQL appSql
+DoCmd.SetWarnings True
+
+
+Dim maxClubNr As Long
+maxClubNr = Nz(DMax("[rc_recordnummer]", "dtRecordsInternal", "rc_code = """ & rsInfo.Code & """ and rc_recordnummer < 1905000"), 0)
+
+
+Dim clubOut As Recordset
+Set clubOut = CurrentDb().OpenRecordset("dtRecordsInternal")
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~STW_REC_InitVals")
+
+'Use primary key for Seek operations.
+rs.Index = "PrimaryKey"
+
+Dim done As Boolean
+Dim i As Integer, j As Integer
+
+
+Dim tpAf As String
+  Dim tpSl As String
+  Dim tpIsMV As Boolean
+  Dim tpIs25Only As Boolean
+  Dim tpCat As String
+  Dim tpBn As Integer
+
+
+For i = 0 To nAfSl - 1
+  
+  
+  tpAf = af(i)
+  tpSl = sl(i)
+  tpIsMV = isMV(i)
+  tpIs25Only = is25Only(i)
+  
+  'Loop over all the categories.
+  tpBn = 25
+  
+  done = False
+  While Not done
+    For j = 0 To nCat - 1
+      'Check to see if should handle.
+      If tpIsMV Or catGes(j) <> "*" Then
+        tpCat = cat(j)
+        
+        Dim tpCatGes As String
+        Dim tpCatLft As Long
+        tpCatGes = catGes(j)
+        tpCatLft = catMaxAge(j)
+        
+        If Not recivBuildInitValsAddMissingPerform(rsInfo, setAtZero, tpAf, tpSl, tpBn, tpCatGes, tpCatLft, rs, clubOut, maxClubNr) Then
+          Exit Function
+        End If
+        
+      End If
+    Next j
+    If (tpIs25Only Or tpBn = 50 Or (Not rsInfo.blSepBaan)) Then
+      done = True
+    Else
+      tpBn = 50
+    End If
+  Wend
+
+Next i
+
+For i = 0 To nExtra - 1
+  tpAf = extAf(i)
+  tpSl = extSl(i)
+  tpCat = extCat(i)
+  tpCatGes = extCatGes(i)
+  tpCatLft = extCatLft(i)
+  
+  tpBn = 25
+  done = False
+  
+  While Not done
+    If Not recivBuildInitValsAddMissingPerform(rsInfo, setAtZero, tpAf, tpSl, tpBn, tpCatGes, tpCatLft, rs, clubOut, maxClubNr) Then
+      Exit Function
+    End If
+    If (tpBn = 50 Or (Not rsInfo.blSepBaan)) Then
+      done = True
+    Else
+      tpBn = 50
+    End If
+  Wend
+Next i
+
+appCleanRS rs
+appCleanRS clubOut
+
+
+If Not recivBuildInitValsAddMissingClean() Then
+  Exit Function
+End If
+
+recivBuildInitValsAddMissing = True
+Exit Function
+fout:
+MsgBox Err & " recivBuildInitValsAddMissing" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Private Function recivBuildAfSlagList(ByRef af() As String, ByRef sl() As String, ByRef is25Only() As Boolean, ByRef isMV() As Boolean, ByRef nAfSl As Integer, ByRef extAf() As String, ByRef extSl() As String, ByRef extCat() As String, ByRef extCatGes() As String, ByRef extCatLft() As Long, ByRef nExtra As Integer) As Boolean
+On Error GoTo fout
+recivBuildAfSlagList = False
+
+'First add special distances.
+
+extAf(0) = "8x50"
+extSl(0) = "VRIJ"
+extCat(0) = "ZWEEDS"
+extCatGes(0) = "z"
+extCatLft(0) = CAT_MAX_AGE
+
+extAf(1) = "10x50"
+extSl(1) = "VRIJ"
+extCat(1) = "ZWEEDS"
+extCatGes(1) = "z"
+extCatLft(1) = CAT_MAX_AGE
+
+nExtra = 2
+
+'Now add all the regular distances.
+If Not afslFillUnorderedList(nAfSl, af, sl, is25Only, isMV) Then
+  Exit Function
+End If
+
+
+
+
+
+
+recivBuildAfSlagList = True
+Exit Function
+fout:
+MsgBox Err & " recivBuildAfSlagList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+Private Function recivCreateCatList(ByRef cat() As String, ByRef catGes() As String, ByRef catMaxAge() As Integer, ByRef nCats As Integer, ByVal nRecAges As Integer, ByRef recAges() As Long) As Boolean
+On Error GoTo fout
+recivCreateCatList = False
+
+Dim i As Integer
+
+nCats = 0
+
+For i = 0 To nRecAges - 1
+  cat(nCats) = fmtCatCode("M", recAges(i))
+  catGes(nCats) = "M"
+  catMaxAge(nCats) = recAges(i)
+  nCats = nCats + 1
+Next i
+
+cat(nCats) = "HEREN"
+catGes(nCats) = "M"
+catMaxAge(nCats) = CAT_MAX_AGE
+nCats = nCats + 1
+
+For i = 0 To nRecAges - 1
+  cat(nCats) = fmtCatCode("V", recAges(i))
+  catGes(nCats) = "V"
+  catMaxAge(nCats) = recAges(i)
+  nCats = nCats + 1
+Next i
+
+cat(nCats) = "DAMES"
+catGes(nCats) = "V"
+catMaxAge(nCats) = CAT_MAX_AGE
+nCats = nCats + 1
+
+For i = 0 To nRecAges - 1
+  cat(nCats) = fmtCatCode("*", recAges(i))
+  catGes(nCats) = "*"
+  catMaxAge(nCats) = recAges(i)
+  nCats = nCats + 1
+Next i
+
+'Don't add Zweeds!! This is treated as a separate category.
+'cats(nCats) = "ZWEEDS"
+'catGes(nCats) = "*"
+'catMaxAge(nCats) = CAT_MAX_AGE
+'nCats = nCats + 1
+
+
+
+
+recivCreateCatList = True
+Exit Function
+fout:
+MsgBox Err & " recivCreateCatList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function recivBuildInitValsAddMissingCreateTemp() As Boolean
+On Error GoTo fout
+recivBuildInitValsAddMissingCreateTemp = False
+
+DoCmd.DeleteObject acTable, "~STW_REC_InitVals"
+
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+
+
+
+Set tb = db.CreateTableDef("~STW_REC_InitVals")
+Dim fld As Field
+Dim idx As Index
+
+Set idx = tb.CreateIndex("PrimaryKey")
+
+tb.Fields.Append tb.CreateField("REC_AF", dbText, 20)
+idx.Fields.Append idx.CreateField("REC_AF", dbText, 20)
+
+tb.Fields.Append tb.CreateField("REC_SLAG", dbText, 20)
+idx.Fields.Append idx.CreateField("REC_SLAG", dbText, 20)
+
+tb.Fields.Append tb.CreateField("REC_BN", dbInteger)
+idx.Fields.Append idx.CreateField("REC_BN", dbInteger)
+
+tb.Fields.Append tb.CreateField("REC_GES", dbText, 1)
+idx.Fields.Append idx.CreateField("REC_GES", dbText, 1)
+
+tb.Fields.Append tb.CreateField("REC_LFT", dbLong)
+idx.Fields.Append idx.CreateField("REC_LFT", dbLong)
+
+
+idx.Primary = True
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+
+recivBuildInitValsAddMissingCreateTemp = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+MsgBox Err & " recivBuildInitValsAddMissingCreateTemp" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Private Function recivBuildInitValsAddMissingPerform(ByRef rsInfo As RECSET_BASIC_INFO, ByVal setAtZero As Boolean, ByVal af As String, ByVal sl As String, ByVal bn As Integer, ByVal catGes As String, ByVal catLft As Long, ByRef rs As Recordset, ByRef clubOut As Recordset, ByRef maxUsedClubNr As Long) As Boolean
+On Error GoTo fout
+recivBuildInitValsAddMissingPerform = False
+
+rs.Seek "=", af, sl, bn, catGes, catLft
+If rs.NoMatch Then
+  maxUsedClubNr = maxUsedClubNr + 1
+  If (maxUsedClubNr >= 1905000) Then
+    Err.Raise 1, , "Onvoldoende vrije record nummers"
+  End If
+
+  'Have to append.
+  clubOut.AddNew
+    clubOut("RC_code") = hzn(rsInfo.Code)
+    clubOut("rc_recordnummer") = maxUsedClubNr
+    clubOut("rc_displayCategorie") = hzn(fmtCatCode(catGes, catLft))
+    clubOut("RC_Leeftijd") = catLft
+    clubOut("RC_Geslacht") = hzn(catGes)
+    clubOut("rc_afstand") = hzn(af)
+    clubOut("rc_slag") = hzn(sl)
+    clubOut("rc_wedstrijdnummer") = 0
+    clubOut("rc_startnummer") = "00-000"
+    If (setAtZero) Then
+      clubOut("rc_Tijd") = 0
+    Else
+      clubOut("rc_Tijd") = 9999.99
+    End If
+      
+    clubOut("rc_Baanlengte") = bn
+  clubOut.Update
+End If
+
+
+
+recivBuildInitValsAddMissingPerform = True
+Exit Function
+fout:
+MsgBox Err & " recivBuildInitValsAddMissingPerform" & vbCrLf & Error$, 16
+End Function
+
+Private Function recivBuildInitValsAddMissingClean() As Boolean
+On Error GoTo fout
+recivBuildInitValsAddMissingClean = False
+
+DoCmd.DeleteObject acTable, "~STW_REC_InitVals"
+
+
+recivBuildInitValsAddMissingClean = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+MsgBox Err & " recivBuildInitValsAddMissingClean" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recivClean() As Boolean
+On Error GoTo fout
+recivClean = False
+
+DoCmd.DeleteObject acTable, "~STW_REC_NAMEN_DEF"
+DoCmd.DeleteObject acTable, "~STW_REC_WED_DEF"
+
+
+recivClean = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+MsgBox Err & " recivClean" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function recLkp_FindData(ByRef rsInfo As RECSET_BASIC_INFO, ByVal recnr As Long, ByVal recIsExt As Boolean, _
+ByRef skInt As Recordset, ByRef skExt As Recordset, ByRef skEst As Recordset, ByRef skZwm As Recordset, ByRef skVer As Recordset, ByRef skWed As Recordset, _
+ByRef recActTime As Double, ByRef recNDecimals As Integer, ByRef recVer As String, ByRef recVerDepot As String, ByRef recVerNation As String, recVerCode As String, ByRef recVerWasEmpty As Boolean, _
+ByRef recWedDatum As Date, ByRef recWedPlaats As String, ByRef recWedNation As String, ByRef recWedBaanlengte As Integer, _
+ByRef zwmIsValid As Boolean, ByRef zwmStart As String, ByRef zwmName As String, ByRef zwmVoornaam As String, ByRef zwmVoegsel As String, ByRef zwmAchternaam As String, ByRef zwmGes As String, ByRef zwmGebDate As Date, _
+ByRef estIsValid As Boolean, ByRef nEstZwemmers As Integer, ByRef estStarts() As String, ByRef estNames() As String, ByRef estDeelnemers As String, _
+ByRef estVoornaam() As String, ByRef estVoegsel() As String, ByRef estAchternaam() As String, ByRef estGes() As String, _
+ByRef estGebDate() As Date) As Boolean
+
+
+On Error GoTo fout
+recLkp_FindData = False
+
+'Initialize
+zwmIsValid = False
+zwmStart = ""
+zwmName = ""
+zwmVoornaam = ""
+zwmVoegsel = ""
+zwmAchternaam = ""
+zwmGes = ""
+zwmGebDate = #1/1/1900#
+
+recWedDatum = #1/1/1900#
+recWedPlaats = ""
+recWedNation = ""
+recWedBaanlengte = 0
+
+
+recVerWasEmpty = True
+recVer = ""
+recVerDepot = ""
+recVerNation = ""
+recVerCode = ""
+
+recNDecimals = 2
+
+estIsValid = False
+nEstZwemmers = 0
+estDeelnemers = ""
+
+
+Dim tpRecGes As String
+Dim tpRecIsEstaf As String
+Dim tpRecAf As String
+
+  If (recIsExt) Then
+    skExt.Seek "=", recnr
+    If (Not skExt.NoMatch) Then
+      tpRecAf = Nz(skExt("RC_Afstand"))
+      tpRecIsEstaf = tpRecAf Like "*x*"
+      tpRecGes = Nz(skExt("RC_Geslacht"))
+      recVer = Nz(skExt("RC_Vereniging"))
+      
+      recActTime = Nz(skExt("RC_Tijd"))
+      
+      recNDecimals = Nz(skExt("RC_AantalDecimalen"))
+      If (tpRecIsEstaf) Then
+        Dim tpNames As String
+        tpNames = Nz(skExt("RC_EST_Deelnemers"))
+        estDeelnemers = tpNames
+        If (estDeelnemers <> "") Then
+          estIsValid = True
+        End If
+        
+        Dim tpPllName As String
+        tpPllName = Trim(extractToken(tpNames, ","))
+        nEstZwemmers = 0
+        While (tpPllName <> "")
+          estStarts(nEstZwemmers) = ""
+          estGebDate(nEstZwemmers) = #1/1/1900#
+          If (tpRecGes = "*") Then
+            estGes(nEstZwemmers) = "M"
+          Else
+            estGes(nEstZwemmers) = tpRecGes
+          End If
+          estNames(nEstZwemmers) = tpPllName
+          estVoornaam(nEstZwemmers) = nmExtractVoornaam(tpPllName)
+          estVoegsel(nEstZwemmers) = nmExtractVoegsel(tpPllName)
+          estAchternaam(nEstZwemmers) = nmExtractAchternaam(tpPllName)
+          
+          
+          nEstZwemmers = nEstZwemmers + 1
+          tpPllName = Trim(extractToken(tpNames, ","))
+        Wend
+        
+      Else
+        zwmName = Nz(skExt("RC_Naam"))
+        If (zwmName <> "") And (zwmName <> "Limiet") And (zwmName <> "Estafette") Then
+          zwmIsValid = True
+        End If
+        zwmVoornaam = nmExtractVoornaam(zwmName)
+        zwmVoegsel = nmExtractVoegsel(zwmName)
+        zwmAchternaam = nmExtractAchternaam(zwmName)
+        If (tpRecGes = "*") Then
+          zwmGes = "M"
+        Else
+          zwmGes = tpRecGes
+        End If
+        zwmGebDate = #1/1/1900#
+      End If
+      recWedBaanlengte = Nz(skExt("RC_Baanlengte"))
+      recWedPlaats = Nz(skExt("RC_Plaats"))
+      recWedDatum = Nz(skExt("RC_Datum"))
+      recWedNation = Nz(skExt("RC_Nation"))
+    End If
+  Else
+    skInt.Seek "=", rsInfo.Code, recnr
+    If (Not skInt.NoMatch) Then
+      recNDecimals = Nz(skInt("RC_AantalDecimalen"))
+      
+      recActTime = Nz(skInt("RC_Tijd"))
+    
+      recVer = Nz(skInt("RC_Vereniging"))
+      tpRecAf = Nz(skInt("RC_Afstand"))
+      tpRecIsEstaf = tpRecAf Like "*x*"
+      tpRecGes = Nz(skInt("RC_Geslacht"))
+      
+      Dim tpOldWedNr As Long
+      tpOldWedNr = Nz(skInt("RC_Wedstrijdnummer"))
+      
+      If (tpRecIsEstaf) Then
+        'Get an EST_Guid if possible
+        Dim estGUID As Long
+        estGUID = Nz(skInt("RC_EST_GUID"), -1)
+        
+        'Build the oldEstDlns string from the estGUID.
+        Dim estCnt As Integer
+        estCnt = afstand_n_zwemmers(tpRecAf)
+        
+        Dim sDummy As String, dummy(0 To 0) As String, isFnd As Boolean
+        
+        If Not estLoadEstGUID_Bulk(skEst, skZwm, estGUID, estCnt, isFnd, False, sDummy, True, estStarts, False, dummy) Then
+          Exit Function
+        End If
+        
+        If (isFnd) Then
+          If (estCnt > 0) Then
+            estIsValid = True
+          End If
+          Dim i As Integer
+          For i = 0 To estCnt - 1
+            If (estStarts(i) <> "") Then
+              skZwm.Seek "=", estStarts(i)
+              If (skZwm.NoMatch) Then
+                'This should not happen due to relationship
+                Err.Raise 1, , "Internal error."
+              End If
+              estVoornaam(i) = Nz(skZwm("Voornaam"))
+              estVoegsel(i) = Nz(skZwm("Voegsel"))
+              estAchternaam(i) = Nz(skZwm("Achternaam"))
+              estGebDate(i) = Nz(skZwm("Geboortedatum"), #1/1/1900#)
+              estGes(i) = Nz(skZwm("Geslacht"))
+            
+              estNames(i) = fmtName(estVoornaam(i), estVoegsel(i), estAchternaam(i))
+              If (i > 0) Then
+                estDeelnemers = estDeelnemers & ", "
+              End If
+              estDeelnemers = estDeelnemers & estNames(i)
+            Else
+              estIsValid = False
+            End If
+          Next i
+          nEstZwemmers = estCnt
+        End If 'is isfnd
+        
+      Else 'not estaf
+        
+        zwmStart = Nz(skInt("RC_Startnummer"))
+        If (zwmStart <> "") And (zwmStart <> "00-000") Then
+          zwmIsValid = True
+          skZwm.Seek "=", zwmStart
+          If (skZwm.NoMatch) Then
+            Err.Raise 1, , "Internal error."
+          End If
+          zwmVoornaam = Nz(skZwm("Voornaam"))
+          zwmVoegsel = Nz(skZwm("Voegsel"))
+          zwmAchternaam = Nz(skZwm("Achternaam"))
+          zwmGebDate = Nz(skZwm("Geboortedatum"), #1/1/1900#)
+          zwmGes = Nz(skZwm("Geslacht"))
+        
+          zwmName = fmtName(zwmVoornaam, zwmVoegsel, zwmAchternaam)
+        End If
+      End If 'if isEstaf
+      
+      If (tpOldWedNr <> 0) Then
+        skWed.Seek "=", tpOldWedNr
+        If (skWed.NoMatch) Then
+          Err.Raise 1, , "Internal error."
+        End If
+        recWedDatum = Nz(skWed("Datum"), #1/1/1900#)
+        recWedBaanlengte = Nz(skWed("Baanlengte"))
+        recWedPlaats = Nz(skWed("Plaats"))
+      End If
+      
+    End If 'if not skInt.nomatch
+    
+  End If 'if recIsExt
+
+
+'Now find verSettings
+If (recVer = "") Then
+  recVer = ver()
+  recVerDepot = depot()
+  recVerNation = "NED"
+  recVerCode = ""
+Else
+  recVerWasEmpty = False
+  skVer.Seek "=", recVer
+  If Not skVer.NoMatch Then
+    recVerDepot = Nz(skVer(FNM_VER_DEPOT))
+    recVerNation = "NED"
+    recVerCode = Nz(skVer("V_Afkorting"))
+  End If
+End If
+
+
+recLkp_FindData = True
+Exit Function
+
+fout:
+MsgBox Err & " recLkp_FindData" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+
+End Function
+
+
+Private Function recOutputLenex_HandleTime(ByRef rsInfo As RECSET_BASIC_INFO, ByVal expCode As String, ByVal expName As String, ByVal recGes As String, ByVal recLft As Long, ByVal recBn As Integer, ByVal recAf As String, ByVal recSl As String, _
+ByVal recTime As Double, ByVal recIsExt As Boolean, ByVal recnr As Long, _
+ByRef rsRec As Recordset, ByRef rsZwm As Recordset, ByRef rsVer As Recordset, ByRef rsPl As Recordset, ByRef rsPll As Recordset, _
+ByRef skInt As Recordset, ByRef skExt As Recordset, ByRef skEst As Recordset, ByRef skZwm As Recordset, ByRef skVer As Recordset, ByRef skWed As Recordset, _
+ByRef luRecID As Long, ByRef luZwmID As Long, ByRef luVerID As Long, ByRef luPlID As Long, ByRef luPLLID As Long) As Boolean
+
+On Error GoTo fout
+recOutputLenex_HandleTime = False
+
+Dim zwmStart As String, zwmName As String, zwmVoornaam As String, zwmVoegsel As String, zwmAchternaam As String
+Dim zwmGes As String, zwmGebDate As Date
+
+Dim recWedDatum As Date, recWedPlaats As String, recWedNation As String, recWedBaanlengte As Integer
+Dim recVer As String, recVerDepot As String, recVerNation As String, recVerCode As String, recVerWasEmpty As Boolean
+Dim nEstZwemmers As Integer, estDeelnemers As String
+
+Dim recNDecimals As Integer, recActTime As Double
+
+Dim zwmIsValid As Boolean, estIsValid As Boolean
+
+Dim estStartnummers(0 To MAX_ESTAF_CNT) As String
+Dim estNames(0 To MAX_ESTAF_CNT) As String
+Dim estVoornaam(0 To MAX_ESTAF_CNT) As String
+Dim estVoegsel(0 To MAX_ESTAF_CNT) As String
+Dim estAchternaam(0 To MAX_ESTAF_CNT) As String
+Dim estGeslacht(0 To MAX_ESTAF_CNT) As String
+Dim estGebDate(0 To MAX_ESTAF_CNT) As Date
+
+
+Dim blShouldOutput As Boolean
+blShouldOutput = True
+
+
+
+If Not swtIsValid(recTime) Then
+  If (recTime < 0.1) Then
+    blShouldOutput = False
+  End If
+End If
+
+
+If (blShouldOutput) Then
+  'First lookup record data
+
+  If Not recLkp_FindData(rsInfo, recnr, recIsExt, _
+    skInt, skExt, skEst, skZwm, skVer, skWed, _
+    recActTime, recNDecimals, recVer, recVerDepot, recVerNation, recVerCode, recVerWasEmpty, recWedDatum, recWedPlaats, recWedNation, recWedBaanlengte, _
+    zwmIsValid, zwmStart, zwmName, zwmVoornaam, zwmVoegsel, zwmAchternaam, zwmGes, zwmGebDate, _
+    estIsValid, nEstZwemmers, estStartnummers, estNames, estDeelnemers, estVoornaam, estVoegsel, estAchternaam, estGeslacht, estGebDate) Then
+    Exit Function
+  End If
+  
+End If 'if blShouldOutput
+
+
+
+
+If (blShouldOutput) Then
+
+  Dim tpRecIsEstaf As Boolean
+  tpRecIsEstaf = recAf Like "*x*"
+
+  'Need to output
+  rsRec.AddNew
+    luRecID = luRecID + 1
+    rsRec("REC_ID") = luRecID
+    rsRec("REC_TYPE") = hzn(expCode)
+    rsRec("REC_Baan") = recBn
+    rsRec("REC_Categorie") = hzn(fmtCatCode(recGes, recLft))
+    rsRec("INT_MAX_AGE") = recLft
+    rsRec("INT_Geslacht") = recGes
+    
+    rsRec("REC_Tijd") = recActTime
+    If (recNDecimals = 1) Or (recNDecimals = 2) Then
+      rsRec("REC_AantalDecimalen") = recNDecimals
+    End If
+    
+    rsRec("REC_Afstand") = recAf
+    rsRec("REC_Slag") = recSl
+    rsRec("REC_NAME") = expName
+    rsRec("REC_IsEstaf") = tpRecIsEstaf
+    If (lenDateIsValid(recWedDatum)) Then
+      rsRec("REC_Datum") = recWedDatum
+      If (recWedPlaats <> "") Then
+        rsRec("REC_Plaats") = hzn(recWedPlaats)
+      Else
+        rsRec("REC_Plaats") = "Onbekend"
+      End If
+      rsRec("REC_Nation") = hzn(recWedNation)
+    Else
+      rsRec("REC_Datum") = Null
+      rsRec("REC_Plaats") = Null
+      rsRec("REC_Nation") = Null
+    End If
+    
+    
+    
+    rsRec("REC_AgeMode") = hzn(rsInfo.lftMode)
+    
+    rsRec("REC_IsEstaf") = tpRecIsEstaf
+    
+    If (tpRecIsEstaf) Then
+      If (estIsValid Or (rsInfo.blIsMultiVer And (Not recVerWasEmpty))) Then
+        'output the estafette
+        luPlID = luPlID + 1
+        rsRec("REC_Ploeg_ID") = luPlID
+      Else
+        rsRec("REC_PLOEG_ID") = Null
+      End If
+    Else
+      If (zwmIsValid) Then
+        'output the swimmer
+        luZwmID = luZwmID + 1
+        rsRec("REC_Zwemmer_ID") = luZwmID
+      Else
+        rsRec("REC_Zwemmer_ID") = Null
+      End If
+    End If
+  rsRec.Update
+  
+  Dim blOutputVer As Boolean
+  blOutputVer = False
+  
+  If (tpRecIsEstaf And (estIsValid Or (rsInfo.blIsMultiVer And (Not recVerWasEmpty)))) Then
+    'Need to output the ploeg
+    
+    blOutputVer = True
+    luVerID = luVerID + 1
+    
+    rsPl.AddNew
+      rsPl("PL_ID") = luPlID
+      rsPl("PL_VER_ID") = luVerID
+      rsPl("PL_PartOfRecord") = True
+    rsPl.Update
+    
+    Dim i As Integer
+    For i = 0 To nEstZwemmers - 1
+      luPLLID = luPLLID + 1
+      luZwmID = luZwmID + 1
+      
+      rsPll.AddNew
+        rsPll("PLL_ID") = luPLLID
+        rsPll("PLL_Record_ID") = luRecID
+        rsPll("PLL_PLOEG_ID") = luPlID
+        
+        
+        rsPll("PLL_Zwemmer_ID") = luZwmID
+        rsPll("PLL_Volgorde") = (i + 1)
+      rsPll.Update
+        
+      rsZwm.AddNew
+        rsZwm("ZW_ID") = luZwmID
+        rsZwm("ZW_VER_ID") = -1
+        rsZwm("ZW_Voornaam") = hzn(estVoornaam(i))
+        rsZwm("ZW_Voegsel") = hzn(estVoegsel(i))
+        rsZwm("ZW_Achternaam") = hzn(estAchternaam(i))
+        rsZwm("ZW_Geslacht") = hzn(estGeslacht(i))
+        If (lenDateIsValid(estGebDate(i))) Then
+          rsZwm("ZW_Geboortedatum") = estGebDate(i)
+          rsZwm("ZW_Jaartal") = CLng(val(Format(estGebDate(i), "yyyy")))
+        Else
+          If (estStartnummers(i) = "") Then
+            rsZwm("ZW_Geboortedatum") = #1/1/1900#
+            rsZwm("ZW_Jaartal") = 1900
+          Else
+            Dim tpYOB As Long
+            tpYOB = stnrExtractYOB(estStartnummers(i), recWedDatum, #1/1/1900#)
+            Dim tpGebDate As Date
+            tpGebDate = DateSerial(tpYOB, 1, 1)
+            rsZwm("ZW_Geboortedatum") = tpGebDate
+            rsZwm("ZW_Jaartal") = tpYOB
+          End If
+        End If
+        rsZwm("ZW_Startnummer") = hzn(estStartnummers(i))
+        rsZwm("ZW_PartOfRecord") = True
+      rsZwm.Update
+          
+          
+        
+    Next i
+  End If
+  
+  If (Not tpRecIsEstaf) And zwmIsValid Then
+    'Need to output the swimmer
+    
+    blOutputVer = True
+    luVerID = luVerID + 1
+    
+           
+      rsZwm.AddNew
+        rsZwm("ZW_ID") = luZwmID
+        rsZwm("ZW_VER_ID") = luVerID
+        rsZwm("ZW_Voornaam") = hzn(zwmVoornaam)
+        rsZwm("ZW_Voegsel") = hzn(zwmVoegsel)
+        rsZwm("ZW_Achternaam") = hzn(zwmAchternaam)
+        rsZwm("ZW_Geslacht") = hzn(zwmGes)
+        If (lenDateIsValid(zwmGebDate)) Then
+          rsZwm("ZW_Geboortedatum") = zwmGebDate
+          rsZwm("ZW_Jaartal") = CLng(val(Format(zwmGebDate, "yyyy")))
+        Else
+          If (zwmStart = "") Then
+            rsZwm("ZW_Geboortedatum") = #1/1/1900#
+            rsZwm("ZW_Jaartal") = 1900
+          Else
+            tpYOB = stnrExtractYOB(zwmStart, recWedDatum, #1/1/1900#)
+            tpGebDate = DateSerial(tpYOB, 1, 1)
+            rsZwm("ZW_Geboortedatum") = tpGebDate
+            rsZwm("ZW_Jaartal") = tpYOB
+          End If
+        End If
+        rsZwm("ZW_Startnummer") = hzn(zwmStart)
+        rsZwm("ZW_PartOfRecord") = True
+      rsZwm.Update
+  End If 'if not isEstaf and swmValid
+    
+  If (blOutputVer) Then
+    rsVer.AddNew
+      rsVer("V_ID") = luVerID
+      rsVer("V_Naam") = hzn(recVer)
+      rsVer("V_LangNaam") = hzn(recVer)
+      rsVer("V_Depot") = hzn(recVerDepot)
+      rsVer("V_Land") = hzn(recVerNation)
+      rsVer("V_PartOfRecord") = True
+    rsVer.Update
+  End If
+    
+
+End If 'if blShouldOutput
+
+recOutputLenex_HandleTime = True
+Exit Function
+fout:
+MsgBox Err & " recOutputLenex_HandleTime" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function recOutputLenex(ByVal Code As String, ByVal expCode As String, ByVal expName As String, ByVal lxfDir As String, lxfFName As String, ByVal markDate As Date) As Boolean
+On Error GoTo fout
+
+
+Dim rsInfo As RECSET_BASIC_INFO
+Dim nRecAges As Integer
+
+Dim recAges(0 To MAX_N_REC_AGES) As Long
+
+Dim updVers(0 To 0) As String
+Dim updWeds(0 To 0) As Long
+Dim updItems(0 To 0) As String
+Dim nUpdItems As Integer
+
+  Dim recTimes25M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25X(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50X(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+
+Dim nAfSl As Integer
+Dim lkpOrdAf(0 To MAX_N_REC_AFSL) As String
+Dim lkpOrdSl(0 To MAX_N_REC_AFSL) As String
+
+'First build afsl list
+
+If Not recLkp_SetAllAfSlPairs(Code, nAfSl, lkpOrdAf, lkpOrdSl) Then
+  Exit Function
+End If
+
+'Now read the records.
+
+If Not recLkp(Code, nAfSl, lkpOrdAf, lkpOrdSl, _
+  markDate, -1, rsInfo, nRecAges, recAges, _
+  updVers, updWeds, updItems, nUpdItems, _
+  recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+  recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+  recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+  
+  Exit Function
+End If
+
+
+
+'Now output the records
+If Not lenCleanTransferTables() Then
+  Exit Function
+End If
+
+Dim skInt As Recordset, skExt As Recordset
+Set skInt = CurrentDb().OpenRecordset("dtRecordsInternal")
+skInt.Index = "PrimaryKey"
+
+Set skExt = CurrentDb().OpenRecordset("dtRecordsExternal")
+skExt.Index = "RC_ID"
+
+Dim rsRec As Recordset, rsZwm As Recordset, rsVer As Recordset, rsPl As Recordset, rsPll As Recordset
+Set rsRec = CurrentDb().OpenRecordset("gIMP_LEN_Records")
+Set rsZwm = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+Set rsVer = CurrentDb().OpenRecordset("gIMP_LEN_VER")
+Set rsPl = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+Set rsPll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+
+Dim skEst As Recordset
+Set skEst = CurrentDb().OpenRecordset("dtEstafettes")
+skEst.Index = "PrimaryKey"
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("dtVerenigingen")
+skVer.Index = "PrimaryKey"
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+Dim luRecID As Long, luZwmID As Long, luVerID As Long, luPlID As Long, luPLLID As Long
+luRecID = 0
+luZwmID = 0
+luVerID = 0
+luPlID = 0
+luPLLID = 0
+
+
+
+
+Dim afslIdx As Integer
+Dim lftIdx As Integer
+For afslIdx = 0 To nAfSl - 1
+  For lftIdx = 0 To nRecAges - 1
+    
+    Dim tpAf As String, tpSl As String
+    
+    tpAf = lkpOrdAf(afslIdx)
+    tpSl = lkpOrdSl(afslIdx)
+    
+    'Test the record at 25M
+    Dim tpRecGes As String
+    Dim tpRecLft As Integer
+    Dim tpRecNr As Long
+    Dim tpRecBn As Integer
+    Dim tpRecIsExt As Boolean
+    Dim tpRecTime As Double
+    
+    
+    
+    
+    tpRecGes = "M"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 25
+    
+    tpRecNr = recNrs25M(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt25M(afslIdx, lftIdx)
+    tpRecTime = recTimes25M(afslIdx, lftIdx)
+    
+    If Not recOutputLenex_HandleTime(rsInfo, expCode, expName, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      rsRec, rsZwm, rsVer, rsPl, rsPll, skInt, skExt, skEst, skZwm, skVer, skWed, luRecID, luZwmID, luVerID, luPlID, luPLLID) Then
+      Exit Function
+    End If
+    
+    tpRecGes = "M"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 50
+    
+    tpRecNr = recNrs50M(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt50M(afslIdx, lftIdx)
+    tpRecTime = recTimes50M(afslIdx, lftIdx)
+    
+    If Not recOutputLenex_HandleTime(rsInfo, expCode, expName, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      rsRec, rsZwm, rsVer, rsPl, rsPll, skInt, skExt, skEst, skZwm, skVer, skWed, luRecID, luZwmID, luVerID, luPlID, luPLLID) Then
+      Exit Function
+    End If
+    
+    
+    '-------V-------
+    
+    tpRecGes = "V"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 25
+    
+    tpRecNr = recNrs25V(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt25V(afslIdx, lftIdx)
+    tpRecTime = recTimes25V(afslIdx, lftIdx)
+    
+    If Not recOutputLenex_HandleTime(rsInfo, expCode, expName, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      rsRec, rsZwm, rsVer, rsPl, rsPll, skInt, skExt, skEst, skZwm, skVer, skWed, luRecID, luZwmID, luVerID, luPlID, luPLLID) Then
+      Exit Function
+    End If
+    
+    tpRecGes = "V"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 50
+    
+    tpRecNr = recNrs50V(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt50V(afslIdx, lftIdx)
+    tpRecTime = recTimes50V(afslIdx, lftIdx)
+    
+    If Not recOutputLenex_HandleTime(rsInfo, expCode, expName, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      rsRec, rsZwm, rsVer, rsPl, rsPll, skInt, skExt, skEst, skZwm, skVer, skWed, luRecID, luZwmID, luVerID, luPlID, luPLLID) Then
+      Exit Function
+    End If
+    
+    
+    '-----X-----
+    tpRecGes = "*"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 25
+    
+    tpRecNr = recNrs25X(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt25X(afslIdx, lftIdx)
+    tpRecTime = recTimes25X(afslIdx, lftIdx)
+    
+    If Not recOutputLenex_HandleTime(rsInfo, expCode, expName, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      rsRec, rsZwm, rsVer, rsPl, rsPll, skInt, skExt, skEst, skZwm, skVer, skWed, luRecID, luZwmID, luVerID, luPlID, luPLLID) Then
+      Exit Function
+    End If
+    
+        tpRecGes = "*"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 50
+    
+    tpRecNr = recNrs50X(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt50X(afslIdx, lftIdx)
+    tpRecTime = recTimes50X(afslIdx, lftIdx)
+    
+    If Not recOutputLenex_HandleTime(rsInfo, expCode, expName, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      rsRec, rsZwm, rsVer, rsPl, rsPll, skInt, skExt, skEst, skZwm, skVer, skWed, luRecID, luZwmID, luVerID, luPlID, luPLLID) Then
+      Exit Function
+    End If
+    
+    
+  Next lftIdx
+Next afslIdx
+
+
+'close all the recordset
+appCleanRS rsRec
+appCleanRS rsVer
+appCleanRS rsZwm
+appCleanRS rsPl
+appCleanRS rsPll
+
+appCleanRS skInt
+appCleanRS skExt
+appCleanRS skWed
+appCleanRS skEst
+appCleanRS skVer
+appCleanRS skZwm
+
+Dim actFName As String
+
+If Not lenWriteFile(lxfDir, lxfFName, False, LX_VERSION_2, actFName) Then
+  Exit Function
+End If
+
+If (actFName <> "") Then
+  MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & actFName, vbInformation
+End If
+
+recOutputLenex = False
+Exit Function
+fout:
+MsgBox Err & " recOutputLenex" & vbCrLf & Error$, 16
+End Function
+
+
+
+Private Function recBuildHolders_HandleTime(ByRef rsInfo As RECSET_BASIC_INFO, ByRef outp As Recordset, ByVal recGes As String, ByVal recLft As Long, ByVal recBn As Integer, ByVal recAf As String, ByVal recSl As String, _
+ByVal recTime As Double, ByVal recIsExt As Boolean, ByVal recnr As Long, _
+ByRef skInt As Recordset, ByRef skExt As Recordset, ByRef skEst As Recordset, ByRef skZwm As Recordset, ByRef skVer As Recordset, ByRef skWed As Recordset) As Boolean
+
+On Error GoTo fout
+recBuildHolders_HandleTime = False
+
+Dim zwmStart As String, zwmName As String, zwmVoornaam As String, zwmVoegsel As String, zwmAchternaam As String
+Dim zwmGes As String, zwmGebDate As Date
+
+Dim recWedDatum As Date, recWedPlaats As String, recWedNation As String, recWedBaanlengte As Integer
+Dim recVer As String, recVerDepot As String, recVerNation As String, recVerCode As String, recVerWasEmpty As Boolean
+Dim nEstZwemmers As Integer, estDeelnemers As String
+
+Dim recNDecimals As Integer, recActTime As Double
+
+Dim zwmIsValid As Boolean, estIsValid As Boolean
+
+Dim estStartnummers(0 To MAX_ESTAF_CNT) As String
+Dim estNames(0 To MAX_ESTAF_CNT) As String
+Dim estVoornaam(0 To MAX_ESTAF_CNT) As String
+Dim estVoegsel(0 To MAX_ESTAF_CNT) As String
+Dim estAchternaam(0 To MAX_ESTAF_CNT) As String
+Dim estGeslacht(0 To MAX_ESTAF_CNT) As String
+Dim estGebDate(0 To MAX_ESTAF_CNT) As Date
+
+
+Dim blShouldOutput As Boolean
+blShouldOutput = True
+
+
+
+
+
+'We only output valid times to the holder table
+If Not swtIsValid(recTime) Then
+  blShouldOutput = False
+End If
+
+
+If (blShouldOutput) Then
+  'First lookup record data
+
+  If Not recLkp_FindData(rsInfo, recnr, recIsExt, _
+    skInt, skExt, skEst, skZwm, skVer, skWed, _
+    recActTime, recNDecimals, recVer, recVerDepot, recVerNation, recVerCode, recVerWasEmpty, recWedDatum, recWedPlaats, recWedNation, recWedBaanlengte, _
+    zwmIsValid, zwmStart, zwmName, zwmVoornaam, zwmVoegsel, zwmAchternaam, zwmGes, zwmGebDate, _
+    estIsValid, nEstZwemmers, estStartnummers, estNames, estDeelnemers, estVoornaam, estVoegsel, estAchternaam, estGeslacht, estGebDate) Then
+    Exit Function
+  End If
+  
+End If 'if blShouldOutput
+
+
+
+
+If (blShouldOutput) Then
+  'output the record holder
+  Dim tpRecIsEstaf As Boolean
+  tpRecIsEstaf = recAf Like "*x*"
+  
+  outp.AddNew
+    outp("RH_Code") = hzn(rsInfo.Code)
+    outp("RH_Recordnummer") = recnr
+    outp("RH_IsExternal") = recIsExt
+    outp("RH_IsEstaf") = tpRecIsEstaf
+    outp("RH_Afstand") = hzn(recAf)
+    outp("RH_Slag") = hzn(recSl)
+    outp("RH_Geslacht") = hzn(recGes)
+    outp("RH_Leeftijd") = hzn(recLft)
+    outp("RH_DisplayCategorie") = hzn(fmtCatCode(recGes, recLft))
+    outp("RH_Baanlengte") = recBn
+    outp("RH_Tijd") = recTime
+    outp("RH_AantalDecimalen") = recNDecimals
+    If (tpRecIsEstaf) Then
+      If (estIsValid Or (rsInfo.blIsMultiVer And (Not recVerWasEmpty))) Then
+        outp("RH_DisplayTijd") = hzn(fmtRecTime_Decimals(recActTime, recNDecimals, " "))
+        outp("RH_IsStartLimiet") = False
+        If (rsInfo.blIsMultiVer) Then
+          If (recVer = "") Then
+            outp("RH_DisplayNaam") = hzn(ver())
+            outp("RH_DisplayNaamVer") = hzn(ver())
+          Else
+            outp("RH_DisplayNaam") = hzn(recVer)
+            outp("RH_DisplayNaamVer") = hzn(recVer)
+          End If
+        Else
+          outp("RH_DisplayNaam") = "Estafette"
+          outp("RH_DisplayNaamVer") = "Estafette"
+        End If
+        outp("RH_DisplayVer") = Null
+      Else
+        outp("RH_DisplayTijd") = hzn(fmtRecTime_Decimals(recActTime, recNDecimals, "*"))
+        outp("RH_IsStartLimiet") = True
+        outp("RH_DisplayNaam") = "Limiet"
+        outp("RH_DisplayNaamVer") = "Limiet"
+        outp("RH_DisplayVer") = Null
+      End If
+      outp("RH_EST_Deelnemers") = estDeelnemers
+    Else
+      If (zwmIsValid) Then
+        outp("RH_DisplayTijd") = hzn(fmtRecTime_Decimals(recActTime, recNDecimals, " "))
+        outp("RH_IsStartLimiet") = False
+        outp("RH_DisplayNaam") = hzn(zwmName)
+        If (rsInfo.blIsMultiVer) Then
+          If (recVerCode <> "") Then
+            outp("RH_DisplayNaamVer") = hzn(zwmName & " - " & recVerCode)
+          Else
+            outp("RH_DisplayNaamVer") = hzn(zwmName)
+          End If
+          outp("RH_DisplayVer") = hzn(recVer)
+        Else
+          outp("RH_DisplayNaamVer") = hzn(zwmName)
+          outp("RH_DisplayVer") = Null
+        End If
+      Else
+        outp("RH_DisplayTijd") = hzn(fmtRecTime_Decimals(recActTime, recNDecimals, "*"))
+        outp("RH_IsStartLimiet") = True
+        outp("RH_DisplayNaam") = "Limiet"
+        outp("RH_DisplayNaamVer") = "Limiet"
+        outp("RH_DisplayVer") = Null
+      End If
+      outp("RH_EST_Deelnemers") = Null
+    End If
+    
+    If (lenDateIsValid(recWedDatum)) Then
+      outp("RH_Datum") = recWedDatum
+    Else
+      outp("RH_Datum") = Null
+    End If
+    
+    outp("RH_Plaats") = hzn(recWedPlaats)
+    
+  outp.Update
+
+End If 'if blShouldOutput
+
+recBuildHolders_HandleTime = True
+Exit Function
+fout:
+MsgBox Err & " recBuildHolders_HandleTime" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function recBuildHolders_outputStats(ByVal standDate As Date, ByVal recCode As String) As Boolean
+On Error GoTo fout
+recBuildHolders_outputStats = False
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL "delete * from hsoRecHoldersDisplay_stats"
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRecHoldersDisplay_stats")
+
+rs.AddNew
+  If (lenDateIsValid(standDate)) Then
+    rs("RH_StandDate") = standDate
+  Else
+    rs("RH_StandDate") = Null
+  End If
+  
+  rs("RH_Code") = hzn(recCode)
+rs.Update
+
+appCleanRS rs
+
+
+recBuildHolders_outputStats = True
+Exit Function
+fout:
+MsgBox Err & " recBuildHolders_outputStats" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function recBuildHolders_BuildCmp(ByVal rsCode As String) As Boolean
+On Error GoTo fout
+recBuildHolders_BuildCmp = False
+
+
+Dim sql As String
+sql = "Delete * from hsoRecHoldersDisplay_cmp"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("hsoRecHoldersDisplay_cmp")
+
+
+
+
+sql = "Select * from hsoRecHoldersDisplay order by rh_baanlengte, rh_afstand, rh_geslacht, rh_leeftijd"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+Dim curDisplayTimes(0 To 5) As String
+Dim curDisplayNames(0 To 5) As String
+Dim curDates(0 To 5) As Date
+Dim curPlaats(0 To 5) As String
+
+Dim slag(0 To 5) As String, nSlag As Integer
+'Please note that we use the fact that these are alphabetically sorted.
+slag(0) = "RUG"
+slag(1) = "SCHOOL"
+slag(2) = "VLINDER"
+slag(3) = "VRIJ"
+slag(4) = "WISSEL"
+nSlag = 5
+
+
+Dim curBn As Integer, curAf As String, curGes As String, curLft As Long
+curBn = -1
+curAf = ""
+curGes = ""
+curLft = -1
+
+
+Dim curRecDisplayCat As String
+
+
+rs.MoveFirst
+Dim done As Boolean
+
+done = rs.EOF
+
+Do Until done
+  Dim tpBn As Integer, tpAf As String, tpGes As String, tpLft As Long
+
+  If (rs.EOF) Then
+    tpBn = -1
+    tpAf = ""
+    tpGes = ""
+    tpLft = -1
+  Else
+    tpBn = Nz(rs("RH_Baanlengte"))
+    tpAf = Nz(rs("RH_Afstand"))
+    tpGes = Nz(rs("RH_Geslacht"))
+    tpLft = Nz(rs("RH_Leeftijd"))
+  End If
+  
+  If (tpBn <> curBn) Or (tpAf <> curAf) Or (tpGes <> curGes) Or (tpLft <> curLft) Then
+    If (curAf <> "") Then
+      'output
+      outp.AddNew
+        outp("RH_Code") = hzn(rsCode)
+        outp("RH_Afstand") = hzn(curAf)
+        outp("RH_Geslacht") = hzn(curGes)
+        outp("RH_Leeftijd") = curLft
+        outp("RH_Baanlengte") = curBn
+        outp("RH_DisplayCategorie") = hzn(curRecDisplayCat)
+        Dim i As Integer
+        For i = 0 To nSlag - 1
+          outp("RH_DisplayTime" & slag(i)) = hzn(curDisplayTimes(i))
+          outp("RH_DisplayNaam" & slag(i)) = hzn(curDisplayNames(i))
+          If (lenDateIsValid(curDates(i))) Then
+            outp("RH_Datum" & slag(i)) = curDates(i)
+          Else
+            outp("RH_Datum" & slag(i)) = Null
+          End If
+          outp("RH_Plaats" & slag(i)) = hzn(curPlaats(i))
+        Next i
+        
+      outp.Update
+    End If
+    
+    If (tpAf <> "") Then
+      'start new
+      For i = 0 To nSlag - 1
+        curDisplayTimes(i) = ""
+        curDisplayNames(i) = ""
+        curDates(i) = #1/1/1900#
+        curPlaats(i) = ""
+      Next i
+      
+      
+      curRecDisplayCat = Nz(rs("RH_DisplayCategorie"))
+    End If
+    
+    curAf = tpAf
+    curBn = tpBn
+    curGes = tpGes
+    curLft = tpLft
+    
+  
+  End If
+
+
+  If Not rs.EOF Then
+    Dim tpSl As String
+    Dim tpSlIdx As Integer
+    tpSl = Nz(rs("RH_Slag"))
+    tpSlIdx = bSearchString(tpSl, nSlag, slag)
+    If (tpSlIdx >= 0) Then
+      curDisplayNames(tpSlIdx) = Nz(rs("RH_DisplayNaamVer"))
+      curDisplayTimes(tpSlIdx) = Nz(rs("RH_DisplayTijd"))
+      curDates(tpSlIdx) = Nz(rs("RH_Datum"), #1/1/1900#)
+      curPlaats(tpSlIdx) = Nz(rs("RH_Plaats"))
+    End If
+  
+    rs.MoveNext
+  Else
+    done = True
+  End If
+Loop
+
+
+recBuildHolders_BuildCmp = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recBuildHolders_BuildCmp" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Public Function recBuildHolders(ByVal recCode As String, ByVal markDate As Date) As Boolean
+On Error GoTo fout
+recBuildHolders = False
+
+If (Not lenDateIsValid(markDate)) Then
+  markDate = #1/1/2099#
+End If
+
+
+'First check if we need to do something.
+If rec_IsRecHoldersOK(markDate, recCode) Then
+  recBuildHolders = True
+  Exit Function
+End If
+
+
+Dim sql As String
+sql = "Delete * from hsoRecHoldersDisplay"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim rsInfo As RECSET_BASIC_INFO
+Dim nRecAges As Integer
+
+Dim recAges(0 To MAX_N_REC_AGES) As Long
+
+Dim updVers(0 To 0) As String
+Dim updWeds(0 To 0) As Long
+Dim updItems(0 To 0) As String
+Dim nUpdItems As Integer
+
+  Dim recTimes25M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25X(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50X(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+
+Dim nAfSl As Integer
+Dim lkpOrdAf(0 To MAX_N_REC_AFSL) As String
+Dim lkpOrdSl(0 To MAX_N_REC_AFSL) As String
+
+'First build afsl list
+
+If Not recLkp_SetAllAfSlPairs(recCode, nAfSl, lkpOrdAf, lkpOrdSl) Then
+  Exit Function
+End If
+
+'Now read the records.
+
+If Not recLkp(recCode, nAfSl, lkpOrdAf, lkpOrdSl, _
+  markDate, -1, rsInfo, nRecAges, recAges, _
+  updVers, updWeds, updItems, nUpdItems, _
+  recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+  recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+  recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+  
+  Exit Function
+End If
+
+
+
+'Now output the records
+
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("hsoRecHoldersDisplay")
+
+
+Dim skInt As Recordset, skExt As Recordset
+Set skInt = CurrentDb().OpenRecordset("dtRecordsInternal")
+skInt.Index = "PrimaryKey"
+
+Set skExt = CurrentDb().OpenRecordset("dtRecordsExternal")
+skExt.Index = "RC_ID"
+
+
+Dim skEst As Recordset
+Set skEst = CurrentDb().OpenRecordset("dtEstafettes")
+skEst.Index = "PrimaryKey"
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("dtVerenigingen")
+skVer.Index = "PrimaryKey"
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+
+Dim afslIdx As Integer
+Dim lftIdx As Integer
+For afslIdx = 0 To nAfSl - 1
+  For lftIdx = 0 To nRecAges - 1
+    
+    Dim tpAf As String, tpSl As String
+    
+    tpAf = lkpOrdAf(afslIdx)
+    tpSl = lkpOrdSl(afslIdx)
+    
+    'Test the record at 25M
+    Dim tpRecGes As String
+    Dim tpRecLft As Integer
+    Dim tpRecNr As Long
+    Dim tpRecBn As Integer
+    Dim tpRecIsExt As Boolean
+    Dim tpRecTime As Double
+    
+    
+    
+    
+    tpRecGes = "M"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 25
+    
+    tpRecNr = recNrs25M(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt25M(afslIdx, lftIdx)
+    tpRecTime = recTimes25M(afslIdx, lftIdx)
+    
+    If Not recBuildHolders_HandleTime(rsInfo, outp, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      skInt, skExt, skEst, skZwm, skVer, skWed) Then
+      Exit Function
+    End If
+    
+    tpRecGes = "M"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 50
+    
+    tpRecNr = recNrs50M(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt50M(afslIdx, lftIdx)
+    tpRecTime = recTimes50M(afslIdx, lftIdx)
+    
+    If Not recBuildHolders_HandleTime(rsInfo, outp, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      skInt, skExt, skEst, skZwm, skVer, skWed) Then
+      Exit Function
+    End If
+    
+    
+    '-------V-------
+    
+    tpRecGes = "V"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 25
+    
+    tpRecNr = recNrs25V(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt25V(afslIdx, lftIdx)
+    tpRecTime = recTimes25V(afslIdx, lftIdx)
+    
+    If Not recBuildHolders_HandleTime(rsInfo, outp, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      skInt, skExt, skEst, skZwm, skVer, skWed) Then
+      Exit Function
+    End If
+    
+    tpRecGes = "V"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 50
+    
+    tpRecNr = recNrs50V(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt50V(afslIdx, lftIdx)
+    tpRecTime = recTimes50V(afslIdx, lftIdx)
+    
+    If Not recBuildHolders_HandleTime(rsInfo, outp, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      skInt, skExt, skEst, skZwm, skVer, skWed) Then
+      Exit Function
+    End If
+    
+    
+    '-----X-----
+    tpRecGes = "*"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 25
+    
+    tpRecNr = recNrs25X(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt25X(afslIdx, lftIdx)
+    tpRecTime = recTimes25X(afslIdx, lftIdx)
+    
+    If Not recBuildHolders_HandleTime(rsInfo, outp, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      skInt, skExt, skEst, skZwm, skVer, skWed) Then
+      Exit Function
+    End If
+    
+    tpRecGes = "*"
+    tpRecLft = recAges(lftIdx)
+    tpRecBn = 50
+    
+    tpRecNr = recNrs50X(afslIdx, lftIdx)
+    tpRecIsExt = recIsExt50X(afslIdx, lftIdx)
+    tpRecTime = recTimes50X(afslIdx, lftIdx)
+    
+    If Not recBuildHolders_HandleTime(rsInfo, outp, tpRecGes, tpRecLft, tpRecBn, tpAf, tpSl, tpRecTime, tpRecIsExt, tpRecNr, _
+      skInt, skExt, skEst, skZwm, skVer, skWed) Then
+      Exit Function
+    End If
+    
+  Next lftIdx
+Next afslIdx
+
+
+'close all the recordset
+
+appCleanRS skInt
+appCleanRS skExt
+appCleanRS skWed
+appCleanRS skEst
+appCleanRS skVer
+appCleanRS skZwm
+
+appCleanRS outp
+
+
+If Not recBuildHolders_BuildCmp(recCode) Then
+  Exit Function
+End If
+
+If Not recBuildHolders_outputStats(markDate, recCode) Then
+  Exit Function
+End If
+
+
+rec_SetRecHoldersOK True, markDate, recCode
+
+
+DoCmd.SetWarnings True
+recBuildHolders = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " recBuildHolders" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recBuildList_HandleTime(ByRef rsInfo As RECSET_BASIC_INFO, ByRef outp As Recordset, _
+ByVal recnr As Long, ByVal recGes As String, ByVal recLft As Long, ByVal recBn As Integer, _
+ByVal recAf As String, ByVal recSl As String, ByVal recTime As Double, ByVal recNDecimals As Integer, _
+ByVal recVer As String, ByVal recIsEstaf, ByVal recStart As String, ByVal recName As String, _
+ByVal recEstGUID As Long, _
+ByVal recWedDatum As Date, recWedPlaats As String, _
+ByVal recExtOldTime As Double, recExtOldName As String, recExtOldVer As String, recExtOldDate As Date, _
+ByVal recExtOldPlaats As String, ByVal recExtOldEstDlns As String, ByVal recExtOldBaan As Integer, _
+ByVal oldIsFnd As Boolean, ByVal oldRecIsExt As Boolean, ByVal oldRecnr As Long, _
+ByRef skInt As Recordset, ByRef skExt As Recordset, ByRef skEst As Recordset, ByRef skZwm As Recordset, ByRef skVer As Recordset, ByRef skWed As Recordset) As Boolean
+
+On Error GoTo fout
+recBuildList_HandleTime = False
+
+Dim oldZwmStart As String, oldZwmName As String, oldZwmVoornaam As String, oldZwmVoegsel As String, oldZwmAchternaam As String
+Dim oldZwmGes As String, oldZwmGebDate As Date
+
+Dim oldRecWedDatum As Date, oldRecWedPlaats As String, oldRecWedNation As String, oldRecWedBaanlengte As Integer
+Dim oldRecVer As String, oldRecVerDepot As String, oldRecVerNation As String, oldRecVerCode As String, oldRecVerWasEmpty As Boolean
+Dim oldNEstZwemmers As Integer, oldEstDeelnemers As String
+
+Dim oldRecActTime As Double, oldRecNDecimals As Integer
+
+Dim oldZwmIsValid As Boolean, oldEstIsValid As Boolean
+
+Dim oldEstStartnummers(0 To MAX_ESTAF_CNT) As String
+Dim oldEstNames(0 To MAX_ESTAF_CNT) As String
+Dim oldEstVoornaam(0 To MAX_ESTAF_CNT) As String
+Dim oldEstVoegsel(0 To MAX_ESTAF_CNT) As String
+Dim oldEstAchternaam(0 To MAX_ESTAF_CNT) As String
+Dim oldEstGeslacht(0 To MAX_ESTAF_CNT) As String
+Dim oldEstGebDate(0 To MAX_ESTAF_CNT) As Date
+
+
+Dim blShouldOutput As Boolean
+blShouldOutput = True
+
+
+Dim tpEstafCnt As Integer
+tpEstafCnt = 1
+If (recIsEstaf) Then
+  tpEstafCnt = afstand_n_zwemmers(recAf)
+End If
+
+
+
+'First get hold of newEstDeelns from the GUID
+Dim newEstDeelns As String
+Dim newEstFnd As Boolean
+Dim estStarts(0 To MAX_ESTAF_CNT) As String
+Dim estNames(0 To MAX_ESTAF_CNT) As String
+
+newEstDeelns = ""
+If (recEstGUID >= 0) Then
+  If Not estLoadEstGUID_Bulk(skEst, skZwm, recEstGUID, tpEstafCnt, newEstFnd, True, newEstDeelns, True, estStarts, True, estNames) Then
+    Exit Function
+  End If
+  If (Not newEstFnd) Then
+    newEstDeelns = ""
+  End If
+End If
+
+
+'We only output valid times to the holder table
+If Not swtIsValid(recTime) Then
+  blShouldOutput = False
+End If
+
+
+  
+If (blShouldOutput) Then
+  If (rsInfo.blManagedExternally) Then
+    'directly read old data from recordset
+    
+    oldRecActTime = recExtOldTime
+    oldRecNDecimals = 2
+    
+    oldRecVer = recExtOldVer
+    oldRecVerWasEmpty = False
+    
+    
+    oldRecVerDepot = ""
+    oldRecVerNation = ""
+    oldRecWedDatum = recExtOldDate
+    oldRecWedPlaats = recExtOldPlaats
+    oldRecWedNation = ""
+    oldRecWedBaanlengte = recExtOldBaan
+    
+    oldZwmStart = ""
+    oldZwmName = recExtOldName
+    oldZwmVoornaam = ""
+    oldZwmVoegsel = ""
+    oldZwmAchternaam = ""
+    oldZwmGes = ""
+    oldZwmGebDate = #1/1/1900#
+    oldZwmIsValid = (oldZwmName <> "")
+    
+    
+    oldNEstZwemmers = 0
+    oldEstDeelnemers = recExtOldEstDlns
+    oldEstIsValid = (oldEstDeelnemers <> "")
+    
+    oldIsFnd = (swtIsValid(recExtOldTime))
+    
+  Else
+    'internally managed records
+    If (oldIsFnd) Then
+      'lookup old record data
+      If Not recLkp_FindData(rsInfo, oldRecnr, oldRecIsExt, _
+        skInt, skExt, skEst, skZwm, skVer, skWed, _
+        oldRecActTime, oldRecNDecimals, oldRecVer, oldRecVerDepot, oldRecVerNation, oldRecVerCode, oldRecVerWasEmpty, oldRecWedDatum, oldRecWedPlaats, oldRecWedNation, oldRecWedBaanlengte, _
+        oldZwmIsValid, oldZwmStart, oldZwmName, oldZwmVoornaam, oldZwmVoegsel, oldZwmAchternaam, oldZwmGes, oldZwmGebDate, _
+        oldEstIsValid, oldNEstZwemmers, oldEstStartnummers, oldEstNames, oldEstDeelnemers, oldEstVoornaam, oldEstVoegsel, oldEstAchternaam, oldEstGeslacht, oldEstGebDate) Then
+        Exit Function
+      End If
+    End If 'if olsIsFnd
+  End If 'if managedExternally
+End If 'if blShouldOutput
+  
+  
+
+
+
+
+
+Dim sOldString As String
+
+If (blShouldOutput) Then
+
+
+  Dim blRecIsValid As Boolean
+  blRecIsValid = True
+
+  
+  If (oldIsFnd) Then
+  
+    'check if record is valid
+    If (oldRecNDecimals = 1) Then
+      If (recNDecimals = 1) Then
+        If (recTime > oldRecActTime) Then
+          blRecIsValid = False
+        End If
+      ElseIf (recNDecimals = 2) Then
+        If (recTime > oldRecActTime + 0.095) Then
+          blRecIsValid = False
+        End If
+      End If
+    Else
+      If (recTime > oldRecActTime) Then
+        blRecIsValid = False
+      End If
+    End If
+  End If
+  
+  Dim sRecInvalidString As String
+  sRecInvalidString = ""
+  
+  If (Not blRecIsValid) Then
+    sRecInvalidString = "Ongeldig, zie: " & oldRecnr & " - " & fmtRecTime_Decimals(oldRecActTime, oldRecNDecimals, "")
+    If (lenDateIsValid(oldRecWedDatum)) Then
+      sRecInvalidString = sRecInvalidString & " - " & fmtDate(oldRecWedDatum)
+    End If
+    If (recIsEstaf) Then
+      sRecInvalidString = sRecInvalidString & " - Estafette"
+    Else
+      If (oldZwmName <> "") Then
+        sRecInvalidString = sRecInvalidString & " - " & oldZwmName
+      End If
+    End If
+  End If
+
+
+  sOldString = ""
+  If (Not oldIsFnd) Then
+    sOldString = "Dit record werd niet eerder gezwommen."
+  Else
+    Dim vbTypeS As String
+    vbTypeS = "Verbetering "
+    If (recTime > oldRecActTime) Then
+      vbTypeS = "Egalisatie "
+    End If
+    If Not (oldZwmIsValid Or (recIsEstaf And (oldEstIsValid Or (rsInfo.blIsMultiVer And (Not oldRecVerWasEmpty))))) Then
+      sOldString = vbTypeS & "startlimiet van " & fmtRecTime_Decimals(oldRecActTime, oldRecNDecimals, "")
+    Else
+      sOldString = vbTypeS & "oud record van " & fmtRecTime_Decimals(oldRecActTime, oldRecNDecimals, "")
+      If (recIsEstaf) Then
+        sOldString = sOldString & " gezwommen door " & oldEstDeelnemers
+      Else
+        sOldString = sOldString & " gezwommen door " & oldZwmName
+      End If
+      If (rsInfo.blIsMultiVer) Then
+        sOldString = sOldString & " van " & oldRecVer
+      End If
+      
+      If (lenDateIsValid(oldRecWedDatum)) Then
+        sOldString = sOldString & " op " & Format(oldRecWedDatum, "dd\-mm\-yyyy")
+        If (oldRecWedPlaats <> "") Then
+          sOldString = sOldString & " te " & oldRecWedPlaats
+          If (oldRecWedBaanlengte > 0) Then
+            sOldString = sOldString & " (" & oldRecWedBaanlengte & "m baan)"
+          End If
+        End If
+      End If
+    End If
+  End If
+End If
+
+
+
+If (blShouldOutput) Then
+
+  'output the record holder
+  
+  Dim cntOutp As Long
+  cntOutp = tpEstafCnt
+  
+  
+  Dim i As Integer
+  For i = 0 To cntOutp - 1
+  
+    outp.AddNew
+    outp("RL_Code") = hzn(rsInfo.Code)
+    outp("RL_Recordnummer") = recnr
+    
+    
+    outp("RL_IsEstaf") = recIsEstaf
+    outp("RL_Afstand") = hzn(recAf)
+    outp("RL_Slag") = hzn(recSl)
+    outp("RL_Geslacht") = hzn(recGes)
+    outp("RL_Leeftijd") = hzn(recLft)
+    outp("RL_DisplayCategorie") = hzn(fmtCatCode(recGes, recLft))
+    outp("RL_Baanlengte") = recBn
+    outp("RL_Tijd") = recTime
+    outp("RL_AantalDecimalen") = recNDecimals
+    
+    If (recIsEstaf) Then
+      outp("RL_DisplayTijd") = fmtRecTime_Decimals(recTime, recNDecimals, " ")
+      If (rsInfo.blIsMultiVer) Then
+        If (recVer = "") Then
+          outp("RL_DisplayNaam") = hzn(ver())
+        Else
+          outp("RL_DisplayNaam") = hzn(recVer)
+        End If
+      Else
+        outp("RL_DisplayNaam") = "Estafette"
+      End If
+      outp("RL_DisplayVer") = Null
+    
+      outp("RL_EST_Deelnemers") = hzn(newEstDeelns)
+    Else
+      outp("RL_DisplayTijd") = fmtRecTime_Decimals(recTime, recNDecimals, " ")
+      outp("RL_DisplayNaam") = hzn(recName)
+      If (rsInfo.blIsMultiVer) Then
+        outp("RL_DisplayVer") = hzn(recVer)
+      Else
+        outp("RL_DisplayVer") = Null
+      End If
+      outp("RL_EST_Deelnemers") = Null
+    End If
+    
+    If (lenDateIsValid(recWedDatum)) Then
+      outp("RL_Datum") = recWedDatum
+    Else
+      outp("RL_Datum") = Null
+    End If
+    
+    outp("RL_Plaats") = hzn(recWedPlaats)
+    
+    outp("RL_OLD_Description") = hzn(sOldString)
+    
+    If (i = 0) Then
+      outp("RL_IsPrimary") = True
+    End If
+    
+    If (recIsEstaf) Then
+      outp("RL_CERT_Startnummer") = hzn(estStarts(i))
+      outp("RL_CERT_NAME") = hzn(estNames(i))
+    Else
+      outp("RL_CERT_Startnummer") = hzn(recStart)
+      outp("RL_CERT_Name") = hzn(recName)
+    End If
+    
+    outp("RL_IsInvalid") = Not blRecIsValid
+    If (Not blRecIsValid) Then
+      outp("RL_InvalidReason") = hzn(sRecInvalidString)
+    End If
+    
+        
+    outp.Update
+  Next i
+
+End If 'if blShouldOutput
+
+recBuildList_HandleTime = True
+Exit Function
+fout:
+MsgBox Err & " recBuildList_HandleTime" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function recBuildList_outputStats(ByVal startDate As Date, ByVal endDate As Date, ByVal recCode As String) As Boolean
+On Error GoTo fout
+recBuildList_outputStats = False
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL "delete * from hsoRecListDisplay_stats"
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRecListDisplay_stats")
+
+rs.AddNew
+  If (lenDateIsValid(startDate)) Then
+    rs("RL_StartDate") = startDate
+  Else
+    rs("RL_StartDate") = Null
+  End If
+  If (lenDateIsValid(endDate)) Then
+    rs("RL_Enddate") = endDate
+  Else
+    rs("RL_EndDate") = Null
+  End If
+  
+  rs("RL_Code") = hzn(recCode)
+rs.Update
+
+appCleanRS rs
+
+
+recBuildList_outputStats = True
+Exit Function
+fout:
+MsgBox Err & " recBuildList_outputStats" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function recBuildList(ByVal recCode As String, ByVal startDate As Date, ByVal endDate As Date) As Boolean
+On Error GoTo fout
+recBuildList = False
+
+
+
+'First check if we need to do something.
+If rec_IsRecListOK(startDate, endDate, recCode) Then
+  recBuildList = True
+  Exit Function
+End If
+
+
+Dim sql As String
+sql = "Delete * from hsoRecListDisplay"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim rsInfo As RECSET_BASIC_INFO
+Dim nRecAges As Integer
+
+Dim recAges(0 To MAX_N_REC_AGES) As Long
+
+Dim updVers(0 To 0) As String
+Dim updWeds(0 To 0) As Long
+Dim updItems(0 To 0) As String
+Dim nUpdItems As Integer
+
+  Dim recTimes25M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50M(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50V(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25X(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt25X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50X(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES) As Long, recIsExt50X(0 To MAX_N_REC_AFSL, MAX_N_REC_AGES)  As Boolean
+
+Dim nAfSl As Integer
+Dim lkpOrdAf(0 To MAX_N_REC_AFSL) As String
+Dim lkpOrdSl(0 To MAX_N_REC_AFSL) As String
+
+'First build afsl list
+
+
+If (Not rsInfo.blManagedExternally) Then
+
+  If Not recLkp_SetAllAfSlPairs(recCode, nAfSl, lkpOrdAf, lkpOrdSl) Then
+    Exit Function
+  End If
+  
+  'Now read the records per startDate
+  
+  If Not recLkp(recCode, nAfSl, lkpOrdAf, lkpOrdSl, _
+    startDate, -1, rsInfo, nRecAges, recAges, _
+    updVers, updWeds, updItems, nUpdItems, _
+    recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+    recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+    recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+    
+    Exit Function
+  End If
+
+End If
+
+
+
+
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("hsoRecListDisplay")
+
+
+Dim skInt As Recordset, skExt As Recordset
+Set skInt = CurrentDb().OpenRecordset("dtRecordsInternal")
+skInt.Index = "PrimaryKey"
+
+Set skExt = CurrentDb().OpenRecordset("dtRecordsExternal")
+skExt.Index = "RC_ID"
+
+
+Dim skEst As Recordset
+Set skEst = CurrentDb().OpenRecordset("dtEstafettes")
+skEst.Index = "PrimaryKey"
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("dtVerenigingen")
+skVer.Index = "PrimaryKey"
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+
+'Get a list of records swum in the period.
+'Test each record against current record and update.
+
+
+sql = "SELECT dtRecordsInternal.*, [dtLeden].Voornaam, [dtLeden].Voegsel, [dtLeden].Achternaam, " & _
+  "[dtWedstrijden].Datum, [dtWedstrijden].Plaats, [dtWedstrijden].Baanlengte " & _
+  "FROM [dtLeden] INNER JOIN ([dtWedstrijden] INNER JOIN dtRecordsInternal ON [dtWedstrijden].[Wedstrijd nummer] = " & _
+  "dtRecordsInternal.RC_Wedstrijdnummer) ON [dtLeden].Startnummer = dtRecordsInternal.RC_Startnummer " & _
+  "WHERE ((([dtWedstrijden].Datum) >= #" & Format(startDate, "mm\-dd\-yyyy") & "# And " & _
+  "([dtWedstrijden].Datum) <= #" & Format(endDate, "mm\-dd\-yyyy") & "#) And ((dtRecordsInternal.RC_Code) = """ & rsInfo.Code & """)) " & _
+  "ORDER BY [dtWedstrijden].Datum, dtRecordsInternal.RC_Recordnummer "
+
+
+'Now loop through the records, looking up the previous record as we go along.
+
+Dim td As Recordset
+Set td = CurrentDb().OpenRecordset(sql)
+
+
+
+
+td.MoveFirst
+Do Until td.EOF
+  Dim tpRecWed As Long
+  Dim tpRecPlaats As String
+  Dim tpRecDatum As Date
+  
+  
+  Dim tpRecStart As String
+  Dim tpRecGes As String
+  Dim tpRecLft As Long
+  
+  Dim tpRecIsEstaf As Boolean
+  Dim tpRecEstGUID As Integer
+  
+  
+  Dim tpRecVer As String
+  Dim tpRecTime As Double
+  Dim tpRecNDecimals As Integer
+  
+  Dim tpRecName As String
+  
+  Dim tpRecNummer As Long
+  
+  
+  Dim tpRecAf As String, tpRecSl As String, tpRecBn As Integer
+  
+  tpRecNummer = Nz(td("RC_Recordnummer"))
+
+
+  tpRecWed = Nz(td("RC_Wedstrijdnummer"))
+  tpRecPlaats = Nz(td("Plaats"))
+  tpRecDatum = Nz(td("Datum"))
+  
+  tpRecStart = Nz(td("RC_Startnummer"))
+  tpRecGes = Nz(td("RC_Geslacht"))
+  tpRecLft = Nz(td("RC_Leeftijd"))
+  
+  tpRecVer = Nz(td("RC_Vereniging"))
+  tpRecTime = Nz(td("RC_Tijd"))
+  tpRecNDecimals = Nz(td("RC_AantalDecimalen"), 2)
+  
+  
+  tpRecAf = Nz(td("RC_Afstand"))
+  tpRecSl = Nz(td("RC_Slag"))
+  tpRecBn = Nz(td("RC_Baanlengte"))
+  
+  
+  tpRecIsEstaf = tpRecAf Like "*x*"
+  tpRecEstGUID = -1
+  If (tpRecIsEstaf) Then
+    tpRecEstGUID = Nz(td("RC_EST_GUID"), -1)
+  End If
+  
+  tpRecName = ""
+  If (Not tpRecIsEstaf) Then
+    tpRecName = fmtName(Nz(td("Voornaam")), Nz(td("Voegsel")), Nz(td("Achternaam")))
+  End If
+  
+  
+  
+  Dim tpRecOldTime As Double, tpRecOldName As String, tpRecOldVer As String, tpRecOldDate As Date
+  Dim tpRecOldPlaats As String, tpRecOldEstDlns As String, tpRecOldBaan As Integer
+  
+  If (rsInfo.blManagedExternally) Then
+    tpRecOldTime = Nz(td("RC_EXT_OLD_Tijd"))
+    tpRecOldName = Nz(td("RC_EXT_OLD_Name"))
+    tpRecOldVer = Nz(td("RC_EXT_OLD_VER"))
+    tpRecOldDate = Nz(td("RC_EXT_OLD_Datum"), #1/1/1900#)
+    tpRecOldPlaats = Nz(td("RC_EXT_OLD_Plaats"))
+    tpRecOldEstDlns = Nz(td("RC_EXT_OLD_EST_Deelnemers"))
+    tpRecOldBaan = Nz(td("RC_EXT_OLD_Baan"))
+  End If
+  
+  
+  Dim oldRecIsFnd As Boolean
+  Dim satLft As Long, satLftIdx As Integer, satBn As Integer
+  Dim satAfSlIdx As Integer, satGes As String
+  Dim oldRecTime As Double, oldRecIsJustUpdated As Boolean
+  Dim oldRecnr As Long, oldRecIsExt As Boolean
+  Dim oldJustUpdatedVer As String, oldJustUpdatedWed As Long
+  Dim oldJustUpdatedItem As String
+  
+  oldRecIsFnd = False
+  
+  If (Not rsInfo.blManagedExternally) Then
+  
+    If Not recLkp_ExtractRec(tpRecGes, tpRecLft, tpRecBn, tpRecAf, tpRecSl, oldRecIsFnd, _
+      satAfSlIdx, satGes, satLft, satLftIdx, satBn, _
+      oldRecTime, oldRecIsJustUpdated, oldRecnr, oldRecIsExt, oldJustUpdatedVer, oldJustUpdatedWed, oldJustUpdatedItem, _
+      rsInfo, nRecAges, recAges, _
+      nAfSl, lkpOrdAf, lkpOrdSl, _
+      updVers, updWeds, updItems, nUpdItems, _
+      recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+      recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+      recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+    
+      Exit Function
+    End If
+    
+    If oldRecIsJustUpdated Then
+      Err.Raise 1, , "internal error."
+    End If
+    
+    If Not swtIsValid(oldRecTime) Then
+      oldRecIsFnd = False
+    End If
+    
+  End If 'if managed internally
+  
+  
+  
+  
+  'Output what we learned
+  
+  If Not recBuildList_HandleTime(rsInfo, outp, tpRecNummer, tpRecGes, tpRecLft, tpRecBn, _
+    tpRecAf, tpRecSl, tpRecTime, tpRecNDecimals, tpRecVer, tpRecIsEstaf, tpRecStart, tpRecName, _
+    tpRecEstGUID, tpRecDatum, tpRecPlaats, _
+    tpRecOldTime, tpRecOldName, tpRecOldVer, tpRecOldDate, tpRecOldPlaats, tpRecOldEstDlns, tpRecOldBaan, _
+    oldRecIsFnd, oldRecIsExt, oldRecnr, _
+    skInt, skExt, skEst, skZwm, skVer, skWed) Then
+      Exit Function
+  End If
+  
+  
+  
+  
+  
+  If (Not rsInfo.blManagedExternally) Then
+  
+    'Update the current situation
+    
+    Dim updNSatisfied As Integer, updSatLft(0 To MAX_N_REC_AGES) As Long, updSatLftIdx(0 To MAX_N_REC_AGES) As Integer, updSatBn(0 To MAX_N_REC_AGES) As Integer
+    updNSatisfied = 1
+    updSatLft(0) = satLft
+    updSatLftIdx(0) = satLftIdx
+    updSatBn(0) = satBn
+    
+       
+    
+    
+  
+    Dim isNewRecNrs(0 To MAX_N_REC_AGES) As Boolean
+    Dim newRecNrs(0 To MAX_N_REC_AGES) As Long
+    Dim newRecIsExt(0 To MAX_N_REC_AGES) As Boolean
+    
+    isNewRecNrs(0) = True
+    newRecNrs(0) = tpRecNummer
+    newRecIsExt(0) = False
+    
+    Dim blDummy As Boolean, startDummy As String, verDummy As String, estDummy As String, wedDummy As Long
+    
+    'Update the records.
+    If Not recLkp_UpdateRecord(tpRecTime, updNSatisfied, _
+        updSatBn, satAfSlIdx, satGes, updSatLftIdx, _
+        isNewRecNrs, newRecNrs, newRecIsExt, _
+        blDummy, verDummy, startDummy, estDummy, wedDummy, updVers, updWeds, updItems, nUpdItems, _
+        recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+        recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+        recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+    
+      Exit Function
+    End If
+    
+  End If 'if managed internally
+
+  
+  
+  
+  
+  td.MoveNext
+Loop
+
+If Not recBuildList_outputStats(startDate, endDate, recCode) Then
+  Exit Function
+End If
+
+
+rec_SetRecListOK True, startDate, endDate, recCode
+
+
+
+
+recBuildList = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " recBuildList" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function recExtReadFromLenex_WriteSettings(ByVal Code As String) As Boolean
+On Error GoTo fout
+recExtReadFromLenex_WriteSettings = False
+
+'Gather settings
+Dim opt25And50m As Boolean, optRecAgeMode As String
+
+Dim lMaxBn As Long
+
+lMaxBn = Nz(DMax("REC_Baanlengte", "gREC_ACQ_RECS"), 0)
+
+opt25And50m = True
+If (lMaxBn >= 50) Then
+  opt25And50m = True
+End If
+
+optRecAgeMode = Nz(DFirst("REC_DS_AgeMode", "gREC_ACQ_RECS"))
+If (optRecAgeMode = "") Then
+  optRecAgeMode = LFT_MODE_WEDYR_END
+End If
+
+'Now write the settings
+Dim rsSett As Recordset
+Set rsSett = CurrentDb().OpenRecordset("dtRecordSets")
+rsSett.Index = "PrimaryKey"
+
+rsSett.Seek "=", Code
+
+If rsSett.NoMatch Then
+  Err.Raise 1, , "Could not find recordtype: " & Code
+End If
+
+rsSett.Edit
+  rsSett("RS_LftMode") = hzn(optRecAgeMode)
+  rsSett("RS_SeparateBaanlengtes") = opt25And50m
+rsSett.Update
+
+appCleanRS rsSett
+
+'Delete all current agegroups.
+
+Dim lftSQL As String
+lftSQL = "delete * from dtRecordsetAges where rsa_code= """ & Code & """;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL lftSQL
+DoCmd.SetWarnings True
+
+
+'Append new agegroups.
+lftSQL = "select rec_max_age from gREC_ACQ_RECS group by rec_max_age"
+
+Dim rsLft As Recordset
+Set rsLft = CurrentDb().OpenRecordset(lftSQL)
+
+Dim lftOut As Recordset
+Set lftOut = CurrentDb().OpenRecordset("dtRecordsetAges")
+
+rsLft.MoveFirst
+Do Until rsLft.EOF
+  Dim tpAge As Long
+  tpAge = Nz(rsLft("REC_MAX_AGE"))
+  
+  If (tpAge < CAT_MAX_AGE) Then
+    lftOut.AddNew
+      lftOut("RSA_Code") = hzn(Code)
+      lftOut("RSA_Age") = tpAge
+    lftOut.Update
+  End If
+
+  rsLft.MoveNext
+Loop
+
+appCleanRS rsLft
+appCleanRS lftOut
+
+
+
+
+
+
+recExtReadFromLenex_WriteSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+DoCmd.SetWarnings True
+MsgBox Err & " recExtReadFromLenex_WriteSettings" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+
+'Update an external recordset from a lenex file.
+Public Function recExtReadFromLenex(ByVal Code As String, ByVal blClearAll As Boolean, ByVal blImpSettings As Boolean) As Boolean
+On Error GoTo fout
+recExtReadFromLenex = False
+
+
+
+notifyRecordChange
+
+
+Dim tpCntRecs As Long
+tpCntRecs = Nz(DCount("REC_Afstand", "gREC_ACQ_Recs"), 0)
+If (tpCntRecs <= 0) Then
+  Err.Raise 1, , "Geen records gevonden."
+End If
+
+
+
+If (blClearAll) Then
+  Dim delSQL As String
+  delSQL = "delete * from dtRecordsExternal where rc_code=""" & Code & """;"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL delSQL
+  DoCmd.SetWarnings True
+End If
+
+
+
+'Todo: need to import some standard settings, such as age groups, 25/50m baan and lftMode
+
+If (blImpSettings) Then
+
+  If Not recExtReadFromLenex_WriteSettings(Code) Then
+    Exit Function
+  End If
+  
+End If
+
+
+Dim sql As String
+sql = "select * from gRec_Acq_Recs"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim curCat As String
+Dim curAf As String
+Dim curSl As String
+Dim curBn As Integer
+
+
+curCat = ""
+curAf = ""
+curSl = ""
+curBn = -1
+
+
+Dim tpCat As String
+Dim tpAf As String
+Dim tpSl As String
+Dim tpBn As Integer
+Dim tpTime As Double
+Dim tpNDecs As Integer
+Dim tpDat As Date
+Dim tpPlaats As String
+Dim tpNaam As String
+
+
+Dim rsOutp As Recordset
+Set rsOutp = CurrentDb().OpenRecordset("dtRecordsExternal", dbOpenDynaset)
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpLft As String
+  Dim tpGes As String
+  tpLft = Nz(rs("REC_MAX_AGE"))
+  tpGes = Nz(rs("REC_Geslacht"))
+  
+  tpCat = fmtCatCode(tpGes, tpLft)
+  
+  tpAf = Nz(rs("REC_Afstand"))
+  tpSl = Nz(rs("REC_Slag"))
+  tpBn = Nz(rs("REC_Baanlengte"))
+  tpTime = Nz(rs("REC_Tijd"))
+  tpNDecs = Nz(rs("REC_AantalDecimalen"), 0)
+  tpDat = Nz(rs("REC_Datum"), #1/1/1900#)
+  tpPlaats = Nz(rs("REC_Plaats"))
+  tpNaam = Nz(rs("REC_Name"))
+  
+  Dim tpVer As String, tpEstDlns As String
+  tpVer = Nz(rs("REC_Vereniging"))
+  tpEstDlns = Nz(rs("REC_EST_Deelnemers"))
+  
+  
+  
+  If (tpCat <> curCat Or tpBn <> curBn Or tpAf <> curAf Or tpSl <> curSl) Then
+    If (Not blClearAll) Then
+      'first need to see if already exists
+      rsOutp.FindFirst "rc_code = """ & Code & """ and rc_afstand=""" & tpAf & """ and rc_slag=""" & tpSl & """ and rc_baanlengte = " & tpBn & " and rc_displayCategorie=""" & tpCat & """"
+      If rsOutp.NoMatch Then
+        rsOutp.AddNew
+      Else
+        rsOutp.Edit
+      End If
+    Else
+      rsOutp.AddNew
+    End If
+      'write out
+      rsOutp("RC_Code") = hzn(Code)
+      rsOutp("rc_Afstand") = hzn(tpAf)
+      rsOutp("rc_Slag") = hzn(tpSl)
+      
+      rsOutp("rc_displayCategorie") = hzn(tpCat)
+      
+      rsOutp("RC_leeftijd") = tpLft
+      rsOutp("RC_Geslacht") = hzn(tpGes)
+      
+      
+      rsOutp("rc_Tijd") = tpTime
+      
+      If (tpNDecs = 1) Then
+        rsOutp("RC_AantalDecimalen") = 1
+      Else
+        rsOutp("RC_AantalDecimalen") = 2
+      End If
+      
+      rsOutp("rc_Baanlengte") = tpBn
+      
+      rsOutp("rc_Plaats") = hzn(tpPlaats)
+      If (lenDateIsValid(tpDat)) Then
+        rsOutp("rc_Datum") = tpDat
+      End If
+      
+      rsOutp("rc_vereniging") = hzn(tpVer)
+      
+      If (tpAf Like "*x*") Then
+        rsOutp("rc_naam") = "Estafette"
+        rsOutp("rc_est_deelnemers") = tpEstDlns
+      Else
+        rsOutp("rc_Naam") = hzn(tpNaam)
+      End If
+      
+      
+      
+      
+    rsOutp.Update
+    
+    curCat = tpCat
+    curBn = tpBn
+    curAf = tpAf
+    curSl = tpSl
+    
+  End If
+  
+  rs.MoveNext
+Loop
+
+rs.Close
+rsOutp.Close
+
+
+recExtReadFromLenex = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " recExtReadFromLenex" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+Public Function recSuspPerformApprove(ByVal blAll As Boolean) As Boolean
+On Error GoTo fout
+recSuspPerformApprove = False
+
+If Not recSuspPerformAction_perform(True, blAll) Then
+  Exit Function
+End If
+
+recSuspPerformApprove = True
+Exit Function
+
+fout:
+MsgBox Err & " recSuspPerformApprove" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function recSuspPerformDelete(ByVal blAll As Boolean) As Boolean
+On Error GoTo fout
+recSuspPerformDelete = False
+
+If Not recSuspPerformAction_perform(False, blAll) Then
+  Exit Function
+End If
+
+recSuspPerformDelete = True
+Exit Function
+
+fout:
+MsgBox Err & " recSuspPerformDelete" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recSuspPerformAction_perform_rec(ByVal blApprove As Boolean, ByVal sRecType As String, ByVal lRecNr As Long, ByRef skRecs As Recordset) As Boolean
+On Error GoTo fout
+recSuspPerformAction_perform_rec = False
+
+skRecs.Seek "=", sRecType, lRecNr
+  
+  If (Not skRecs.NoMatch) Then
+    If (blApprove) Then
+      skRecs.Edit
+        skRecs("RC_IsSuspect") = False
+        skRecs("RC_SuspectCode") = Null
+        skRecs("RC_SuspectReason") = Null
+      skRecs.Update
+    Else
+      skRecs.Delete
+    End If
+  End If
+
+
+
+recSuspPerformAction_perform_rec = True
+
+Exit Function
+
+fout:
+MsgBox Err & " recSuspPerformAction_perform_rec" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function recSuspPerformAction_perform(ByVal blApprove As Boolean, ByVal blAll As Boolean) As Boolean
+On Error GoTo fout
+recSuspPerformAction_perform = False
+
+
+notifyRecordChange
+
+
+Dim skRecs As Recordset
+Set skRecs = CurrentDb().OpenRecordset("dtRecordsInternal")
+skRecs.Index = "PrimaryKey"
+
+Dim sRecCode As String
+Dim lRecNr As Long
+
+If (blAll) Then
+
+  Dim rs As Recordset
+  Set rs = CurrentDb().OpenRecordset("select * from hsoSuspRecsList;")
+  rs.MoveFirst
+  
+  Do Until rs.EOF
+    sRecCode = Nz(rs("SUP_LST_RecType"))
+    lRecNr = Nz(rs("SUP_LST_Recordnummer"))
+    
+    If Not recSuspPerformAction_perform_rec(blApprove, sRecCode, lRecNr, skRecs) Then
+      Exit Function
+    End If
+    
+    
+    rs.MoveNext
+  Loop
+  
+  appCleanRS rs
+  
+Else
+  
+  sRecCode = Nz(DLookup("SUP_ARG_RecType", "hsoSuspRecsAction"))
+  lRecNr = Nz(DLookup("SUP_ARG_SelectedRecordnummer", "hsoSuspRecsAction"))
+    
+  If Not recSuspPerformAction_perform_rec(blApprove, sRecCode, lRecNr, skRecs) Then
+    Exit Function
+  End If
+  
+End If
+
+
+appCleanRS skRecs
+
+recSuspPerformAction_perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " recSuspPerformAction_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function recSuspPerformAction(ByVal blApprove As Boolean, ByVal sRcsCode As String, ByVal lSelRecNr As Long, ByRef rsCurRecs As Recordset) As Boolean
+On Error GoTo fout
+recSuspPerformAction = False
+
+
+notifyRecordChange
+
+
+Dim sql As String
+sql = "Delete * from hsoSuspRecsAction;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Delete * from hsoSuspRecsList;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoSuspRecsList")
+
+rsCurRecs.MoveFirst
+Do Until rsCurRecs.EOF
+  rs.AddNew
+    rs("SUP_LST_RecType") = rsCurRecs("RC_Code")
+    rs("SUP_LST_Recordnummer") = rsCurRecs("RC_Recordnummer")
+  rs.Update
+
+  rsCurRecs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+
+Set rs = CurrentDb().OpenRecordset("hsoSuspRecsAction")
+
+rs.AddNew
+  rs("SUP_ARG_RecType") = hzn(sRcsCode)
+  rs("SUP_ARG_SelectedRecordnummer") = lSelRecNr
+rs.Update
+
+appCleanRS rs
+
+
+If (blApprove) Then
+  DoCmd.OpenForm "REC_DLG_ApproveSuspect", , , , , acDialog
+Else
+  DoCmd.OpenForm "REC_DLG_DeleteSuspect", , , , , acDialog
+End If
+
+
+recSuspPerformAction = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " recSuspPerformAction" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+Public Function recMarkInvalidRecs(ByVal sRecType As String) As Boolean
+On Error GoTo fout
+recMarkInvalidRecs = False
+
+If Not recBuildList(sRecType, #1/1/1901#, #1/1/2099#) Then
+  Exit Function
+End If
+
+
+Dim sql As String
+sql = "update dtRecordsInternal set rc_isSuspect = false, rc_suspectReason = null, rc_suspectCode = null where rc_isSuspect and rc_suspectCode = " & REC_SUSPECT_INVALID_REC & ";"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim skRecs As Recordset
+Set skRecs = CurrentDb().OpenRecordset("dtRecordsInternal")
+skRecs.Index = "PrimaryKey"
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from hsoRecListDisplay where rl_isInvalid")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpCode As String, tpNr As Long, tpInvReason As String
+  tpCode = Nz(rs("RL_Code"))
+  tpNr = Nz(rs("RL_Recordnummer"))
+  tpInvReason = Nz(rs("RL_InvalidReason"))
+  
+  
+  skRecs.Seek "=", tpCode, tpNr
+  If (Not skRecs.NoMatch) Then
+    skRecs.Edit
+      skRecs("RC_IsSuspect") = True
+      skRecs("RC_SuspectCode") = REC_SUSPECT_INVALID_REC
+      skRecs("RC_SuspectReason") = hzn(tpInvReason)
+    skRecs.Update
+  End If
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS skRecs
+
+
+recMarkInvalidRecs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " recMarkInvalidRecs" & vbCrLf & Error$, 16
+End Function

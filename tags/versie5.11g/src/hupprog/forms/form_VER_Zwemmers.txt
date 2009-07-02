@@ -1,0 +1,433 @@
+Version =20
+VersionRequired =20
+Checksum =-928951817
+Begin Form
+    NavigationButtons = NotDefault
+    GridX =5
+    GridY =5
+    Width =7029
+    ItemSuffix =15
+    Left =1440
+    Top =2400
+    Right =9765
+    Bottom =5220
+    BeforeDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0xebaa058c3e7be340
+    End
+    RecordSource ="SELECT DISTINCTROW dtNamen.* FROM dtNamen WHERE (((dtNamen.NA_Vereniging)=waarde"
+        "_ver())) ORDER BY stnrExpand(nz(dtNamen.NA_Startnummer));"
+    OnDelete ="[Event Procedure]"
+    BeforeUpdate ="[Event Procedure]"
+    AfterUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    OnClose ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    OnError ="[Event Procedure]"
+    Begin
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =353
+            BackColor =16776960
+            Name ="FormHeader1"
+            Begin
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =585
+                    Height =240
+                    Name ="Text4"
+                    Caption ="Startnr."
+                End
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    Left =1020
+                    Top =113
+                    Width =495
+                    Height =240
+                    Name ="Text5"
+                    Caption ="Naam"
+                End
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    Left =3741
+                    Top =113
+                    Width =435
+                    Height =240
+                    Name ="Text6"
+                    Caption ="Gesl."
+                End
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    Left =4308
+                    Top =113
+                    Width =750
+                    Height =240
+                    Name ="Label11"
+                    Caption ="Cap kleur"
+                End
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    Left =6122
+                    Top =113
+                    Width =750
+                    Height =240
+                    Name ="Label12"
+                    Caption ="Cap nr"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    Visible = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =93
+                    Left =1927
+                    Width =576
+                    ColumnWidth =1560
+                    Name ="NA_Vereniging"
+                    ControlSource ="NA_Vereniging"
+                    DefaultValue ="=[Parent]![v_naam]"
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =113
+                    Width =801
+                    ColumnWidth =870
+                    TabIndex =1
+                    Name ="NA_Startnummer"
+                    ControlSource ="NA_Startnummer"
+                    Format ="00-00000"
+                    InputMask ="00\\-CCCCC;0;\" \""
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =255
+                    Left =1027
+                    Width =2601
+                    ColumnWidth =2220
+                    TabIndex =2
+                    Name ="NA_Naam"
+                    ControlSource ="NA_Naam"
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =3741
+                    Width =351
+                    ColumnWidth =435
+                    TabIndex =3
+                    Name ="NA_Geslacht"
+                    ControlSource ="NA_Geslacht"
+                    Format =">"
+                    ValidationRule ="In (\"M\",\"V\")"
+                    ValidationText ="Keuze uit M, V."
+                    InputMask =">C;;\" \""
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =4308
+                    TabIndex =4
+                    Name ="NA_OW_Capkleur"
+                    ControlSource ="NA_OW_Capkleur"
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =6122
+                    Width =801
+                    TabIndex =5
+                    Name ="NA_OW_Capnummer"
+                    ControlSource ="NA_OW_Capnummer"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =247
+                    Left =2154
+                    Width =906
+                    ColumnWidth =1560
+                    TabIndex =6
+                    Name ="Text13"
+                    ControlSource ="NA_Vereniging"
+                    DefaultValue ="=waarde_ver()"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =16776960
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+Private Veranderd As Boolean
+Private output As Recordset
+Private delConfirmed As Boolean
+Private blDelete As Boolean
+Private nrDeletionsConfirmed As Integer
+
+
+
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+Veranderd = True
+End Sub
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
+On Error Resume Next
+Dim antwoord As String
+response = acDataErrContinue
+
+Exit Sub
+End Sub
+
+Private Sub Form_BeforeUpdate(Cancel As Integer)
+On Error GoTo fout
+
+    If NA_Startnummer.OldValue <> NA_Startnummer And Not IsNull(NA_Startnummer.OldValue) Then
+        'MsgBox "veranderd"
+        Veranderd = True
+        output.FindFirst "[start2]=""" & NA_Startnummer.OldValue & """ and [ver]=""" & NA_Vereniging & """"
+        If output.NoMatch Then
+            'toevoegen
+            output.AddNew
+            output("start1") = NA_Startnummer.OldValue
+            output("Start2") = NA_Startnummer
+            output("Ver") = NA_Vereniging
+            output.Update
+        Else
+            'startnummer waar hij heen gaat updaten
+            output.Edit
+            output("Start2") = NA_Startnummer
+            output.Update
+        End If 'if output.nomatch
+    End If
+
+Exit Sub
+fout:
+MsgBox Error$
+
+
+End Sub
+
+
+
+Private Sub Form_Close()
+On Error GoTo fout
+
+
+
+If Veranderd Then
+    DoCmd.SetWarnings False
+    
+    Dim sql As String
+    'persoonlijk
+    sql = "UPDATE DISTINCTROW dtNamen LEFT JOIN dtDeelnemers ON (dtNamen.NA_Startnummer = dtDeelnemers.DE_Startnummer) " & _
+    "AND (dtNamen.NA_Vereniging = dtDeelnemers.DE_Vereniging) SET dtDeelnemers.DE_Naam = [na_naam] " & _
+    "WHERE (((dtDeelnemers.DE_Naam)<>[na_naam]));"
+    
+    DoCmd.RunSQL sql
+    
+    'estafette
+    sql = "UPDATE DISTINCTROW dtNamen LEFT JOIN dtPloegen ON (dtNamen.NA_Startnummer = dtPloegen.PL_Startnummer) AND " & _
+    "(dtNamen.NA_Vereniging = dtPloegen.PL_Vereniging) SET dtPloegen.PL_Naam = [na_naam] " & _
+    "WHERE (((dtPloegen.PL_Naam)<>[na_naam]));"
+    DoCmd.RunSQL sql
+
+    
+    Dim deeln As Recordset
+    Set deeln = CurrentDb().OpenRecordset("select * from [dtDeelnemers] order by [DE_Vereniging] , [de_startnummer];")
+    
+    output.MoveFirst
+    Do Until output.EOF
+        deeln.FindFirst "[DE_Vereniging]=""" & output("Ver") & """ and [de_startnummer] = """ & output("start1") & """"
+        If Not deeln.NoMatch Then
+        Do Until (deeln.EOF() Or deeln("DE_Startnummer") & deeln("DE_Vereniging") <> output("start1") & output("ver"))
+            If output("start2") = "x" Then
+                deeln.Delete
+            Else
+                deeln.Edit
+                deeln("DE_Startnummer") = output("start2")
+                deeln.Update
+            End If
+            deeln.MoveNext
+            
+        Loop
+        End If 'if not deeln.nomatch
+        output.MoveNext
+    Loop
+    
+    Set deeln = CurrentDb().OpenRecordset("select * from [dtTijden] order by [TY_Vereniging] , [TY_startnummer];")
+    
+    output.MoveFirst
+    Do Until output.EOF
+        deeln.FindFirst "[TY_Vereniging]=""" & output("Ver") & """ and [TY_startnummer] = """ & output("start1") & """"
+        If Not deeln.NoMatch Then
+        Do Until (deeln.EOF() Or deeln("TY_Startnummer") & deeln("TY_Vereniging") <> output("start1") & output("ver"))
+            If output("start2") = "x" Then
+                deeln.Delete
+            Else
+                deeln.Edit
+                deeln("TY_Startnummer") = output("start2")
+                deeln.Update
+            End If
+            deeln.MoveNext
+            
+        Loop
+        End If 'if not deeln.nomatch
+        output.MoveNext
+    Loop
+    
+    Set deeln = CurrentDb().OpenRecordset("select * from [dtPloegen] order by [pl_Vereniging] , [pl_startnummer];")
+    
+    output.MoveFirst
+    Do Until output.EOF
+        deeln.FindFirst "[pl_Vereniging]=""" & output("Ver") & """ and [pl_startnummer] = """ & output("start1") & """"
+        If Not deeln.NoMatch Then
+        Do Until (deeln.EOF() Or deeln("pl_Startnummer") & deeln("pl_Vereniging") <> output("start1") & output("ver"))
+            If output("start2") = "x" Then
+                deeln.Delete
+            Else
+                deeln.Edit
+                deeln("pl_Startnummer") = output("start2")
+                deeln.Update
+            End If
+            deeln.MoveNext
+        Loop
+        End If 'if not deeln.nomatch
+        output.MoveNext
+    Loop
+    
+    'startnummers verwijderd en gewijzigd.
+    
+    
+    
+    
+    DoCmd.SetWarnings True
+End If
+
+Exit Sub
+
+fout:
+DoCmd.SetWarnings True
+If Err = 3021 Then Exit Sub
+MsgBox Error$ & Err
+
+End Sub
+
+
+
+
+Private Sub Form_Delete(Cancel As Integer)
+Dim antwoord As String
+'response = acDataErrContinue
+
+If nrDeletionsConfirmed = 0 Then
+  antwoord = MsgBox("Lid uit alle wedstrijden verwijderen?", 33, "Hupprog")
+  If antwoord = 2 Then
+      blDelete = False
+  Else
+     blDelete = True
+  End If
+  nrDeletionsConfirmed = Me.SelHeight
+End If
+
+
+
+nrDeletionsConfirmed = nrDeletionsConfirmed - 1
+
+If Not blDelete Then
+  Cancel = True
+  Exit Sub
+End If
+ 
+
+Veranderd = True
+        output.FindFirst "[start2]=""" & NA_Startnummer & """ and [ver]=""" & NA_Vereniging & """"
+        If output.NoMatch Then
+            'toevoegen
+            output.AddNew
+            output("start1") = NA_Startnummer
+            output("Start2") = "x" '---->teken dat we hem willen verwijderen.
+            output("Ver") = NA_Vereniging
+            output.Update
+        Else
+            'startnummer waar hij heen gaat updaten
+            output.Edit
+            output("Start2") = "x" '-----> teken dat we hem gaan verwijderen.
+            output.Update
+        End If 'if output.nomatch
+End Sub
+
+Private Sub Form_Error(dataerr As Integer, response As Integer)
+On Error Resume Next
+If dataerr = 3022 Then
+    response = acDataErrContinue
+    MsgBox "Dit startnummer bestaat al." & Chr$(13) & "Druk op <esc>.", 16, "Hupprog"
+    Exit Sub
+End If
+If dataerr = 3314 Then
+    response = acDataErrContinue
+    MsgBox "U moet een naam en geslacht invullen.", 16, "Hupprog"
+    Me![NA_Naam].SetFocus
+    Exit Sub
+End If
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Veranderd = False
+
+Dim sql As String
+
+sql = "Delete * from [hpoNamen]"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Set output = CurrentDb().OpenRecordset("hpoNamen", dbOpenDynaset)
+delConfirmed = False
+nrDeletionsConfirmed = 0
+
+
+
+
+
+
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

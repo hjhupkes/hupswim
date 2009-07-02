@@ -1,0 +1,38 @@
+Option Compare Database
+Option Explicit
+
+
+Public Function bckAppName() As String
+On Error Resume Next
+bckAppName = "Hupprog"
+End Function
+
+
+
+
+
+Public Function bckGlobal_SetupTables(ByRef impTbNames() As String, ByRef impTbClearConditional() As Boolean, ByRef impTbFullImport() As Boolean, ByRef impTbExtraSQL() As String, ByRef impTbNamesSecondary() As String, ByRef impTbNamesTertiary() As String, ByRef nImpTables As Integer) As Boolean
+bckGlobal_SetupTables = bckGlobal_SetupTables_perform(impTbNames, impTbClearConditional, impTbFullImport, impTbExtraSQL, impTbNamesSecondary, impTbNamesTertiary, nImpTables)
+End Function
+
+
+Public Function bckGlobal_preDelete(ByVal impTbIdx As Integer, impTbName As String) As Boolean
+bckGlobal_preDelete = bckGlobal_preDelete_perform(impTbIdx, impTbName)
+End Function
+
+
+
+Public Function bckGlobal_preTransfer(ByVal fName As String, ByVal impTbIdx As Integer, ByVal impTbSrcName As String, ByVal impTbTgtName As String, ByRef blShouldProcess As Boolean) As Boolean
+bckGlobal_preTransfer = bckGlobal_preTransfer_perform(fName, impTbIdx, impTbSrcName, impTbTgtName, blShouldProcess)
+End Function
+
+Public Function bckGlobal_postTransfer(ByVal fName As String, ByVal impTbIdx As Integer, ByVal impTbSrcName As String, ByVal impTbTgtName As String) As Boolean
+bckGlobal_postTransfer = bckGlobal_postTransfer_perform(fName, impTbIdx, impTbSrcName, impTbTgtName)
+End Function
+Public Function bckGlobal_handleAbsent(ByVal fName As String, ByVal impTbIdx As Integer, ByVal impTbTgtName As String) As Boolean
+bckGlobal_handleAbsent = bckGlobal_handleAbsent_perform(fName, impTbIdx, impTbTgtName)
+End Function
+
+Public Function bckGlobal_postProcess(ByVal fName As String) As Boolean
+bckGlobal_postProcess = bckGlobal_postProcess_perform(fName)
+End Function

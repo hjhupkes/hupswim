@@ -1,0 +1,227 @@
+Version =20
+VersionRequired =20
+Checksum =-1250181238
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    AllowEdits = NotDefault
+    ScrollBars =2
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridX =24
+    GridY =24
+    Width =5031
+    DatasheetFontHeight =10
+    ItemSuffix =26
+    Left =3750
+    Top =705
+    Right =15285
+    Bottom =7170
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x5c9a83ff4a41e340
+    End
+    RecordSource ="gLIM_IMP_Lims"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =925
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =84
+                    Left =4062
+                    Top =141
+                    Width =870
+                    Height =375
+                    FontSize =10
+                    FontWeight =700
+                    ForeColor =255
+                    Name ="btnClose"
+                    Caption ="&Terug"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =1818
+                    Top =141
+                    Width =1110
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    Name ="Label20"
+                    Caption ="Limieten"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =897
+                    Top =685
+                    Width =600
+                    Height =240
+                    Name ="Label21"
+                    Caption ="Leeftijd"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =47
+                    Top =685
+                    Width =765
+                    Height =240
+                    Name ="Label22"
+                    Caption ="Geslacht"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =3850
+                    Top =685
+                    Width =735
+                    Height =240
+                    Name ="Label23"
+                    Caption ="Limiet"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =1748
+                    Top =685
+                    Width =645
+                    Height =240
+                    Name ="Label24"
+                    Caption ="Afstand"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =2740
+                    Top =685
+                    Width =615
+                    Height =240
+                    Name ="Label25"
+                    Caption ="Slag"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =897
+                    Width =696
+                    Name ="fldLft"
+                    ControlSource ="=IIf(nz([LIM_Max_Age])<100,[lim_max_age],\"ALLE\")"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =47
+                    Width =486
+                    TabIndex =1
+                    Name ="LIM_Geslacht"
+                    ControlSource ="LIM_Geslacht"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3850
+                    Width =1071
+                    TabIndex =2
+                    Name ="fldTijd"
+                    ControlSource ="=fmtSwimTime(nz([LIM_Tijd]))"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1748
+                    Width =846
+                    TabIndex =3
+                    Name ="LIM_Afstand"
+                    ControlSource ="LIM_Afstand"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =2740
+                    Width =966
+                    TabIndex =4
+                    Name ="LIM_Slag"
+                    ControlSource ="LIM_Slag"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =-2147483633
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub btnClose_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error GoTo fout
+
+
+Dim setID As Long
+setID = CLng(val(Nz(Me.openArgs)))
+
+Me.RecordSource = "select * from gLIM_IMP_Lims where lim_set_id = " & setID & " order by lim_geslacht, lim_max_age, lim_slag, afstOrder(nz([lim_afstand]))"
+
+
+
+Exit Sub
+fout:
+MsgBox Err & " form_open" & vbCrLf & Error$, 16
+Exit Sub
+End Sub

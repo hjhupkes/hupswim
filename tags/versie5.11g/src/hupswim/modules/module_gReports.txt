@@ -1,0 +1,1520 @@
+Option Compare Database
+Option Explicit
+
+Public Const RPT_MODE_PREVIEW = 1
+Public Const RPT_MODE_PRINT = 2
+Public Const RPT_MODE_EXPORT = 3
+
+
+
+Private Declare Function ConvertUncompressedSnapshot Lib "hupswim_StrStorage.dll" _
+    (ByVal UnCompressedSnapShotName As String, _
+    ByVal OutputPDFname As String, _
+    Optional ByVal CompressionLevel As Long = 0, _
+    Optional ByVal PasswordOpen As String = "", _
+    Optional ByVal PasswordOwner As String = "", _
+    Optional ByVal PasswordRestrictions As Long = 0, _
+    Optional ByVal PDFNoFontEmbedding As Long = 0, _
+    Optional ByVal PDFUnicodeFlags As Long = 0 _
+    ) As Boolean
+    
+
+Private Declare Function LoadLibrary Lib "kernel32" Alias "LoadLibraryA" (ByVal lpLibFileName As String) As Long
+
+Private Declare Function FreeLibrary Lib "kernel32" (ByVal hLibModule As Long) As Long
+
+Private Declare Function SetupDecompressOrCopyFile Lib "setupAPI" Alias "SetupDecompressOrCopyFileA" (ByVal SourceFileName As String, ByVal TargetFileName As String, ByVal CompressionType As Integer) As Long
+
+Private Declare Sub apiCopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+
+
+
+
+
+Private Type RECTL
+    Left As Long
+    Top As Long
+    Right As Long
+    Bottom As Long
+End Type
+
+Private Type RECTint
+    Left As Integer
+    Top As Integer
+    Right As Integer
+    Bottom As Integer
+End Type
+
+Private Type SIZEL
+    cx As Long
+    cy As Long
+End Type
+
+'Private Type POINTAPI
+'    x As Long
+'    y As Long
+'End Type
+
+'Private Type ENHMETARECORD
+'   iType As Long
+'   nSize As Long
+'   dParm(1) As Long
+'End Type
+
+Private Type ENHMETAHEADER
+   iType As Long
+   nSize As Long
+   rclBounds As RECTL
+   rclFrame As RECTL
+   dSignature As Long
+   nVersion As Long
+   nBytes As Long
+   nRecords As Long
+   nHandles As Integer
+   sReserved As Integer
+   nDescription As Long
+   offDescription As Long
+   nPalEntries As Long
+   szlDevice As SIZEL
+   szlMillimeters As SIZEL
+End Type
+
+'Private Type APMFILEHEADER
+'    apKey As Long
+'    aphmf As Integer
+'    lpbbox As RECTint
+'    apInch As Integer
+'    apReserved As Long
+'    apCheckSum As Integer
+'End Type
+
+'Private Type METAFILEPICT
+' mm As Long
+' xExt As Long
+' yExt As Long
+' hMF As Long
+'End Type
+
+' Paper Orientation selections
+Private Const DMORIENT_PORTRAIT As Integer = 1
+Private Const DMORIENT_LANDSCAPE As Integer = 2
+
+' Paper selections
+Private Const DMPAPER_LETTER = 1
+Private Const DMPAPER_FIRST = DMPAPER_LETTER
+          '  Letter 8 1/2 x 11 in
+Private Const DMPAPER_LETTERSMALL = 2            '  Letter Small 8 1/2 x 11 in
+Private Const DMPAPER_TABLOID = 3                '  Tabloid 11 x 17 in
+Private Const DMPAPER_LEDGER = 4                 '  Ledger 17 x 11 in
+Private Const DMPAPER_LEGAL = 5                  '  Legal 8 1/2 x 14 in
+Private Const DMPAPER_STATEMENT = 6              '  Statement 5 1/2 x 8 1/2 in
+Private Const DMPAPER_EXECUTIVE = 7              '  Executive 7 1/4 x 10 1/2 in
+Private Const DMPAPER_A3 = 8                     '  A3 297 x 420 mm
+Private Const DMPAPER_A4 = 9                     '  A4 210 x 297 mm
+Private Const DMPAPER_A4SMALL = 10               '  A4 Small 210 x 297 mm
+Private Const DMPAPER_A5 = 11                    '  A5 148 x 210 mm
+Private Const DMPAPER_B4 = 12                    '  B4 250 x 354
+Private Const DMPAPER_B5 = 13                    '  B5 182 x 257 mm
+Private Const DMPAPER_FOLIO = 14                 '  Folio 8 1/2 x 13 in
+Private Const DMPAPER_QUARTO = 15                '  Quarto 215 x 275 mm
+Private Const DMPAPER_10X14 = 16                 '  10x14 in
+Private Const DMPAPER_11X17 = 17                 '  11x17 in
+Private Const DMPAPER_NOTE = 18                  '  Note 8 1/2 x 11 in
+Private Const DMPAPER_ENV_9 = 19                 '  Envelope #9 3 7/8 x 8 7/8
+Private Const DMPAPER_ENV_10 = 20                '  Envelope #10 4 1/8 x 9 1/2
+Private Const DMPAPER_ENV_11 = 21                '  Envelope #11 4 1/2 x 10 3/8
+Private Const DMPAPER_ENV_12 = 22                '  Envelope #12 4 \276 x 11
+Private Const DMPAPER_ENV_14 = 23                '  Envelope #14 5 x 11 1/2
+Private Const DMPAPER_CSHEET = 24                '  C size sheet
+Private Const DMPAPER_DSHEET = 25                '  D size sheet
+Private Const DMPAPER_ESHEET = 26                '  E size sheet
+Private Const DMPAPER_ENV_DL = 27                '  Envelope DL 110 x 220mm
+Private Const DMPAPER_ENV_C5 = 28                '  Envelope C5 162 x 229 mm
+Private Const DMPAPER_ENV_C3 = 29                '  Envelope C3  324 x 458 mm
+Private Const DMPAPER_ENV_C4 = 30                '  Envelope C4  229 x 324 mm
+Private Const DMPAPER_ENV_C6 = 31                '  Envelope C6  114 x 162 mm
+Private Const DMPAPER_ENV_C65 = 32               '  Envelope C65 114 x 229 mm
+Private Const DMPAPER_ENV_B4 = 33                '  Envelope B4  250 x 353 mm
+Private Const DMPAPER_ENV_B5 = 34                '  Envelope B5  176 x 250 mm
+Private Const DMPAPER_ENV_B6 = 35                '  Envelope B6  176 x 125 mm
+Private Const DMPAPER_ENV_ITALY = 36             '  Envelope 110 x 230 mm
+Private Const DMPAPER_ENV_MONARCH = 37           '  Envelope Monarch 3.875 x 7.5 in
+Private Const DMPAPER_ENV_PERSONAL = 38          '  6 3/4 Envelope 3 5/8 x 6 1/2 in
+Private Const DMPAPER_FANFOLD_US = 39            '  US Std Fanfold 14 7/8 x 11 in
+Private Const DMPAPER_FANFOLD_STD_GERMAN = 40    '  German Std Fanfold 8 1/2 x 12 in
+Private Const DMPAPER_FANFOLD_LGL_GERMAN = 41    '  German Legal Fanfold 8 1/2 x 13 in
+
+Private Const DMPAPER_LAST = DMPAPER_FANFOLD_LGL_GERMAN
+Private Const DMPAPER_USER = 256
+
+
+Private Const TWIPSPERINCH = 1440
+Private Const CMSPERINCH = 2.54
+
+
+
+Private Type RTFX_INFO
+  mPagesPosition() As Long
+  lngTotalPages As Long
+  mLeftMargin As Integer
+  mRightMargin As Integer
+  mTopMargin As Integer
+  mBottomMargin As Integer
+  mOrientation As Byte
+  mPaperSize As Integer
+  mUserPaperWidth As Integer
+  mUserPaperHeight As Integer
+  mPageWidth As Long
+  mPageHeight As Long
+End Type
+
+
+Private Type str_DEVMODE
+    RGB As String * 94
+End Type
+
+
+'Contrary to info in MS Help, string sizes should be 16
+Private Type type_DEVMODE
+    strDeviceName As String * 16
+    intSpecVersion As Integer
+    intDriverVersion As Integer
+    intSize As Integer
+    intDriverExtra As Integer
+    lngFields As Long
+    intOrientation As Integer
+    intPaperSize As Integer
+    intPaperLength As Integer
+    intPaperWidth As Integer
+    intScale As Integer
+    intCopies As Integer
+    intDefaultSource As Integer
+    intPrintQuality As Integer
+    intColor As Integer
+    intDuplex As Integer
+    intResolution As Integer
+    intTTOption As Integer
+    intCollate As Integer
+    strFormName As String * 16
+    lngPad As Long
+    lngBits As Long
+    lngPW As Long
+    lngPH As Long
+    lngDFI As Long
+    lngDFr As Long
+End Type
+
+Private Type str_PRTMIP
+    strRGB As String * 28
+End Type
+
+Private Type type_PRTMIP
+    xLeftMargin As Long
+    yTopMargin As Long
+    xRightMargin As Long
+    yBotMargin As Long
+    fDataOnly As Long
+    xWidth As Long
+    yHeight As Long
+    fDefaultSize As Long
+    cxColumns As Long
+    yColumnSpacing As Long
+    xRowSpacing As Long
+    rItemLayout As Long
+    fFastPrint As Long
+    fDatasheet As Long
+End Type
+
+
+
+
+
+
+Public Function rptCloseWindow() As Boolean
+On Error Resume Next
+rptCloseWindow = True
+
+DoCmd.Close
+End Function
+
+
+
+
+
+
+Public Function outputvoortoolbar(x As Integer)
+On Error GoTo fout
+Dim rxpFormat As Integer
+
+rxpFormat = RXP_FORMAT_RTF
+Select Case x
+Case 1
+    rxpFormat = RXP_FORMAT_RTF
+Case 2
+    rxpFormat = RXP_FORMAT_XLS
+Case 3
+    rxpFormat = RXP_FORMAT_HTM
+Case 4
+    rxpFormat = RXP_FORMAT_TXT
+Case 5
+    rxpFormat = RXP_FORMAT_XML
+Case 6
+    rxpFormat = RXP_FORMAT_PDF
+Case 7
+    rxpFormat = RXP_FORMAT_RTF_X
+End Select
+
+
+Dim intcurrenttype As Integer
+Dim strcurrentname As String
+
+intcurrenttype = Application.CurrentObjectType
+strcurrentname = Application.CurrentObjectName
+
+If (intcurrenttype = acReport) Then
+  'rxpHandleExport strcurrentname, rxpFormat
+  Dim dummy(0 To 0)
+  If Not rptHandle(False, strcurrentname, RPT_MODE_EXPORT, 0, rxpFormat, 0, dummy) Then
+    Exit Function
+  End If
+  
+  
+End If
+
+Exit Function
+fout:
+MsgBox Err & " outputVoorToolbar" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+
+
+Public Function rptHandleDefaultExport(ByVal rptName As String, ByVal rxpFormat As Integer, ByVal fName As String) As Boolean
+On Error GoTo fout
+rptHandleDefaultExport = False
+
+
+Select Case rxpFormat
+  Case RXP_FORMAT_RTF
+    DoCmd.OutputTo acOutputReport, rptName, acFormatRTF, fName
+  Case RXP_FORMAT_XLS
+    DoCmd.OutputTo acOutputReport, rptName, acFormatXLS, fName
+  Case RXP_FORMAT_TXT
+    DoCmd.OutputTo acOutputReport, rptName, acFormatTXT, fName
+  Case RXP_FORMAT_HTM
+    DoCmd.OutputTo acOutputReport, rptName, acFormatHTML, fName
+  Case RXP_FORMAT_PDF, RXP_FORMAT_RTF_X
+    If Not rptHandleSnapBasedOutput(rptName, rxpFormat, fName) Then
+      Exit Function
+    End If
+  Case Else
+    Err.Raise 1, , "Dit formaat wordt niet ondersteund."
+End Select
+
+
+rptHandleDefaultExport = True
+Exit Function
+
+fout:
+MsgBox Err & " rptHandleDefaultExport" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function rptHandleDefault(ByVal rptName As String, ByVal rptOpenMode As Integer, rptNCopies As Integer, rxpFormat As Integer, ByVal blUseSuppFName As Boolean, ByVal sSuppFileName As String) As Boolean
+On Error GoTo fout
+rptHandleDefault = False
+
+Select Case rptOpenMode
+  Case RPT_MODE_PREVIEW
+     DoCmd.OpenReport rptName, acViewPreview
+  Case RPT_MODE_PRINT
+    If (rptNCopies <= 1) Then
+      rptNCopies = 1
+    ElseIf (rptNCopies > 100) Then
+      Err.Raise 1, , "U kunt maximaal 100 exemplaren laten afdrukken"
+    End If
+  
+  
+    If (rptNCopies = 1) Then
+      DoCmd.OpenReport rptName, acViewNormal
+    Else
+      DoCmd.OpenReport rptName, acViewPreview
+      DoCmd.PrintOut acPrintAll, , , , rptNCopies
+      DoCmd.Close acReport, rptName
+    End If
+    
+  Case RPT_MODE_EXPORT
+  
+    Dim fName As String
+    Dim blOK As Boolean
+    
+    
+    blOK = True
+    
+    If (rxpFormat = RXP_FORMAT_XML) Then
+      Err.Raise 1, , "Dit formaat wordt niet door dit object ondersteund"
+    End If
+    
+    fName = ""
+    
+    If (blUseSuppFName) Then
+      fName = sSuppFileName
+    Else
+      blOK = False
+      
+      If Not rxpExportFilePromptUser(True, rxpFormat, True, blOK, fName) Then
+        Exit Function
+      End If
+    
+    End If
+    
+  
+    If (blOK) Then
+      If Not rptHandleDefaultExport(rptName, rxpFormat, fName) Then
+        Exit Function
+      End If
+    End If
+
+
+End Select
+
+
+rptHandleDefault = True
+Exit Function
+fout:
+MsgBox Err & " rptHandleDefault" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rptHandle(ByVal blShouldPrepare As Boolean, ByVal rptName As String, ByVal rptOpenMode As Integer, ByVal rptNCopies As Integer, ByVal rxpFormat As Integer, ByRef nArgs As Integer, argArray(), Optional blUseSuppFName As Boolean = False, Optional sSuppFileName As String = "") As Boolean
+On Error GoTo fout
+rptHandle = False
+
+  If (blShouldPrepare) Then
+    If Not rptCustomPrepare(rptName, nArgs, argArray) Then
+      Exit Function
+    End If
+  End If
+  
+  Dim blHandled As Boolean
+  blHandled = False
+  
+  Select Case rptOpenMode
+    Case RPT_MODE_PREVIEW, RPT_MODE_PRINT
+      If Not rptCustomHandleView(rptName, rptOpenMode, rptNCopies, nArgs, argArray, blHandled) Then
+        Exit Function
+      End If
+    Case RPT_MODE_EXPORT
+      If Not rxpCustomHandleExport(rptName, rxpFormat, nArgs, argArray, blHandled, blUseSuppFName, sSuppFileName) Then
+        Exit Function
+      End If
+  End Select
+  
+  If Not blHandled Then
+  
+    If Not rptHandleDefault(rptName, rptOpenMode, rptNCopies, rxpFormat, blUseSuppFName, sSuppFileName) Then
+       Exit Function
+     End If
+  End If
+    
+
+
+rptHandle = True
+Exit Function
+fout:
+MsgBox Err & " rptHandle" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function rxpExportFilePromptUser(ByVal blPromptIfFileExists As Boolean, ByVal iExpType As Integer, ByVal blIsDefaultHandler As Boolean, ByRef isOK As Boolean, ByRef sFileName As String) As Boolean
+On Error GoTo fout
+rxpExportFilePromptUser = False
+
+
+Dim sql As String
+sql = "Delete * from gRXPSettings;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gRXPSettings")
+
+rs.AddNew
+  rs("RXP_OK") = False
+  rs("RXP_IsDefaultHandler") = blIsDefaultHandler
+  rs("RXP_FileName") = hzn(sFileName)
+  rs("RXP_ExportType") = iExpType
+  rs("RXP_PromptIfFileExists") = blPromptIfFileExists
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "gRXPSettings", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("gRXPSettings")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel gRXPSettings is leeg."
+End If
+
+isOK = Nz(rs("RXP_OK"))
+
+
+sFileName = Nz(rs("RXP_FileName"))
+
+appCleanRS rs
+
+rxpExportFilePromptUser = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " rxpExportFilePromptUser" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+
+End Function
+
+
+Private Sub rptKillTemp(dirName As String, fName1 As String, fName2 As String)
+On Error Resume Next
+FileSystem.Kill fName1
+FileSystem.Kill fName2
+FileSystem.RmDir dirName
+End Sub
+
+
+
+
+
+
+
+
+Public Function rptGetDimensions(ByRef rpt As Report, ByRef lH As Long, ByRef lW As Long, ByRef lLM As Long, ByRef lRM As Long, ByRef lTM As Long, ByRef lBM As Long) As Boolean
+On Error GoTo fout
+
+rptGetDimensions = False
+
+Dim rtfxInfo As RTFX_INFO
+
+
+
+If Not rptGetDimensions_perform(rpt, rtfxInfo) Then
+  Exit Function
+End If
+
+lH = rtfxInfo.mPageHeight
+lW = rtfxInfo.mPageWidth
+lLM = rtfxInfo.mLeftMargin
+lRM = rtfxInfo.mRightMargin
+lTM = rtfxInfo.mTopMargin
+lBM = rtfxInfo.mBottomMargin
+
+
+rptGetDimensions = True
+
+Exit Function
+fout:
+MsgBox Err & " rptGetDimensions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+Private Function rptHandleSnapBasedOutput(ByVal rptName As String, rxpFormat As Integer, ByVal fOutFileName As String) As Boolean
+On Error GoTo fout
+rptHandleSnapBasedOutput = False
+
+
+If (rxpFormat <> RXP_FORMAT_PDF) And (rxpFormat <> RXP_FORMAT_RTF_X) Then
+  Err.Raise 1, , "Invalid format requested."
+End If
+
+
+Dim rptInvalidString As String
+rptInvalidString = ""
+
+Dim sPath As String
+sPath = extractFilePath(fOutFileName)
+
+If Not DirectoryExists(sPath) Then
+  Err.Raise 1, , "Ongeldige directory: " & vbCrLf & sPath
+End If
+
+
+Dim tmpDir As String
+tmpDir = directory_goedmaak(sPath) & "\__hupswim__snapcreation__volatile"
+
+On Error Resume Next
+
+If (Not DirectoryExists(tmpDir)) Then
+  FileSystem.MkDir (tmpDir)
+End If
+
+If (Not DirectoryExists(tmpDir)) Then
+  On Error GoTo fout
+  rptInvalidString = "Error creating temporary directory: " & tmpDir
+  Err.Raise 1, , rptInvalidString
+End If
+
+Dim tpFSnpCmp As String
+Dim tpFSnpUnc As String
+
+tpFSnpCmp = tmpDir & "\__temp__snapshot_cmp.snp"
+tpFSnpUnc = tmpDir & "\__temp__snapshot_uncmp.tmp"
+
+If FileExists(tpFSnpCmp) Then
+  FileSystem.Kill (tpFSnpCmp)
+End If
+
+If (FileExists(tpFSnpCmp)) Then
+  On Error GoTo fout
+  rptInvalidString = "Error deleting existing file: " & tpFSnpCmp
+  Err.Raise 1, , rptInvalidString
+End If
+
+If FileExists(tpFSnpUnc) Then
+  FileSystem.Kill (tpFSnpUnc)
+End If
+
+If (FileExists(tpFSnpUnc)) Then
+  On Error GoTo fout
+  rptInvalidString = "Error deleting existing file: " & tpFSnpUnc
+  Err.Raise 1, , rptInvalidString
+End If
+
+On Error GoTo fout_cleanup
+
+Dim blOK As Boolean, sErrMsg As String
+
+blOK = rptHandleSnapBasedOutput_perform(rptName, rxpFormat, fOutFileName, tpFSnpCmp, tpFSnpUnc, sErrMsg)
+
+rptKillTemp tmpDir, tpFSnpCmp, tpFSnpUnc
+
+On Error GoTo fout
+
+If (Not blOK) Then
+  Err.Raise 1, , "De volgende fout is opgetreden bij het exporteren van het rapport: " & vbCrLf & vbCrLf & sErrMsg
+End If
+
+
+rptHandleSnapBasedOutput = True
+Exit Function
+
+fout:
+MsgBox Err & " rptHandleSnapBasedOutput" & vbCrLf & Error$, 16
+Exit Function
+
+
+fout_cleanup:
+
+Dim errCode As Long, msg As String
+
+errCode = Err
+msg = errCode & " rptConvertToPdf" & vbCrLf & Error$
+
+rptKillTemp tmpDir, tpFSnpCmp, tpFSnpUnc
+
+MsgBox msg, 16
+
+Exit Function
+
+
+
+End Function
+
+
+
+
+
+
+
+
+
+Private Function rptHandleSnapBasedOutput_perform(ByVal rptName As String, ByVal rxpFormat As Integer, ByVal fOutFileName As String, ByVal fNameSNPCmp As String, ByVal fNameSNPUnc As String, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+
+rptHandleSnapBasedOutput_perform = False
+
+DoCmd.OutputTo acOutputReport, rptName, "Snapshot Format (*.snp)", fNameSNPCmp
+
+' Make sure the process has time to complete
+DoEvents
+
+
+Dim lngRet As Long
+If SetupDecompressOrCopyFile(fNameSNPCmp, fNameSNPUnc, 0&) > 0 Then
+  Err.Raise 1, , "Er is een fout opgetreden bij het decomprimeren van de snapshot file."
+End If
+
+Dim blOK As Boolean
+If (rxpFormat = RXP_FORMAT_PDF) Then
+  blOK = rptHandleSnapBasedOutput_PDF_perform(rptName, fOutFileName, fNameSNPUnc, sErrMsg)
+Else
+  blOK = rptHandleSnapBasedOutput_RTFX_perform(rptName, fOutFileName, fNameSNPUnc, sErrMsg)
+End If
+
+If (Not blOK) Then
+  Err.Raise 1, , sErrMsg
+End If
+
+rptHandleSnapBasedOutput_perform = True
+
+
+Exit Function
+
+fout:
+'Do not display dialog box containing the error, but pass it on.
+sErrMsg = Err & " rptHandleSnapBasedOutput_perform" & vbCrLf & Error$
+Exit Function
+
+End Function
+
+
+
+
+
+Private Function rptHandleSnapBasedOutput_PDF_perform(ByVal rptName As String, ByVal fPDFName As String, ByVal fNameSNPUnc As String, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+rptHandleSnapBasedOutput_PDF_perform = False
+
+
+Dim sLibName As String
+sLibName = extractFilePath(CurrentDb().name) & "\dynapdf.dll"
+
+If Not FileExists(sLibName) Then
+  Err.Raise 1, , "Kon de volgende dll file niet vinden: " & sLibName
+End If
+
+Dim lLibPtr As Long
+
+lLibPtr = LoadLibrary(sLibName)
+
+If (lLibPtr = 0) Then
+  Err.Raise 1, , "Kon de volgende dll file niet laden: " & sLibName
+End If
+
+
+
+' Call our function in the StrStorage DLL
+' Note the Compression and Password params are not hooked up yet.
+Dim blRet As Boolean
+
+blRet = ConvertUncompressedSnapshot(fNameSNPUnc, fPDFName, 0, "", "", 0, 0, 0)
+
+If blRet = False Then
+  Err.Raise 1, , "De snapshot file is beschadigd en kon niet verder worden verwerkt."
+End If
+
+If lLibPtr <> 0 Then
+  FreeLibrary lLibPtr
+End If
+
+
+
+
+rptHandleSnapBasedOutput_PDF_perform = True
+Exit Function
+
+fout:
+'Do not display dialog box containing the error, but pass it on.
+sErrMsg = Err & " rptHandleSnapBasedOutput_PDF_perform" & vbCrLf & Error$
+Exit Function
+
+End Function
+Private Function rptHandleSnapBasedOutput_RTFX_perform(ByVal rptName As String, ByVal fRTFXName As String, ByVal fNameSNPUnc As String, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+rptHandleSnapBasedOutput_RTFX_perform = False
+
+Dim rtfX As RTFX_INFO
+
+If Not rptExpRTFX_AnalyzeSnap(rptName, fNameSNPUnc, rtfX, sErrMsg) Then
+  Exit Function
+End If
+
+If Not rptExpRTFX_ConvertSnapToRTF(fNameSNPUnc, fRTFXName, rtfX, sErrMsg) Then
+  Exit Function
+End If
+
+
+rptHandleSnapBasedOutput_RTFX_perform = True
+Exit Function
+
+fout:
+'Do not display dialog box containing the error, but pass it on.
+sErrMsg = Err & " rptHandleSnapBasedOutput_PDF_perform" & vbCrLf & Error$
+Exit Function
+End Function
+
+
+
+
+Private Sub rptFindRpt(ByVal rptName As String, ByRef rpt As Report, ByRef blWasOpen As Boolean)
+On Error Resume Next
+
+Set rpt = Reports(rptName)
+blWasOpen = True
+
+If rpt Is Nothing Then
+  DoCmd.OpenReport rptName, acViewPreview
+  Set rpt = Reports(rptName)
+  blWasOpen = False
+End If
+
+End Sub
+
+
+
+
+
+Private Function rptGetDimensions_perform(ByRef rpt As Report, ByRef rtfX As RTFX_INFO) As Boolean
+On Error GoTo fout
+
+rptGetDimensions_perform = False
+
+' Our Page properties
+Dim LM As Integer, RM As Integer, tm As Integer
+Dim BM As Integer, O As Byte, PS As Integer
+Dim UW As Integer, UH As Integer
+       
+
+Dim oDevString As str_DEVMODE
+Dim oDM As type_DEVMODE
+   
+If IsNull(rpt.PrtDevMode) Then
+  Err.Raise 1, , "Internal error"
+End If
+ 
+     
+' Gets current DEVMODE structure.
+oDevString.RGB = rpt.PrtDevMode
+LSet oDM = oDevString
+
+Dim oPrtMipString As str_PRTMIP
+Dim Opm As type_PRTMIP
+
+oPrtMipString.strRGB = rpt.PrtMip
+LSet Opm = oPrtMipString
+
+
+
+
+O = oDM.intOrientation
+PS = oDM.intPaperSize
+UW = oDM.intPaperWidth
+UH = oDM.intPaperLength
+
+LM = Opm.xLeftMargin
+RM = Opm.xRightMargin
+tm = Opm.yTopMargin
+BM = Opm.yBotMargin
+
+    
+    
+' Copy values to our local Properties
+' Must do orientation first!
+
+rptExpRTFX_setOrientation rtfX, O
+rptExpRTFX_setTopMargin rtfX, tm
+rptExpRTFX_setBottomMargin rtfX, BM
+rptExpRTFX_setRightMargin rtfX, RM
+rptExpRTFX_setLeftMargin rtfX, LM
+rptExpRTFX_setPaperSize rtfX, PS
+rptExpRTFX_setUserPaperWidth rtfX, UW
+rptExpRTFX_setUserPaperHeight rtfX, UH
+
+
+
+rptGetDimensions_perform = True
+
+Exit Function
+
+fout:
+MsgBox Err & " rptGetDimensions_perform" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function rptGetSpecifications(ByVal rptName As String, ByRef rtfxInfo As RTFX_INFO) As Boolean
+    
+rptGetSpecifications = False
+ 
+Dim blWasOpen As Boolean
+blWasOpen = False
+ 
+Dim rpt As Report
+rptFindRpt rptName, rpt, blWasOpen
+
+
+Dim isOK As Boolean
+isOK = rptGetDimensions_perform(rpt, rtfxInfo)
+
+If Not blWasOpen Then
+  DoCmd.Close acReport, rptName
+End If
+
+If (Not isOK) Then
+  Exit Function
+End If
+
+rptGetSpecifications = True
+
+
+End Function
+
+
+
+
+Private Sub rptExpRTFX_setPaperSize(ByRef rtfX As RTFX_INFO, ByVal p As Integer)
+
+'clip papersize to understood values
+Select Case p
+  Case 0
+    rtfX.mPaperSize = 256
+  Case Is < 0
+    rtfX.mPaperSize = 1
+  Case 1 To 42
+    rtfX.mPaperSize = p
+  Case 43 To 255
+    rtfX.mPaperSize = 1
+  Case 256
+    rtfX.mPaperSize = 256
+  Case Else
+    rtfX.mPaperSize = 1
+End Select
+
+
+' Now calculate Paper Dimensions in Twips.
+' Let's store  the Page  Height and Width as TWIPS
+' which we'll convert as required.
+
+Select Case rtfX.mPaperSize
+
+  Case DMPAPER_LETTER '  Letter 8 1/2 x 11 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 11 * TWIPSPERINCH
+  
+  Case DMPAPER_FIRST '  Letter 8 1/2 x 11 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 11 * TWIPSPERINCH
+            
+  Case DMPAPER_LETTERSMALL '= 2       '  Letter Small 8 1/2 x 11 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 11 * TWIPSPERINCH
+  
+  Case DMPAPER_TABLOID '= 3                '  Tabloid 11 x 17 in
+    rtfX.mPageWidth = 11 * TWIPSPERINCH
+    rtfX.mPageHeight = 17 * TWIPSPERINCH
+  
+  Case DMPAPER_LEDGER '= 4                 '  Ledger 17 x 11 in
+    rtfX.mPageWidth = 17 * TWIPSPERINCH
+    rtfX.mPageHeight = 11 * TWIPSPERINCH
+  
+  Case DMPAPER_LEGAL '=' 5                  '  Legal 8 1/2 x 14 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 14 * TWIPSPERINCH
+  
+  Case DMPAPER_STATEMENT '= 6              '  Statement 5 1/2 x 8 1/2 in
+    rtfX.mPageWidth = 5.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 8.5 * TWIPSPERINCH
+  
+  Case DMPAPER_EXECUTIVE '= 7              '  Executive 7 1/4 x 10 1/2 in
+    rtfX.mPageWidth = 7.25 * TWIPSPERINCH
+    rtfX.mPageHeight = 10.5 * TWIPSPERINCH
+  
+  Case DMPAPER_A3 '= 8                     '  A3 297 x 420 mm
+    rtfX.mPageWidth = 11.69 * TWIPSPERINCH
+    rtfX.mPageHeight = 16.54 * TWIPSPERINCH
+  
+  Case DMPAPER_A4 '= 9                     '  A4 210 x 297 mm
+    rtfX.mPageWidth = 8.26 * TWIPSPERINCH
+    rtfX.mPageHeight = 11.69 * TWIPSPERINCH
+  
+  Case DMPAPER_A4SMALL ' = 10               '  A4 Small 210 x 297 mm
+    rtfX.mPageWidth = 8.26 * TWIPSPERINCH
+    rtfX.mPageHeight = 11.69 * TWIPSPERINCH
+  
+  Case DMPAPER_A5 '= 11                    '  A5 148 x 210 mm
+    rtfX.mPageWidth = 5.82 * TWIPSPERINCH
+    rtfX.mPageHeight = 8.26 * TWIPSPERINCH
+  
+  Case DMPAPER_B4 '= 12                    '  B4 250 x 354
+    rtfX.mPageWidth = 10.13 * TWIPSPERINCH
+    rtfX.mPageHeight = 14.33 * TWIPSPERINCH
+  
+  Case DMPAPER_B5 '= 13                    '  B5 182 x 257 mm
+    rtfX.mPageWidth = 7.17 * TWIPSPERINCH
+    rtfX.mPageHeight = 10.13 * TWIPSPERINCH
+  
+  Case DMPAPER_FOLIO '= 14                 '  Folio 8 1/2 x 13 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 13 * TWIPSPERINCH
+  
+  Case DMPAPER_QUARTO '= 15                '  Quarto 215 x 275 mm
+    rtfX.mPageWidth = 8.46 * TWIPSPERINCH
+    rtfX.mPageHeight = 10.8 * TWIPSPERINCH
+  
+  Case DMPAPER_10X14 ' = 16                 '  10x14 in
+    rtfX.mPageWidth = 10 * TWIPSPERINCH
+    rtfX.mPageHeight = 14 * TWIPSPERINCH
+  
+  Case DMPAPER_11X17 '= 17                 '  11x17 in
+    rtfX.mPageWidth = 11 * TWIPSPERINCH
+    rtfX.mPageHeight = 17 * TWIPSPERINCH
+  
+  Case DMPAPER_NOTE '= 18                  '  Note 8 1/2 x 11 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 11 * TWIPSPERINCH
+  
+  Case DMPAPER_CSHEET '= 24                '  C size sheet
+    rtfX.mPageWidth = 17 * TWIPSPERINCH
+    rtfX.mPageHeight = 22 * TWIPSPERINCH
+  
+  Case DMPAPER_DSHEET '= 25                '  D size sheet
+    rtfX.mPageWidth = 22 * TWIPSPERINCH
+    rtfX.mPageHeight = 34 * TWIPSPERINCH
+  
+  Case DMPAPER_ESHEET '= 26                '  E size sheet
+    rtfX.mPageWidth = 34 * TWIPSPERINCH
+    rtfX.mPageHeight = 24 * TWIPSPERINCH
+  
+  Case DMPAPER_FANFOLD_US '= 39            '  US Std Fanfold 14 7/8 x 11 in
+    rtfX.mPageWidth = 14.875 * TWIPSPERINCH
+    rtfX.mPageHeight = 11 * TWIPSPERINCH
+  
+  Case DMPAPER_FANFOLD_STD_GERMAN '= 40    '  German Std Fanfold 8 1/2 x 12 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 12 * TWIPSPERINCH
+  
+  Case DMPAPER_FANFOLD_LGL_GERMAN '= 41    '  German Legal Fanfold 8 1/2 x 13 in
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 13 * TWIPSPERINCH
+  
+  Case DMPAPER_LAST '= DMPAPER_FANFOLD_LGL_GERMAN
+    rtfX.mPageWidth = 8.5 * TWIPSPERINCH
+    rtfX.mPageHeight = 13 * TWIPSPERINCH
+  
+  Case DMPAPER_USER '= 256
+    rtfX.mPageWidth = rtfX.mUserPaperWidth * TWIPSPERINCH
+    rtfX.mPageHeight = rtfX.mUserPaperHeight * TWIPSPERINCH
+
+  Case Else
+    Err.Raise 1, , "Unsupported paper size"
+End Select
+
+
+
+End Sub
+
+Private Sub rptExpRTFX_setUserPaperWidth(ByRef rtfX As RTFX_INFO, ByVal UW As Integer)
+rtfX.mUserPaperWidth = UW
+End Sub
+
+Private Sub rptExpRTFX_setUserPaperHeight(ByRef rtfX As RTFX_INFO, ByVal UH As Integer)
+rtfX.mUserPaperHeight = UH
+End Sub
+
+Private Sub rptExpRTFX_setOrientation(ByRef rtfX As RTFX_INFO, ByVal O As Byte)
+
+If O < 1 Then
+  O = DMORIENT_PORTRAIT
+ElseIf O > 2 Then
+  O = DMORIENT_PORTRAIT
+End If
+
+rtfX.mOrientation = O
+  
+End Sub
+
+
+
+Private Sub rptExpRTFX_setLeftMargin(ByRef rtfX As RTFX_INFO, ByVal l As Integer)
+If l < 0 Then l = 0
+If l > 32768 Then l = 0
+rtfX.mLeftMargin = l
+End Sub
+
+Private Sub rptExpRTFX_setRightMargin(ByRef rtfX As RTFX_INFO, ByVal r As Integer)
+If r < 0 Then r = 0
+If r > 32768 Then r = 0
+rtfX.mRightMargin = r
+End Sub
+
+Private Sub rptExpRTFX_setTopMargin(ByRef rtfX As RTFX_INFO, ByVal t As Integer)
+If t < 0 Then t = 0
+If t > 32768 Then t = 0
+rtfX.mTopMargin = t
+End Sub
+
+Private Sub rptExpRTFX_setBottomMargin(ByRef rtfX As RTFX_INFO, ByVal B As Integer)
+If B < 0 Then B = 0
+If B > 32768 Then B = 0
+rtfX.mBottomMargin = B
+End Sub
+
+
+
+'This function is based on Stephen Lebans report utilies
+'See www.lebans.com for more information and the original code
+
+Private Function rptExpRTFX_AnalyzeSnap(rptName As String, ByVal fSnapNameUnc As String, ByRef rtfX As RTFX_INFO, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+
+rptExpRTFX_AnalyzeSnap = False
+
+      
+If Not rptGetSpecifications(rptName, rtfX) Then
+  Exit Function
+End If
+    
+    
+
+' Search through uncompressed SnapShot file
+' to find the individual EMF Pages/Files
+
+Const EMFSIG = &H464D4520
+Const EMFVERSION = &H10000
+
+
+Dim lngRet As Long
+
+' File stuff
+
+' Holds 4 bytes of our EMF as we search for the
+' EMF signature.
+Dim bArray(0 To 3) As Byte
+
+' File Number for uncompressed SnapShot file
+Dim Fnum As Integer
+
+' Length of file
+Dim FLength As Long
+
+' Get next available file handle
+Fnum = FreeFile
+ 
+Open fSnapNameUnc For Binary As Fnum
+FLength = LOF(Fnum)
+
+Dim str80 As String
+
+' Current Position in File
+Dim lngCurPosition As Long
+
+' Current offset into our Byte array
+Dim lngPosition As Long
+
+Dim lngEMFSig As Long
+Dim lngEMFiType As Long
+Dim lngEMFnVersion As Long
+Dim lngEMFnBytes As Long
+
+' Metafile Header structure
+Dim lpEMH As ENHMETAHEADER
+
+' Init our string buffer
+'strPath = Space(Pathlen)
+
+lngEMFSig = 0
+lngEMFnVersion = 0
+
+' Now let's get Total Pages value
+' THis value is stored at EOF - (511 + 8)
+Seek Fnum, FLength - (512 - 9)
+lngRet = Seek(Fnum)
+Get Fnum, , bArray
+
+' Copy to our Total Pages Var
+apiCopyMemory rtfX.lngTotalPages, bArray(0), 4
+
+' Now we need to find the very first EMF in this
+' multifile EMF.
+' Once we find the first we can use the EMF Header info to
+' calculate the offset to the next EMF(Sort of!)
+
+' Seek to Start Of File
+Seek Fnum, 1
+' Read bytes into our Byte Array buffer
+Get Fnum, , bArray
+
+' Let's go searching for our EMF Signature
+lngPosition = 0
+lngCurPosition = 0
+    
+Do While lngPosition < FLength
+    
+  Get Fnum, , bArray
+  apiCopyMemory lngEMFSig, bArray(0), 4
+  
+  If lngEMFSig = EMFSIG Then
+      
+    ' Is next 4 bytes EMF Version
+    Get Fnum, , bArray
+    apiCopyMemory lngEMFnVersion, bArray(0), 4
+    
+    If lngEMFnVersion = EMFVERSION Then
+      Get Fnum, , bArray
+      apiCopyMemory lngEMFnBytes, bArray(0), 4
+   
+      ' Let's store the postion of the start
+      ' of this EMF, the very first EMF, which is
+      ' the beginning of the EMF  Header
+      ' Seek back from where we first encountered the EMF sig
+      ' minus 35 bytes to get to the front of the EMF Header
+      Seek Fnum, lngPosition - 35
+      
+      
+      ' Don't need ReDim first time through
+      ReDim rtfX.mPagesPosition(0)
+      rtfX.mPagesPosition(UBound(rtfX.mPagesPosition)) = lngPosition - 35
+      
+      Exit Do
+                      
+
+    End If
+  End If
+  
+  lngPosition = lngPosition + 4
+  
+Loop
+    
+' OK, here is the Main loop. We already have the Total Pages
+' or individual EMF files in this Snapshot file. We also have
+' the offset for the very first EMF in this SnapShot file.
+' Now until we have continue parsing the start locations of the rest
+' of the pages/files until all of the pages are accounted for.
+
+' Let's go searching for our EMF Signature
+' Jump to the End of the very sirst EMF
+' we found above.
+
+Seek Fnum, lngEMFnBytes + rtfX.mPagesPosition(UBound(rtfX.mPagesPosition))
+
+' OK set our Current Position
+lngPosition = Seek(Fnum)
+
+lngCurPosition = 0
+Do While UBound(rtfX.mPagesPosition) < rtfX.lngTotalPages - 1
+  lngCurPosition = 0
+
+  Do While lngPosition <= FLength
+    Get Fnum, , bArray
+    apiCopyMemory lngEMFSig, bArray(0), 4
+
+    If lngEMFSig = EMFSIG Then
+      ' Is next 4 bytes EMF Version
+      Get Fnum, , bArray
+      apiCopyMemory lngEMFnVersion, bArray(0), 4
+      If lngEMFnVersion = EMFVERSION Then
+        Get Fnum, , bArray
+        apiCopyMemory lngEMFnBytes, bArray(0), 4
+       
+        ' We are in a VALID EMF.
+        ' Let's store the postion of the start
+        ' of this EMF, the very first EMF, which is
+        ' the beginning of the EMF  Header
+        'Seek back from where we first encountered the EMF sig
+        
+        ' Don't need ReDim first time through
+        ReDim Preserve rtfX.mPagesPosition(UBound(rtfX.mPagesPosition) + 1)
+        rtfX.mPagesPosition(UBound(rtfX.mPagesPosition)) = lngPosition - 40
+        'Debug.Print "Page:" & UBound(mPagesPosition) & "  " & Hex(lngPosition - 40)
+        ' Reset lngPosition to jump to end of this EMF
+        Seek Fnum, lngEMFnBytes + rtfX.mPagesPosition(UBound(rtfX.mPagesPosition))
+        ' OK set our Current Position
+        lngPosition = Seek(Fnum)
+        
+        Exit Do
+     
+      End If
+    End If
+    lngPosition = lngPosition + 4
+    
+  Loop
+    
+  If lngPosition >= FLength Then
+    Close Fnum
+    Err.Raise 1, , "Unable to parse snapshot file."
+  End If
+Loop
+    
+' Return Success
+
+Close Fnum
+
+rptExpRTFX_AnalyzeSnap = True
+
+Exit Function
+
+fout:
+sErrMsg = Err & " rptExpRTFX_AnalyzeSnap" & vbCrLf & Error$
+On Error Resume Next
+Close Fnum
+
+Exit Function
+
+End Function
+
+
+
+
+
+
+'This function is based on Stephen Lebans report utilies
+'See www.lebans.com for more information and the original code
+
+Private Function rptExpRTFX_ConvertSnapToRTF(fSnapNameUnc As String, fNameRTF As String, ByRef rtfX As RTFX_INFO, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+
+rptExpRTFX_ConvertSnapToRTF = False
+
+Dim lngRet As Long
+
+' Our Byte array to hold the individual EMF Pages/Files
+Dim bArray() As Byte
+
+' Header structure for Enhanced Metafiles
+' Need to update this for Metafiles created
+' Under WinNT and Win2K
+Dim eh As ENHMETAHEADER
+
+' File IO stuff
+' Two File Number vars.
+' Fnum is for the parsed SnapshotFile.
+' FnumTemp will become our RTF file.
+Dim Fnum As Integer, FnumTemp As Integer
+
+
+' Used to build RTF file
+Dim strTemp As String
+Dim lngEMFLenBytes As Long
+
+' Loop Counter
+Dim x As Integer
+
+' Temp strings for building the RTF file
+Dim strClosingBrace As String
+Dim strHeader As String '
+Dim lcrop As String, bcrop As String, tcrop As String, rcrop As String
+Dim lmrg As String, bmrg As String, tmrg As String, rmrg As String
+Dim picw As String, pich As String, pichgoal As String, picwgoal As String
+Dim paperw As String, paperh As String
+Dim strPic As String
+Dim strPageBreak As String
+
+' Init our string buffer
+'strPath = Space(Pathlen)
+
+strClosingBrace = "}"
+' PageBreak
+strPageBreak = "\Page "
+
+' ** NOTE **
+' With certain printer drivers the extreme outside edge
+' of any of the border lines could be slightly cut off.
+' I have no idea what's causing this other than rounding errors
+' or internal differences in how the RTF Margins and Crop
+' values are handled. To be safe I am reducing the amount of
+' cropping by 30 Twips.
+
+If rtfX.mOrientation = DMORIENT_PORTRAIT Then
+' Must emit the Margin values as a String
+    lmrg = "margl" & Trim(str(rtfX.mLeftMargin)) & "\"
+    rmrg = "margr" & Trim(str(rtfX.mRightMargin)) & "\"
+    tmrg = "margt" & Trim(str(rtfX.mTopMargin)) & "\"
+    bmrg = "margb" & Trim(str(rtfX.mBottomMargin)) & "\"
+    
+    paperh = "paperh" & Trim(str(rtfX.mPageHeight)) & "\"
+    paperw = "paperw" & Trim(str(rtfX.mPageWidth)) & "\"
+    
+Else
+' LANDSCAPE MODE - SWAP PAGE WIDTH AND HEIGHT VALUES
+' But margins stay the same
+    ' Must emit the Margin values as a String
+    lmrg = "margl" & Trim(str(rtfX.mLeftMargin)) & "\"
+    rmrg = "margr" & Trim(str(rtfX.mRightMargin)) & "\"
+    tmrg = "margt" & Trim(str(rtfX.mTopMargin)) & "\"
+    bmrg = "margb" & Trim(str(rtfX.mBottomMargin)) & "\"
+    ' Swap page width and height
+    paperh = "paperh" & Trim(str(rtfX.mPageWidth)) & "\"
+    paperw = "paperw" & Trim(str(rtfX.mPageHeight)) & "\"
+End If
+    
+' Must emit the Crop values as a String
+    lcrop = "piccropl" & Trim(str(rtfX.mLeftMargin - 30)) & "\"
+    rcrop = "piccropr" & Trim(str(rtfX.mRightMargin - 30)) & "\"
+    tcrop = "piccropt" & Trim(str(rtfX.mTopMargin) - 30) & "\"
+    bcrop = "piccropb" & Trim(str(rtfX.mBottomMargin) - 30) & "\"
+
+' Must emit Page Width and Height values as a String
+If rtfX.mOrientation = DMORIENT_PORTRAIT Then
+  pichgoal = "pichgoal" & Trim(str(rtfX.mPageHeight)) & "\"
+  picwgoal = "picwgoal" & Trim(str(rtfX.mPageWidth)) & "\"
+  picw = "picw" & Trim(str((rtfX.mPageWidth / TWIPSPERINCH) * CMSPERINCH) * 1000) & "\"
+  pich = "pich" & Trim(str((rtfX.mPageHeight / TWIPSPERINCH) * CMSPERINCH) * 1000) & "\"
+Else
+' LANDSCAPE MODE - SWAP PAGE WIDTH AND HEIGHT VALUES
+  pichgoal = "pichgoal" & Trim(str(rtfX.mPageWidth)) & "\"
+  picwgoal = "picwgoal" & Trim(str(rtfX.mPageHeight)) & "\"
+  picw = "picw" & Trim(str((rtfX.mPageHeight / TWIPSPERINCH) * CMSPERINCH) * 1000) & "\"
+  pich = "pich" & Trim(str((rtfX.mPageWidth / TWIPSPERINCH) * CMSPERINCH) * 1000) & "\"
+End If
+
+' Build the RTF text to prefix each Picture
+strPic = "{\pict\picscalex100\picscaley100\"
+strPic = strPic & lcrop & rcrop & tcrop & bcrop
+strPic = strPic & picw & pich & picwgoal & pichgoal ' & "emfblip\bin"
+strPic = strPic & "emfblip\bin"
+
+' Build the RTF text to prefix the RTF file..the Header
+strHeader = "{\rtf1\ansi\ansicpg1252\uc1 \deff0\deflang1033\deflangfe1033\"
+strHeader = strHeader & paperw & paperh
+strHeader = strHeader & lmrg & rmrg & tmrg & bmrg
+' Was Report generated in Landscape mode?
+If rtfX.mOrientation = DMORIENT_LANDSCAPE Then
+  strHeader = strHeader & "landscape\"
+End If
+
+' Specify SDK Paper Size
+strHeader = strHeader & "psz" & Trim(str(rtfX.mPaperSize)) & "\"
+strHeader = strHeader & " {\pict\picscalex100\picscaley100\"
+strHeader = strHeader & lcrop & rcrop & tcrop & bcrop
+strHeader = strHeader & picw & pich & picwgoal & pichgoal ' & "emfblip\bin"
+strHeader = strHeader & "emfblip\bin"
+
+
+
+
+
+' Get next free File Num
+Fnum = FreeFile
+' Open the file
+Open fSnapNameUnc For Binary As Fnum
+
+' Get next free File Num
+FnumTemp = FreeFile
+' Open the file
+Open fNameRTF For Binary As FnumTemp
+
+' Seek to the start of the EMF we are
+' cutting out. We use the PageNum var
+' passed to this function as the index
+' into our PageLocation array
+Seek Fnum, rtfX.mPagesPosition(0)
+
+' Read first part of EMF which is the Header
+ReDim bArray(100)
+Get Fnum, , bArray
+
+apiCopyMemory eh, bArray(0), LenB(eh)
+' size array to hold entire EMF
+ReDim bArray(eh.nBytes - 1)
+
+' Seek to start of the EMF Page/File
+Seek Fnum, rtfX.mPagesPosition(0)
+' Copy entire EMF into our array
+Get Fnum, , bArray
+
+ ' Let's copy our RTF Header out first
+Put FnumTemp, , strHeader
+   
+lngEMFLenBytes = UBound(bArray) + 1
+' Must emit this value as a String
+strTemp = Trim(str(lngEMFLenBytes))
+' add this value to the end of the string
+strTemp = strTemp & " "
+Put FnumTemp, , strTemp
+
+' Copy to our new Temp RTF file
+Put FnumTemp, , bArray
+ 
+ ' Write the Closing Brace for this Picture
+Put FnumTemp, , strClosingBrace
+     
+ ' See if there is more than one page to be printed
+ If rtfX.lngTotalPages > 0 Then
+    
+    ' OK we need to loop through all of the rest of the
+    ' requested Pages to build the RTF strings and
+    ' EMF data for our final RTF file.
+    For x = 1 To rtfX.lngTotalPages - 1
+        
+      'emit a page break
+      Put FnumTemp, , strPageBreak
+      ' Seek to start of this Page/EMF
+      Seek Fnum, rtfX.mPagesPosition(x)
+      'Debug.Print "mPagesPosition(" & x & ")"
+
+      ' Read first part of EMF which is the Header
+      ReDim bArray(100)
+      Get Fnum, , bArray
+      apiCopyMemory eh, bArray(0), LenB(eh)
+      ' size array to hold entire EMF
+      ReDim bArray(eh.nBytes - 1)
+  
+      Seek Fnum, rtfX.mPagesPosition(x)
+      ' Copy entire EMF into our array
+      Get Fnum, , bArray
+      
+       ' Let's copy our RTF Header out first
+      Put FnumTemp, , strPic
+         
+      lngRet = UBound(bArray) + 1
+      ' Must emit this value as a String
+      strTemp = Trim(str(lngRet))
+      'Debug.Print "string Num bytes in EMF:" & strTemp
+      strTemp = strTemp & " "
+      Put FnumTemp, , strTemp
+      
+      ' Copy to our new Temp RTF file
+      Put FnumTemp, , bArray
+      ' Write the Closing Brace for this Picture
+      Put FnumTemp, , strClosingBrace
+    Next x
+        
+ ' End of the Loop or PageNumEnd = 0
+ End If
+ 
+' Write the final Closing Brace for the entire file
+Put FnumTemp, , strClosingBrace
+
+Close Fnum
+Close FnumTemp
+
+
+
+rptExpRTFX_ConvertSnapToRTF = True
+
+Exit Function
+
+
+fout:
+sErrMsg = Err & " rptExpRTFX_ConvertSnapToRTF" & vbCrLf & Error$
+
+On Error Resume Next
+Close Fnum
+Close FnumTemp
+
+Exit Function
+
+End Function
