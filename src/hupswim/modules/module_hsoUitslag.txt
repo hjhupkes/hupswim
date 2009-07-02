@@ -499,7 +499,7 @@ uitAnalyze_determineRecs_ProcessRecSet_WriteRecord = False
 Dim oldZwmStart As String, oldZwmName As String, oldZwmVoornaam As String, oldZwmVoegsel As String, oldZwmAchternaam As String
 Dim oldZwmGes As String, oldZwmGebDate As Date
 
-Dim oldRecWedDatum As Date, oldRecWedPlaats As String, oldRecWedDes As String, oldRecWedNation As String, oldRecWedBaanlengte As Integer
+Dim oldRecWedDatum As Date, oldRecWedPlaats As String, oldRecWedNation As String, oldRecWedBaanlengte As Integer
 Dim oldRecVer As String, oldRecVerDepot As String, oldRecVerNation As String, oldRecVerCode As String, oldRecVerWasEmpty As Boolean
 Dim oldNEstZwemmers As Integer, oldEstDeelnemers As String
 
@@ -591,7 +591,6 @@ ElseIf (recIsRegistered And rsInfo.blManagedExternally) Then
   oldRecWedPlaats = Nz(recsInternal("RC_EXT_OLD_Plaats"))
   oldRecWedBaanlengte = Nz(recsInternal("RC_EXT_OLD_Baan"))
   oldRecWedDatum = Nz(recsInternal("RC_EXT_OLD_Datum"), #1/1/1900#)
-  oldRecWedDes = ""
   
   
   oldZwmIsValid = (oldZwmName <> "") And (oldZwmName <> "Estafette") And (oldZwmName <> "Limiet")
@@ -604,7 +603,7 @@ Else
   'lookup old record data
   If Not recLkp_FindData(rsInfo, recnr, recIsExt, _
     recsInternal, recsExternal, est, swms, vers, wedS, _
-    oldRecActTime, oldRecNDecimals, oldRecVer, oldRecVerDepot, oldRecVerNation, oldRecVerCode, oldRecVerWasEmpty, oldRecWedDatum, oldRecWedPlaats, oldRecWedDes, oldRecWedNation, oldRecWedBaanlengte, _
+    oldRecActTime, oldRecNDecimals, oldRecVer, oldRecVerDepot, oldRecVerNation, oldRecVerCode, oldRecVerWasEmpty, oldRecWedDatum, oldRecWedPlaats, oldRecWedNation, oldRecWedBaanlengte, _
     oldZwmIsValid, oldZwmStart, oldZwmName, oldZwmVoornaam, oldZwmVoegsel, oldZwmAchternaam, oldZwmGes, oldZwmGebDate, _
     oldEstIsValid, oldNEstZwemmers, oldEstStartnummers, oldEstNames, oldEstDeelnemers, oldEstVoornaam, oldEstVoegsel, oldEstAchternaam, oldEstGeslacht, oldEstGebDate) Then
     Exit Function
@@ -2487,15 +2486,15 @@ Do Until pers.EOF
       Dim tpSl As String
       
       Dim tpWedNr As Long
-      Dim tpProgNr As String
+      Dim tpPrognr As String
       
       tpWedNr = Nz(pers(FNM_TY_WED))
-      tpProgNr = Nz(pers(FNM_TY_PROG))
+      tpPrognr = Nz(pers(FNM_TY_PROG))
       
       
       Dim tpDis As String
       tpDis = Nz(pers(FNM_TY_PERS_DIS))
-      If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpProgNr) Then
+      If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpPrognr) Then
         Exit Function
       End If
       
@@ -2517,7 +2516,7 @@ Do Until pers.EOF
   
       
       If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, 0, isOvergezet, False, _
-        tpWedNr, tpProgNr, False, 0, "", -1, tpStartnr, tpGes, tpGebDate, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
+        tpWedNr, tpPrognr, False, 0, "", -1, tpStartnr, tpGes, tpGebDate, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
         Exit Function
       End If
       
@@ -2538,7 +2537,7 @@ Do Until pers.EOF
           End If
           
           If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, tstMainIdx(i), isOvergezet, True, _
-            tpWedNr, tpProgNr, False, 0, "", -1, tpStartnr, tpGes, tpGebDate, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
+            tpWedNr, tpPrognr, False, 0, "", -1, tpStartnr, tpGes, tpGebDate, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
             Exit Function
           End If
 
@@ -2620,7 +2619,7 @@ Do Until est.EOF
     tpEstNr = Nz(est(FNM_TY_EST_ESTNR))
     
     tpWedNr = Nz(est(FNM_TY_WED))
-    tpProgNr = Nz(est(FNM_TY_PROG))
+    tpPrognr = Nz(est(FNM_TY_PROG))
     
     Dim tpEstGes As String
     Dim tpEstMaxYOB As Long
@@ -2634,9 +2633,9 @@ Do Until est.EOF
     Dim estSZGebDate As Date
     Dim estSZActVer As String
     
-    estSeek.Seek "=", tpWedNr, tpProgNr, tpEstNr, tpEstVer
+    estSeek.Seek "=", tpWedNr, tpPrognr, tpEstNr, tpEstVer
     If (estSeek.NoMatch) Then
-      Err.Raise 1, , "Internal error. Could not find estafette ploeg (" & tpWedNr & ", " & tpProgNr & ", " & tpEstVer & ", " & tpEstNr & " )"
+      Err.Raise 1, , "Internal error. Could not find estafette ploeg (" & tpWedNr & ", " & tpPrognr & ", " & tpEstVer & ", " & tpEstNr & " )"
     End If
       
       
@@ -2710,7 +2709,7 @@ Do Until est.EOF
       outpMain("TY_Naam") = estSeek("EST_ActVereniging")
       
       tpDis = Nz(est("TY_Dis"))
-      If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpProgNr) Then
+      If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpPrognr) Then
         Exit Function
       End If
       
@@ -2813,7 +2812,7 @@ Do Until est.EOF
 
       
       If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, 0, isOvergezet, False, _
-        tpWedNr, tpProgNr, True, tpEstNr, tpEstGes, tpEstMinYOB, "", "", #1/1/1900#, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
+        tpWedNr, tpPrognr, True, tpEstNr, tpEstGes, tpEstMinYOB, "", "", #1/1/1900#, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
         Exit Function
       End If
       
@@ -2841,7 +2840,7 @@ Do Until est.EOF
             
             'Use the startzwemmer dis here
             If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, tstMainIdx(i), isOvergezet, Not tpIsFullSzDistance, _
-              tpWedNr, tpProgNr, False, -1, "", -1, estSZNr, estSZGes, estSZGebDate, estSZActVer, tppSzDis, tpAf, tpSl, tpTd) Then
+              tpWedNr, tpPrognr, False, -1, "", -1, estSZNr, estSZGes, estSZGebDate, estSZActVer, tppSzDis, tpAf, tpSl, tpTd) Then
               Exit Function
             End If
   

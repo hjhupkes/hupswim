@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =595653980
+Checksum =-1495626957
 Begin Form
     AllowFilters = NotDefault
     RecordSelectors = NotDefault
@@ -23,20 +23,19 @@ Begin Form
     DatasheetBackColor =16776960
     DatasheetGridlinesColor =65280
     RecSrcDt = Begin
-        0x2de6bfd00087e340
+        0xfc5a845f3e5fe340
     End
     RecordSource ="SELECT dtProgramma.*, dtgPuntentellingProgs.*, dtgPuntentellingOnderdelen.PTO_Be"
-        "schrijving, * FROM dtProgramma INNER JOIN (dtgPuntentellingProgs LEFT JOIN dtgPu"
-        "ntentellingOnderdelen ON (dtgPuntentellingProgs.PTPR_Wedstrijdnummer = dtgPunten"
-        "tellingOnderdelen.PTO_Wedstrijdnummer) AND (dtgPuntentellingProgs.PTPR_OrderID ="
-        " dtgPuntentellingOnderdelen.PTO_OrderID) AND (dtgPuntentellingProgs.PTPR_Onderde"
-        "elCode = dtgPuntentellingOnderdelen.PTO_Code)) ON (dtProgramma.PR_Programmanumme"
-        "r = dtgPuntentellingProgs.PTPR_ProgProgrammanummer) AND (dtProgramma.PR_Wedstrij"
-        "dnummer = dtgPuntentellingProgs.PTPR_ProgWedstrijdnummer) WHERE (((dtgPuntentell"
+        "schrijving, * FROM (dtProgramma INNER JOIN dtgPuntentellingProgs ON (dtProgramma"
+        ".PR_Programmanummer = dtgPuntentellingProgs.PTPR_ProgProgrammanummer) AND (dtPro"
+        "gramma.PR_Wedstrijdnummer = dtgPuntentellingProgs.PTPR_ProgWedstrijdnummer)) LEF"
+        "T JOIN dtgPuntentellingOnderdelen ON (dtgPuntentellingProgs.PTPR_OnderdeelCode ="
+        " dtgPuntentellingOnderdelen.PTO_Code) AND (dtgPuntentellingProgs.PTPR_OrderID = "
+        "dtgPuntentellingOnderdelen.PTO_OrderID) AND (dtgPuntentellingProgs.PTPR_Wedstrij"
+        "dnummer = dtgPuntentellingOnderdelen.PTO_Wedstrijdnummer) WHERE (((dtgPuntentell"
         "ingProgs.PTPR_Wedstrijdnummer)=waarde()) AND ((dtgPuntentellingProgs.PTPR_OrderI"
-        "D)=waarde_pnt()) AND ((nz([PR_Type]))<>\"RNK\" And (nz([PR_Type]))<>\"PNT\")) OR"
-        "DER BY dtgPuntentellingProgs.PTPR_ProgWedstrijdnummer, Val([ptpr_progProgrammanu"
-        "mmer]), dtgPuntentellingProgs.PTPR_ProgProgrammanummer;"
+        "D)=waarde_pnt())) ORDER BY dtgPuntentellingProgs.PTPR_ProgWedstrijdnummer, Val(["
+        "ptpr_progProgrammanummer]), dtgPuntentellingProgs.PTPR_ProgProgrammanummer;"
     Caption ="Programma"
     OnOpen ="[Event Procedure]"
     DatasheetFontName ="Arial"

@@ -161,186 +161,14 @@ Exit Function
 End Function
 
 
-
-Public Function wedCalcEstQlfBn(ByRef wedInf As WED_BASIC_INFO, ByVal blHuidigProg As Boolean, ByVal blEntireMeet As Boolean, ByVal sCurProg As String) As Boolean
-On Error GoTo fout
-wedCalcEstQlfBn = False
-
-If (wedInf.qlfConvMode <> QLF_CONV_FINA_POINTS) And (wedInf.qlfConvMode <> QLF_CONV_PREFER_LCM) Then
-  wedCalcEstQlfBn = True
-  Exit Function
-End If
-
-'Calc estafette qlfBn for entire meet
-
-Dim sqlDln As String
-sqlDln = dlnGetDeelnemersEstSQL(blHuidigProg, blEntireMeet, sCurProg, wedInf.wednr, wedInf.meetMainNr, False, "")
-
-
-Dim rsDln As Recordset
-
-Set rsDln = CurrentDb().OpenRecordset(sqlDln)
-
-Dim skPll As Recordset
-Set skPll = CurrentDb().OpenRecordset("dtPloegen")
-skPll.Index = "nr"
-
-
-
-rsDln.MoveFirst
-
-Do Until rsDln.EOF
-
-  Dim tpWed As Long, tpProgNr As String
-  tpWed = Nz(rsDln(FNM_DE_EST_WEDNR))
-  tpProgNr = Nz(rsDln(FNM_DE_EST_PROG))
-  
-  
-  Dim tpDlnQlfBn As Integer
-  Dim tpDlnQlfDate As Date
-  
-  tpDlnQlfBn = Nz(rsDln("DE_QLF_Baan"))
-  tpDlnQlfDate = Nz(rsDln("DE_QLF_Datum"))
-  
-  Dim nEstSwimmers As Integer
-  nEstSwimmers = afstand_n_zwemmers(Nz(rsDln(FNM_PR_AF)))
-
-  
-  Dim tpDlnVer As String, tpDlnEstNr As Integer
-  tpDlnVer = Nz(rsDln("DE_Vereniging"))
-  tpDlnEstNr = Nz(rsDln("DE_Estafettenummer"))
-  
-  If (lenDateIsValid(tpDlnQlfDate)) Then
-    'leave DE_QLF_Baan as it is
-  Else
-    'Need to determine DE_QLF_Baan from individual est times
-    Dim blQlfIs25 As Boolean
-    blQlfIs25 = False
-    
-    Dim i As Integer
-    For i = 1 To nEstSwimmers
-      skPll.Seek "=", tpWed, tpProgNr, tpDlnVer, tpDlnEstNr, i
-      If (Not skPll.NoMatch) Then
-        Dim tpPllQlfTime As Double
-        Dim tpPllQlfBn As Integer
-        Dim tpPllQlfDate As Date
-        
-        tpPllQlfTime = Nz(skPll("PL_QLF_Tijd"))
-        tpPllQlfBn = Nz(skPll("PL_QLF_Baan"))
-        tpPllQlfDate = Nz(skPll("PL_QLF_Datum"), #1/1/1900#)
-        
-        If (tpPllQlfBn <> 50) Or (Not swtIsValid(tpPllQlfTime)) Then
-          blQlfIs25 = True
-        End If
-      Else
-        blQlfIs25 = True
-      End If
-    Next i
-    
-    
-    If (blQlfIs25) Then
-      If (tpDlnQlfBn <> 25) Then
-        rsDln.Edit
-          rsDln("DE_QLF_Baan") = 25
-        rsDln.Update
-      End If
-    Else
-      If (tpDlnQlfBn <> 50) Then
-        rsDln.Edit
-          rsDln("DE_QLF_Baan") = 50
-        rsDln.Update
-      End If
-    End If
-    
-    
-  End If 'if lenDateIsValid(tpDlnQlfDate)
-  
-
-  rsDln.MoveNext
-Loop
-
-appCleanRS rsDln
-appCleanRS skPll
-
-
-wedCalcEstQlfBn = True
-Exit Function
-
-fout:
-If (Err = 3021) Then Resume Next
-MsgBox Err & " wedCalcEstQlfBn" & vbCrLf & Error$, 16
-Exit Function
-
-
-'debug
-On Error GoTo 0
-Resume
-
-End Function
-
-
-
-Public Sub wedInsTimeGetPriority(ByRef wedInf As WED_BASIC_INFO, ByVal dInsTime25 As Double, ByVal dInsTime50 As Double, ByVal sProgAf As String, ByVal sProgSl As String, ByVal sProgGes As String, ByRef bl25HasPriority As Boolean)
-
-    
-If (Not swtIsValid(dInsTime25)) Then
-  bl25HasPriority = False
-ElseIf (Not swtIsValid(dInsTime50)) Then
-  bl25HasPriority = True
-Else
-  'both times are valid
-  Dim bl25ActFastest As Boolean
-  bl25ActFastest = True
-  
-  If (dInsTime50 < dInsTime25) Then
-    bl25ActFastest = False
-  End If
-
-  If (wedInf.qlfConvMode = QLF_CONV_FINA_POINTS) Then
-    'we need to calculate and compare fina points.
-    Dim finP25 As Double
-    Dim finP50 As Double
-    
-    finP25 = lenCalcFinaPoints(dInsTime25, sProgAf, sProgSl, sProgGes, 25)
-    finP50 = lenCalcFinaPoints(dInsTime50, sProgAf, sProgSl, sProgGes, 50)
-    
-    Dim bl25FinaFastest As Boolean
-    bl25FinaFastest = True
-    
-    If (finP50 > 0.1) And (finP25 > 0.1) Then
-      If (finP50 > finP25) Then
-        bl25FinaFastest = False
-      End If
-    Else
-      'Use normal ordering.
-      bl25FinaFastest = bl25ActFastest
-    End If
-    
-    bl25HasPriority = bl25FinaFastest
-    
-  ElseIf (wedInf.qlfConvMode = QLF_CONV_PREFER_LCM) Then
-    bl25HasPriority = False
-  Else
-    bl25HasPriority = bl25ActFastest
-  End If
-
-End If 'both times are valid
-
-
-
-End Sub
-
-
-
-Private Function wedBaanIndeling_perform(ByVal lProgWedNr As Long, ByVal sProgNr As String, ByVal sProgAf As String, ByVal sProgSl As String, ByVal sProgGes As String, ByRef wedInf As WED_BASIC_INFO, ByVal blWisselBuiten As Boolean, ByVal blMinThreePerSer As Boolean, ByVal blOlympic As Boolean, ByRef wsLastUsedPosition As Integer) As Boolean
+Private Function wedBaanIndeling_perform(ByVal wednr As Long, ByVal prognr As String, ByVal blWisselBuiten As Boolean, ByVal blMinThreePerSer As Boolean, ByVal blOlympic As Boolean, ByRef wsLastUsedPosition As Integer) As Boolean
 On Error GoTo fout
 wedBaanIndeling_perform = False
 
 
-
 'We here check for nBanen again, allowing this number to change per programmanummer
 Dim nBanen As Integer
-nBanen = Nz(DLookup("WE_Aantal_Banen", "dtWedstrijdGegevens", "[WE_Wedstrijdnummer]=" & lProgWedNr), 6)
+nBanen = Nz(DLookup("WE_Aantal_Banen", "dtWedstrijdGegevens", "[WE_Wedstrijdnummer]=" & wednr), 6)
 
 Dim baanVolgorde(0 To 20) As Integer
 If Not bnVolgorde(baanVolgorde, nBanen) Then
@@ -352,34 +180,22 @@ If (nBanen <= 4) Then
  blMinThreePerSer = False
 End If
 
-Dim rs25 As Recordset, rs50 As Recordset
+Dim rs As Recordset
 
-Dim sql25 As String, sql50 As String
+Dim sql As String
 
-sql25 = "select * from dtDeelnemers where nz([de_qlf_baan],0) <> 50 and de_wedstrijdnummer=" & lProgWedNr & " and de_programmanummer=""" & sProgNr & """ and de_reserve <> ""J"" " & _
+sql = "select * from dtDeelnemers where de_wedstrijdnummer=" & wednr & " and de_programmanummer=""" & prognr & """ and de_reserve <> ""J"" " & _
   "ORDER BY swtOrder([de_inschrijftijd]);"
   
-sql50 = "select * from dtDeelnemers where nz([de_qlf_baan],0) = 50 and de_wedstrijdnummer=" & lProgWedNr & " and de_programmanummer=""" & sProgNr & """ and de_reserve <> ""J"" " & _
-  "ORDER BY swtOrder([de_inschrijftijd]);"
-
-  
-Set rs25 = CurrentDb().OpenRecordset(sql25)
-Set rs50 = CurrentDb().OpenRecordset(sql50)
+Set rs = CurrentDb().OpenRecordset(sql)
 
 
 Dim nDeeln As Integer
-nDeeln = 0
 
-rs25.MoveLast
-If (Not rs25.EOF) Then
-  nDeeln = rs25.RecordCount
+rs.MoveLast
+If (Not rs.EOF) Then
+  nDeeln = rs.RecordCount
 End If
-
-rs50.MoveLast
-If (Not rs50.EOF) Then
-  nDeeln = nDeeln + rs50.RecordCount
-End If
-
 
 
 Dim nSeries As Integer
@@ -415,38 +231,13 @@ curSerie = nSeries
 curPosInSerie = 0
 curDlnLeft = nDeeln
 
-rs25.MoveFirst
-rs50.MoveFirst
-
-
-Do Until (rs25.EOF And rs50.EOF)
-
-  Dim blProc25 As Boolean
-  Dim tpInsTime25 As Double, tpInsTime50 As Double
-  
-  If (rs25.EOF) Then
-    blProc25 = False
-  ElseIf (rs50.EOF) Then
-    blProc25 = True
-  Else
-    'Need to compare the two times
-    tpInsTime25 = Nz(rs25("DE_Inschrijftijd"), 0)
-    tpInsTime50 = Nz(rs50("DE_Inschrijftijd"), 0)
-    wedInsTimeGetPriority wedInf, tpInsTime25, tpInsTime50, sProgAf, sProgSl, sProgGes, blProc25
-  End If 'if eof
-
+rs.MoveFirst
+Do Until rs.EOF
   'position deelnemer
-  If (blProc25) Then
-    rs25.Edit
-      rs25("DE_Serienummer") = curSerie
-      rs25("DE_Baan") = baanVolgorde(curPosInSerie)
-    rs25.Update
-  Else
-    rs50.Edit
-      rs50("DE_Serienummer") = curSerie
-      rs50("DE_Baan") = baanVolgorde(curPosInSerie)
-    rs50.Update
-  End If
+  rs.Edit
+    rs("DE_Serienummer") = curSerie
+    rs("DE_Baan") = baanVolgorde(curPosInSerie)
+  rs.Update
   
   curDlnLeft = curDlnLeft - 1
   
@@ -496,17 +287,10 @@ Do Until (rs25.EOF And rs50.EOF)
     End If
   End If
 
-
-
-  If (blProc25) Then
-    rs25.MoveNext
-  Else
-    rs50.MoveNext
-  End If
+  rs.MoveNext
 Loop
 
-appCleanRS rs25
-appCleanRS rs50
+appCleanRS rs
 
 wedBaanIndeling_perform = True
 Exit Function
@@ -517,30 +301,9 @@ Exit Function
 End Function
 
 
-Public Function wedBaanIndeling(blHuidigProg As Boolean, blEntireMeet As Boolean, curProg As String, curWedNr As Long) As Boolean
+Public Function wedBaanIndeling(blHuidigProg As Boolean, blEntireMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long) As Boolean
 On Error GoTo fout
 wedBaanIndeling = False
-
-
-
-Dim wedInf As WED_BASIC_INFO
-
-Dim isFnd As Boolean
-If Not wedLookup(curWedNr, isFnd, wedInf) Then
-  Exit Function
-End If
-
-If (Not isFnd) Then
-  Err.Raise 1, , "Kon wedstrijd: " & curWedNr & " niet vinden."
-End If
-
-
-If Not wedCalcEstQlfBn(wedInf, blHuidigProg, blEntireMeet, curProg) Then
-  Exit Function
-End If
-
-
-
 
 Dim blWisselen As Boolean
 blWisselen = baanindeling_afwisselen()
@@ -565,7 +328,7 @@ wsLastUsed = 0
 Dim progsSQL As String
 
 'Get a string specifying the progs for which we must perform the baan-indeling.
-progsSQL = wedGetProgsSQL(blHuidigProg, blEntireMeet, curProg, curWedNr, wedInf.meetMainNr, True, False)
+progsSQL = wedGetProgsSQL(blHuidigProg, blEntireMeet, curProg, curWedNr, curMeetNr, True, False)
 
 Dim progs As Recordset
 Set progs = CurrentDb().OpenRecordset(progsSQL)
@@ -573,23 +336,13 @@ Set progs = CurrentDb().OpenRecordset(progsSQL)
 progs.MoveFirst
 Do Until progs.EOF
   
-  Dim tpProgWedNr As Long
-  Dim tpProgNr As String
-  Dim tpProgAf As String
-  Dim tpProgSl As String
-  Dim tpProgGes As String
-  
-    
-  tpProgWedNr = Nz(progs("PR_Wedstrijdnummer"))
-  tpProgNr = Nz(progs("PR_Programmanummer"))
-  tpProgAf = Nz(progs("PR_Afstand"))
-  tpProgSl = Nz(progs("PR_Slag"))
-  tpProgGes = m_of_v(Nz(progs("PR_Categorie")))
+  Dim prognr As String
   
   
+  prognr = Nz(progs("PR_Programmanummer"))
   
   
-  If Not wedBaanIndeling_perform(tpProgWedNr, tpProgNr, tpProgAf, tpProgSl, tpProgGes, wedInf, blWisselen, blMinThree, blOlympisch, wsLastUsed) Then
+  If Not wedBaanIndeling_perform(curWedNr, prognr, blWisselen, blMinThree, blOlympisch, wsLastUsed) Then
     Exit Function
   End If
 
@@ -3709,11 +3462,11 @@ progs.MoveFirst
 Do Until progs.EOF
   
   Dim tpWedNr As Long
-  Dim tpProgNr As String
+  Dim tpPrognr As String
   
   
   tpWedNr = Nz(progs("PR_Wedstrijdnummer"))
-  tpProgNr = Nz(progs("PR_Programmanummer"))
+  tpPrognr = Nz(progs("PR_Programmanummer"))
   
   'Sort out the maximum number to use
   Dim tpNMax As Integer
@@ -3729,7 +3482,7 @@ Do Until progs.EOF
     End If
   End If
   
-  If Not resTransformDlns_applyProg(blCheckResOnly, tpNMax, tpWedNr, tpProgNr, sAmbiguous) Then
+  If Not resTransformDlns_applyProg(blCheckResOnly, tpNMax, tpWedNr, tpPrognr, sAmbiguous) Then
     Exit Function
   End If
   

@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =307381873
+Checksum =-330627891
 Begin Form
     RecordSelectors = NotDefault
     AutoCenter = NotDefault
@@ -16,10 +16,10 @@ Begin Form
     Width =11528
     DatasheetFontHeight =10
     ItemSuffix =20
-    Left =180
-    Top =1740
-    Right =7755
-    Bottom =6435
+    Left =3705
+    Top =765
+    Right =11280
+    Bottom =5460
     DatasheetGridlinesColor =12632256
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
@@ -207,18 +207,15 @@ Private Const PAGE_CHOOSEFILE = 1
 Private Const PAGE_VER = 2
 Private Const PAGE_ZWM = 3
 Private Const PAGE_WED = 4
-Private Const PAGE_OPTS = 5
-
-Private Const PAGE_MAX = PAGE_OPTS
+Private Const PAGE_MAX = 4
 
 
 Private Const OPT_PRV_VERSION = 1
 Private Const OPT_HUPSWIM_BCK = 2
 Private Const OPT_SPLASH = 3
 Private Const OPT_WAS = 4
-Private Const OPT_LXF_TMA = 5
-Private Const OPT_NOTHING = 6
-Private Const OPT_SET_USED = 7
+Private Const OPT_NOTHING = 5
+Private Const OPT_SET_USED = 6
 
 
 
@@ -389,52 +386,6 @@ End Function
 
 
 
-Private Sub setLXFTMAFName(fName As String)
-On Error Resume Next
-DoCmd.SetWarnings False
-If (fName = "") Then
-  DoCmd.RunSQL "update hsoFirstUse set fu_LXFTMAFName = null"
-Else
-  DoCmd.RunSQL "update hsoFirstUse set fu_LXFTMAFName = """ & fName & """"
-End If
-DoCmd.SetWarnings True
-End Sub
-
-Private Function getLXFTMAFName() As String
-On Error Resume Next
-getLXFTMAFName = Nz(DLookup("FU_LXFTMAFName", "hsoFirstUse"))
-End Function
-Private Function getLXFTMAValid() As Boolean
-On Error Resume Next
-getLXFTMAValid = Nz(DLookup("FU_LXFTMAValid", "hsoFirstUse"))
-End Function
-
-
-
-
-Private Sub setLXFTMARestrictDate(ByVal blRestrict As Boolean, ByVal minDate As Date)
-On Error Resume Next
-DoCmd.SetWarnings False
-If (blRestrict) Then
-  DoCmd.RunSQL "update hsoFirstUse set fu_LXFTMARestrictDate = true, fu_LXFTMAMinDate = #" & Format(minDate, "mm\-dd\-yyyy") & "#"
-Else
-  DoCmd.RunSQL "update hsoFirstUse set fu_LXFTMARestrictDate = false, fu_LXFTMAMinDate = null"
-End If
-DoCmd.SetWarnings True
-End Sub
-Private Function getLXFTMARestrictDate() As Boolean
-On Error Resume Next
-getLXFTMARestrictDate = Nz(DLookup("FU_LXFTMARestrictDate", "hsoFirstUse"))
-End Function
-Private Function getLXFTMAMinDate() As Date
-On Error Resume Next
-getLXFTMAMinDate = Nz(DLookup("FU_LXFTMAMinDate", "hsoFirstUse"), #1/1/1900#)
-End Function
-
-
-
-
-
 Private Function wzcAllowCancel(curPage As Integer) As Boolean
 On Error Resume Next
 wzcAllowCancel = True
@@ -443,7 +394,8 @@ End Function
 Private Sub wzcPerformCancel(lstPage As Integer)
 On Error Resume Next
 'Just clean up everything.
-lenCleanTransferTables
+import_nieuw_tijden_from_was2005_cleanup
+import_zwemmers_from_was2005_cleanup
 End Sub
 
 
@@ -480,8 +432,6 @@ If (curPage = PAGE_CHOOSE) Then
       Me.btnFin.Enabled = False
     Case OPT_WAS
       Me.btnFin.Enabled = False
-    Case OPT_LXF_TMA
-      Me.btnFin.Enabled = False
     Case OPT_NOTHING
       Me.btnNxt.Enabled = False
     Case OPT_SET_USED
@@ -503,9 +453,7 @@ ElseIf (curPage = PAGE_CHOOSEFILE) Then
     
     Me.btnNxt.Enabled = blValid
     Me.btnFin.Enabled = blValid
-  ElseIf (opt = OPT_LXF_TMA) Then
-    Me.btnNxt.Enabled = getLXFTMAValid()
-    Me.btnFin.Enabled = Me.btnNxt.Enabled
+    
   End If
 End If
 
@@ -558,8 +506,6 @@ setWasTYFName ("")
 setWasZwFName ("")
 setWasZwImp (False)
 
-setLXFTMAFName ("")
-
 setPromptAgain False
 
 setSplBckRestrictDate False, #1/1/1900#
@@ -586,16 +532,10 @@ On Error GoTo fout
 Dim opt As Integer
 opt = getOption()
 
-If (opt = OPT_SPLASH Or opt = OPT_WAS Or opt = OPT_LXF_TMA) And (prvPage = PAGE_CHOOSEFILE) And (nxtPage = PAGE_VER) Then
+If (opt = OPT_SPLASH Or opt = OPT_WAS) And (prvPage = PAGE_CHOOSEFILE) And (nxtPage = PAGE_VER) Then
   Dim fName As String
   Dim blRestrictDate As Boolean
   Dim minDate As Date
-  
-  Dim blUseExtZwmData As Boolean
-  Dim sZwmDataFName As String
-  
-  blUseExtZwmData = False
-  sZwmDataFName = ""
   
   If (opt = OPT_SPLASH) Then
     fName = getSplBckFName()
@@ -609,43 +549,23 @@ If (opt = OPT_SPLASH Or opt = OPT_WAS Or opt = OPT_LXF_TMA) And (prvPage = PAGE_
     If (blRestrictDate) Then
       minDate = getWasTYMinDate()
     End If
-    
-    blUseExtZwmData = getWasZwImp()
-    If (blUseExtZwmData) Then
-      sZwmDataFName = getWasZwFName()
-    End If
-  ElseIf (opt = OPT_LXF_TMA) Then
-    fName = getLXFTMAFName()
-    blRestrictDate = getLXFTMARestrictDate()
-    If (blRestrictDate) Then
-      minDate = getLXFTMAMinDate()
-    End If
   End If
-  
-  If Not tmaImportReadTimeArchive(fName, blRestrictDate, minDate, blUseExtZwmData, sZwmDataFName) Then
+  If Not import_nieuw_tijden_from_was2005_perform(fName, False, True, blRestrictDate, minDate) Then
     nxtPage = prvPage
     Exit Sub
   End If
-  
-  If Not tmaImportGenerateDefaultImportSettings() Then
-    nxtPage = prvPage
-    Exit Sub
-  End If
-  
-  
-  
 End If
 
-If (opt = OPT_SPLASH Or opt = OPT_WAS Or opt = OPT_LXF_TMA) And (prvPage = PAGE_VER) And (nxtPage = PAGE_ZWM) Then
-  If Not tmaImportGenerateDefaultZwmImportSettings() Then
+If (opt = OPT_SPLASH Or opt = OPT_WAS) And (prvPage = PAGE_VER) And (nxtPage = PAGE_ZWM) Then
+  If Not import_nieuw_tijden_from_was2005_post_ver_form(False, True) Then
     nxtPage = prvPage
     Exit Sub
   End If
 End If
 
 
-If (opt = OPT_SPLASH Or opt = OPT_WAS Or opt = OPT_LXF_TMA) And (prvPage = PAGE_ZWM) And (nxtPage = PAGE_WED) Then
-  If Not tmaImportGenerateDefaultWedImportSettings() Then
+If (opt = OPT_SPLASH Or opt = OPT_WAS) And (prvPage = PAGE_ZWM) And (nxtPage = PAGE_WED) Then
+  If Not import_nieuw_tijden_from_was2005_post_zw_form(False) Then
     nxtPage = prvPage
     Exit Sub
   End If
@@ -676,10 +596,6 @@ If (curPage = PAGE_CHOOSEFILE) Then
       Dim wasF As Form_WIZ_FU_WAS_BCK
       Set wasF = Me.subfrm.Form
       wasF.initialize
-    Case OPT_LXF_TMA
-      Dim lxfF As Form_WIZ_FU_LXF_TMA
-      Set lxfF = Me.subfrm.Form
-      lxfF.initialize
     Case OPT_HUPSWIM_BCK
       Dim hupF As Form_WIZ_FU_HUP_BCK
       Set hupF = Me.subfrm.Form
@@ -711,8 +627,6 @@ Select Case curPage
       wzcGetPageName = "WIZ_FU_SPL_BCK"
     ElseIf (opt = OPT_WAS) Then
       wzcGetPageName = "WIZ_FU_WAS_BCK"
-    ElseIf (opt = OPT_LXF_TMA) Then
-      wzcGetPageName = "WIZ_FU_LXF_TMA"
     End If
   Case PAGE_VER
     wzcGetPageName = "WIZ_FU_VER"
@@ -720,8 +634,6 @@ Select Case curPage
     wzcGetPageName = "WIZ_FU_ZWM"
   Case PAGE_WED
     wzcGetPageName = "WIZ_FU_WED"
-  Case PAGE_OPTS
-    wzcGetPageName = "WIZ_FU_OPTS"
 End Select
 
 End Function
@@ -756,10 +668,6 @@ If (pageNr = PAGE_CHOOSEFILE) And (direction > 0) Then
       If Not blValid Then
         Exit Function
       End If
-    ElseIf (opt = OPT_LXF_TMA) Then
-      If Not getLXFTMAValid() Then
-        Exit Function
-      End If
     End If
 End If
 
@@ -788,18 +696,11 @@ Select Case opt
       Exit Function
     End If
     dbSetUsed (True)
-  Case OPT_SPLASH, OPT_WAS, OPT_LXF_TMA
+  Case OPT_SPLASH, OPT_WAS
     If (curPage <= PAGE_CHOOSEFILE) Then
       Dim fName As String
       Dim blRestrictDate As Boolean
       Dim minDate As Date
-      
-      Dim blUseExtZwmData As Boolean
-      Dim sZwmDataFName As String
-      
-      blUseExtZwmData = False
-      sZwmDataFName = ""
-          
       If (opt = OPT_SPLASH) Then
         fName = getSplBckFName()
         blRestrictDate = getSplBckRestrictDate()
@@ -812,49 +713,65 @@ Select Case opt
         If (blRestrictDate) Then
           minDate = getWasTYMinDate()
         End If
-        
-        blUseExtZwmData = getWasZwImp()
-        If (blUseExtZwmData) Then
-          sZwmDataFName = getWasZwFName()
-        End If
-      ElseIf (opt = OPT_LXF_TMA) Then
-        fName = getLXFTMAFName
-        blRestrictDate = getLXFTMARestrictDate()
-        If (blRestrictDate) Then
-          minDate = getLXFTMAMinDate()
-        End If
-        
-        
       End If
-      If Not tmaImportReadTimeArchive(fName, blRestrictDate, minDate, blUseExtZwmData, sZwmDataFName) Then
-        Exit Function
-      End If
-      If Not tmaImportGenerateDefaultImportSettings() Then
+      If Not (import_nieuw_tijden_from_was2005_perform(fName, False, True, blRestrictDate, minDate)) Then
         Exit Function
       End If
     End If
     If (curPage <= PAGE_VER) Then
-      If Not tmaImportGenerateDefaultZwmImportSettings() Then
+      If (Not import_nieuw_tijden_from_was2005_post_ver_form(False, True)) Then
         Exit Function
       End If
     End If
     If (curPage <= PAGE_ZWM) Then
-      If Not tmaImportGenerateDefaultWedImportSettings() Then
+      If (Not import_nieuw_tijden_from_was2005_post_zw_form(False)) Then
         Exit Function
       End If
     End If
-    
-    
-    Dim blErrRecoverable As Boolean
-
-    Dim res As Boolean
-    res = tmaImportFinishSequence(blErrRecoverable)
-    
-    If (Not res) And (blErrRecoverable) Then
+      
+    If Not (import_nieuw_tijden_from_was2005_post_wed_form()) Then
       Exit Function
     End If
-
     
+    Dim zwFName As String
+    Dim zwImp As Boolean
+    
+    If (opt = OPT_SPLASH) Then
+      zwImp = True
+      zwFName = getSplBckFName()
+    ElseIf (opt = OPT_WAS) Then
+      zwImp = getWasZwImp()
+      zwFName = getWasZwFName
+    End If
+    
+    If (zwImp) Then
+    
+      'Slight modification.
+      'If dbIsMultipleVer(), then the vereningen that we want to import
+      'are already present in the verenigingen table and we can safely
+      'exclude all other verenigingen.
+      'If SINGLE_VER_MODE, then we don't know a priori which verenigingen
+      'to include, but it will not hurt to include them all because no
+      'verenigingen will be added to the verenigingen table anyway.
+      'Selection is delayed to the phase where the swimmers are processed:
+      'only swimmers which are already present in the db will be imported.
+      
+      Dim blIsMultiVer As Boolean
+      blIsMultiVer = dbIsMultipleVer()
+      
+      Dim blImpUnknownVers As Boolean
+      blImpUnknownVers = Not blIsMultiVer
+    
+      If Not (import_zwemmers_from_was2005_perform(zwFName, False, blImpUnknownVers)) Then
+       Exit Function
+      End If
+      If Not (import_zwemmers_from_was2005_post_ver_form(False, False)) Then
+        Exit Function
+      End If
+      If Not (import_zwemmers_from_was2005_post_zw_form()) Then
+        Exit Function
+      End If
+    End If
     
     dbSetUsed (True)
   Case OPT_SET_USED

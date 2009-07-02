@@ -418,34 +418,21 @@ Dim sDate As String, sTime As String, sClub As String
 
 Dim blBckValid As Boolean, bckHasInfo As Boolean, bckInvalidReason As Integer, bckInvalidString As String
 
-Dim wasFileType As Integer
-
-Dim sDummy As String, dDummy As Date
-
-If Not wasAnalyzeFile(fName, blBckValid, bckInvalidReason, bckInvalidString, dDummy, sDummy, sDummy, sDate, sTime, sClub, wasFileType) Then
-  blBckValid = False
-  bckInvalidReason = WAS_XML_UNKNOWN_FAILURE
+If Not analyzeKringTy(fName, False, blBckValid, bckInvalidReason, bckInvalidString, sDate, sTime, sClub) Then
+  Exit Sub
 End If
-
-If (wasFileType <> WAS_FILE_TYPE_TIME_ARCHIVE) Then
-  blBckValid = False
-  bckInvalidReason = WAS_XML_INVALID_ROOT
-End If
-
 
 If (Not blBckValid) Then
   Dim blAppendErrorS As Boolean
   blAppendErrorS = True
   
   Select Case bckInvalidReason
-    Case WAS_XML_UNKNOWN_FILE
+    Case KRTY_UNKNOWN_FILE
       Me.bckError = "Backup bestand bestaat niet."
       blAppendErrorS = False
-    Case WAS_XML_INV_STR
+    Case KRTY_INV_XML_STR
       Me.bckError = "Het kringtijden bestand is ongeldig."
-    Case WAS_XML_INV_SYNTAX
-      Me.bckError = "Het kringtijden bestand is ongeldig."
-    Case Else
+    Case KRTY_INV_XML_SYNTAX
       Me.bckError = "Het kringtijden bestand is ongeldig."
   End Select
   

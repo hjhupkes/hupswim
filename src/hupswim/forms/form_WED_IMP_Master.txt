@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-192031877
+Checksum =-147637162
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -14,10 +14,10 @@ Begin Form
     GridY =20
     Width =11028
     ItemSuffix =47
-    Left =3885
-    Top =870
-    Right =14910
-    Bottom =7785
+    Left =105
+    Top =735
+    Right =13200
+    Bottom =8685
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
         0x6e353a39d473e140
@@ -494,10 +494,6 @@ fout:
 MsgBox Err & " btnImport_click" & vbCrLf & Error$, 16
 Exit Sub
 
-'debug
-On Error GoTo 0
-Resume
-
 End Sub
 
 Private Sub btnTerug_Click()
@@ -744,22 +740,14 @@ Dim wasValid As Boolean, wasInvalidReason As Integer, wasInvalidString As String
 Dim wasDate As Date, wasPlaceS As String, wasDesS As String
 Dim wasDateS As String
 
-Dim sDummy As String
-Dim wasFileType As Integer
-
 Dim errS As String
 
 Dim wasFName As String
 wasFName = directory_goedmaak(Nz(Me.dir)) & "\" & Nz(Me.file)
 
-If Not wasAnalyzeFile(wasFName, wasValid, wasInvalidReason, wasInvalidString, wasDate, wasDesS, wasPlaceS, sDummy, sDummy, sDummy, wasFileType) Then
+If Not wasAnalyzeFile(wasFName, wasValid, wasInvalidReason, wasInvalidString, wasDate, wasDesS, wasPlaceS) Then
   wasValid = False
   wasInvalidReason = WAS_XML_UNKNOWN_FAILURE
-End If
-
-If (wasFileType <> WAS_FILE_TYPE_DLN) And (wasFileType <> WAS_FILE_TYPE_PROG) And (wasFileType <> WAS_FILE_TYPE_UIT) Then
-  wasValid = False
-  wasInvalidReason = WAS_XML_INVALID_ROOT
 End If
 
 wasDateS = ""
@@ -788,12 +776,10 @@ Else
       blAppendWasMsg = False
     Case WAS_XML_UNKNOWN_FILE
       errS = "De bestandsnaam is ongeldig."
-    Case WAS_XML_INVALID_ROOT, WAS_XML_INV_STR
+    Case WAS_XML_INVALID_ROOT
       errS = "De inhoud van het .xml bestand voldoet niet aan de verwachtingen."
     Case WAS_XML_NOT_XML_FILE
       errS = "Het bestand is geen xml-bestand."
-    Case WAS_XML_INV_SYNTAX
-      errS = "Er is een probleem met de xml-syntax."
   End Select
   
   If (blAppendWasMsg) Then

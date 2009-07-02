@@ -452,28 +452,6 @@ Else
   splReadSexAsWas = "m"
 End If
 End Function
-
-Public Function splReadSex(sex As Integer) As String
-On Error Resume Next
-If (sex = 0) Then
-  splReadSex = "M"
-ElseIf (sex = 1) Then
-  splReadSex = "V"
-Else
-  splReadSex = "*"
-End If
-End Function
-Public Function splReadSex_TM2009(sex As Integer) As String
-On Error Resume Next
-If (sex = 1) Then
-  splReadSex_TM2009 = "M"
-ElseIf (sex = 2) Then
-  splReadSex_TM2009 = "V"
-Else
-  splReadSex_TM2009 = "*"
-End If
-End Function
-
 Private Function splReadSexAsLenex_MM2006(sex As Integer) As String
 On Error Resume Next
 If (sex = 0) Then
@@ -498,20 +476,6 @@ Public Function splReadStartAsWas(startnr As String) As String
 On Error Resume Next
 splReadStartAsWas = Left(startnr, 2) & Right(startnr, 5)
 End Function
-Public Function splReadStart(startnr As String) As String
-On Error Resume Next
-splReadStart = ""
-If (Left(startnr, 2) Like "[0-9][0-9]") Then
-  If (Len(startnr) = 7) Then
-    splReadStart = Left(startnr, 2) & "-" & Right(startnr, 5)
-  ElseIf (Len(startnr) = 8) Then
-    If (Mid(startnr, 3, 1) = "-") Then
-      splReadStart = Left(startnr, 2) & "-" & Right(startnr, 5)
-    End If
-  End If
-End If
-  
-End Function
 
 Public Function splReadStrokeAsSlag(stroke As Integer) As String
 On Error Resume Next
@@ -528,54 +492,6 @@ Select Case stroke
   Case 5
     splReadStrokeAsSlag = "WISSEL"
 End Select
-End Function
-
-Public Function splReadStrokeAsSlag_TM2007(stroke As Integer) As String
-On Error Resume Next
-splReadStrokeAsSlag_TM2007 = "ONB"
-Select Case stroke
-  Case 0
-    splReadStrokeAsSlag_TM2007 = "VRIJ"
-  Case 2
-    splReadStrokeAsSlag_TM2007 = "RUG"
-  Case 3
-    splReadStrokeAsSlag_TM2007 = "SCHOOL"
-  Case 1
-    splReadStrokeAsSlag_TM2007 = "VLINDER"
-  Case 4
-    splReadStrokeAsSlag_TM2007 = "WISSEL"
-End Select
-End Function
-
-
-Public Function splReadDistance(iDistance As Integer) As String
-On Error Resume Next
-splReadDistance = ""
-If (iDistance > 20) Then
-  splReadDistance = CStr(iDistance)
-Else
-  Select Case iDistance
-    Case 0
-      splReadDistance = "25"
-    Case 1
-      splReadDistance = "50"
-    Case 2
-      splReadDistance = "100"
-    Case 3
-      splReadDistance = "200"
-    Case 4
-      splReadDistance = "300"
-    Case 5
-      splReadDistance = "400"
-    Case 6
-      splReadDistance = "800"
-    Case 8
-      splReadDistance = "1500"
-  End Select
-  
-End If
-  
-  
 End Function
 
 
@@ -604,34 +520,6 @@ Exit Function
 fout:
 MsgBox Err & " " & Error$, 16
 End Function
-
-
-Public Function splReadTime_TM2009(splTd As Long) As Double
-On Error GoTo fout
-splReadTime_TM2009 = 0
-
-Dim nHun As Integer
-nHun = (splTd Mod 100) \ 10
-splTd = splTd \ 100
-
-Dim nTen As Integer
-nTen = (splTd Mod 10)
-splTd = splTd \ 10
-
-Dim nSec As Long
-nSec = splTd
-
-Dim nMin As Long
-nMin = nSec \ 60
-nSec = nSec Mod 60
-
-splReadTime_TM2009 = nMin * 100 + nSec + nTen * 0.1 + nHun * 0.01
-
-Exit Function
-fout:
-MsgBox Err & " " & Error$, 16
-End Function
-
 
 
 Private Function splMMImpCleanup_Perform_MM2006(ByRef impFNames() As String, ByRef impTNames() As String, ByRef impStatus() As Integer, ByRef nImpFiles, ByVal upckDir As String, ByVal delTempFiles As Boolean, ByVal delTables As Boolean) As Boolean
@@ -1374,9 +1262,6 @@ Private Function splMMImpAnalyzeFile_Perform_MM2007(ByVal fName As String, ByVal
 On Error GoTo fout
 splMMImpAnalyzeFile_Perform_MM2007 = False
 
-splValid = False
-splInvalidString = ""
-splInvalidReason = SPL_MM_NOT_ZIP_FILE
 
 
 splWedDate = #1/1/1900#
@@ -1392,48 +1277,92 @@ If Not splMMImpCleanup_Perform_MM2007(True) Then
 End If
 
 
-Dim splMDBFileName As String
 
-Dim blExtracted As Boolean, zipInvalidReason As Integer, zipInvalidString As String
-Dim zipData As ZIP_INTERNAL
+'Need to extract a SINGLE .mdb file.
 
-'Do not display an error message. We will do so ourselves here if necessary.
-If Not zipRead(fName, "mdb", "zip", blExtracted, False, zipInvalidReason, zipInvalidString, splMDBFileName, zipData) Then
-  Exit Function
-End If
+Dim upackDir As String
+  upackDir = directory_goedmaak(extractFilePath(fName)) & "\__hupswim__unzip__volatile"
+  'Now need to unpack file.
+  
+  On Error Resume Next
+  If (Not DirectoryExists(upackDir)) Then
+    FileSystem.MkDir (upackDir)
+  End If
+  
+  If (Not DirectoryExists(upackDir)) Then
+    On Error GoTo fout
+    
+    splInvalidReason = SPL_MM_UZIP_FAILURE
+    splInvalidString = "Error creating temporary unpack directory: " & upackDir
+    Err.Raise 1, , splInvalidString
+  End If
 
+ 
+  Dim fToUnzipComplete As String
 
-If (Not blExtracted) Then
-  splInvalidString = zipInvalidString
-  Select Case zipInvalidReason
-    Case ZIP_INVALID_CNT
-      splInvalidReason = SPL_MM_INVALID_ZIP_CNT
-    Case ZIP_INVALID_FILE_NAME
-      splInvalidReason = SPL_MM_NOT_ZIP_FILE
-    Case ZIP_UNKNOWN_FILE
-      splInvalidReason = SPL_MM_UNKNOWN_FILE
-    Case ZIP_UZIP_FAILURE
+  
+  On Error GoTo fout_cleanup
+  
+  Dim okk As Boolean
+
+  
+    'Modification Nov 2006. Support of packed file names that do not match the name of the archive.
+    Dim tpList As String
+    tpList = FileSystem.dir(upackDir & "\*.zip")
+    If tpList <> "" Then
       splInvalidReason = SPL_MM_UZIP_FAILURE
-  End Select
-  Err.Raise 1, , splInvalidString
-End If
-
-On Error GoTo fout_cleanup
-
-
-
+      splInvalidString = "The temporary directory: " & vbCrLf & upackDir & vbCrLf & "already contains .zip files."
+      Err.Raise 1, , splInvalidString
+    End If
+      
+    okk = unzipAll(fName, upackDir)
+    'This weird construction is necessary due to a bug in dll boolean extraction.
+    Dim okkk As Boolean
+    
+    okkk = False
+    If okk Then
+      okkk = True
+    End If
+    
+    If Not okkk Then
+      splInvalidReason = SPL_MM_UZIP_FAILURE
+      splInvalidString = "There was an error unpacking the archive: " & vbCrLf & fToUnzipComplete
+      Err.Raise 1, , splInvalidString
+    End If
+    
+    tpList = FileSystem.dir(upackDir & "\*.mdb")
+    
+    'This is to ensure that we are able to delete the directory on termination. Weird, but...
+    FileSystem.dir
+    
+    If tpList = "" Then
+      splInvalidReason = LX_ZIP_CNT_INVALID
+      splInvalidString = "The archive: " & vbCrLf & fName & vbCrLf & "does not appear to contain a .mdb file"
+      Err.Raise 1, , splInvalidString
+    End If
+    
+    fToUnzipComplete = upackDir & "\" & tpList
+    
+ 
 
   
-Dim ok As Boolean
-ok = splMMImpAnalyzeFile_Perform_MM2007_ExtractData(splMDBFileName, blImpTables, blDisplayErrDlg, splValid, splInvalidReason, splInvalidString, splWedDate, splWedPlaats, splWedDescription)
+  Dim ok As Boolean
+  ok = splMMImpAnalyzeFile_Perform_MM2007_ExtractData(fToUnzipComplete, blImpTables, blDisplayErrDlg, splValid, splInvalidReason, splInvalidString, splWedDate, splWedPlaats, splWedDescription)
   
-zipRead_finish zipData
+  splKillTemp upackDir, fToUnzipComplete
+   
+   
+  On Error GoTo fout
+    
+  If Not ok Then
+    Exit Function
+  End If
   
-On Error GoTo fout
-
-If Not ok Then
-  Exit Function
-End If
+  If Not splValid Then
+    splMMImpAnalyzeFile_Perform_MM2007 = True
+    Exit Function
+  End If
+  
 
 
 splMMImpAnalyzeFile_Perform_MM2007 = True
@@ -1471,9 +1400,7 @@ fout_cleanup:
 errCode = Err
 msg = errCode & " " & Error$
 
-
-zipRead_finish zipData
-
+splKillTemp upackDir, fToUnzipComplete
 
 If (errCode = 1) Then
   If (blDisplayErrDlg) Then
@@ -1484,9 +1411,9 @@ Else
   MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
   Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
 End If
-
 Exit Function
 
+Exit Function
 
 'debug
 On Error GoTo 0
@@ -1731,8 +1658,6 @@ Do Until rs.EOF
     If (lenDateIsValid(qlfUntilDat)) Then
       rsOut("WE_QLF_Until") = qlfUntilDat
     End If
-    
-    rsOut("WE_PartOfTimeArchive") = False
       
     
   rsOut.Update
@@ -2105,8 +2030,6 @@ Do Until rs.EOF
       
       
     rsOut("WE_Leeftijdsbepaling") = hzn(LFT_MODE_SZYR)
-    
-    rsOut("WE_PartOfTimeArchive") = False
     
   rsOut.Update
   rs.MoveNext

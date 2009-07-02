@@ -15,16 +15,6 @@ Public Const ZIP_UZIP_FAILURE = 2
 Public Const ZIP_INVALID_FILE_NAME = 3
 
 
-Private Sub zipKillFilesInDir(dirName As String, fExt As String)
-On Error Resume Next
-'To reset the directory.
-FileSystem.dir "<Illegal>"
-
-FileSystem.Kill dirName & "\*." & fExt
-
-End Sub
-
-
 Private Sub zipKillTemp(dirName As String, fFullName As String, Optional deleteDir As Boolean = True)
 On Error Resume Next
 'To reset the directory.
@@ -402,16 +392,9 @@ If (fFileExt = fZipFileExt) Then
     'Modification Nov 2006. Support of packed file names that do not match the name of the archive.
     Dim tpList As String
     tpList = FileSystem.dir(upackDir & "\*." & fActFileExt)
-    
-    If (tpList <> "") Then
-      zipKillFilesInDir upackDir, fActFileExt
-    End If
-    
-    tpList = FileSystem.dir(upackDir & "\*." & fActFileExt)
-    
     If tpList <> "" Then
       zipInvalidReason = ZIP_UZIP_FAILURE
-      zipInvalidString = "The temporary directory: " & vbCrLf & upackDir & vbCrLf & "already contains ." & fActFileExt & " files that could not be deleted." & vbCrLf & vbCrLf & "Please delete the directory: " & vbCrLf & upackDir
+      zipInvalidString = "The temporary directory: " & vbCrLf & upackDir & vbCrLf & "already contains ." & fActFileExt & " files."
       Err.Raise 1, , zipInvalidString
     End If
       

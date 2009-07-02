@@ -84,17 +84,9 @@ Type PNT_VER_PNT_OPTIONS
   blUseStdProgSettings As Boolean
   blRestrictVers As Boolean
   blIncludeRVerTimes As Boolean
-  blUseProgSubOrdering As Boolean
+  blUseProgMCats As Boolean
   blGroupVers As Boolean
 End Type
-
-Type PNT_VER_MED_OPTIONS
-  blUseTst As Boolean
-  blUseStdProgSettings As Boolean
-  blRestrictVers As Boolean
-  blGroupVers As Boolean
-End Type
-
 
 
 
@@ -137,9 +129,7 @@ End Type
 
 Public Const PNT_TYPE_VER_SEC = "VERSEC"
 Public Const PNT_TYPE_VER_PNT = "VERPNT"
-Public Const PNT_TYPE_VER_MED = "VERMED"
 Public Const PNT_TYPE_IND = "IND"
-
 
 
 Public Const PNT_TD_TO_PNT_MODE_SEC = 1
@@ -296,16 +286,13 @@ tbDef.Fields.Append fld
 Set fld = tbDef.CreateField("PT_Programmanummer", dbText, 25)
 tbDef.Fields.Append fld
 
-Set fld = tbDef.CreateField("PT_PNT_GRP_CatIdx", dbLong)
+Set fld = tbDef.CreateField("PT_PNT_CatIdx", dbInteger)
 tbDef.Fields.Append fld
 
-Set fld = tbDef.CreateField("PT_PNT_GRP_Categorie", dbText, 50)
+Set fld = tbDef.CreateField("PT_PNT_Categorie", dbText, 50)
 tbDef.Fields.Append fld
 
-Set fld = tbDef.CreateField("PT_PNT_GRP_ABC", dbText, 1)
-tbDef.Fields.Append fld
-
-Set fld = tbDef.CreateField("PT_PNT_GRP_Beschrijving", dbText, 255)
+Set fld = tbDef.CreateField("PT_PNT_BeschrijvingCategorie", dbText, 50)
 tbDef.Fields.Append fld
 
 Set fld = tbDef.CreateField("PT_Afstand", dbText, 25)
@@ -440,12 +427,8 @@ tbDef.Fields.Append fld
 Set fld = tbDef.CreateField("PT_Last_Programmanummer", dbText, 50)
 tbDef.Fields.Append fld
 
-Set fld = tbDef.CreateField("PT_Last_PNT_Grp_CatIdx", dbLong)
+Set fld = tbDef.CreateField("PT_Last_PNT_CatIdx", dbInteger)
 tbDef.Fields.Append fld
-
-Set fld = tbDef.CreateField("PT_Last_PNT_Grp_ABC", dbText, 1)
-tbDef.Fields.Append fld
-
 
 Set fld = tbDef.CreateField("PT_MAX_NComp", dbLong)
 tbDef.Fields.Append fld
@@ -465,10 +448,6 @@ tbDef.Fields.Append fld
 
 Set fld = tbDef.CreateField("PT_OPT_IsEindUitslag", dbBoolean)
 tbDef.Fields.Append fld
-
-Set fld = tbDef.CreateField("PT_OPT_HideEmptySubtotals", dbBoolean)
-tbDef.Fields.Append fld
-
 
 
 
@@ -494,7 +473,7 @@ Exit Function
 End Function
 
 
-Public Function pntCalcVer_OutputStats(ByVal tbNameStats As String, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByVal lastWednr As Long, ByVal lastProgNr As String, ByVal lastPntGrpABC As String, ByVal lastPntGrpCatIdx As Long, ByVal maxNComp As Long, ByVal pntCalcMode As Integer) As Boolean
+Public Function pntCalcVer_OutputStats(ByVal tbNameStats As String, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByVal lastWednr As Long, ByVal lastProgNr As String, ByVal lastPntCatIdx As Integer, ByVal maxNComp As Long, ByVal pntCalcMode As Integer) As Boolean
 On Error GoTo fout
 pntCalcVer_OutputStats = False
 
@@ -506,8 +485,7 @@ rs.AddNew
   rs("PT_PNT_CalcMode") = pntCalcMode
   rs("PT_LAST_Wedstrijdnummer") = lastWednr
   rs("PT_Last_Programmanummer") = hzn(lastProgNr)
-  rs("PT_Last_Pnt_GRP_ABC") = hzn(lastPntGrpABC)
-  rs("PT_Last_Pnt_GRP_CatIdx") = lastPntGrpCatIdx
+  rs("PT_Last_Pnt_CatIdx") = lastPntCatIdx
   rs("PT_Max_NComp") = maxNComp
 rs.Update
   
@@ -952,7 +930,7 @@ If (pntInf.orderID = -1) And (pntVerSecOpts.blSingleLft Or pntVerSecOpts.vvtOpts
   End If
 End If
 
-If Not pntInitWorkFields(pntInf, wedInf, pntVerSecOpts.blUseStdProgSettings, pntVerSecOpts.vvtOpts.blCalcVVTs) Then
+If Not pntInitWorkFields(pntInf, pntVerSecOpts.blUseStdProgSettings, pntVerSecOpts.vvtOpts.blCalcVVTs) Then
   GoTo cleanup
 End If
 
@@ -1127,7 +1105,7 @@ Do Until rsProgs.EOF
     Err.Raise 1, , "Kon geen gegevens vinden voor programmanr: ( " & curProgWedNr & " , " & curProgNr & " )"
   End If
   
-  If (pntProgInf.nComp > 0) And (pntProgInf.vvt > 1) And (pntProgInf.Type <> PROG_TYPE_PUNT) And (pntProgInf.Type <> PROG_TYPE_RANKING) Then
+  If (pntProgInf.nComp > 0) And (pntProgInf.vvt > 1) Then
     'Dit programmanummer afhandelen.
     
     If (pntProgInf.nComp > maxNComp) Then
@@ -1513,19 +1491,16 @@ Do Until rsProgs.EOF
          Exit Function
       End If
         
-      Dim pntGrpCatIdx As Integer
-      Dim pntGrpCategorie As String
-      Dim pntGrpABC As String
-      Dim pntGrpDes As String
+      Dim pntCatIdx As Integer
+      Dim pntCategorie As String
+      Dim pntCatDes As String
         
-      pntGrpCatIdx = 0
-      pntGrpCategorie = ""
-      pntGrpABC = ""
-      pntGrpDes = ""
-      
+      pntCatIdx = 0
+      pntCategorie = ""
+      pntCatDes = ""
       
       If Not pntCalcVerOutputItems(vvPnt, groupNames(i), groupDepots(i), groupInitScore(i), False, _
-        wedInf, pntInf, pntProgInf, pntGrpCatIdx, pntGrpCategorie, pntGrpABC, pntGrpDes, subTot, _
+        wedInf, pntInf, pntProgInf, pntCatIdx, pntCategorie, pntCatDes, subTot, _
         groupCurTotScore(i), groupCurTotToevDis(i), prGroupNItems(i), i, prGroupItems, _
         outp, lastUsedEstGUID, outpEst) Then
         
@@ -1567,7 +1542,7 @@ End If
 Dim tbNameStats As String
 tbNameStats = tbName & "_Stats"
 
-If Not pntCalcVer_OutputStats(tbNameStats, pntInf, lastWednr, lastProgNr, "", 0, maxNComp, pntCalcMode) Then
+If Not pntCalcVer_OutputStats(tbNameStats, pntInf, lastWednr, lastProgNr, 0, maxNComp, pntCalcMode) Then
   Exit Function
 End If
 
@@ -1765,7 +1740,7 @@ Dim rs As Recordset
 Dim sql As String
 
 
-  sql = "Select * from [__punten] order by pt_wedstrijdnummer, pt_programmanummer, pt_pnt_grp_abc, pt_pnt_grp_CatIdx,  pt_cumulatief"
+  sql = "Select * from [__punten] order by pt_wedstrijdnummer, pt_programmanummer,pt_pnt_CatIdx, pt_cumulatief"
 
 If Not blSortPntAscending Then
   sql = sql & " DESC"
@@ -1775,9 +1750,7 @@ Set rs = CurrentDb().OpenRecordset(sql)
 
 Dim curWed As Long
 Dim curProg As String
-Dim curABC As String
-Dim curCatIdx As Long
-
+Dim curCatIdx As Integer
 
 
 Dim lastValidRnkPnt As Double
@@ -1787,9 +1760,7 @@ Dim lastValidRnkCounter As Long
 
 curWed = -1
 curProg = ""
-curABC = ""
 curCatIdx = -1
-
 
 lastValidRnkPnt = -99
 lastValidRnk = 0
@@ -1799,20 +1770,18 @@ rs.MoveFirst
 Do Until rs.EOF
   Dim tpWed As Long
   Dim tpProg As String
-  Dim tpABC As String
   Dim tpCatIdx As Integer
   
   tpWed = Nz(rs("PT_Wedstrijdnummer"))
   tpProg = Nz(rs("PT_Programmanummer"))
-  tpABC = Nz(rs("PT_PNT_GRP_ABC"))
-  tpCatIdx = Nz(rs("PT_PNT_GRP_CatIdx"))
+  tpCatIdx = Nz(rs("PT_PNT_CatIdx"))
   
   Dim blReset As Boolean
   blReset = False
   
 
   
-  If (tpWed <> curWed) Or (tpProg <> curProg) Or (tpABC <> curABC) Or (tpCatIdx <> curCatIdx) Then
+  If (tpWed <> curWed) Or (tpProg <> curProg) Or (tpCatIdx <> curCatIdx) Then
     blReset = True
   End If
   
@@ -1825,9 +1794,7 @@ Do Until rs.EOF
   
   curWed = tpWed
   curProg = tpProg
-  curABC = tpABC
   curCatIdx = tpCatIdx
-  
   
   
   Dim tpRnk As Long
@@ -1921,11 +1888,6 @@ Select Case pntInf.Type
       DoCmd.Hourglass False
       Exit Function
     End If
-  Case PNT_TYPE_VER_MED
-    If Not pntCalcVerMed(pntInf, pntCalcMode) Then
-      DoCmd.Hourglass False
-      Exit Function
-    End If
 End Select
 
 
@@ -1941,67 +1903,7 @@ Exit Function
 End Function
 
 
-Private Sub pntFillTables_getNoMedPrList_addProg(ByVal sProgNr As String, ByRef nProgs As Integer, ByRef sProgNrs() As String)
 
-If bSearchString(sProgNr, nProgs, sProgNrs) < 0 Then
-  insString sProgNr, nProgs, sProgNrs
-End If
-
-End Sub
-
-Private Function pntFillTables_getNoMedPrList(ByRef pntInfo As PNT_GLOBAL_BASIC_INFO, ByRef wedInfo As WED_BASIC_INFO, ByRef nProgs As Integer, ByRef sProgNrs() As String) As Boolean
-On Error GoTo fout
-pntFillTables_getNoMedPrList = False
-
-
-nProgs = 0
-
-If (pntInfo.Type <> PNT_TYPE_VER_MED) Then
-  pntFillTables_getNoMedPrList = True
-  Exit Function
-End If
-
-
-Dim prSQL As String
-prSQL = wedGetProgsSQL(False, pntInfo.blEntireMeet, "", wedInfo.wednr, wedInfo.meetMainNr, False, False)
-
-Dim prs As Recordset
-Set prs = CurrentDb().OpenRecordset(prSQL)
-
-prs.MoveFirst
-Do Until prs.EOF
-  Dim tpProgType As String, tpProgNr As String, tpPrvProgNr As String
-  
-  tpProgNr = Nz(prs(FNM_PR_PROG))
-  tpProgType = Nz(prs(FNM_PR_TYPE))
-  tpPrvProgNr = Nz(prs(FNM_PR_PRV_NR))
-  
-  If (tpProgType = PROG_TYPE_FST) Or (tpProgType = PROG_TYPE_SWOFF) Or (tpProgType = PROG_TYPE_QF) Or (tpProgType = PROG_TYPE_SF) _
-    Or (tpProgType = PROG_TYPE_BFIN) Or (tpProgType = PROG_TYPE_CFIN) Then
-    pntFillTables_getNoMedPrList_addProg tpProgNr, nProgs, sProgNrs
-  End If
-  
-  If (tpPrvProgNr <> "") Then
-    If (tpProgType = PROG_TYPE_QF) Or (tpProgType = PROG_TYPE_SF) Or (tpProgType = PROG_TYPE_FIN) Or _
-      (tpProgType = PROG_TYPE_AFIN) Or (tpProgType = PROG_TYPE_BFIN) Or (tpProgType = PROG_TYPE_CFIN) Then
-      pntFillTables_getNoMedPrList_addProg tpPrvProgNr, nProgs, sProgNrs
-    End If
-  End If
-
-  prs.MoveNext
-Loop
-
-
-appCleanRS prs
-
-pntFillTables_getNoMedPrList = True
-Exit Function
-
-fout:
-If (Err = 3021) Then Resume Next
-MsgBox Err & " pntFillTables_getNoMedPrList" & vbCrLf & Error$, 16
-Exit Function
-End Function
 
 Private Function pntFillTables_Perform(ByRef pntInfo As PNT_GLOBAL_BASIC_INFO, ByRef wedInfo As WED_BASIC_INFO) As Boolean
 On Error GoTo fout
@@ -2028,12 +1930,6 @@ If (pntInfo.Type = PNT_TYPE_IND) Then
   DoCmd.SetWarnings True
 End If
 
-
-
-Dim nNoMedProgs As Integer, sNoMedProgs(0 To MAX_N_PROGS) As String
-If Not pntFillTables_getNoMedPrList(pntInfo, wedInfo, nNoMedProgs, sNoMedProgs) Then
-  Exit Function
-End If
 
 
 
@@ -2067,8 +1963,6 @@ Do Until prs.EOF
       prOut("PTPR_ToevoegenDis") = pntTvDisDefault(Nz(prs(FNM_PR_AF)))
       prOut("PTPR_VervangendeTijd") = Nz(prs(FNM_PR_VVT))
       prOut("PTPR_NMeetellendeDeelnemers") = Nz(prs(FNM_PR_NCOMP))
-      
-      prOut("PTPR_MED_IncludeProg") = (bSearchString(tpProg, nNoMedProgs, sNoMedProgs) < 0)
       
     
     prOut.Update
@@ -2135,18 +2029,9 @@ On Error GoTo 0
 Resume
 End Function
 
-Private Function pntInitWorkFields(ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByRef wedInf As WED_BASIC_INFO, ByVal blUseStdProgSettings, ByVal blCalcVVTs As Boolean) As Boolean
+Private Function pntInitWorkFields(ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByVal blUseStdProgSettings, ByVal blCalcVVTs As Boolean) As Boolean
 On Error GoTo fout
 pntInitWorkFields = False
-
-
-
-Dim nNoMedProgs As Integer
-Dim sNoMedProgs(0 To MAX_N_PROGS) As String
-
-If Not pntFillTables_getNoMedPrList(pntInf, wedInf, nNoMedProgs, sNoMedProgs) Then
-  Exit Function
-End If
 
 
 Dim pntProgs As Recordset
@@ -2162,26 +2047,22 @@ pntProgs.MoveFirst
 Do Until pntProgs.EOF
 
   Dim tpWedNr As Long
-  Dim tpProgNr As String
+  Dim tpPrognr As String
   
   tpWedNr = Nz(pntProgs("PTPR_ProgWedstrijdnummer"))
-  tpProgNr = Nz(pntProgs("PTPR_ProgProgrammanummer"))
+  tpPrognr = Nz(pntProgs("PTPR_ProgProgrammanummer"))
   
   
   
   
   
   If (blUseStdProgSettings) Then
-    progs.Seek "=", tpWedNr, tpProgNr
+    progs.Seek "=", tpWedNr, tpPrognr
   
     If progs.NoMatch Then
-      Err.Raise 1, , "Internal error. Could not find programmanr: ( " & tpWedNr & ", " & tpProgNr & ")"
+      Err.Raise 1, , "Internal error. Could not find programmanr: ( " & tpWedNr & ", " & tpPrognr & ")"
     End If
-    
-    Dim blIsNoMed As Boolean
-    blIsNoMed = bSearchString(tpProgNr, nNoMedProgs, sNoMedProgs) >= 0
-    
-        
+     
     pntProgs.Edit
       pntProgs("PTPR_WORK_TvDis") = pntTvDisDefault(Nz(progs(FNM_PR_AF)))
       If (Not blCalcVVTs) Then
@@ -2190,9 +2071,6 @@ Do Until pntProgs.EOF
         pntProgs("PTPR_WORK_VVT") = 0
       End If
       pntProgs("PTPR_WORK_NComp") = progs(FNM_PR_NCOMP)
-      
-      pntProgs("PTPR_WORK_MED_IncludeProg") = Not blIsNoMed
-      
     pntProgs.Update
   Else
     pntProgs.Edit
@@ -2203,7 +2081,6 @@ Do Until pntProgs.EOF
       Else
         pntProgs("PTPR_WORK_VVT") = 0
       End If
-      pntProgs("PTPR_WORK_MED_IncludeProg") = pntProgs("PTPR_MED_IncludeProg")
     pntProgs.Update
   End If
   
@@ -2512,15 +2389,15 @@ pntProgs.MoveFirst
 Do Until pntProgs.EOF
 
   Dim tpWedNr As Long
-  Dim tpProgNr As String
+  Dim tpPrognr As String
   
   tpWedNr = Nz(pntProgs("PTPR_ProgWedstrijdnummer"))
-  tpProgNr = Nz(pntProgs("PTPR_ProgProgrammanummer"))
+  tpPrognr = Nz(pntProgs("PTPR_ProgProgrammanummer"))
   
-  progs.Seek "=", tpWedNr, tpProgNr
+  progs.Seek "=", tpWedNr, tpPrognr
   
   If progs.NoMatch Then
-    Err.Raise 1, , "Internal error. Could not find programmanr: ( " & tpWedNr & ", " & tpProgNr & ")"
+    Err.Raise 1, , "Internal error. Could not find programmanr: ( " & tpWedNr & ", " & tpPrognr & ")"
   End If
   
     
@@ -2938,7 +2815,7 @@ End If
 
 
 'Always use the fields from pntProgs
-If Not pntInitWorkFields(pntInfo, wedInf, False, False) Then
+If Not pntInitWorkFields(pntInfo, False, False) Then
   Exit Function
 End If
 
@@ -3360,7 +3237,7 @@ Do Until blEOFFlag
     
     'First find out all about the programma.
     Dim tpWedNr As String
-    Dim tpProgNr As String
+    Dim tpPrognr As String
     
     Dim tpPntProgInfo As PNT_PROG_INFO
     
@@ -3370,20 +3247,20 @@ Do Until blEOFFlag
     
     If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
       tpWedNr = Nz(rs(FNM_TY_WED))
-      tpProgNr = Nz(rs(FNM_TY_PROG))
+      tpPrognr = Nz(rs(FNM_TY_PROG))
     ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Or (pntCalcMode = PNT_CALC_MODE_TEST) Then
       tpWedNr = Nz(rs(FNM_DE_PERS_WEDNR))
-      tpProgNr = Nz(rs(FNM_DE_PERS_PROG))
+      tpPrognr = Nz(rs(FNM_DE_PERS_PROG))
     End If
     
     
     'Do NOT use standard prog settings; as we need to extra non-default stuff.
-    If Not pntFindProgPntInfo(pntPrs, prs, wedInf, pntInfo, False, tpWedNr, tpProgNr, tpPntProgInfo, isFnd) Then
+    If Not pntFindProgPntInfo(pntPrs, prs, wedInf, pntInfo, False, tpWedNr, tpPrognr, tpPntProgInfo, isFnd) Then
       Exit Function
     End If
     
     If Not isFnd Then
-      Err.Raise 1, , "Kon prognr: ( " & tpWedNr & " , " & tpProgNr & " ) niet vinden."
+      Err.Raise 1, , "Kon prognr: ( " & tpWedNr & " , " & tpPrognr & " ) niet vinden."
     End If
     
     tpOndIdx = -1
@@ -3558,7 +3435,7 @@ Do Until blEOFFlag
           'we prefer slow swimtimes to empty vervangende times.
           curActTimes(tpOndIdx) = tpActTime
           curActWednr(tpOndIdx) = tpWedNr
-          curActPrognr(tpOndIdx) = tpProgNr
+          curActPrognr(tpOndIdx) = tpPrognr
           curActIsDis(tpOndIdx) = (tpActDis <> "")
           curActAfstand(tpOndIdx) = tpPntProgInfo.Afstand
           curActSlag(tpOndIdx) = tpPntProgInfo.slag
@@ -3782,19 +3659,14 @@ If Not uitslagTransferSettings(wedInf.wednr, pntInf.blEntireMeet) Then
 End If
 
 'Need to calculate rankings.
-If Not uitslagRanglijsten(wedInf.wednr, pntInf.blEntireMeet, pntCalcMode) Then
-  Exit Function
-End If
-
-'Need to calculate puntentellingen.
-If Not uitslagPunten(wedInf.wednr, pntInf.blEntireMeet, pntCalcMode) Then
+If Not uitslagRanglijsten(wedInf.wednr, pntInf.blEntireMeet) Then
   Exit Function
 End If
 
 
 
 
-If Not pntInitWorkFields(pntInf, wedInf, pntVerPntOpts.blUseStdProgSettings, False) Then
+If Not pntInitWorkFields(pntInf, pntVerPntOpts.blUseStdProgSettings, False) Then
   Exit Function
 End If
 
@@ -3873,317 +3745,6 @@ End Function
 
 
 
-Private Function pntCalcVerPnt_perform_handlePntGroup(ByRef wedInf As WED_BASIC_INFO, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByRef pntVPOpts As PNT_VER_PNT_OPTIONS, ByRef pntProgInf As PNT_PROG_INFO, ByVal pntCalcMode As Integer, _
-  ByRef est As Recordset, ByRef outp As Recordset, ByRef outpEst As Recordset, ByRef lastUsedEstGUID As Long, _
-  ByVal pntGrpCatIdx As Integer, ByVal pntGrpCat As String, ByVal pntGrpABC As String, pntGrpDes As String, _
-  ByVal nDlnVers As Integer, ByRef dlvNames() As String, ByRef dlvDepots() As String, ByRef dlvGroupIdx() As Integer, _
-  ByVal nGroups As Integer, ByRef groupNames() As String, ByRef groupDepots() As String, ByRef groupInitScore() As Double, ByRef groupCurTotScore() As Double, _
-  ByRef pntPuntPers1B() As Long, ByRef pntPuntEst1B() As Long, ByVal pntMaxPlaats As Integer, _
-  ByRef curFastVers() As String, ByRef curFastStarts() As String, ByRef curFastEstNrs() As Integer, _
-  ByRef curFastNames() As String, ByRef curFastActTimes() As Double, ByRef curFastActIsDis() As Boolean, _
-  ByRef curFastCorrPoints() As Long, ByRef nFastTimes() As Integer, _
-  ByRef curDisVers() As String, ByRef curDisStarts() As String, ByRef curDisEstNrs() As Integer, _
-  ByRef curDisNames() As String, ByRef curDisActTimes() As Double, ByRef nDisTimes() As Integer) As Boolean
-  
-On Error GoTo fout
-pntCalcVerPnt_perform_handlePntGroup = False
-
-
-Dim cIdx As Integer
-cIdx = pntGrpCatIdx
-
-
-Dim groupCurProgNComp(0 To MAX_N_DLN_VERS) As Integer
-Dim groupCurProgAllottedPointsHeader(0 To MAX_N_DLN_VERS) As Integer
-
-Dim curAllPointsNext(0 To 4 * PNT_MAX_MEETEL_PLAATS + 2 * PNT_MAX_MEETEL_BUFFER) As Integer
-Dim curAllPointsIsFast(0 To 4 * PNT_MAX_MEETEL_PLAATS + 2 * PNT_MAX_MEETEL_BUFFER) As Boolean
-Dim curAllPointsIdx(0 To 4 * PNT_MAX_MEETEL_PLAATS + 2 * PNT_MAX_MEETEL_BUFFER) As Integer
-Dim nCurAllPoints As Integer
-
-
-Dim curFastAllottedPoints(0 To 2 * PNT_MAX_MEETEL_PLAATS + PNT_MAX_MEETEL_BUFFER) As Long
-Dim curDisAllottedPoints(0 To 2 * PNT_MAX_MEETEL_PLAATS + PNT_MAX_MEETEL_BUFFER) As Long
-    
-    
-    
-nCurAllPoints = 0
-
-
-Dim i As Integer
-    
-    
-For i = 0 To nGroups - 1
-  groupCurProgNComp(i) = 0
-  groupCurProgAllottedPointsHeader(i) = -1
-Next i
-         
-         
-Dim tpVName As String
-Dim tpCorrPoints As Long
-         
-         
-'Start allotting points
-
-Dim curPosDisPos As Long
-Dim curPosCounter As Long
-curPosDisPos = 0
-curPosCounter = 0
-
-Dim curPosCorrPoints As Long
-curPosCorrPoints = -999
-
-For i = 0 To nFastTimes(cIdx) - 1
-  tpVName = curFastVers(cIdx, i)
-  tpCorrPoints = curFastCorrPoints(cIdx, i)
-  
-  Dim tpVLkpPos As Integer, tpVGroupIdx As Integer
-  tpVLkpPos = bSearchString(tpVName, nDlnVers, dlvNames)
-  
-  Dim blCountsForPos As Boolean
-  Dim blAwardPoints As Boolean
-  
-  blAwardPoints = True
-  If (tpVLkpPos < 0) Then
-    blAwardPoints = False
-  Else
-    tpVGroupIdx = dlvGroupIdx(tpVLkpPos)
-  End If
-  
-  If (blAwardPoints) Then
-    If (groupCurProgNComp(tpVGroupIdx) >= pntProgInf.nComp) Then
-      blAwardPoints = False
-    End If
-  End If
-  
-  blCountsForPos = True
-  If (Not pntVPOpts.blDoortellen) Then
-    If (Not blAwardPoints) Then
-      blCountsForPos = False
-    End If
-  End If
-  
-  If blAwardPoints And (Not blCountsForPos) Then
-    Err.Raise 1, , "Internal error"
-  End If
-  
-  If (blCountsForPos) Then
-    'need to update position
-    curPosCounter = curPosCounter + 1
-    If (tpCorrPoints > curPosCorrPoints) Then
-      curPosDisPos = curPosCounter
-      curPosCorrPoints = tpCorrPoints
-    End If
-    
-  End If
-  
-  'Initialize the allotted points.
-  curFastAllottedPoints(i) = 0
-  
-  If (blAwardPoints) Then
-    'check the number of points for this position and award them.
-    If (curPosDisPos < 0) Then
-      Err.Raise 1, , "Internal error"
-    End If
-    If (curPosDisPos <= pntMaxPlaats) Then
-      'Award
-      If (pntProgInf.isEstaf) Then
-        curFastAllottedPoints(i) = pntPuntEst1B(curPosDisPos)
-      Else
-        curFastAllottedPoints(i) = pntPuntPers1B(curPosDisPos)
-      End If
-    End If
-  End If
-    
-  If (curFastAllottedPoints(i) > 0) Then
-    'Need to update nComp and insert into list of alloted points
-    groupCurProgNComp(tpVGroupIdx) = groupCurProgNComp(tpVGroupIdx) + 1
-    
-    curAllPointsIdx(nCurAllPoints) = i
-    curAllPointsIsFast(nCurAllPoints) = True
-    curAllPointsNext(nCurAllPoints) = groupCurProgAllottedPointsHeader(tpVGroupIdx)
-    groupCurProgAllottedPointsHeader(tpVGroupIdx) = nCurAllPoints
-    
-    nCurAllPoints = nCurAllPoints + 1
-    
-  End If
-Next i ' for i = 0 to nFastTimes - 1
-
-If (pntVPOpts.disMode = PNT_DSQ_MODE_FIX_PNTS) Then
-  For i = 0 To nDisTimes(cIdx) - 1
-    
-    tpVName = curDisVers(cIdx, i)
-    tpVLkpPos = bSearchString(tpVName, nDlnVers, dlvNames)
-    
-    blAwardPoints = True
-  
-    If (tpVLkpPos < 0) Then
-      blAwardPoints = False
-     Else
-       tpVGroupIdx = dlvGroupIdx(tpVLkpPos)
-    End If
-  
-    If (blAwardPoints) Then
-      If (groupCurProgNComp(tpVGroupIdx) >= pntProgInf.nComp) Then
-        blAwardPoints = False
-      End If
-    End If
-    
-    'Initialize the allotted points.
-    curDisAllottedPoints(i) = 0
-   
-    If (blAwardPoints) Then
-      'check the number of points for this position and award them.
-      curDisAllottedPoints(i) = pntVPOpts.disFixedPoints
-    End If
-    
-    If (curDisAllottedPoints(i) > 0) Then
-        'Need to update nComp and insert into list of alloted points
-        groupCurProgNComp(tpVGroupIdx) = groupCurProgNComp(tpVGroupIdx) + 1
-        
-        curAllPointsIdx(nCurAllPoints) = i
-        curAllPointsIsFast(nCurAllPoints) = False
-        curAllPointsNext(nCurAllPoints) = groupCurProgAllottedPointsHeader(tpVGroupIdx)
-        groupCurProgAllottedPointsHeader(tpVGroupIdx) = nCurAllPoints
-        nCurAllPoints = nCurAllPoints + 1
-    End If
-  Next i
-End If
- 
-
- 
-'All points have been allotted.
-'Should now allocate the points to the verenigingen
-'and update table.
-
-Dim prGroupItemPnts(0 To MAX_N_DLN_VERS - 1, 0 To MAX_N_MEETEL) As Long
-Dim prGroupItems(0 To MAX_N_DLN_VERS - 1, 0 To MAX_N_MEETEL) As PNT_VER_OUTPUT_ITEM
-Dim prGroupNItems(0 To MAX_N_DLN_VERS - 1) As Integer
-
-Dim j As Integer
-
-For i = 0 To nGroups - 1
-  prGroupNItems(i) = 0
-  Dim hd As Integer
-  hd = groupCurProgAllottedPointsHeader(i)
-  While (hd <> -1)
-    Dim itemIdx  As Integer
-    Dim itemIsFast As Boolean
-    itemIdx = curAllPointsIdx(hd)
-    itemIsFast = curAllPointsIsFast(hd)
-    
-    Dim pnts As Long
-    If (itemIsFast) Then
-      pnts = curFastAllottedPoints(itemIdx)
-    Else
-      pnts = curDisAllottedPoints(itemIdx)
-    End If
-    
-    'insert -pnts, since we want a descending order.
-    Dim oldNItems As Integer
-    oldNItems = prGroupNItems(i)
-    
-    
-    Dim insPos As Integer
-    
-    insPos = insLong2d(i, -pnts, prGroupNItems, prGroupItemPnts)
-    
-    shiftRightItems2d i, insPos, 1, oldNItems, prGroupItems
-    
-    With prGroupItems(i, insPos)
-      If (itemIsFast) Then
-        .pnt = curFastAllottedPoints(itemIdx)
-        .actIsDis = curFastActIsDis(cIdx, itemIdx)
-        .actTime = curFastActTimes(cIdx, itemIdx)
-        
-        If (pntProgInf.isEstaf) Then
-          .estNr = curFastEstNrs(cIdx, itemIdx)
-          
-          est.Seek "=", pntProgInf.wednr, pntProgInf.prognr, curFastEstNrs(cIdx, itemIdx), curFastVers(cIdx, itemIdx)
-          If (Not est.NoMatch) Then
-            For j = 0 To pntProgInf.estafCnt - 1
-              .estStarts(j) = Nz(est("EST_Startnummer_" & (j + 1)))
-              .estNames(j) = Nz(est("EST_Naam_" & (j + 1)))
-            Next j
-          Else
-            For j = 0 To pntProgInf.estafCnt - 1
-              .estStarts(j) = ""
-              .estNames(j) = ""
-            Next j
-          End If
-        Else
-          .start = curFastStarts(cIdx, itemIdx)
-          .nm = curFastNames(cIdx, itemIdx)
-        End If
-        .pntIsVV = False
-        .pntTime = .actTime
-        
-        .tvDis = 0
-        .ver = curFastVers(cIdx, itemIdx)
-      Else
-        .pnt = curDisAllottedPoints(itemIdx)
-        .actIsDis = True
-        .actTime = curDisActTimes(cIdx, itemIdx)
-        If (pntProgInf.isEstaf) Then
-          .estNr = curDisEstNrs(cIdx, itemIdx)
-          est.Seek "=", pntProgInf.wednr, pntProgInf.prognr, curDisEstNrs(cIdx, itemIdx), curDisVers(cIdx, itemIdx)
-          If (Not est.NoMatch) Then
-            For j = 0 To pntProgInf.estafCnt - 1
-              .estStarts(j) = Nz(est("EST_Startnummer_" & (j + 1)))
-              .estNames(j) = Nz(est("EST_Naam_" & (j + 1)))
-            Next j
-          Else
-            For j = 0 To pntProgInf.estafCnt - 1
-              .estStarts(j) = ""
-              .estNames(j) = ""
-            Next j
-          End If
-          
-          
-        Else
-          .start = curDisStarts(cIdx, itemIdx)
-          .nm = curDisNames(cIdx, itemIdx)
-        End If
-        .pntIsVV = False
-        .pntTime = .actTime
-        
-        .tvDis = 0
-        .ver = curDisVers(cIdx, itemIdx)
-      End If
-    End With
-    
-    'See if we need to clip
-    If (prGroupNItems(i) > pntProgInf.nComp) Then
-      prGroupNItems(i) = pntProgInf.nComp
-    End If
-    
-    
-    hd = curAllPointsNext(hd)
-  Wend
-  
-  Dim subTot As Double, dummy As Double
-  If Not pntCalcVerUpdateSums(0, pntProgInf, groupCurTotScore(i), 0, subTot, groupCurTotScore(i), dummy, prGroupNItems(i), i, prGroupItems) Then
-    Exit Function
-  End If
-  
-  
-  
-  If Not pntCalcVerOutputItems(0, groupNames(i), groupDepots(i), groupInitScore(i), False, wedInf, pntInf, pntProgInf, pntGrpCatIdx, pntGrpCat, pntGrpABC, pntGrpDes, subTot, groupCurTotScore(i), 0, prGroupNItems(i), i, prGroupItems, outp, lastUsedEstGUID, outpEst) Then
-    Exit Function
-  End If
-Next i
-         
-
-pntCalcVerPnt_perform_handlePntGroup = True
-Exit Function
-
-fout:
-MsgBox Err & " pntCalcVerPnt_perform_handlePntGroup" & vbCrLf & Error$, 16
-Exit Function
-
-End Function
-
-
 'Before calling this procedure; analyze_estafs should have been called.
 Private Function pntCalcVerPnt_Perform(ByRef wedInf As WED_BASIC_INFO, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByRef pntVPOpts As PNT_VER_PNT_OPTIONS, ByVal pntCalcMode As Integer) As Boolean
 On Error GoTo fout
@@ -4204,7 +3765,6 @@ Dim nGroups As Integer
 Dim groupNames(0 To MAX_N_DLN_VERS - 1) As String
 Dim groupDepots(0 To MAX_N_DLN_VERS - 1) As String
 Dim groupInitScore(0 To MAX_N_DLN_VERS - 1) As Double
-Dim groupCurTotScore(0 To MAX_N_DLN_VERS - 1) As Double
 
 
 Dim nDlnVers As Integer
@@ -4230,14 +3790,12 @@ End If
 Dim maxNComp As Long
 Dim lastWednr As Long
 Dim lastProgNr As String
-Dim lastPntGrpCatIdx As Integer
-Dim lastPntGrpABC As String
+Dim lastPntCatIdx As Integer
 
 maxNComp = 0
 lastWednr = -1
 lastProgNr = ""
-lastPntGrpCatIdx = -1
-lastPntGrpABC = ""
+lastPntCatIdx = -1
 
 
 rsProgs.MoveFirst
@@ -4254,7 +3812,7 @@ rsProgs.MoveFirst
 
 Dim rsTd As Recordset
 
-
+Dim groupCurTotScore(0 To MAX_N_DLN_VERS - 1) As Double
 
 Dim i As Integer
 
@@ -4341,7 +3899,7 @@ Do Until rsProgs.EOF
     curProgNCats = 1
     
     If (catIsMCat(pntProgInf.cat)) Then
-      If (pntVPOpts.blUseProgSubOrdering) Then
+      If (pntVPOpts.blUseProgMCats) Then
         Dim sDummy As String
         If Not catInfoGetListForProg(curProgWedNr, curProgNr, 0, curProgNCats, sDummy, curProgCatInfo) Then
           Exit Function
@@ -4356,14 +3914,17 @@ Do Until rsProgs.EOF
       maxNComp = pntProgInf.nComp
     End If
     
- 
- 
-    Dim blUseResultData As Boolean
-    blUseResultData = False
-    If (pntCalcMode = PNT_CALC_MODE_RESULT) Or (pntProgInf.Type = PROG_TYPE_RANKING) Or (pntProgInf.Type = PROG_TYPE_PUNT) Then
-      blUseResultData = True
-    End If
- 
+    lastWednr = curProgWedNr
+    lastProgNr = curProgNr
+    lastPntCatIdx = curProgNCats - 1
+    
+    
+        
+    'Initialize the queues
+    For i = 0 To curProgNCats - 1
+      nFastTimes(i) = 0
+      nDisTimes(i) = 0
+    Next i
     
         
     'Now process all the times that were swum during this programmanummer.
@@ -4371,436 +3932,563 @@ Do Until rsProgs.EOF
     
     
     If (pntProgInf.isEstaf) Then
-      If (blUseResultData) Then
+      If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
         tdsql = tyGetResultsEstSQL(True, False, curProgNr, curProgWedNr, -1)
-        tdsql = tdsql & " Order by [" & "TY_A/B/C" & "]"
-      Else
+      ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Or (pntCalcMode = PNT_CALC_MODE_TEST) Then
         tdsql = dlnGetDeelnemersEstSQL(True, False, curProgNr, curProgWedNr, -1, False, "")
-        tdsql = tdsql & " Order by [" & "DE_A/B/C" & "]"
       End If
     Else
-      If (blUseResultData) Then
+      If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
         tdsql = tyGetResultsPersSQL(True, False, curProgNr, curProgWedNr, -1)
-        tdsql = tdsql & " ORDER BY [" & "TY_A/B/C" & "]"
-      Else
+      ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Or (pntCalcMode = PNT_CALC_MODE_TEST) Then
         tdsql = dlnGetDeelnemersPersSQL(True, False, curProgNr, curProgWedNr, -1, False)
-        tdsql = tdsql & " ORDER BY [" & FNM_DE_PERS_ABC & "]"
       End If
     End If
     
     
-    Dim pntGrpCatIdx As Integer, pntGrpCat As String, pntGrpABC As String, pntGrpDes As String
     
     
     Set rsTd = CurrentDb().OpenRecordset(tdsql)
     
     
+    Dim tpVName As String
+    Dim tpVerIsAllowed As Boolean
+    Dim tpStart As String
+    Dim tpEst As Integer
+    Dim tpNm As String
+    Dim tpAB As String
+    Dim tpIsBM As Boolean
+    
+    Dim tpTd As Double
+    Dim tpDis As String
+    
+    Dim tpGes As String
+    Dim tpGebDate As Date
+    
+    Dim tpCatIdx As Integer
     
     
-    
-    Dim curABC As String
-    curABC = "--"
-    
-    
+        
     rsTd.MoveFirst
-    
-    
-    Dim blDone As Boolean
-    blDone = rsTd.EOF
-    
-    Do Until blDone
-    
-    
+    Do Until rsTd.EOF
+      If (pntProgInf.isEstaf) Then
       
-      Dim tpABC As String
-    
-    
-      If (rsTd.EOF) Then
-        blDone = True
-        tpABC = "--"
-      Else
-        tpABC = ""
-        If (pntVPOpts.blUseProgSubOrdering) Then
-          If blUseResultData Then
-            tpABC = Nz(rsTd("TY_A/B/C"))
-          Else
-            tpABC = Nz(rsTd("DE_A/B/C"))
+          
+        If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
+          tpVName = Nz(rsTd(FNM_TY_EST_VER))
+          tpEst = Nz(rsTd(FNM_TY_EST_ESTNR))
+          tpTd = Nz(rsTd(FNM_TY_EST_EINDTIJD))
+          tpDis = Nz(rsTd(FNM_TY_EST_DIS))
+          tpAB = Nz(rsTd("TY_AB"))
+          tpIsBM = Nz(rsTd(FNM_TY_EST_BM)) = "J"
+          tpStart = ""
+          tpNm = ""
+        ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Or (pntCalcMode = PNT_CALC_MODE_TEST) Then
+          tpVName = Nz(rsTd(FNM_DE_EST_VER))
+          tpEst = Nz(rsTd(FNM_DE_EST_ESTNR))
+          tpTd = Nz(rsTd(FNM_DE_EST_INSTD))
+          tpDis = ""
+          tpAB = ""
+          tpIsBM = Nz(rsTd(FNM_DE_EST_BM)) = "J"
+          tpStart = ""
+          tpNm = ""
+          
+          If (pntCalcMode = PNT_CALC_MODE_TEST) Then
+            If (CLng(tpTd * 100) Mod 10) = 9 Then
+              tpDis = "DQ"
+            End If
           End If
         End If
-      End If 'if not rsTd.eof
       
+        
+      Else ' persoonlijk
       
-      
-      If (curABC <> tpABC) Then
-        If (curABC <> "--") Then
-          'Wrap up old abc code
-          lastPntGrpABC = curABC
+        If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
+          tpVName = Nz(rsTd(FNM_TY_PERS_VER))
+          tpEst = 0
+          tpStart = Nz(rsTd(FNM_TY_PERS_START))
+          tpNm = Nz(rsTd(FNM_TY_PERS_NAAM))
+          tpTd = Nz(rsTd(FNM_TY_PERS_EINDTIJD))
+          tpDis = Nz(rsTd(FNM_TY_PERS_DIS))
+          tpAB = Nz(rsTd("TY_AB"))
+          tpIsBM = Nz(rsTd(FNM_TY_PERS_BM)) = "J"
+          tpGes = Nz(rsTd(FNM_NA_GES))
+          tpGebDate = Nz(rsTd(FNM_NA_GEBDAT), #1/1/1900#)
+        ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Or (pntCalcMode = PNT_CALC_MODE_TEST) Then
+          tpVName = Nz(rsTd(FNM_DE_PERS_VER))
+          tpEst = 0
+          tpStart = Nz(rsTd(FNM_DE_PERS_STARTNR))
+          tpNm = Nz(rsTd(FNM_DE_PERS_NAAM))
+          tpTd = Nz(rsTd(FNM_DE_PERS_INSTD))
+          tpDis = ""
+          tpAB = ""
+          tpIsBM = Nz(rsTd(FNM_DE_PERS_BM)) = "J"
+          tpGes = Nz(rsTd(FNM_NA_GES))
+          tpGebDate = Nz(rsTd(FNM_NA_GEBDAT), #1/1/1900#)
           
-          For i = 0 To curProgNCats - 1
-            If (nFastTimes(i) > 0) Or (nDisTimes(i) > 0) Then
-              lastProgNr = curProgNr
-              lastWednr = curProgWedNr
-              lastPntGrpCatIdx = i
-              lastPntGrpABC = curABC
-              
-              'output items
-              
-              pntGrpCat = ""
-              pntGrpDes = ""
-              pntGrpCatIdx = i
-              pntGrpABC = curABC
-              If (curProgUseMCats) Then
-                pntGrpCat = Trim(curProgCatInfo(i).cat)
-                pntGrpDes = Trim(curProgCatInfo(i).bescat)
-              End If
-              If (pntGrpABC <> "") Then
-                If (pntGrpDes <> "") Then
-                  pntGrpDes = pntGrpDes & " (" & pntGrpABC & ")"
-                Else
-                  pntGrpDes = pntGrpDes & "Code: " & pntGrpABC
-                End If
-              End If
-              
-              
-              If Not pntCalcVerPnt_perform_handlePntGroup(wedInf, pntInf, pntVPOpts, pntProgInf, pntCalcMode, _
-                est, outp, outpEst, lastUsedEstGUID, _
-                pntGrpCatIdx, pntGrpCat, pntGrpABC, pntGrpDes, nDlnVers, dlvNames, dlvDepots, dlvGroupIdx, _
-                nGroups, groupNames, groupDepots, groupInitScore, groupCurTotScore, _
-                pntPuntPers1B, pntPuntEst1B, pntMaxPlaats, _
-                curFastVers, curFastStarts, curFastEstNrs, curFastNames, curFastActTimes, curFastActIsDis, curFastCorrPoints, nFastTimes, _
-                curDisVers, curDisStarts, curDisEstNrs, curDisNames, curDisActTimes, nDisTimes) Then
-                Exit Function
-              End If
-              
+          If (pntCalcMode = PNT_CALC_MODE_TEST) Then
+            If (CLng(tpTd * 100) Mod 10) = 9 Then
+              tpDis = "DQ"
             End If
-          Next i
-          
-          
-          
+          End If
         End If
         
-        
-        'Initialize new abc code
-        
-        'Initialize the queues
-        For i = 0 To curProgNCats - 1
-          nFastTimes(i) = 0
-          nDisTimes(i) = 0
-        Next i
-        
-        
-        
-        
-        curABC = tpABC
+      End If 'if estaf or persoonlijk
+      
+      tpVerIsAllowed = True
+      Dim verLkpPos As Integer
+      verLkpPos = bSearchString(tpVName, nDlnVers, dlvNames)
+      If (verLkpPos < 0) Then
+        tpVerIsAllowed = False
       End If
       
       
       
       
+      Dim tpIsDis As Boolean
+      Dim tpTvDis As Long
+    
+      Dim tpCorrPoints As Long
+      Dim tpCorrMainQValid As Boolean
+      Dim tpCorrDisQValid As Boolean
       
-      If Not blDone Then
-        Dim tpVName As String
-        Dim tpVerIsAllowed As Boolean
-        Dim tpStart As String
-        Dim tpEst As Integer
-        Dim tpNm As String
-        Dim tpAB As String
-        Dim tpIsBM As Boolean
-        
-        Dim tpPnt As Double
-        Dim tpTd As Double
-        Dim tpDis As String
-        
-        Dim tpGes As String
-        Dim tpGebDate As Date
-        
-        Dim tpCatIdx As Integer
-        
-        
-        If (pntProgInf.isEstaf) Then
-        
-          If (blUseResultData) Then
-            tpVName = Nz(rsTd(FNM_TY_EST_VER))
-            tpEst = Nz(rsTd(FNM_TY_EST_ESTNR))
-            tpTd = Nz(rsTd(FNM_TY_EST_EINDTIJD))
-            tpDis = Nz(rsTd(FNM_TY_EST_DIS))
-            tpAB = Nz(rsTd("TY_AB"))
-            tpIsBM = Nz(rsTd(FNM_TY_EST_BM)) = "J"
-            tpStart = ""
-            tpNm = ""
-          Else
-            tpVName = Nz(rsTd(FNM_DE_EST_VER))
-            tpEst = Nz(rsTd(FNM_DE_EST_ESTNR))
-            tpTd = Nz(rsTd(FNM_DE_EST_INSTD))
-            tpDis = ""
-            tpAB = ""
-            tpIsBM = Nz(rsTd(FNM_DE_EST_BM)) = "J"
-            tpStart = ""
-            tpNm = ""
-          End If
-          
-        Else ' persoonlijk
-        
-          If (blUseResultData) Then
-            tpVName = Nz(rsTd(FNM_TY_PERS_VER))
-            tpEst = 0
-            tpStart = Nz(rsTd(FNM_TY_PERS_START))
-            tpNm = Nz(rsTd(FNM_TY_PERS_NAAM))
-            tpTd = Nz(rsTd(FNM_TY_PERS_EINDTIJD))
-            tpDis = Nz(rsTd(FNM_TY_PERS_DIS))
-            tpAB = Nz(rsTd("TY_AB"))
-            tpIsBM = Nz(rsTd(FNM_TY_PERS_BM)) = "J"
-            tpGes = Nz(rsTd(FNM_NA_GES))
-            tpGebDate = Nz(rsTd(FNM_NA_GEBDAT), #1/1/1900#)
-          Else
-            tpVName = Nz(rsTd(FNM_DE_PERS_VER))
-            tpEst = 0
-            tpStart = Nz(rsTd(FNM_DE_PERS_STARTNR))
-            tpNm = Nz(rsTd(FNM_DE_PERS_NAAM))
-            tpTd = Nz(rsTd(FNM_DE_PERS_INSTD))
-            tpDis = ""
-            tpAB = ""
-            tpIsBM = Nz(rsTd(FNM_DE_PERS_BM)) = "J"
-            tpGes = Nz(rsTd(FNM_NA_GES))
-            tpGebDate = Nz(rsTd(FNM_NA_GEBDAT), #1/1/1900#)
-          End If
-          
-        End If 'if estaf or persoonlijk
-        
-        If (pntProgInf.Type = PROG_TYPE_PUNT) Then
-          tpPnt = Nz(rsTd("TY_Eindpunten"))
-          'For display purposes, also treat the points as a time.
-          tpTd = tpPnt
-        End If
-        
-        
-        If (pntProgInf.Type <> PROG_TYPE_PUNT) And (pntCalcMode = PNT_CALC_MODE_TEST) Then
-          If (CLng(tpTd * 100) Mod 10) = 9 Then
-            tpDis = "DQ"
-          End If
-        End If
-        
-          
-        
-        tpVerIsAllowed = True
-        Dim verLkpPos As Integer
-        verLkpPos = bSearchString(tpVName, nDlnVers, dlvNames)
-        If (verLkpPos < 0) Then
-          tpVerIsAllowed = False
-        End If
-        
-        
-        
-        
-        Dim tpIsDis As Boolean
-        Dim tpTvDis As Long
+      tpIsDis = tpDis <> ""
       
-        Dim tpCorrPoints As Long
-        Dim tpCorrMainQValid As Boolean
-        Dim tpCorrDisQValid As Boolean
-        
-        tpIsDis = tpDis <> ""
-        
-        
-        
-        
-        'Merge time + AB code or pnt_points into a single point-quantity.
-        tpCorrPoints = 0
-        
-        
-        If (pntProgInf.Type = PROG_TYPE_PUNT) Then
-          tpCorrPoints = CLng(tpPnt * 100)
-        Else
-          If (swtIsValid(tpTd)) Then
-            tpCorrPoints = CLng(tpTd * 100) * 100
-            If (tpAB <> "") Then
-              Dim tpABExtra As Long
-              tpABExtra = Asc(UCase(tpAB)) - Asc("A")
-              If (tpABExtra < 0) Then
-                tpABExtra = 0
-              ElseIf (tpABExtra > 26) Then
-                tpABExtra = 26
-              End If
-              tpCorrPoints = tpCorrPoints + tpABExtra
-            End If
+      
+      
+      
+      'Merge time + AB code into a single point-quantity.
+      tpCorrPoints = 0
+      
+      If (swtIsValid(tpTd)) Then
+        tpCorrPoints = CLng(tpTd * 100) * 100
+        If (tpAB <> "") Then
+          Dim tpABExtra As Long
+          tpABExtra = Asc(UCase(tpAB)) - Asc("A")
+          If (tpABExtra < 0) Then
+            tpABExtra = 0
+          ElseIf (tpABExtra > 26) Then
+            tpABExtra = 26
           End If
+          tpCorrPoints = tpCorrPoints + tpABExtra
         End If
-          
-          
-          
-        tpCorrMainQValid = True
-        tpCorrDisQValid = (pntVPOpts.disMode = PNT_DSQ_MODE_FIX_PNTS)
+      End If
         
-        'Check to see whether time should be added to queue.
         
-        'First of all, completely ignore times with the following discodes,
-        'since we do not want them to be included.
-        If (tpIsDis) Then
-          If (tpDis = DIS_NG) Or (tpDis = DIS_NGZA) Or (tpDis = DIS_AFM) Or (tpDis = DIS_VV) Or (tpDis = DIS_ZK) Then
-            tpCorrDisQValid = False
-            tpCorrMainQValid = False
-          End If
-        End If
         
-        If ((tpIsDis) And (Not swtIsValid(tpTd)) And (pntVPOpts.blDisFixedPointRequireValidTime)) Then
+      tpCorrMainQValid = True
+      tpCorrDisQValid = (pntVPOpts.disMode = PNT_DSQ_MODE_FIX_PNTS)
+      
+      'Check to see whether time should be added to queue.
+      
+      'First of all, completely ignore times with the following discodes,
+      'since we do not want them to be included.
+      If (tpIsDis) Then
+        If (tpDis = DIS_NG) Or (tpDis = DIS_NGZA) Or (tpDis = DIS_AFM) Or (tpDis = DIS_VV) Or (tpDis = DIS_ZK) Then
           tpCorrDisQValid = False
-        End If
-          
-        
-        
-        If (Not tpVerIsAllowed) Then
-          tpCorrDisQValid = False
-        End If
-        
-        If (Not tpVerIsAllowed) And (Not pntVPOpts.blIncludeRVerTimes) Then
           tpCorrMainQValid = False
-          tpCorrDisQValid = False
         End If
+      End If
+      
+      If ((tpIsDis) And (Not swtIsValid(tpTd)) And (pntVPOpts.blDisFixedPointRequireValidTime)) Then
+        tpCorrDisQValid = False
+      End If
         
-        If (tpIsBM) Then
-          tpCorrMainQValid = False
-          tpCorrDisQValid = False
-        End If
-        
-        
-        
-        If (pntProgInf.Type = PROG_TYPE_PUNT) Then
-          tpCorrDisQValid = False
-        End If
-        
-        
-        
-        If (pntProgInf.Type = PROG_TYPE_PUNT) Then
-          If (Abs(tpPnt) < 1) Then
-            tpCorrMainQValid = False
-          End If
+      
+      
+      If (Not tpVerIsAllowed) Then
+        tpCorrDisQValid = False
+      End If
+      
+      If (Not tpVerIsAllowed) And (Not pntVPOpts.blIncludeRVerTimes) Then
+        tpCorrMainQValid = False
+        tpCorrDisQValid = False
+      End If
+      
+      If (tpIsBM) Then
+        tpCorrMainQValid = False
+        tpCorrDisQValid = False
+      End If
+      
+      
+      If Not swtIsValid(tpTd) Then
+        tpCorrMainQValid = False
+      ElseIf (tpIsDis) Then
+        If (pntVPOpts.disMode = PNT_DSQ_MODE_ADD_PEN) Then
+          tpTvDis = CLng(pntProgInf.tvDis) * 100 * 100 + 50
+          tpCorrPoints = tpCorrPoints + tpTvDis
         Else
-          If Not swtIsValid(tpTd) Then
-            tpCorrMainQValid = False
-          ElseIf (tpIsDis) Then
-            If (pntVPOpts.disMode = PNT_DSQ_MODE_ADD_PEN) Then
-              tpTvDis = CLng(pntProgInf.tvDis) * 100 * 100 + 50
-              tpCorrPoints = tpCorrPoints + tpTvDis
-            Else
-              'do not add penalty
-              tpCorrMainQValid = False
-            End If
-          End If
+          'do not add penalty
+          tpCorrMainQValid = False
         End If
-        
-        tpCatIdx = 0
-        If (tpCorrMainQValid Or tpCorrDisQValid) Then
-          If (curProgUseMCats) Then
-            'Need to determine tpCatIdx
-            tpCatIdx = -1
-            If (pntProgInf.isEstaf) Then
-              est.Seek "=", curProgWedNr, curProgNr, tpEst, tpVName
-              
-              If est.NoMatch Then
-                Err.Raise 1, , "Internal error. Could not find estafette ploeg"
-              End If
-              
-              Dim estMinYOB As Long, estMaxYOB As Long, estSumYOB As Long, estActCnt As Integer, estGes As String
-              estMinYOB = Nz(est("EST_MinYOB"))
-              estMaxYOB = Nz(est("EST_MaxYOB"))
-              estSumYOB = Nz(est("EST_SumYOB"))
-              estActCnt = Nz(est("EST_ActPloegCnt"))
-              estGes = Nz(est("EST_Geslacht"))
-              
-              tpCatIdx = catInfoGetEstSatisfiedCatIdxFromList_bare(wedInf.lftBep, estMinYOB, estMaxYOB, estSumYOB, estActCnt, estGes, 0, curProgNCats, curProgCatInfo, wedInf.ageDate)
-              
-            Else
-              tpCatIdx = catInfoGetSatisfiedCatIdxFromList(wedInf.ageDate, wedInf.lftBep, tpStart, tpGes, tpGebDate, 0, curProgNCats, curProgCatInfo)
-            End If 'if isEstaf
+      End If
+      
+      tpCatIdx = 0
+      If (tpCorrMainQValid Or tpCorrDisQValid) Then
+        If (curProgUseMCats) Then
+          'Need to determine tpCatIdx
+          tpCatIdx = -1
+          If (pntProgInf.isEstaf) Then
+            est.Seek "=", curProgWedNr, curProgNr, tpEst, tpVName
             
-            If tpCatIdx = -1 Then
-              'Disallow swimmer
-              tpCorrMainQValid = False
-              tpCorrDisQValid = False
+            If est.NoMatch Then
+              Err.Raise 1, , "Internal error. Could not find estafette ploeg"
             End If
-          End If 'if curProgUseMCats
+            
+            Dim estMinYOB As Long, estMaxYOB As Long, estSumYOB As Long, estActCnt As Integer, estGes As String
+            estMinYOB = Nz(est("EST_MinYOB"))
+            estMaxYOB = Nz(est("EST_MaxYOB"))
+            estSumYOB = Nz(est("EST_SumYOB"))
+            estActCnt = Nz(est("EST_ActPloegCnt"))
+            estGes = Nz(est("EST_Geslacht"))
+            
+            tpCatIdx = catInfoGetEstSatisfiedCatIdxFromList_bare(wedInf.lftBep, estMinYOB, estMaxYOB, estSumYOB, estActCnt, estGes, 0, curProgNCats, curProgCatInfo, wedInf.ageDate)
+            
+          Else
+            tpCatIdx = catInfoGetSatisfiedCatIdxFromList(wedInf.ageDate, wedInf.lftBep, tpStart, tpGes, tpGebDate, 0, curProgNCats, curProgCatInfo)
+          End If 'if isEstaf
+          
+          If tpCatIdx = -1 Then
+            'Disallow swimmer
+            tpCorrMainQValid = False
+            tpCorrDisQValid = False
+          End If
+        End If 'if curProgUseMCats
+      End If
+      
+      
+      Dim insPos As Long
+      
+      If (tpCorrMainQValid) Then
+        'add to main queue
+        insPos = insLong2d(tpCatIdx, tpCorrPoints, nFastTimes, curFastCorrPoints)
+        
+        'now shift rest.
+        shiftRightString2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastVers
+        shiftRightString2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastStarts
+        shiftRightInt2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastEstNrs
+        shiftRightString2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastNames
+        shiftRightDouble2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastActTimes
+        shiftRightBoolean2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastActIsDis
+        
+        'insert rest.
+        curFastVers(tpCatIdx, insPos) = tpVName
+        curFastStarts(tpCatIdx, insPos) = tpStart
+        curFastEstNrs(tpCatIdx, insPos) = tpEst
+        curFastNames(tpCatIdx, insPos) = tpNm
+        curFastActTimes(tpCatIdx, insPos) = tpTd
+        curFastActIsDis(tpCatIdx, insPos) = tpIsDis
+        
+        'clip the number of times we are keeping in storage.
+        If (nFastTimes(tpCatIdx) > 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER) Then
+          nFastTimes(tpCatIdx) = 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER
         End If
         
         
-        Dim insPos As Long
+      ElseIf (tpCorrDisQValid) Then
+        'add to dis queue
+        curDisVers(tpCatIdx, nDisTimes(tpCatIdx)) = tpVName
+        curDisStarts(tpCatIdx, nDisTimes(tpCatIdx)) = tpStart
+        curDisEstNrs(tpCatIdx, nDisTimes(tpCatIdx)) = tpEst
+        curDisNames(tpCatIdx, nDisTimes(tpCatIdx)) = tpNm
+        curDisActTimes(tpCatIdx, nDisTimes(tpCatIdx)) = tpTd
+        nDisTimes(tpCatIdx) = nDisTimes(tpCatIdx) + 1
         
-        If (tpCorrMainQValid) Then
-          'add to main queue
-          insPos = insLong2d(tpCatIdx, tpCorrPoints, nFastTimes, curFastCorrPoints)
-          
-          'now shift rest.
-          shiftRightString2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastVers
-          shiftRightString2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastStarts
-          shiftRightInt2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastEstNrs
-          shiftRightString2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastNames
-          shiftRightDouble2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastActTimes
-          shiftRightBoolean2d tpCatIdx, insPos, 1, nFastTimes(tpCatIdx) - 1, curFastActIsDis
-          
-          'insert rest.
-          curFastVers(tpCatIdx, insPos) = tpVName
-          curFastStarts(tpCatIdx, insPos) = tpStart
-          curFastEstNrs(tpCatIdx, insPos) = tpEst
-          curFastNames(tpCatIdx, insPos) = tpNm
-          curFastActTimes(tpCatIdx, insPos) = tpTd
-          curFastActIsDis(tpCatIdx, insPos) = tpIsDis
-          
-          'clip the number of times we are keeping in storage.
-          If (nFastTimes(tpCatIdx) > 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER) Then
-            nFastTimes(tpCatIdx) = 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER
-          End If
-          
-          
-        ElseIf (tpCorrDisQValid) Then
-          'add to dis queue
-          curDisVers(tpCatIdx, nDisTimes(tpCatIdx)) = tpVName
-          curDisStarts(tpCatIdx, nDisTimes(tpCatIdx)) = tpStart
-          curDisEstNrs(tpCatIdx, nDisTimes(tpCatIdx)) = tpEst
-          curDisNames(tpCatIdx, nDisTimes(tpCatIdx)) = tpNm
-          curDisActTimes(tpCatIdx, nDisTimes(tpCatIdx)) = tpTd
-          nDisTimes(tpCatIdx) = nDisTimes(tpCatIdx) + 1
-          
-          'clip the number of times we are keeping in storage.
-          If (nDisTimes(tpCatIdx) > 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER) Then
-            nDisTimes(tpCatIdx) = 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER
-          End If
+        'clip the number of times we are keeping in storage.
+        If (nDisTimes(tpCatIdx) > 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER) Then
+          nDisTimes(tpCatIdx) = 2 * pntMaxPlaats + PNT_MAX_MEETEL_BUFFER
         End If
-        
-        rsTd.MoveNext
-        
-      End If 'if not blDone
+      End If
+      rsTd.MoveNext
     Loop
     
     
     appCleanRS rsTd
     
-    If (lastWednr <> curProgWedNr) Or (lastProgNr <> curProgNr) Then
-      'output a single item for this prog
-      nFastTimes(0) = 0
-      nDisTimes(0) = 0
-      
-      lastWednr = curProgWedNr
-      lastProgNr = curProgNr
-      lastPntGrpABC = ""
-      lastPntGrpCatIdx = 0
-      
-      pntGrpCatIdx = 0
-      pntGrpCat = ""
-      pntGrpABC = ""
-      pntGrpDes = ""
-      
-      If Not pntCalcVerPnt_perform_handlePntGroup(wedInf, pntInf, pntVPOpts, pntProgInf, pntCalcMode, _
-        est, outp, outpEst, lastUsedEstGUID, _
-        pntGrpCatIdx, pntGrpCat, pntGrpABC, pntGrpDes, nDlnVers, dlvNames, dlvDepots, dlvGroupIdx, _
-        nGroups, groupNames, groupDepots, groupInitScore, groupCurTotScore, _
-        pntPuntPers1B, pntPuntEst1B, pntMaxPlaats, _
-        curFastVers, curFastStarts, curFastEstNrs, curFastNames, curFastActTimes, curFastActIsDis, curFastCorrPoints, nFastTimes, _
-        curDisVers, curDisStarts, curDisEstNrs, curDisNames, curDisActTimes, nDisTimes) Then
-        Exit Function
-      End If
-      
-      
-    End If
     
+    Dim groupCurProgNComp(0 To MAX_N_DLN_VERS) As Integer
+    Dim groupCurProgAllottedPointsHeader(0 To MAX_N_DLN_VERS) As Integer
+    
+    Dim curAllPointsNext(0 To 4 * PNT_MAX_MEETEL_PLAATS + 2 * PNT_MAX_MEETEL_BUFFER) As Integer
+    Dim curAllPointsIsFast(0 To 4 * PNT_MAX_MEETEL_PLAATS + 2 * PNT_MAX_MEETEL_BUFFER) As Boolean
+    Dim curAllPointsIdx(0 To 4 * PNT_MAX_MEETEL_PLAATS + 2 * PNT_MAX_MEETEL_BUFFER) As Integer
+    Dim nCurAllPoints As Integer
+    
+    
+    Dim curFastAllottedPoints(0 To 2 * PNT_MAX_MEETEL_PLAATS + PNT_MAX_MEETEL_BUFFER) As Long
+    Dim curDisAllottedPoints(0 To 2 * PNT_MAX_MEETEL_PLAATS + PNT_MAX_MEETEL_BUFFER) As Long
+    
+    
+    Dim cIdx As Integer
+    
+    For cIdx = 0 To curProgNCats - 1
+    
+         nCurAllPoints = 0
+    
+    
+         For i = 0 To nGroups - 1
+           groupCurProgNComp(i) = 0
+           groupCurProgAllottedPointsHeader(i) = -1
+         Next i
+         
+         'Now process the current programmanummer,
+         'allotting points
+         Dim curPosDisPos As Long
+         Dim curPosCounter As Long
+         curPosDisPos = 0
+         curPosCounter = 0
+         
+         Dim curPosCorrPoints As Long
+         curPosCorrPoints = -999
+         
+         For i = 0 To nFastTimes(cIdx) - 1
+           tpVName = curFastVers(cIdx, i)
+           tpCorrPoints = curFastCorrPoints(cIdx, i)
+           
+           Dim tpVLkpPos As Integer, tpVGroupIdx As Integer
+           tpVLkpPos = bSearchString(tpVName, nDlnVers, dlvNames)
+           
+           Dim blCountsForPos As Boolean
+           Dim blAwardPoints As Boolean
+           
+           blAwardPoints = True
+           If (tpVLkpPos < 0) Then
+             blAwardPoints = False
+           Else
+             tpVGroupIdx = dlvGroupIdx(tpVLkpPos)
+           End If
+           
+           If (blAwardPoints) Then
+             If (groupCurProgNComp(tpVGroupIdx) >= pntProgInf.nComp) Then
+               blAwardPoints = False
+             End If
+           End If
+           
+           blCountsForPos = True
+           If (Not pntVPOpts.blDoortellen) Then
+             If (Not blAwardPoints) Then
+               blCountsForPos = False
+             End If
+           End If
+           
+           If blAwardPoints And (Not blCountsForPos) Then
+             Err.Raise 1, , "Internal error"
+           End If
+           
+           If (blCountsForPos) Then
+             'need to update position
+             curPosCounter = curPosCounter + 1
+             If (tpCorrPoints > curPosCorrPoints) Then
+               curPosDisPos = curPosCounter
+               curPosCorrPoints = tpCorrPoints
+             End If
+             
+           End If
+           
+           'Initialize the allotted points.
+           curFastAllottedPoints(i) = 0
+           
+           If (blAwardPoints) Then
+             'check the number of points for this position and award them.
+             If (curPosDisPos < 0) Then
+               Err.Raise 1, , "Internal error"
+             End If
+             If (curPosDisPos <= pntMaxPlaats) Then
+               'Award
+               If (pntProgInf.isEstaf) Then
+                 curFastAllottedPoints(i) = pntPuntEst1B(curPosDisPos)
+               Else
+                 curFastAllottedPoints(i) = pntPuntPers1B(curPosDisPos)
+               End If
+             End If
+           End If
+             
+           If (curFastAllottedPoints(i) > 0) Then
+             'Need to update nComp and insert into list of alloted points
+             groupCurProgNComp(tpVGroupIdx) = groupCurProgNComp(tpVGroupIdx) + 1
+             
+             curAllPointsIdx(nCurAllPoints) = i
+             curAllPointsIsFast(nCurAllPoints) = True
+             curAllPointsNext(nCurAllPoints) = groupCurProgAllottedPointsHeader(tpVGroupIdx)
+             groupCurProgAllottedPointsHeader(tpVGroupIdx) = nCurAllPoints
+             
+             nCurAllPoints = nCurAllPoints + 1
+             
+           End If
+         Next i ' for i = 0 to nFastTimes - 1
+         
+         If (pntVPOpts.disMode = PNT_DSQ_MODE_FIX_PNTS) Then
+           For i = 0 To nDisTimes(cIdx) - 1
+             
+             tpVName = curDisVers(cIdx, i)
+             tpVLkpPos = bSearchString(tpVName, nDlnVers, dlvNames)
+             
+             blAwardPoints = True
+           
+             If (tpVLkpPos < 0) Then
+               blAwardPoints = False
+              Else
+                tpVGroupIdx = dlvGroupIdx(tpVLkpPos)
+             End If
+           
+             If (blAwardPoints) Then
+               If (groupCurProgNComp(tpVGroupIdx) >= pntProgInf.nComp) Then
+                 blAwardPoints = False
+               End If
+             End If
+             
+             'Initialize the allotted points.
+             curDisAllottedPoints(i) = 0
+            
+             If (blAwardPoints) Then
+               'check the number of points for this position and award them.
+               curDisAllottedPoints(i) = pntVPOpts.disFixedPoints
+             End If
+             
+             If (curDisAllottedPoints(i) > 0) Then
+                 'Need to update nComp and insert into list of alloted points
+                 groupCurProgNComp(tpVGroupIdx) = groupCurProgNComp(tpVGroupIdx) + 1
+                 
+                 curAllPointsIdx(nCurAllPoints) = i
+                 curAllPointsIsFast(nCurAllPoints) = False
+                 curAllPointsNext(nCurAllPoints) = groupCurProgAllottedPointsHeader(tpVGroupIdx)
+                 groupCurProgAllottedPointsHeader(tpVGroupIdx) = nCurAllPoints
+                 nCurAllPoints = nCurAllPoints + 1
+             End If
+           Next i
+         End If
+         
+        
+         
+         'All points have been allotted.
+         'Should now allocate the points to the verenigingen
+         'and update table.
+         
+         Dim prGroupItemPnts(0 To MAX_N_DLN_VERS - 1, 0 To MAX_N_MEETEL) As Long
+         Dim prGroupItems(0 To MAX_N_DLN_VERS - 1, 0 To MAX_N_MEETEL) As PNT_VER_OUTPUT_ITEM
+         Dim prGroupNItems(0 To MAX_N_DLN_VERS - 1) As Integer
+         
+         Dim j As Integer
+         
+         For i = 0 To nGroups - 1
+           prGroupNItems(i) = 0
+           Dim hd As Integer
+           hd = groupCurProgAllottedPointsHeader(i)
+           While (hd <> -1)
+             Dim itemIdx  As Integer
+             Dim itemIsFast As Boolean
+             itemIdx = curAllPointsIdx(hd)
+             itemIsFast = curAllPointsIsFast(hd)
+             
+             Dim pnts As Long
+             If (itemIsFast) Then
+               pnts = curFastAllottedPoints(itemIdx)
+             Else
+               pnts = curDisAllottedPoints(itemIdx)
+             End If
+             
+             'insert -pnts, since we want a descending order.
+             Dim oldNItems As Integer
+             oldNItems = prGroupNItems(i)
+             
+             insPos = insLong2d(i, -pnts, prGroupNItems, prGroupItemPnts)
+             
+             shiftRightItems2d i, insPos, 1, oldNItems, prGroupItems
+             
+             With prGroupItems(i, insPos)
+               If (itemIsFast) Then
+                 .pnt = curFastAllottedPoints(itemIdx)
+                 .actIsDis = curFastActIsDis(cIdx, itemIdx)
+                 .actTime = curFastActTimes(cIdx, itemIdx)
+                 
+                 If (pntProgInf.isEstaf) Then
+                   .estNr = curFastEstNrs(cIdx, itemIdx)
+                   
+                   est.Seek "=", curProgWedNr, curProgNr, curFastEstNrs(cIdx, itemIdx), curFastVers(cIdx, itemIdx)
+                   If (Not est.NoMatch) Then
+                     For j = 0 To pntProgInf.estafCnt - 1
+                       .estStarts(j) = Nz(est("EST_Startnummer_" & (j + 1)))
+                       .estNames(j) = Nz(est("EST_Naam_" & (j + 1)))
+                     Next j
+                   Else
+                     For j = 0 To pntProgInf.estafCnt - 1
+                       .estStarts(j) = ""
+                       .estNames(j) = ""
+                     Next j
+                   End If
+                 Else
+                   .start = curFastStarts(cIdx, itemIdx)
+                   .nm = curFastNames(cIdx, itemIdx)
+                 End If
+                 .pntIsVV = False
+                 .pntTime = .actTime
+                 
+                 .tvDis = 0
+                 .ver = curFastVers(cIdx, itemIdx)
+               Else
+                 .pnt = curDisAllottedPoints(itemIdx)
+                 .actIsDis = True
+                 .actTime = curDisActTimes(cIdx, itemIdx)
+                 If (pntProgInf.isEstaf) Then
+                   .estNr = curDisEstNrs(cIdx, itemIdx)
+                   est.Seek "=", curProgWedNr, curProgNr, curDisEstNrs(cIdx, itemIdx), curDisVers(cIdx, itemIdx)
+                   If (Not est.NoMatch) Then
+                     For j = 0 To pntProgInf.estafCnt - 1
+                       .estStarts(j) = Nz(est("EST_Startnummer_" & (j + 1)))
+                       .estNames(j) = Nz(est("EST_Naam_" & (j + 1)))
+                     Next j
+                   Else
+                     For j = 0 To pntProgInf.estafCnt - 1
+                       .estStarts(j) = ""
+                       .estNames(j) = ""
+                     Next j
+                   End If
+                   
+                   
+                 Else
+                   .start = curDisStarts(cIdx, itemIdx)
+                   .nm = curDisNames(cIdx, itemIdx)
+                 End If
+                 .pntIsVV = False
+                 .pntTime = .actTime
+                 
+                 .tvDis = 0
+                 .ver = curDisVers(cIdx, itemIdx)
+               End If
+             End With
+             
+             'See if we need to clip
+             If (prGroupNItems(i) > pntProgInf.nComp) Then
+               prGroupNItems(i) = pntProgInf.nComp
+             End If
+             
+             
+             hd = curAllPointsNext(hd)
+           Wend
+           
+           Dim subTot As Double, dummy As Double
+           If Not pntCalcVerUpdateSums(0, pntProgInf, groupCurTotScore(i), 0, subTot, groupCurTotScore(i), dummy, prGroupNItems(i), i, prGroupItems) Then
+             Exit Function
+           End If
+           
+           Dim pntCatIdx As Integer
+           Dim pntCategorie As String
+           Dim pntCatDes As String
+           
+           pntCatIdx = cIdx
+           pntCategorie = ""
+           pntCatDes = ""
+           If (curProgUseMCats) Then
+             pntCategorie = Trim(curProgCatInfo(pntCatIdx).cat)
+             pntCatDes = Trim(curProgCatInfo(pntCatIdx).bescat)
+           End If
+           
+           If Not pntCalcVerOutputItems(0, groupNames(i), groupDepots(i), groupInitScore(i), False, wedInf, pntInf, pntProgInf, pntCatIdx, pntCategorie, pntCatDes, subTot, groupCurTotScore(i), 0, prGroupNItems(i), i, prGroupItems, outp, lastUsedEstGUID, outpEst) Then
+             Exit Function
+           End If
+         Next i
+         
+     Next cIdx
   End If 'if should process prognr.
   rsProgs.MoveNext
 Loop
@@ -4820,7 +4508,7 @@ If Not pntCalcVer_ApplyRanking(wedInf, pntInf, False) Then
   Exit Function
 End If
 
-If Not pntCalcVer_OutputStats("__punten_stats", pntInf, lastWednr, lastProgNr, lastPntGrpABC, lastPntGrpCatIdx, maxNComp, pntCalcMode) Then
+If Not pntCalcVer_OutputStats("__punten_stats", pntInf, lastWednr, lastProgNr, lastPntCatIdx, maxNComp, pntCalcMode) Then
   Exit Function
 End If
   
@@ -4873,7 +4561,7 @@ End Function
 
 
 
-Public Function pntCalcVerOutputItems(ByVal pVVPnt As Double, ByVal vName As String, ByVal vDepot As String, ByVal vInitPoints As Double, ByVal isEstimate As Boolean, ByRef wedInf As WED_BASIC_INFO, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByRef prInf As PNT_PROG_INFO, ByVal pntGrpCatIdx As Integer, ByVal pntGrpCategorie As String, ByVal pntGrpABC As String, ByVal pntGrpDes As String, ByVal subTot As Double, ByVal newCumPnts As Double, ByVal newCumTvDis As Double, ByVal nItems As Integer, ByVal pntItemsFirstIdx As Integer, ByRef pntItems() As PNT_VER_OUTPUT_ITEM, ByRef rsOut As Recordset, ByRef lastUsedEstGUID As Long, ByRef rsOutEst As Recordset) As Boolean
+Public Function pntCalcVerOutputItems(ByVal pVVPnt As Double, ByVal vName As String, ByVal vDepot As String, ByVal vInitPoints As Double, ByVal isEstimate As Boolean, ByRef wedInf As WED_BASIC_INFO, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByRef prInf As PNT_PROG_INFO, ByVal pntCatIdx As Integer, ByVal pntCategorie As String, ByVal pntCatDes As String, ByVal subTot As Double, ByVal newCumPnts As Double, ByVal newCumTvDis As Double, ByVal nItems As Integer, ByVal pntItemsFirstIdx As Integer, ByRef pntItems() As PNT_VER_OUTPUT_ITEM, ByRef rsOut As Recordset, ByRef lastUsedEstGUID As Long, ByRef rsOutEst As Recordset) As Boolean
 On Error GoTo fout
 pntCalcVerOutputItems = False
 
@@ -4888,10 +4576,9 @@ pntCalcVerOutputItems = False
       rsOut("PT_Is_Estimate") = isEstimate
       rsOut("PT_Programmanummer") = hzn(prInf.prognr)
       
-      rsOut("PT_PNT_GRP_CatIdx") = pntGrpCatIdx
-      rsOut("PT_PNT_GRP_Categorie") = hzn(pntGrpCategorie)
-      rsOut("PT_PNT_GRP_ABC") = hzn(pntGrpABC)
-      rsOut("PT_PNT_GRP_Beschrijving") = hzn(pntGrpDes)
+      rsOut("PT_PNT_CatIdx") = pntCatIdx
+      rsOut("PT_PNT_Categorie") = hzn(pntCategorie)
+      rsOut("PT_PNT_BeschrijvingCategorie") = hzn(pntCatDes)
       
       rsOut("PT_Vereniging") = hzn(vName)
       rsOut("PT_Depot") = hzn(vDepot)
@@ -5447,7 +5134,7 @@ End If
 
   
 
-appCleanRS rs
+
 
 'Set rs = c
 
@@ -5494,7 +5181,7 @@ If (Not rs.EOF) Then
     
     pntOptions.blIncludeRVerTimes = Nz(rs("PTG_VER_PNT_IncludeRVerTimes"))
     
-    pntOptions.blUseProgSubOrdering = Nz(rs("PTG_VER_PNT_UseProgMCats"))
+    pntOptions.blUseProgMCats = Nz(rs("PTG_VER_PNT_UseProgMCats"))
     
     'correction: only allow includeRVerTimes if blDoortellen = true
     If Not pntOptions.blDoortellen Then
@@ -5507,7 +5194,7 @@ If (Not rs.EOF) Then
 End If
 
   
-appCleanRS rs
+
 
 
 'Set rs = c
@@ -5524,53 +5211,6 @@ Exit Function
 On Error GoTo 0
 Resume
 End Function
-
-
-Public Function pntVerMedLookup(ByVal wednr As Long, ByVal pntOrderID As Long, ByRef isFound As Boolean, ByRef pntOptions As PNT_VER_MED_OPTIONS) As Boolean
-On Error GoTo fout
-pntVerMedLookup = False
-
-isFound = False
-
-Dim rs As Recordset
-
-Dim sql As String
-
-  sql = "select * from dtgPuntentellingDefs where ptg_wedstrijdnummer = " & wednr & " and ptg_orderID = " & pntOrderID
-
-Set rs = CurrentDb().OpenRecordset(sql)
-
-rs.MoveFirst
-If (Not rs.EOF) Then
-
-    pntOptions.blUseTst = Nz(rs("PTG_VER_MED_UseTussenstand"))
-    pntOptions.blUseStdProgSettings = Nz(rs("PTG_VER_MED_UseStandardProgSettings"))
-    pntOptions.blRestrictVers = Nz(rs("PTG_VER_MED_RestrictVers"))
-    pntOptions.blGroupVers = Nz(rs("PTG_VER_MED_UseVerGroups"))
-    
-  isFound = True
-End If
-
-  
-appCleanRS rs
-
-
-'Set rs = c
-
-
-
-pntVerMedLookup = True
-Exit Function
-fout:
-If (Err = 3021) Then Resume Next
-MsgBox Err & " pntVerPntLookup" & vbCrLf & Error$, 16
-Exit Function
-'debug
-On Error GoTo 0
-Resume
-End Function
-
-
 
 
 Private Function pntVerSecGetDefault(ByVal wednr As Long, ByRef pntOptions As PNT_VER_SEC_OPTIONS) As Boolean
@@ -5686,7 +5326,7 @@ End If
 
 
 'Set rs = c
-appCleanRS rs
+
 
 
 pntVerSecLookup = True
@@ -5841,7 +5481,7 @@ Resume
 End Function
 
 
-Public Function pntGlobalPromptUser(ByVal wednr As Long, ByVal wedMeetNr As Long, ByVal blAllowMeet As Boolean, ByVal blAllowInd As Boolean, ByVal blAllowVerSec As Boolean, ByVal blAllowVerPnt As Boolean, ByVal blAllowVerMed As Boolean, ByRef isOK As Boolean, ByRef lkpWedNr As Long, ByRef lkpPntOrderID As Long) As Boolean
+Public Function pntGlobalPromptUser(ByVal wednr As Long, ByVal wedMeetNr As Long, ByVal blAllowMeet As Boolean, ByVal blAllowInd As Boolean, ByVal blAllowVerSec As Boolean, ByVal blAllowVerPnt As Boolean, ByRef isOK As Boolean, ByRef lkpWedNr As Long, ByRef lkpPntOrderID As Long) As Boolean
 On Error GoTo fout
 pntGlobalPromptUser = False
 
@@ -5862,7 +5502,6 @@ rs.AddNew
   rs("PNTO_OK") = False
   rs("PNTO_ARG_AllowVerSec") = blAllowVerSec
   rs("PNTO_ARG_AllowVerPnt") = blAllowVerPnt
-  rs("PNTO_ARG_AllowVerMed") = blAllowVerMed
   rs("PNTO_ARG_AllowInd") = blAllowInd
 rs.Update
 
@@ -5956,15 +5595,15 @@ pntProgs.MoveFirst
 Do Until pntProgs.EOF
 
   Dim tpWedNr As Long
-  Dim tpProgNr As String
+  Dim tpPrognr As String
   
   tpWedNr = Nz(pntProgs("PTPR_ProgWedstrijdnummer"))
-  tpProgNr = Nz(pntProgs("PTPR_ProgProgrammanummer"))
+  tpPrognr = Nz(pntProgs("PTPR_ProgProgrammanummer"))
   
-  progs.Seek "=", tpWedNr, tpProgNr
+  progs.Seek "=", tpWedNr, tpPrognr
   
   If progs.NoMatch Then
-    Err.Raise 1, , "Internal error. Could not find programmanr: ( " & tpWedNr & ", " & tpProgNr & ")"
+    Err.Raise 1, , "Internal error. Could not find programmanr: ( " & tpWedNr & ", " & tpPrognr & ")"
   End If
   
     
@@ -8009,220 +7648,4 @@ fout:
 If (Err = 3021) Then Resume Next
 MsgBox Err & " pntCalcVerSec_driver_lft_restriction" & vbCrLf & Error$, 16
 Exit Function
-End Function
-
-
-
-
-
-Public Function pntCalcVerMed(ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByVal pntCalcMode As Integer) As Boolean
-On Error GoTo fout
-pntCalcVerMed = False
-
-
-
-
-Dim wedInf As WED_BASIC_INFO
-
-If Not pntCalcPrepareGlobal(pntInf, wedInf) Then
-  Exit Function
-End If
-
-
-
-
-
-Dim pntVerMedOpts As PNT_VER_MED_OPTIONS
-Dim isFnd As Boolean
-
-If Not pntVerMedLookup(pntInf.wednr, pntInf.orderID, isFnd, pntVerMedOpts) Then
-  Exit Function
-End If
-
-If Not isFnd Then
-  Err.Raise 1, , "Kon puntentelling: " & pntInf.wednr & " , " & pntInf.orderID & " )  niet vinden"
-End If
-
-
-
-
-'Need to calculate estafettes.
-If Not analyzeEstafs(Not pntInf.blEntireMeet, wedInf.wednr, wedInf.meetMainNr, "~AN_Estafs") Then
-  Exit Function
-End If
-
-If Not uitslagTransferSettings(wedInf.wednr, pntInf.blEntireMeet) Then
-  Exit Function
-End If
-
-'Need to calculate rankings.
-If Not uitslagRanglijsten(wedInf.wednr, pntInf.blEntireMeet, pntCalcMode) Then
-  Exit Function
-End If
-
-'Need to calculate puntentellingen.
-If Not uitslagPunten(wedInf.wednr, pntInf.blEntireMeet, pntCalcMode) Then
-  Exit Function
-End If
-
-
-
-
-If Not pntInitWorkFields(pntInf, wedInf, pntVerMedOpts.blUseStdProgSettings, False) Then
-  Exit Function
-End If
-
-
-If Not pntCalcVerMed_perform(wedInf, pntInf, pntVerMedOpts, pntCalcMode) Then
-  Exit Function
-End If
-
-pntCalcVerMed = True
-Exit Function
-fout:
-MsgBox Err & " pntCalcVerMed" & vbCrLf & Error$, 16
-Exit Function
-End Function
-
-
-
-
-Private Function pntCalcVerMed_perform(ByRef wedInf As WED_BASIC_INFO, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByRef pntVerMedOpts As PNT_VER_MED_OPTIONS, ByVal pntCalcMode As Integer) As Boolean
-On Error GoTo fout
-pntCalcVerMed_perform = False
-
-'The strategy will be to construct a verPnt competition, in which gold medals get 1 million points,
-'silver medals get 1000 points and bronze medals get 1 point.
-
-
-
-'Initialize prog settings for the verPnt telling
-Dim rs As Recordset
-Set rs = CurrentDb().OpenRecordset("select * from dtgPuntentellingProgs where ptpr_wedstrijdnummer + " & pntInf.wednr & " and ptpr_orderid = " & pntInf.orderID)
-
-rs.MoveFirst
-Do Until rs.EOF
-  Dim tpInclude As Boolean
-  tpInclude = Nz(rs("PTPR_WORK_MED_IncludeProg"), False)
-  
-  rs.Edit
-    If (tpInclude) Then
-      rs("PTPR_WORK_NComp") = MAX_N_MEETEL
-    Else
-      rs("PTPR_WORK_NComp") = 0
-    End If
-  rs.Update
-  
-  rs.MoveNext
-Loop
-
-appCleanRS rs
-
-
-
-Dim sql As String
-
-DoCmd.SetWarnings False
-
-'Initialize point settings for the verPnt telling
-sql = "delete * from dtgPuntentellingPlaatsPunt where ptp_wedstrijdnummer = " & pntInf.wednr & " and ptp_orderID = " & pntInf.orderID
-DoCmd.RunSQL sql
-
-Set rs = CurrentDb().OpenRecordset("dtgPuntentellingPlaatsPunt")
-
-'gold medal
-rs.AddNew
-  rs("PTP_Wedstrijdnummer") = pntInf.wednr
-  rs("PTP_OrderID") = pntInf.orderID
-  rs("PTP_Plaats") = 1
-  rs("PTP_Punten") = 1000000
-  rs("PTP_PuntenEstaf") = 1000000
-rs.Update
-
-'silver medal
-rs.AddNew
-  rs("PTP_Wedstrijdnummer") = pntInf.wednr
-  rs("PTP_OrderID") = pntInf.orderID
-  rs("PTP_Plaats") = 2
-  rs("PTP_Punten") = 1000
-  rs("PTP_PuntenEstaf") = 1000
-rs.Update
-
-'bronze medal
-rs.AddNew
-  rs("PTP_Wedstrijdnummer") = pntInf.wednr
-  rs("PTP_OrderID") = pntInf.orderID
-  rs("PTP_Plaats") = 3
-  rs("PTP_Punten") = 1
-  rs("PTP_PuntenEstaf") = 1
-rs.Update
-
-appCleanRS rs
-
-'initialize initial values for vers
-sql = "update dtgPuntentellingTussenstandVer set ptt_punten = 1000000*nz([ptt_n_gold], 0) + 1000*nz([ptt_n_silver], 0) + nz([ptt_n_bronze],0) " & _
-  "where ptt_wedstrijdnummer = " & pntInf.wednr & " and ptt_orderID = " & pntInf.orderID
-DoCmd.RunSQL sql
-
-
-'Initialize initial value for vergroups
-sql = "update dtgPuntentellingVerGroups set ptvg_initValue = 1000000*nz([ptvg_init_n_gold], 0) + 1000*nz([ptvg_init_n_silver], 0) + nz([ptvg_init_n_bronze],0) " & _
-  "where ptvg_wedstrijdnummer = " & pntInf.wednr & " and ptvg_orderID = " & pntInf.orderID
-DoCmd.RunSQL sql
-
-DoCmd.SetWarnings True
-
-
-
-Dim pntInfNew As PNT_GLOBAL_BASIC_INFO
-pntInfNew = pntInf
-pntInfNew.Type = PNT_TYPE_VER_PNT
-
-Dim pntVPOptsNew As PNT_VER_PNT_OPTIONS
-
-pntVPOptsNew.blDisFixedPointRequireValidTime = False
-
-'Need to include all times
-pntVPOptsNew.blDoortellen = True
-
-pntVPOptsNew.blGroupVers = pntVerMedOpts.blGroupVers
-
-'Need to include all times
-pntVPOptsNew.blIncludeRVerTimes = True
-
-pntVPOptsNew.blRestrictVers = pntVerMedOpts.blRestrictVers
-pntVPOptsNew.blUseProgSubOrdering = True
-
-'Should be irrelevant:
-pntVPOptsNew.blUseStdProgSettings = False
-
-pntVPOptsNew.blUseStdTst = False
-pntVPOptsNew.blUseTst = pntVerMedOpts.blUseTst
-
-'block disqualified swimmers
-pntVPOptsNew.disFixedPoints = 0
-pntVPOptsNew.disMode = PNT_DSQ_MODE_BLOCK
-
-
-
-If Not pntCalcVerPnt_Perform(wedInf, pntInfNew, pntVPOptsNew, pntCalcMode) Then
-  Exit Function
-End If
-
-
-
-
-
-pntCalcVerMed_perform = True
-Exit Function
-
-
-fout:
-If (Err = 3021) Then Resume Next
-
-DoCmd.SetWarnings True
-
-MsgBox Err & " pntCalcVerMed_perform" & vbCrLf & Error$, 16
-Exit Function
-
 End Function

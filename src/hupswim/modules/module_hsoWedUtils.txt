@@ -2061,8 +2061,8 @@ If (Not isFnd) Then
 End If
 
 
-'mod 25 jun 2009: include all possible entries for the entire meet.
-If Not insBuildCandidateTable("~InsByName", False, True, "", wedInf, False, True, False, False) Then
+
+If Not insBuildCandidateTable("~InsByName", False, False, "", wedInf, False, True, False, False) Then
   Exit Function
 End If
 
@@ -2097,21 +2097,21 @@ Do Until rs.EOF
   If (tpWasPresent Or tpIsPresent) Then
   
     Dim tpWedNr As Long
-    Dim tpProgNr As String
+    Dim tpPrognr As String
     Dim tpStart As String
     tpWedNr = Nz(rs("PC_Wedstrijdnummer"))
-    tpProgNr = Nz(rs("PC_Programmanummer"))
+    tpPrognr = Nz(rs("PC_Programmanummer"))
     tpStart = Nz(rs("PC_Startnummer"))
   
     If (Not tpWasPresent) Then
       ins.AddNew
         ins(FNM_DE_PERS_WEDNR) = tpWedNr
-        ins(FNM_DE_PERS_PROG) = hzn(tpProgNr)
+        ins(FNM_DE_PERS_PROG) = hzn(tpPrognr)
         ins(FNM_DE_PERS_STARTNR) = hzn(tpStart)
       ins.Update
     End If
     
-    ins.Seek "=", tpWedNr, tpProgNr, tpStart
+    ins.Seek "=", tpWedNr, tpPrognr, tpStart
     If ins.NoMatch Then
       Err.Raise 1, , "Internal error"
     End If
