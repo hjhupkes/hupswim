@@ -494,7 +494,7 @@ Exit Function
 End Function
 
 
-Public Function pntCalcVer_OutputStats(ByVal tbNameStats As String, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByVal lastWednr As Long, ByVal lastProgNr As String, ByVal lastPntGrpABC As String, ByVal lastPntGrpCatIdx As Long, ByVal maxNComp As Long, ByVal pntCalcMode As Integer) As Boolean
+Public Function pntCalcVer_OutputStats(ByVal tbNameStats As String, ByRef pntInf As PNT_GLOBAL_BASIC_INFO, ByVal lastWedNr As Long, ByVal lastProgNr As String, ByVal lastPntGrpABC As String, ByVal lastPntGrpCatIdx As Long, ByVal maxNComp As Long, ByVal pntCalcMode As Integer) As Boolean
 On Error GoTo fout
 pntCalcVer_OutputStats = False
 
@@ -504,7 +504,7 @@ rs.AddNew
   rs("PT_PNT_Wedstrijdnummer") = pntInf.wednr
   rs("PT_PNT_OrderID") = pntInf.orderID
   rs("PT_PNT_CalcMode") = pntCalcMode
-  rs("PT_LAST_Wedstrijdnummer") = lastWednr
+  rs("PT_LAST_Wedstrijdnummer") = lastWedNr
   rs("PT_Last_Programmanummer") = hzn(lastProgNr)
   rs("PT_Last_Pnt_GRP_ABC") = hzn(lastPntGrpABC)
   rs("PT_Last_Pnt_GRP_CatIdx") = lastPntGrpCatIdx
@@ -1048,12 +1048,12 @@ End If
 
 
 Dim maxNComp As Long
-Dim lastWednr As Long
+Dim lastWedNr As Long
 Dim lastProgNr As String
 Dim lastPntCatIdx As Integer
 
 maxNComp = 0
-lastWednr = -1
+lastWedNr = -1
 lastProgNr = ""
 lastPntCatIdx = -1
 
@@ -1134,7 +1134,7 @@ Do Until rsProgs.EOF
       maxNComp = pntProgInf.nComp
     End If
     
-    lastWednr = curProgWedNr
+    lastWedNr = curProgWedNr
     lastProgNr = curProgNr
     lastPntCatIdx = 0
     
@@ -1567,7 +1567,7 @@ End If
 Dim tbNameStats As String
 tbNameStats = tbName & "_Stats"
 
-If Not pntCalcVer_OutputStats(tbNameStats, pntInf, lastWednr, lastProgNr, "", 0, maxNComp, pntCalcMode) Then
+If Not pntCalcVer_OutputStats(tbNameStats, pntInf, lastWedNr, lastProgNr, "", 0, maxNComp, pntCalcMode) Then
   Exit Function
 End If
 
@@ -4228,13 +4228,13 @@ If Not pntCalcVer_InitPhase("__punten", wedInf, pntInf, outp, outpEst, est, nGro
 End If
 
 Dim maxNComp As Long
-Dim lastWednr As Long
+Dim lastWedNr As Long
 Dim lastProgNr As String
 Dim lastPntGrpCatIdx As Integer
 Dim lastPntGrpABC As String
 
 maxNComp = 0
-lastWednr = -1
+lastWedNr = -1
 lastProgNr = ""
 lastPntGrpCatIdx = -1
 lastPntGrpABC = ""
@@ -4439,7 +4439,7 @@ Do Until rsProgs.EOF
           For i = 0 To curProgNCats - 1
             If (nFastTimes(i) > 0) Or (nDisTimes(i) > 0) Then
               lastProgNr = curProgNr
-              lastWednr = curProgWedNr
+              lastWedNr = curProgWedNr
               lastPntGrpCatIdx = i
               lastPntGrpABC = curABC
               
@@ -4773,12 +4773,12 @@ Do Until rsProgs.EOF
     
     appCleanRS rsTd
     
-    If (lastWednr <> curProgWedNr) Or (lastProgNr <> curProgNr) Then
+    If (lastWedNr <> curProgWedNr) Or (lastProgNr <> curProgNr) Then
       'output a single item for this prog
       nFastTimes(0) = 0
       nDisTimes(0) = 0
       
-      lastWednr = curProgWedNr
+      lastWedNr = curProgWedNr
       lastProgNr = curProgNr
       lastPntGrpABC = ""
       lastPntGrpCatIdx = 0
@@ -4820,7 +4820,7 @@ If Not pntCalcVer_ApplyRanking(wedInf, pntInf, False) Then
   Exit Function
 End If
 
-If Not pntCalcVer_OutputStats("__punten_stats", pntInf, lastWednr, lastProgNr, lastPntGrpABC, lastPntGrpCatIdx, maxNComp, pntCalcMode) Then
+If Not pntCalcVer_OutputStats("__punten_stats", pntInf, lastWedNr, lastProgNr, lastPntGrpABC, lastPntGrpCatIdx, maxNComp, pntCalcMode) Then
   Exit Function
 End If
   

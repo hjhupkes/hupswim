@@ -395,6 +395,8 @@ Attribute VB_Exposed = False
 Option Explicit
 Option Compare Database   'Use database order for string comparisons
 
+
+Private blIsEntireMeet As Boolean
 Private blShowKosten As Boolean
 Private wedInf As WED_BASIC_INFO
 
@@ -404,7 +406,7 @@ Private Function initReport() As Boolean
 On Error GoTo fout
 initReport = False
 
-
+blIsEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
 
 blShowKosten = Nz(DLookup("FO_ShowKosten", "gFaktuurOptions"))
 
@@ -472,5 +474,15 @@ End Sub
 
 Private Sub scPageFooter_Format(Cancel As Integer, FormatCount As Integer)
 On Error Resume Next
-Me.fldFooter = wedInf.des & ", " & rxpFormatDateNL(wedInf.date) & " te " & wedInf.Plaats
+
+If (blIsEntireMeet) Then
+  If (wedInf.meetMinDate <> wedInf.meetMaxDate) Then
+    Me.fldFooter = wedInf.meetDes & ", " & fmtDateShort(wedInf.meetMinDate) & " t/m " & fmtDateShort(wedInf.meetMaxDate) & " te " & wedInf.Plaats
+  Else
+    Me.fldFooter = wedInf.meetDes & ", " & rxpFormatDateNL(wedInf.date) & " te " & wedInf.Plaats
+  End If
+Else
+  Me.fldFooter = wedInf.des & ", " & rxpFormatDateNL(wedInf.date) & " te " & wedInf.Plaats
+End If
+
 End Sub

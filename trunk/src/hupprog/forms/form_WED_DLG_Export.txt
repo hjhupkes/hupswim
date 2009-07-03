@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-2117588856
+Checksum =520508015
 Begin Form
     PopUp = NotDefault
     Modal = NotDefault
@@ -157,6 +157,7 @@ Begin Form
                     Top =1157
                     TabIndex =1
                     Name ="blMeet"
+                    AfterUpdate ="[Event Procedure]"
                     DefaultValue ="True"
                     Begin
                         Begin Label
@@ -381,22 +382,49 @@ Else
 End If
 suggestFExt = lxfExt
 End Function
-Private Function suggestFName(blDlns As Boolean, blTd As Boolean, blLXF As Boolean, blWas As Boolean) As String
+Private Function suggestFName(ByVal blEntireMeetLX As Boolean, blDlns As Boolean, blTd As Boolean, blLXF As Boolean, blWas As Boolean) As String
 On Error GoTo fout
 suggestFName = ""
 
 
 Dim fnPrefix As String
 
+
+
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+
+If Not wedLookup(waarde(), isFnd, wedInf) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Exit Function
+End If
+
+
+Dim dActDate As Date, sActDes As String
+
+If (blEntireMeetLX And (Not blWas)) Then
+  dActDate = wedInf.meetMinDate
+  sActDes = wedInf.meetDes
+Else
+  dActDate = wedInf.date
+  sActDes = wedInf.des
+End If
+
+
+
   
   'lxfName = dbdir_op() & "\" & fnPrefix & Format(wed_datum(), "dd-mm-yyyy") & ".lef"
 
 If (blTd Or blWas) Then
-  fnPrefix = Format(Nz(wed_datum(), #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(Nz(wed_plaats())) & "-" & GoedTekens(Nz(wed_beschrijving())) & "_uitslag"
+  fnPrefix = Format(Nz(dActDate, #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(wedInf.Plaats) & "-" & GoedTekens(sActDes) & "_uitslag"
 ElseIf (blDlns) Then
-  fnPrefix = Format(Nz(wed_datum(), #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(Nz(wed_plaats())) & "-" & GoedTekens(Nz(wed_beschrijving())) & "_deelnemers"
+  fnPrefix = Format(Nz(dActDate, #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(wedInf.Plaats) & "-" & GoedTekens(sActDes) & "_deelnemers"
 Else
-  fnPrefix = Format(Nz(wed_datum(), #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(Nz(wed_plaats())) & "-" & GoedTekens(Nz(wed_beschrijving())) & "_programma"
+  fnPrefix = Format(Nz(dActDate, #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(wedInf.Plaats) & "-" & GoedTekens(sActDes) & "_programma"
 End If
 
 
@@ -431,6 +459,11 @@ updateFName
 End Sub
 
 Private Sub blLXF_AfterUpdate()
+On Error Resume Next
+updateFName
+End Sub
+
+Private Sub blMeet_AfterUpdate()
 On Error Resume Next
 updateFName
 End Sub
@@ -542,18 +575,21 @@ Dim blDlns As Boolean
   Dim blTd As Boolean
   Dim blLXF As Boolean
   Dim blWas As Boolean
+  Dim blEntireMeetLX As Boolean
+  
   
   blDlns = Nz(Me.blLenDeelnemers)
   blTd = Nz(Me.blLenTijden)
   blLXF = Nz(Me.blLXF)
+  blEntireMeetLX = Nz(Me.blMeet)
   
   blWas = Nz(Me.mode) <> 20
 
 If Not DirectoryExists(extractFilePath(expFName)) Then
   If Not DirectoryExists(dbdir_op()) Then
-    expFName = "c:\" & extractFileName(suggestFName(blDlns, blTd, blLXF, blWas))
+    expFName = "c:\" & extractFileName(suggestFName(blEntireMeetLX, blDlns, blTd, blLXF, blWas))
   Else
-    expFName = directory_goedmaak(dbdir_op()) & extractFileName(suggestFName(blDlns, blTd, blLXF, blWas))
+    expFName = directory_goedmaak(dbdir_op()) & extractFileName(suggestFName(blEntireMeetLX, blDlns, blTd, blLXF, blWas))
   End If
 End If
   
@@ -620,13 +656,15 @@ Dim blDlns As Boolean
   Dim blTd As Boolean
   Dim blLXF As Boolean
   Dim blWas As Boolean
+  Dim blEntireMeetLX As Boolean
   
   blDlns = Nz(Me.blLenDeelnemers)
   blTd = Nz(Me.blLenTijden)
   blLXF = Nz(Me.blLXF)
+  blEntireMeetLX = Nz(Me.blMeet)
   
   blWas = Nz(Me.mode) <> 20
   
-  fName = suggestFName(blDlns, blTd, blLXF, blWas)
+  fName = suggestFName(blEntireMeetLX, blDlns, blTd, blLXF, blWas)
 
 End Sub

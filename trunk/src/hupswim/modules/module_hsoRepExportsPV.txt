@@ -2223,24 +2223,60 @@ Dim strAfschrijven As String
 Dim strVerzamelen As String
 
 
+Dim blEntireMeet As Boolean
+
+Dim firstWedNr As Long, lastWedNr As Long
+firstWedNr = Nz(DMin("op_Wedstrijdnummer", "[~opstelling]"))
+lastWedNr = Nz(DMax("op_Wedstrijdnummer", "[~opstelling]"))
+
+blEntireMeet = False
+If (firstWedNr <> lastWedNr) Then
+  blEntireMeet = True
+End If
+
+Dim meetWedInf As WED_BASIC_INFO
+If (blEntireMeet) Then
+  Dim tpFnd As Boolean
+  If Not wedLookup(firstWedNr, tpFnd, meetWedInf) Then
+    Exit Function
+  End If
+  If (Not tpFnd) Then
+    Err.Raise 1, , "Internal error"
+  End If
+End If
+
+
+
 
 Set rs = CurrentDb().OpenRecordset("select * from [~Opstelling] order by op_wedstrijdnummer")
 
 rs.MoveFirst
-  strBeschrijving = Nz(rs("OP_WedBeschrijving"))
+  If (blEntireMeet) Then
+    strBeschrijving = meetWedInf.meetDes
+    If (meetWedInf.meetMinDate <> meetWedInf.meetMaxDate) Then
+      strDatumNL = rxpFormatDateNL(meetWedInf.meetMinDate) & " t/m " & rxpFormatDateNL(meetWedInf.meetMaxDate)
+    Else
+      strDatumNL = rxpFormatDateNL(meetWedInf.date)
+    End If
+    strDatumLng = fmtDateLong(meetWedInf.date)
+  Else
+    strBeschrijving = Nz(rs("OP_WedBeschrijving"))
+    
+    Dim tpWedDate As Date
+    tpWedDate = Nz(rs("OP_WedDatum"))
+  
+    strDatumNL = ""
+    strDatumLng = ""
+    If (lenDateIsValid(tpWedDate)) Then
+      strDatumNL = Format(tpWedDate, "dd\-mm\-yyyy")
+      strDatumLng = fmtDateLong(tpWedDate)
+    End If
+  End If
+  
+  
   strZwembad = Nz(rs("OP_WedZwembad"))
   strAdres = Nz(rs("OP_WedAdres"))
   strPlaats = Nz(rs("OP_WedPlaats"))
-
-  Dim tpWedDate As Date
-  tpWedDate = Nz(rs("OP_WedDatum"))
-
-  strDatumNL = ""
-  strDatumLng = ""
-  If (lenDateIsValid(tpWedDate)) Then
-    strDatumNL = Format(tpWedDate, "dd\-mm\-yyyy")
-    strDatumLng = fmtDateLong(tpWedDate)
-  End If
 
   strAanvang = ""
   If Not IsNull(rs("OP_WedAanvang")) Then
@@ -2363,7 +2399,11 @@ If Not isFnd Then
   Err.Raise 1, , "internal error"
 End If
 
+Dim blIsEntireMeet As Boolean
+blIsEntireMeet = False
+
 If (wedMin <> wedMax) Then
+  blIsEntireMeet = True
   If Not wedLookup(wedMax, isFnd, lastWedInf) Then
     Exit Function
   End If
@@ -2375,13 +2415,32 @@ Else
 End If
 
 
-If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_FIRST_WED_DATE_NL, Format(firstWedInf.date, "dd\-mm\-yyyy")) Then
+Dim sFirstDateDes As String
+Dim sFirstWedDes As String
+
+If (blIsEntireMeet) Then
+  sFirstWedDes = firstWedInf.meetDes
+  If (firstWedInf.meetMinDate <> firstWedInf.meetMaxDate) Then
+    sFirstDateDes = rxpFormatDateNL(firstWedInf.meetMinDate) & " t/m " & rxpFormatDateNL(firstWedInf.meetMaxDate)
+  Else
+    sFirstDateDes = rxpFormatDateNL(firstWedInf.date)
+  End If
+Else
+  sFirstDateDes = rxpFormatDateNL(firstWedInf.date)
+  sFirstWedDes = firstWedInf.des
+End If
+
+
+If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_FIRST_WED_DATE_NL, sFirstDateDes) Then
   Exit Function
 End If
+If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_FIRST_WED_DES, sFirstWedDes) Then
+  Exit Function
+End If
+
+
+
 If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_LAST_WED_DATE_NL, Format(lastWedInf.date, "dd\-mm\-yyyy")) Then
-  Exit Function
-End If
-If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_FIRST_WED_DES, firstWedInf.des) Then
   Exit Function
 End If
 If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_FIRST_WED_BN, firstWedInf.baan) Then

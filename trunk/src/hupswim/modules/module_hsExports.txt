@@ -343,7 +343,13 @@ End If
 Select Case rptName
   Case REP_AAN, REP_AAN_SMALL
     If Not blUseSuppFileName Then
-      fName = dbdir() & "\" & wedSuggestBaseFName() & "_aanschrijving" & fExt
+      Dim blIsPeriod As Boolean
+      blIsPeriod = Nz(DLookup("OP_IsPeriod", "[~opstelling_stats]"), False)
+      If (blIsPeriod) Then
+        fName = dbdir() & "\" & rxpFormatDateInt(Now()) & "=periode_aanschrijving" & fExt
+      Else
+        fName = dbdir() & "\" & wedSuggestBaseFName() & "_aanschrijving" & fExt
+      End If
     End If
   Case REP_AAN_PER_DEELN
     If Not blUseSuppFileName Then
@@ -351,19 +357,32 @@ Select Case rptName
     End If
   Case REP_INS, REP_INS_SMALL
     If Not blUseSuppFileName Then
-      fName = dbdir() & "\" & wedSuggestBaseFName() & "_inschrijving" & fExt
+      fName = dbdir() & "\" & wedSuggestBaseFNameVer() & "_inschrijving" & fExt
     End If
   Case REP_INS_MEET
     If Not blUseSuppFileName Then
-      fName = dbdir() & "\" & wedSuggestBaseFName() & "_inschrijving" & fExt
+      fName = dbdir() & "\" & wedSuggestBaseFNameVerMeet() & "_inschrijving" & fExt
     End If
   Case REP_UIT
     If Not blUseSuppFileName Then
-      fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslag" & fExt
+      Dim blEntireMeet As Boolean
+      blEntireMeet = (Nz(DMin("TY_Wedstrijdnummer", "[~vUitslagMain]")) <> Nz(DMax("TY_Wedstrijdnummer", "[~vUitslagMain]")))
+      
+      If (blEntireMeet) Then
+        fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & "_uitslag" & fExt
+      Else
+        fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslag" & fExt
+      End If
     End If
   Case REP_UIT_PP
     If Not blUseSuppFileName Then
-      fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslaglijst" & fExt
+      blEntireMeet = (Nz(DMin("TY_Wedstrijdnummer", "[~vUitslagMain]")) <> Nz(DMax("TY_Wedstrijdnummer", "[~vUitslagMain]")))
+      
+      If (blEntireMeet) Then
+        fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & "_uitslaglijst" & fExt
+      Else
+        fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslaglijst" & fExt
+      End If
     End If
   Case REP_REC_HLD_TAB, REP_REC_HLD_TAB_L
     If Not blUseSuppFileName Then
@@ -416,6 +435,30 @@ Select Case rptName
       fName = dbdir() & "\" & wedSuggestBaseFName() & "_puntentelling" & fExt
     End If
     blIsDefaultHandler = True
+  Case REP_FAC_OVZ
+    If Not blUseSuppFileName Then
+      blEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
+    
+      If (blEntireMeet) Then
+        fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & "_aantal_starts" & fExt
+      Else
+        fName = dbdir() & "\" & wedSuggestBaseFName() & "_aantal_starts" & fExt
+      End If
+    End If
+    blIsDefaultHandler = True
+  Case REP_FAC_IND, REP_FAC_IND_SMALL
+    If Not blUseSuppFileName Then
+      blEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
+      
+      If (blEntireMeet) Then
+        fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & "_factuur" & fExt
+      Else
+        fName = dbdir() & "\" & wedSuggestBaseFName() & "_factuur" & fExt
+      End If
+    End If
+    blIsDefaultHandler = True
+    
+    
   Case Else
     isHandled = False
 End Select

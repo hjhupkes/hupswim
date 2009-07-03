@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1104065703
+Checksum =2080591431
 Begin Form
     RecordSelectors = NotDefault
     NavigationButtons = NotDefault
@@ -15,9 +15,9 @@ Begin Form
     DatasheetFontHeight =10
     ItemSuffix =46
     Left =510
-    Top =210
-    Right =13245
-    Bottom =8715
+    Top =990
+    Right =11355
+    Bottom =7740
     DatasheetGridlinesColor =12632256
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
@@ -1327,8 +1327,8 @@ Begin Form
                                 Begin CommandButton
                                     OverlapFlags =247
                                     TextFontFamily =2
-                                    Left =570
-                                    Top =3450
+                                    Left =566
+                                    Top =3741
                                     Height =358
                                     FontSize =10
                                     FontWeight =700
@@ -1343,8 +1343,8 @@ Begin Form
                                 End
                                 Begin Label
                                     OverlapFlags =247
-                                    Left =2340
-                                    Top =3510
+                                    Left =2336
+                                    Top =3801
                                     Width =7365
                                     Height =210
                                     Name ="Label72"
@@ -1353,6 +1353,33 @@ Begin Form
                                     FontName ="MS Sans Serif"
                                     GUID = Begin
                                         0x5bfeb0f3767dec479e4c838076ae5abe
+                                    End
+                                End
+                                Begin CheckBox
+                                    SpecialEffect =0
+                                    OverlapFlags =247
+                                    Left =585
+                                    Top =3151
+                                    Name ="blShowFee"
+                                    DefaultValue ="True"
+                                    GUID = Begin
+                                        0xca1edb5dd8f1d74191da22c29c3261db
+                                    End
+                                    Begin
+                                        Begin Label
+                                            BackStyle =1
+                                            OverlapFlags =247
+                                            Left =1134
+                                            Top =3118
+                                            Width =3720
+                                            Height =240
+                                            Name ="Label485"
+                                            Caption ="Te betalen bedragen tonen op overzicht / facturen "
+                                            FontName ="MS Sans Serif"
+                                            GUID = Begin
+                                                0x62ff72e05337e34aac7b09b82412b328
+                                            End
+                                        End
                                     End
                                 End
                             End
@@ -2432,11 +2459,14 @@ Select Case chc
     Dim optFacEntireMeet As Boolean
     optFacEntireMeet = Nz(Me.blFacEntireMeet)
     
+    Dim optShowFee As Boolean
+    optShowFee = Nz(Me.blShowFee)
+    
     If Not facCalcFees(waarde(), optFacEntireMeet) Then
       Exit Function
     End If
     
-    If Not rxpSetFaktuurOptions(False, "", dbDeelnemerLijstStartsTonen, True) Then
+    If Not rxpSetFaktuurOptions(False, "", dbDeelnemerLijstStartsTonen, optShowFee) Then
       Exit Function
     End If
      
@@ -2445,11 +2475,13 @@ Select Case chc
   
     optFacEntireMeet = Nz(Me.blFacEntireMeet)
     
+    optShowFee = Nz(Me.blShowFee)
+    
     If Not facCalcFees(waarde(), optFacEntireMeet) Then
       Exit Function
     End If
     
-    If Not rxpSetFaktuurOptions(False, "", dbDeelnemerLijstStartsTonen, True) Then
+    If Not rxpSetFaktuurOptions(False, "", dbDeelnemerLijstStartsTonen, optShowFee) Then
       Exit Function
     End If
      

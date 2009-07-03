@@ -1367,6 +1367,8 @@ Private strAf1 As String, strAf2 As String, strAf3 As String, strAf4 As String
 
 Private rsTST As Recordset
 
+Private blEntireMeet As Boolean
+
 
 Private Function initReport() As Boolean
 On Error GoTo fout
@@ -1386,8 +1388,14 @@ If Not rs.EOF Then
   blUseFourTst = True
 End If
 
-Dim firstWedNr As Long
+Dim firstWedNr As Long, lastWedNr As Long
 firstWedNr = Nz(DMin("TY_Wedstrijdnummer", "[~vUitslagMain]"))
+lastWedNr = Nz(DMax("TY_Wedstrijdnummer", "[~vUitslagMain]"))
+
+blEntireMeet = False
+If (firstWedNr <> lastWedNr) Then
+  blEntireMeet = True
+End If
 
 If (firstWedNr <= 0) Then
   Err.Raise 1, , "Geen tijden gevonden"
@@ -1800,6 +1808,15 @@ End Sub
 
 Private Sub scRepHeader_Format(Cancel As Integer, FormatCount As Integer)
 On Error Resume Next
-Me.fldHeader = "Uitslag " & firstWedInfo.des
-Me.fldHeaderDatePlaats = Format(firstWedInfo.date, "dd\-mm\-yyyy") & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+If (blEntireMeet) Then
+  Me.fldHeader = "Uitslag " & firstWedInfo.meetDes
+  If (firstWedInfo.meetMinDate <> firstWedInfo.meetMaxDate) Then
+    Me.fldHeaderDatePlaats = rxpFormatDateNL(firstWedInfo.meetMinDate) & " t/m " & rxpFormatDateNL(firstWedInfo.meetMaxDate) & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+  Else
+    Me.fldHeaderDatePlaats = rxpFormatDateNL(firstWedInfo.date) & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+  End If
+Else
+  Me.fldHeader = "Uitslag " & firstWedInfo.des
+  Me.fldHeaderDatePlaats = rxpFormatDateNL(firstWedInfo.date) & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+End If
 End Sub

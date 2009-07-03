@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1315437949
+Checksum =1311010500
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -36,10 +36,10 @@ Begin Report
         0xe230000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000180000000000102710271027 ,
-        0x0000102700000000000000008800c40200000000000000000100000000000000 ,
-        0x000000000000000003000000000000000000100072bf030072bf030000000000 ,
+        0x0000102700000000000000000000c40200000000000000000000000000000000 ,
+        0x00000000000000000300000000000000000010005c4b03006843040000000000 ,
         0x000000000000010000000000000000000000000000000000e7b14b4c03000000 ,
-        0x05000000ff000000000000000000000000000000000000000000000000000000 ,
+        0x05000400ff000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
@@ -596,6 +596,8 @@ Private afstanden(10) As Integer
 Private cntAf As Integer
 Private lleft As Double
 
+Private blEntireMeet As Boolean
+
 Private Function initReport() As Boolean
 On Error GoTo fout
 initReport = False
@@ -604,8 +606,15 @@ If (Not uitFindUitslagAfstanden(cntAf, afstanden)) Then
   Exit Function
 End If
 
-Dim firstWedNr As Long
-firstWedNr = Nz(DFirst("TY_Wedstrijdnummer", "[~vUitslagMain]"))
+Dim firstWedNr As Long, lastWedNr As Long
+firstWedNr = Nz(DMin("TY_Wedstrijdnummer", "[~vUitslagMain]"))
+lastWedNr = Nz(DMax("TY_Wedstrijdnummer", "[~vUitslagMain]"))
+
+blEntireMeet = False
+If (firstWedNr <> lastWedNr) Then
+  blEntireMeet = True
+End If
+
 
 If (firstWedNr <= 0) Then
   Err.Raise 1, , "Geen tijden gevonden"
@@ -776,6 +785,15 @@ End Sub
 
 Private Sub scRepHeader_Format(Cancel As Integer, FormatCount As Integer)
 On Error Resume Next
-Me.fldHeader = "Uitslag " & firstWedInfo.des
-Me.fldHeaderDatePlaats = Format(firstWedInfo.date, "dd\-mm\-yyyy") & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+If (blEntireMeet) Then
+  Me.fldHeader = "Uitslag " & firstWedInfo.meetDes
+  If (firstWedInfo.meetMinDate <> firstWedInfo.meetMaxDate) Then
+    Me.fldHeaderDatePlaats = rxpFormatDateNL(firstWedInfo.meetMinDate) & " t/m " & rxpFormatDateNL(firstWedInfo.meetMaxDate) & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+  Else
+    Me.fldHeaderDatePlaats = rxpFormatDateNL(firstWedInfo.date) & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+  End If
+Else
+  Me.fldHeader = "Uitslag " & firstWedInfo.des
+  Me.fldHeaderDatePlaats = rxpFormatDateNL(firstWedInfo.date) & " te " & firstWedInfo.Plaats & " (" & firstWedInfo.baan & "m baan)"
+End If
 End Sub
