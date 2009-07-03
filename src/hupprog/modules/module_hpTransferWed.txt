@@ -6,6 +6,7 @@ Type LNH_TRANSFER_DATA
 End Type
 
 
+'to become obsolete
 Private Function lnhExportDetWedSettings(ByVal singleWedOnly As Boolean, ByRef actSingleWedOnly As Boolean, wednr As Long, ByRef actWedNr As Long) As Boolean
 On Error GoTo fout
 lnhExportDetWedSettings = False
@@ -47,21 +48,17 @@ Exit Function
 End Function
 
 
-Private Function lnhExportWedstrijdGegevens(ByVal singleWedOnly As Boolean, wednr As Long, ByRef wedBn As Integer, ByRef wedQlfConvMode As String) As Boolean
+Private Function lnhExportWedstrijdGegevens(ByVal singleWedOnly As Boolean, ByRef wedInf As WED_BASIC_INFO) As Boolean
 On Error GoTo fout
 lnhExportWedstrijdGegevens = False
-
-'feb 2007
-wedBn = 25
-wedQlfConvMode = QLF_CONV_NONE
 
 Dim inp As Recordset
 Dim sql As String
 
 If (singleWedOnly) Then
-  sql = "SELECT * from dtWedstrijdGegevens where [WE_wedstrijdnummer] = " & wednr & ";"
+  sql = "SELECT * from dtWedstrijdGegevens where [WE_wedstrijdnummer] = " & wedInf.wednr & ";"
 Else
-  sql = "SELECT * from dtWedstrijdGegevens where [WE_wedstrijdnummer] = " & wednr & " or [we_MainWedstrijdNummer] = " & wednr & ";"
+  sql = "SELECT * from dtWedstrijdGegevens where [WE_wedstrijdnummer] = " & wedInf.meetMainNr & " or [we_MainWedstrijdNummer] = " & wedInf.meetMainNr & ";"
 End If
 
 
@@ -76,12 +73,19 @@ Do Until inp.EOF
     outp("WE_ID") = inp("WE_Wedstrijdnummer")
     outp("WE_Datum") = inp("WE_Datum")
     outp("WE_Plaats") = inp("WE_Plaats")
-    outp("WE_Beschrijving") = inp("WE_Beschrijving")
+    
+    
+    If (Not singleWedOnly) And (wedInf.isMeet) Then
+      outp("WE_Beschrijving") = hzn(wedInf.meetDes)
+    Else
+      outp("WE_Beschrijving") = inp("WE_Beschrijving")
+    End If
+    
     outp("WE_Beschrijving_Extra") = inp("WE_Beschrijving")
+    
+    
     outp("WE_Baanlengte") = inp("WE_Baanlengte")
     
-    'feb 2007
-    wedBn = Nz(inp("WE_Baanlengte"), 25)
     
     outp("WE_Zwembad") = inp("WE_Zwembad")
     outp("WE_Adres") = inp("WE_Adres")
@@ -100,14 +104,29 @@ Do Until inp.EOF
    
     outp("WE_Kosten_Currency") = inp("WE_Kosten_Currency")
     outp("WE_Organiserende_Vereniging") = inp("WE_Organ ver")
-    outp("WE_Leeftijdsbepaling") = inp("WE_Leeftijdsbepaling")
-    'july 2007
-    If (lenDateIsValid(Nz(inp("WE_AgeDate"), #1/1/1900#))) Then
-      outp("WE_Leeftijdsdatum") = inp("WE_AgeDate")
-    Else
-      outp("WE_Leeftijdsdatum") = inp("WE_Datum")
+    
+    
+    
+    'These settings are controlled at a meet-level
+    outp("WE_Leeftijdsbepaling") = hzn(wedInf.lftBep)
+    outp("WE_Leeftijdsdatum") = wedInf.ageDate
+    
+    outp("WE_QLF_CONVERSION") = hzn(wedInf.qlfConvMode)
+       
+    outp("WE_QLF_FROM") = Null
+    outp("WE_QLF_UNTIL") = Null
+    
+    If lenDateIsValid(wedInf.qlfMinDate) Then
+      outp("WE_QLF_From") = wedInf.qlfMinDate
     End If
     
+    If (lenDateIsValid(wedInf.qlfMaxDate)) Then
+       outp("WE_QLF_UNTIL") = wedInf.qlfMaxDate
+    End If
+    
+    outp("WE_QLF_RelayMode") = hzn(wedInf.qlfRelayMode)
+    
+    'end meet-level settings
     
     outp("WE_ElektronischeTijd") = inp("WE_elektronisch")
     outp("WE_AantalBanen") = inp("WE_Aantal_Banen")
@@ -1068,9 +1087,6 @@ Dim lastUsedRecID As Long
 lastUsedLimID = 0
 lastUsedRecID = 0
 
-Dim wedBn As Integer
-Dim wedQlfConvMode As String
-
 Dim outpLims As Recordset
 Dim outpRecs As Recordset
 
@@ -1078,28 +1094,33 @@ Set outpLims = CurrentDb().OpenRecordset("gIMP_LEN_Limieten")
 Set outpRecs = CurrentDb().OpenRecordset("gIMP_LEN_Records")
 
 
-
-
-Dim actWedNr As Long
-Dim actSingleWedOnly As Boolean
-
-If Not lnhExportDetWedSettings(singleWedOnly, actSingleWedOnly, wednr, actWedNr) Then Exit Function
-
-
-
-
 If (cleanImpTables) Then
   If Not lenCleanTransferTables() Then Exit Function
 End If
 
-If Not lnhExportWedstrijdGegevens(actSingleWedOnly, actWedNr, wedBn, wedQlfConvMode) Then Exit Function
+
+Dim wedInf As WED_BASIC_INFO
+
+Dim blFnd As Boolean
+If Not wedLookup(wednr, blFnd, wedInf) Then
+  Exit Function
+End If
+If Not blFnd Then
+  Err.Raise 1, , "Kon wedstrijd: " & wednr & " niet vinden."
+End If
+
+
+
+If Not lnhExportWedstrijdGegevens(singleWedOnly, wedInf) Then
+  Exit Function
+End If
 
 
 
 
-If Not lnhExportProgramma(wedBn, wedQlfConvMode, lastUsedLimID, lastUsedRecID, outpLims, outpRecs, expLims, expRecs) Then Exit Function
+If Not lnhExportProgramma(wedInf.baan, wedInf.qlfConvMode, lastUsedLimID, lastUsedRecID, outpLims, outpRecs, expLims, expRecs) Then Exit Function
 
-If Not lnhExportLeeftijdsGroepen(wedBn, wedQlfConvMode, lastUsedLimID, lastUsedRecID, outpLims, outpRecs, expLims, expRecs) Then Exit Function
+If Not lnhExportLeeftijdsGroepen(wedInf.baan, wedInf.qlfConvMode, lastUsedLimID, lastUsedRecID, outpLims, outpRecs, expLims, expRecs) Then Exit Function
 
 
 appCleanRS outpLims
@@ -1119,12 +1140,12 @@ End If
 
 If (expDeelnemers Or expTijden) Then
 
-    If Not facCalcFees(actWedNr, Not actSingleWedOnly) Then
+    If Not facCalcFees(IIf(singleWedOnly, wedInf.wednr, wedInf.meetMainNr), wedInf.isMeet And (Not singleWedOnly)) Then
       Exit Function
     End If
     
     'feb 2007 addition.
-    If Not analyzeEstafs(actSingleWedOnly, actWedNr, actWedNr, "~AN_Estafs", False) Then Exit Function
+    If Not analyzeEstafs(singleWedOnly Or (Not wedInf.isMeet), wedInf.wednr, wedInf.meetMainNr, "~AN_Estafs", False) Then Exit Function
     
     'mar 2009 addition:
     'Need to apply ranking for all wedstrijden in the gIMP_LEN_Wedstrijden table
@@ -1197,6 +1218,14 @@ If (Nz(wedInp("WE_Beschrijving_Extra")) = "") Then
 Else
   wed("WE_Beschrijving") = wedInp("WE_Beschrijving_Extra")
 End If
+
+If (isMeet) And (meetMainWedNr = wednr) Then
+  If Nz(wedInp("WE_Beschrijving")) <> Nz(wedInp("WE_Beschrijving_Extra")) Then
+    wed("WE_MainBeschrijving") = wedInp("WE_Beschrijving")
+  End If
+End If
+
+
 
 wed("WE_Plaats") = wedInp("WE_Plaats")
 wed("WE_Baanlengte") = wedInp("WE_Baanlengte")
@@ -2922,31 +2951,38 @@ Do Until impProgs.EOF
         
         isMatch = True
         isAfSlMatch = True
-         
-        'Have to refine matching criteria.
-        If (curAf <> impAf Or curSl <> impSl Or curGes <> impGes) Then
-          isAfSlMatch = False
-          isMatch = False
-        End If
         
-        If (isMatch) Then
-          If (curMaxAge <> impMaxAge) Then
+        
+        If (progIsFixed And impAf = "100" And impSl = "RUG" And impCat = "MIX") Then
+          'import from was2005 -> treat as exact match
+        Else
+         
+          'Have to refine matching criteria.
+          If (curAf <> impAf Or curSl <> impSl Or curGes <> impGes) Then
+            isAfSlMatch = False
             isMatch = False
           End If
-        End If
           
-        
-        If (isMatch) Then
-          If (curMinAge <> impMinAge) Then
-            lftBepMinAge = catGetMinAllowedAgeLftBep(impMaxAge)
-            
-            'Check to see if the problem of the differing minAges is real; or if it just
-            'an artifact of the minimum age.
-            
-            If (curMinAge > lftBepMinAge Or impMinAge > lftBepMinAge) Then
+          If (isMatch) Then
+            If (curMaxAge <> impMaxAge) Then
               isMatch = False
             End If
           End If
+            
+          
+          If (isMatch) Then
+            If (curMinAge <> impMinAge) Then
+              lftBepMinAge = catGetMinAllowedAgeLftBep(impMaxAge)
+              
+              'Check to see if the problem of the differing minAges is real; or if it just
+              'an artifact of the minimum age.
+              
+              If (curMinAge > lftBepMinAge Or impMinAge > lftBepMinAge) Then
+                isMatch = False
+              End If
+            End If
+          End If
+          
         End If
         
         

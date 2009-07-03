@@ -630,11 +630,13 @@ rxpExtractField_perform = False
 
 Dim fldIdx As Integer
 fldIdx = bSearchString(fName, rxpPnt.intNFields, rxpPnt.intFieldNames)
-If (fldIdx < 0) Then
-  Err.Raise 1, , "Unknown field: " & fName
-End If
-If Not rxpExtractField_read(fldIdx, rxpPnt, fldValue) Then
-  Exit Function
+
+fldValue = ""
+
+If (fldIdx >= 0) Then
+  If Not rxpExtractField_read(fldIdx, rxpPnt, fldValue) Then
+    Exit Function
+  End If
 End If
 
 rxpExtractField_perform = True

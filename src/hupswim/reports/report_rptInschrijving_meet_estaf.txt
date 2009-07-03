@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1370454933
+Checksum =-2067195879
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -32,10 +32,10 @@ Begin Report
         0xe230000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000180000000000102710271027 ,
-        0x0000102700000000000000008800c40200000000000000000100000000000000 ,
-        0x000000000000000003000000000000000000100072bf030072bf030000000000 ,
+        0x0000102700000000000000000000c40200000000000000000000000000000000 ,
+        0x00000000000000000300000000000000000010005c4b03006843040000000000 ,
         0x000000000000010000000000000000000000000000000000e7b14b4c03000000 ,
-        0x05000000ff000000000000000000000000000000000000000000000000000000 ,
+        0x05000400ff000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
@@ -332,6 +332,7 @@ Begin Report
                     TextAlign =1
                     Left =1757
                     Top =1323
+                    Width =3216
                     Height =271
                     TabIndex =9
                     Name ="fldWedDatum"
@@ -987,6 +988,8 @@ Private blIsPeriod As Boolean
 Private dPerStartDate As Date
 Private dPerEndDate As Date
 
+Private wedInf As WED_BASIC_INFO
+
 
 
 Private Sub initReport()
@@ -1017,17 +1020,30 @@ Set rs = CurrentDb().OpenRecordset("select * from [~Opstelling] order by op_weds
 rs.MoveFirst
 
 
+Dim tpWedNr As Long
+tpWedNr = Nz(rs("OP_Wedstrijdnummer"))
 
-strBeschrijving = Nz(rs("OP_WedBeschrijving"))
+Dim tpFnd As Boolean
+If Not wedLookup(tpWedNr, tpFnd, wedInf) Then
+  Exit Sub
+End If
+
+If Not tpFnd Then
+  Exit Sub
+End If
+
+
+strBeschrijving = wedInf.meetDes
+
 strZwembad = Nz(rs("OP_WedZwembad"))
 
-Dim tpWedDate As Date
-tpWedDate = Nz(rs("OP_WedDatum"))
-
-strDatum = ""
-If (lenDateIsValid(tpWedDate)) Then
-  strDatum = Format(tpWedDate, "dd\-mm\-yyyy")
+If wedInf.meetMinDate <> wedInf.meetMaxDate Then
+  strDatum = rxpFormatDateNL(wedInf.meetMinDate) & " t/m " & rxpFormatDateNL(wedInf.meetMaxDate)
+Else
+  strDatum = rxpFormatDateNL(wedInf.meetMinDate)
 End If
+
+
 
 strAanvang = ""
 If Not IsNull(rs("OP_WedAanvang")) Then
@@ -1035,6 +1051,10 @@ If Not IsNull(rs("OP_WedAanvang")) Then
 End If
 
 strPloegleider = Nz(rs("OP_WedPloegleider"))
+
+
+
+
 
 appCleanRS rs
 

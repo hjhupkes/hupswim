@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1850853082
+Checksum =-1244741677
 Begin Report
     RecordSelectors = NotDefault
     AutoCenter = NotDefault
@@ -11,9 +11,9 @@ Begin Report
     Width =10146
     ItemSuffix =80
     Left =3015
-    Top =1080
-    Right =15015
-    Bottom =7920
+    Top =1440
+    Right =15255
+    Bottom =8520
     ShortcutMenuBar ="gShortcutRpt"
     Toolbar ="gRptToolbar"
     RecSrcDt = Begin
@@ -318,8 +318,8 @@ Begin Report
                 Begin TextBox
                     OldBorderStyle =0
                     TextAlign =1
-                    Left =9094
-                    Top =424
+                    Left =9064
+                    Top =415
                     Width =1026
                     Height =255
                     FontWeight =700
@@ -328,8 +328,7 @@ Begin Report
                     Begin
                         Begin Label
                             TextFontFamily =34
-                            Left =30
-                            Top =424
+                            Top =415
                             Width =1125
                             Height =255
                             FontSize =10
@@ -369,8 +368,8 @@ Begin Report
                 Begin TextBox
                     OldBorderStyle =0
                     TextAlign =3
-                    Left =4320
-                    Width =5751
+                    Left =4005
+                    Width =6066
                     Height =256
                     FontSize =8
                     FontWeight =700
@@ -379,21 +378,13 @@ Begin Report
                 Begin TextBox
                     OldBorderStyle =0
                     TextAlign =1
-                    Width =4326
+                    Width =3981
                     Height =256
                     FontSize =8
                     FontWeight =700
                     TabIndex =1
                     Name ="Field37"
                     ControlSource ="=\"Factuur \" & [av_naam]"
-                    Begin
-                        Begin Label
-                            Width =630
-                            Height =255
-                            Name ="Text38"
-                            Caption ="Field37:"
-                        End
-                    End
                 End
             End
         End
@@ -411,6 +402,7 @@ Attribute VB_Exposed = False
 Option Compare Database   'Use database order for string comparisons
 Option Explicit
 
+Private blIsEntireMeet As Boolean
 Private blIsOW As Boolean
 Private blShowStarts As Boolean, blShowKosten As Boolean
 Private wedInf As WED_BASIC_INFO
@@ -426,6 +418,8 @@ blShowStarts = Nz(DLookup("FO_ShowStarts", "gFaktuurOptions"))
 blShowKosten = Nz(DLookup("FO_ShowKosten", "gFaktuurOptions"))
 blSingleVer = Nz(DLookup("FO_IsSingleVer", "gFaktuurOptions"))
 sSingleVer = Nz(DLookup("FO_SingleVer", "gFaktuurOptions"))
+
+blIsEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
 
 Dim mainWednr As Long
 mainWednr = Nz(DLookup("AS_Wedstrijdnummer", "gFaktuurHoofd"))
@@ -518,12 +512,31 @@ End Sub
 
 Private Sub scPageFooter_Format(Cancel As Integer, FormatCount As Integer)
 On Error Resume Next
-Me.fldFooter = wedInf.des & ", " & rxpFormatDateNL(wedInf.date) & " te " & wedInf.Plaats
+
+If (blIsEntireMeet) Then
+  If (wedInf.meetMinDate <> wedInf.meetMaxDate) Then
+    Me.fldFooter = wedInf.meetDes & ", " & fmtDateShort(wedInf.meetMinDate) & " t/m " & fmtDateShort(wedInf.meetMaxDate) & " te " & wedInf.Plaats
+  Else
+    Me.fldFooter = wedInf.meetDes & ", " & rxpFormatDateNL(wedInf.date) & " te " & wedInf.Plaats
+  End If
+Else
+  Me.fldFooter = wedInf.des & ", " & rxpFormatDateNL(wedInf.date) & " te " & wedInf.Plaats
+End If
+
 End Sub
 
 Private Sub scPageHeader_Format(Cancel As Integer, FormatCount As Integer)
 On Error Resume Next
-Me.fldHeader = wedInf.des & " op " & rxpFormatDateNL(wedInf.date)
+
+If (blIsEntireMeet) Then
+  If (wedInf.meetMinDate <> wedInf.meetMaxDate) Then
+    Me.fldHeader = wedInf.meetDes & " op " & fmtDateShort(wedInf.meetMinDate) & " t/m " & fmtDateShort(wedInf.meetMaxDate)
+  Else
+    Me.fldHeader = wedInf.meetDes & " op " & rxpFormatDateNL(wedInf.date)
+  End If
+Else
+  Me.fldHeader = wedInf.des & " op " & rxpFormatDateNL(wedInf.date)
+End If
 End Sub
 
 Private Sub scVerHeader_Format(Cancel As Integer, FormatCount As Integer)

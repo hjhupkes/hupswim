@@ -6145,3 +6145,23 @@ MsgBox Err & " wedFstEstWisWzLaunch" & vbCrLf & Error$, 16
 Exit Function
 
 End Function
+
+
+
+Public Function wedSuggestBaseFNameVer() As String
+On Error Resume Next
+wedSuggestBaseFNameVer = Format(Nz(wed_datum(), #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(ver()) & "-" & GoedTekens(Nz(wed_plaats())) & "-" & GoedTekens(Nz(wed_beschrijving()))
+End Function
+
+Public Function wedSuggestBaseFNameVerMeet() As String
+On Error Resume Next
+wedSuggestBaseFNameVerMeet = "onbekend"
+Dim blFnd As Boolean, wedInf As WED_BASIC_INFO
+If Not wedLookup(waarde(), blFnd, wedInf) Then
+  Exit Function
+End If
+If Not blFnd Then
+  Exit Function
+End If
+wedSuggestBaseFNameVerMeet = Format(Nz(wedInf.meetMinDate, #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(ver()) & "-" & GoedTekens(wedInf.Plaats) & "-" & GoedTekens(wedInf.meetDes)
+End Function

@@ -1236,6 +1236,20 @@ On Error Resume Next
 wedSuggestBaseFName = Format(Nz(wed_datum(), #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(Nz(wed_plaats())) & "-" & GoedTekens(Nz(wed_beschrijving()))
 End Function
 
+Public Function wedSuggestBaseFNameMeet() As String
+On Error Resume Next
+wedSuggestBaseFNameMeet = "onbekend"
+Dim blFnd As Boolean, wedInf As WED_BASIC_INFO
+If Not wedLookup(waarde(), blFnd, wedInf) Then
+  Exit Function
+End If
+If Not blFnd Then
+  Exit Function
+End If
+wedSuggestBaseFNameMeet = Format(Nz(wedInf.meetMinDate, #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(wedInf.Plaats) & "-" & GoedTekens(wedInf.meetDes)
+End Function
+
+
 Private Function prReadProgList(ByRef sProgList As String) As Boolean
 On Error GoTo fout
 prReadProgList = False

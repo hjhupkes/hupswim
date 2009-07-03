@@ -225,6 +225,43 @@ ElseIf (rptName = REP_JRY) Then
     fName = dbdir() & "\" & wedSuggestBaseFName() & "_voorblad" & fExt
   End If
   blIsDefaultHandler = True
+ElseIf (rptName = REP_FAC_OVZ) Then
+  If Not blUseSuppFName Then
+    Dim blEntireMeet As Boolean
+    blEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
+  
+    If (blEntireMeet) Then
+      fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & "_aantal_starts" & fExt
+    Else
+      fName = dbdir() & "\" & wedSuggestBaseFName() & "_aantal_starts" & fExt
+    End If
+  End If
+  blIsDefaultHandler = True
+ElseIf (rptName = REP_FAC_IND) Or (rptName = REP_FAC_IND_KLEIN) Then
+  If Not blUseSuppFName Then
+    blEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
+    
+    Dim sVerSfx As String
+    sVerSfx = ""
+    
+    Dim blIsSingleVer As Boolean
+    blIsSingleVer = Nz(DLookup("FO_IsSingleVer", "gFaktuurOptions"), False)
+    
+    If (blIsSingleVer) Then
+      Dim sFacVer As String
+      sFacVer = Nz(DLookup("FO_SingleVer", "gFaktuurOptions"))
+      If sFacVer <> "" Then
+        sVerSfx = "_" & GoedTekens(sFacVer)
+      End If
+    End If
+    
+    If (blEntireMeet) Then
+      fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & sVerSfx & "_factuur" & fExt
+    Else
+      fName = dbdir() & "\" & wedSuggestBaseFName() & sVerSfx & "_factuur" & fExt
+    End If
+  End If
+  blIsDefaultHandler = True
 ElseIf (rptName = REP_TEL) Then
   If Not blUseSuppFName Then
     fName = dbdir() & "\" & wedSuggestBaseFName() & "_tellijst" & fExt
