@@ -310,7 +310,11 @@ End Sub
 Private Sub wzcHandleMove(ByVal prvPage As Integer, ByRef nxtPage As Integer)
 On Error GoTo fout
 
-
+If (prvPage = PAGE_CNT) And (nxtPage = PAGE_RST) Then
+  If Not wedFstEstWisWz_markAllowedSwimmers() Then
+    Exit Sub
+  End If
+End If
 
 
 
@@ -322,6 +326,7 @@ End Sub
 
 Private Sub wzcPrePageLoad(ByVal curPage As Integer)
 On Error Resume Next
+
 
 If (curPage = PAGE_SMY) Then
   If Not wedFstEstWisWz_calcPloegen() Then
@@ -373,6 +378,13 @@ Private Function wzcFinish(curPage As Integer) As Boolean
 On Error GoTo fout
 
 wzcFinish = False
+
+If (curPage < PAGE_RST) Then
+  If Not wedFstEstWisWz_markAllowedSwimmers() Then
+    Exit Function
+  End If
+End If
+  
 
 If (curPage < PAGE_SMY) Then
   If Not wedFstEstWisWz_calcPloegen() Then

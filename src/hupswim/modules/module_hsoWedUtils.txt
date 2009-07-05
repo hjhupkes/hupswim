@@ -5753,6 +5753,61 @@ Exit Function
 End Function
 
 
+Public Function wedFstEstWisWz_markAllowedSwimmers() As Boolean
+On Error GoTo fout
+wedFstEstWisWz_markAllowedSwimmers = False
+
+Dim blOnlyInWed As Boolean, blAllowInMeet As Boolean
+
+blOnlyInWed = Nz(DLookup("FE_OnlySwimmersInWed", "hsoFstEstCfg"), False)
+blAllowInMeet = Nz(DLookup("FE_AllowSwimmersInMeet", "hsoFstEstCfg"), False)
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoFstEstTimes")
+
+rs.MoveFirst
+
+Do Until rs.EOF
+  Dim blAllow As Boolean
+  blAllow = False
+  
+  If (Not blOnlyInWed) Then
+    blAllow = True
+  ElseIf (blAllowInMeet) Then
+    blAllow = Nz(rs("FET_IsInMeet"))
+  Else
+    blAllow = Nz(rs("FET_IsInWed"))
+  End If
+  
+  If IsNull(rs("FET_IsAllowed")) Or (blAllow <> Nz(rs("FET_IsAllowed"))) Then
+    rs.Edit
+      rs("FET_IsAllowed") = blAllow
+    rs.Update
+  End If
+  
+  
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+
+wedFstEstWisWz_markAllowedSwimmers = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedFstEstWisWz_markAllowedSwimmers" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
 Public Function wedFstEstWisWz_calcPloegen() As Boolean
 On Error GoTo fout
 wedFstEstWisWz_calcPloegen = False
@@ -5797,7 +5852,7 @@ For i = 0 To 3
   tpSl = slWisselVolg(i + 1)
   
   sql = "select fet_startnummer, fet_naam, fet_InsTime" & tpSl & ", fet_InsWedNr" & tpSl & ", fet_insBlock" & tpSl & " " & _
-  "from hsoFstEstTimes ORDER BY fet_insTime" & tpSl & ";"
+  "from hsoFstEstTimes where fet_isAllowed ORDER BY fet_insTime" & tpSl & ";"
   
   Set rsInsTimes = CurrentDb().OpenRecordset(sql)
   
@@ -5811,7 +5866,7 @@ For i = 0 To 3
     tpTime = Nz(rsInsTimes("fet_insTime" & tpSl))
     tpWedNr = Nz(rsInsTimes("fet_insWedNr" & tpSl))
     tpBlocked = Nz(rsInsTimes("fet_insBlock" & tpSl))
-    
+        
     If (swtIsValid(tpTime)) And (Not tpBlocked) Then
       fstStarts(i, nFstTimes(i)) = tpStart
       fstNames(i, nFstTimes(i)) = tpName
@@ -6014,57 +6069,9 @@ End Function
 
 
 
-Public Function wedFstEstWisWzLaunch(ByVal sTbName As String, ByVal lWedNr As Long, ByVal sProgNr As String) As Boolean
+Private Function wedFstEstWisWzLaunch_addInsTimes(ByVal sTbName As String, ByVal lWedNr As Long, ByVal sProgNr As String) As Boolean
 On Error GoTo fout
-wedFstEstWisWzLaunch = False
-
-notifyWedOpstellingChange
-
-
-If Not wedFstEstWisWz_clean() Then
-  Exit Function
-End If
-
-
-Dim lCnt As Long
-lCnt = Nz(DCount("startnummer", "dtDeelnemers", "wedstrijdnr=" & lWedNr & " and programmanr=""" & sProgNr & """"))
-
-If (lCnt > 0) Then
-  Err.Raise 1, , "Het geselecteerde programmanummer bevat al zwemmers. " & vbCrLf & "Verwijder eerst de reeds ingevulde zwemmers om de snelste wisselslag ploegen toe te voegen."
-End If
-
-
-
-
-
-Dim prInf As PROG_BASIC_INFO
-Dim blIsFnd As Boolean
-
-If Not prLookup(lWedNr, sProgNr, blIsFnd, prInf) Then
-  Exit Function
-End If
-
-If Not blIsFnd Then
-  Err.Raise 1, , "Kon programmanr: (" & lWedNr & ", " & sProgNr & ") niet vinden"
-End If
-
-
-Dim sProgDes As String
-sProgDes = fmtProgDes(prInf.progType, prInf.besAfw, prInf.Afstand, prInf.slag, prInf.catDes)
-
-Dim rs As Recordset
-Set rs = CurrentDb().OpenRecordset("hsoFstEstCfg")
-
-rs.AddNew
-  rs("FE_ARG_Wedstrijdnummer") = lWedNr
-  rs("FE_ARG_Programmanummer") = sProgNr
-  rs("FE_ARG_ProgDes") = hzn(sProgDes)
-  rs("FE_CntPloegen") = 1
-rs.Update
-
-appCleanRS rs
-
-'Now need to copy over inschrijf times
+wedFstEstWisWzLaunch_addInsTimes = False
 
 
 Dim sql As String
@@ -6072,6 +6079,8 @@ sql = "select * from [" & sTbName & "] where " & _
   "([pc_isStrictCatMatch] = true) and ([pc_isStrictLSMatch] = true) and " & _
   "(pc_wedstrijdnummer=" & lWedNr & " ) and pc_programmanummer=""" & sProgNr & """;"
   
+  
+Dim rs As Recordset
 Set rs = CurrentDb().OpenRecordset(sql)
 
 Dim rsOut As Recordset
@@ -6119,6 +6128,9 @@ Do Until rs.EOF
     rsOut("FET_InsTimeVrij") = rs("PC_InsTimeVrij")
     rsOut("FET_InsWedNrVrij") = rs("PC_InsWedNrVrij")
     rsOut("FET_InsBlockVrij") = False
+    
+    rsOut("FET_IsInWed") = False
+    rsOut("FET_IsInMeet") = False
   
   rsOut.Update
 
@@ -6131,6 +6143,198 @@ appCleanRS rs
 appCleanRS rsOut
 appCleanRS skZwm
 
+
+
+
+
+
+
+
+
+wedFstEstWisWzLaunch_addInsTimes = True
+
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedFstEstWisWzLaunch_addInsTimes" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function wedFstEstWisWzLaunch_detCurDlns_processRS(ByVal blIsEst As Boolean, ByRef rsDlns As Recordset, ByRef skFstTimes As Recordset, ByRef wedInf As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+wedFstEstWisWzLaunch_detCurDlns_processRS = False
+
+rsDlns.MoveFirst
+
+Do Until rsDlns.EOF
+  Dim tpStart As String, tpWedNr As Long
+  
+  If (blIsEst) Then
+    tpStart = Nz(rsDlns(FNM_PL_STARTNR))
+    tpWedNr = Nz(rsDlns(FNM_PL_WEDNR))
+  Else
+    tpStart = Nz(rsDlns(FNM_DE_PERS_STARTNR))
+    tpWedNr = Nz(rsDlns(FNM_DE_PERS_WEDNR))
+  End If
+  
+  skFstTimes.Seek "=", tpStart
+  
+  If Not (skFstTimes.NoMatch) Then
+    skFstTimes.Edit
+      skFstTimes("FET_IsInMeet") = True
+      skFstTimes("FET_IsInWed") = (tpWedNr = wedInf.wednr)
+    skFstTimes.Update
+  End If
+  
+  
+  rsDlns.MoveNext
+Loop
+
+
+
+wedFstEstWisWzLaunch_detCurDlns_processRS = True
+Exit Function
+
+fout:
+If Err = 3021 Then Resume Next
+
+MsgBox Err & " wedFstEstWisWzLaunch_detCurDlns_processRS" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function wedFstEstWisWzLaunch_detCurDlns(ByRef wedInf As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+wedFstEstWisWzLaunch_detCurDlns = False
+
+
+Dim skFstTimes As Recordset
+Set skFstTimes = CurrentDb().OpenRecordset("hsoFstEstTimes")
+skFstTimes.Index = "PrimaryKey"
+
+
+Dim dlnsPers As Recordset
+
+Dim sql As String
+sql = dlnGetDeelnemersPersSQL(False, True, "", wedInf.wednr, wedInf.meetMainNr, False)
+
+Set dlnsPers = CurrentDb().OpenRecordset(sql)
+
+If Not wedFstEstWisWzLaunch_detCurDlns_processRS(False, dlnsPers, skFstTimes, wedInf) Then
+  Exit Function
+End If
+
+appCleanRS dlnsPers
+
+
+
+
+
+Dim dlnsEst As Recordset
+
+sql = dlnGetPloegledenSQL(False, True, "", wedInf.wednr, wedInf.meetMainNr, False)
+
+Set dlnsEst = CurrentDb().OpenRecordset(sql)
+
+If Not wedFstEstWisWzLaunch_detCurDlns_processRS(True, dlnsEst, skFstTimes, wedInf) Then
+  Exit Function
+End If
+
+appCleanRS dlnsEst
+
+
+appCleanRS skFstTimes
+
+
+
+
+wedFstEstWisWzLaunch_detCurDlns = True
+
+Exit Function
+
+fout:
+MsgBox Err & "wedFstEstWisWzLaunch_detCurDlns" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function wedFstEstWisWzLaunch(ByVal sTbName As String, ByVal lWedNr As Long, ByVal sProgNr As String) As Boolean
+On Error GoTo fout
+wedFstEstWisWzLaunch = False
+
+notifyWedOpstellingChange
+
+
+
+If Not wedFstEstWisWz_clean() Then
+  Exit Function
+End If
+
+Dim wedInf As WED_BASIC_INFO
+Dim blIsFnd As Boolean
+
+If Not wedLookup(lWedNr, blIsFnd, wedInf) Then
+  Exit Function
+End If
+
+If (Not blIsFnd) Then
+  Err.Raise 1, , "Could not find wedstrijd: " & lWedNr
+End If
+
+
+Dim lCnt As Long
+lCnt = Nz(DCount("startnummer", "dtDeelnemers", "wedstrijdnr=" & lWedNr & " and programmanr=""" & sProgNr & """"))
+
+If (lCnt > 0) Then
+  Err.Raise 1, , "Het geselecteerde programmanummer bevat al zwemmers. " & vbCrLf & "Verwijder eerst de reeds ingevulde zwemmers om de snelste wisselslag ploegen toe te voegen."
+End If
+
+
+
+
+
+Dim prInf As PROG_BASIC_INFO
+
+If Not prLookup(lWedNr, sProgNr, blIsFnd, prInf) Then
+  Exit Function
+End If
+
+If Not blIsFnd Then
+  Err.Raise 1, , "Kon programmanr: (" & lWedNr & ", " & sProgNr & ") niet vinden"
+End If
+
+
+Dim sProgDes As String
+sProgDes = fmtProgDes(prInf.progType, prInf.besAfw, prInf.Afstand, prInf.slag, prInf.catDes)
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoFstEstCfg")
+
+rs.AddNew
+  rs("FE_ARG_Wedstrijdnummer") = lWedNr
+  rs("FE_ARG_Programmanummer") = sProgNr
+  rs("FE_ARG_ProgDes") = hzn(sProgDes)
+  rs("FE_ARG_IsMeet") = wedInf.isMeet
+  rs("FE_CntPloegen") = 1
+  rs("FE_OnlySwimmersInWed") = False
+  rs("FE_AllowSwimmersInMeet") = True
+rs.Update
+
+appCleanRS rs
+
+'Now need to copy over inschrijf times
+
+If Not wedFstEstWisWzLaunch_addInsTimes(sTbName, lWedNr, sProgNr) Then
+  Exit Function
+End If
+
+If Not wedFstEstWisWzLaunch_detCurDlns(wedInf) Then
+  Exit Function
+End If
 
 
 DoCmd.OpenForm "WIZ_FST_EST_MASTER", , , , , acDialog

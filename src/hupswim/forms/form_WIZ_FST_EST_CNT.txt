@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-513835469
+Checksum =1539939960
 Begin Form
     AllowFilters = NotDefault
     RecordSelectors = NotDefault
@@ -17,11 +17,11 @@ Begin Form
     GridY =24
     Width =9921
     DatasheetFontHeight =10
-    ItemSuffix =91
+    ItemSuffix =93
     Left =3150
-    Top =600
+    Top =1380
     Right =15120
-    Bottom =7515
+    Bottom =8295
     DatasheetGridlinesColor =12632256
     RecSrcDt = Begin
         0xb6c19dc33a78e340
@@ -184,8 +184,8 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =85
-                    Left =360
-                    Top =2055
+                    Left =354
+                    Top =2692
                     Width =8445
                     Height =495
                     FontSize =10
@@ -194,6 +194,61 @@ Begin Form
                         "tellen."
                     GUID = Begin
                         0x9ea2751137804149960282f8b34f1357
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =360
+                    Top =1707
+                    TabIndex =2
+                    Name ="FE_OnlySwimmersInWed"
+                    ControlSource ="FE_OnlySwimmersInWed"
+                    AfterUpdate ="[Event Procedure]"
+                    GUID = Begin
+                        0xd56b2d460b775a4ba99a445f91338a93
+                    End
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =119
+                            Left =597
+                            Top =1680
+                            Width =4500
+                            Height =240
+                            Name ="Label91"
+                            Caption ="Alleen zwemmers gebruiken die al in wedstrijd staan opgesteld "
+                            GUID = Begin
+                                0x2c86973234622840aa0e6d0ca495f0a8
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =832
+                    Top =2113
+                    TabIndex =3
+                    Name ="FE_AllowSwimmersInMeet"
+                    ControlSource ="FE_AllowSwimmersInMeet"
+                    GUID = Begin
+                        0x46e72e0f28f1a24688da9e6b2d57d185
+                    End
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =119
+                            Left =1073
+                            Top =2082
+                            Width =5625
+                            Height =240
+                            Name ="Label92"
+                            Caption ="Ook zwemmers gebruiken die elders in meerdaagse wedstrijd staan opgesteld  "
+                            GUID = Begin
+                                0x8d46ced9def63a439865d9637fa9d846
+                            End
+                        End
                     End
                 End
             End
@@ -226,8 +281,15 @@ End Sub
 Private Sub updateView()
 On Error Resume Next
 
+Me.FE_AllowSwimmersInMeet.Enabled = Nz([fe_arg_isMeet]) And (Nz(Me.FE_OnlySwimmersInWed))
+
 End Sub
 
+
+Private Sub FE_OnlySwimmersInWed_AfterUpdate()
+On Error Resume Next
+updateView
+End Sub
 
 Private Sub fldNPloegen_AfterUpdate()
 On Error Resume Next
