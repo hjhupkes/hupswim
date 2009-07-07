@@ -771,6 +771,17 @@ Set impVer = CurrentDb().OpenRecordset("select * from gIMP_LEN_ver where nz([imp
 
 Dim lastDep As String
 lastDep = "---"
+Dim lastVer As String
+lastVer = ""
+
+
+
+
+Dim nDupDepots  As Integer
+nDupDepots = 0
+Dim sDupDepots As String
+sDupDepots = ""
+
 
 impVer.MoveFirst
 Do Until impVer.EOF
@@ -780,16 +791,49 @@ Do Until impVer.EOF
   tpNaam = Nz(impVer("V_Naam"))
   
   If (tpD = lastDep) Then
-    Err.Raise 1, , "Dubbel depotnummer gevonden: " & tpD & ", " & tpNaam
+  
+    If (nDupDepots < 5) Then
+      If (nDupDepots > 0) Then
+        sDupDepots = sDupDepots & vbCrLf
+      End If
+      sDupDepots = sDupDepots & tpD & ": " & lastVer & ", " & tpNaam
+    Else
+      sDupDepots = sDupDepots & vbCrLf & "en anderen"
+    End If
+  
+    nDupDepots = nDupDepots + 1
+    
   End If
   
   lastDep = tpD
+  lastVer = tpNaam
+  
   impVer.MoveNext
   
 Loop
 
 
 appCleanRS impVer
+
+
+
+If (nDupDepots > 0) Then
+  'Have to ask whether to continue.
+  Dim msg As String
+  
+  msg = "Er zijn " & nDupDepots & " depotnummer(s) die dubbel werden aangetroffen." & vbCrLf & _
+  "Dit zijn de depotnummers:" & vbCrLf & sDupDepots & "." & vbCrLf & vbCrLf & _
+  "Aangeraden wordt om nu NIET door te gaan met importeren, maar eerst in het wizardscherm met verenigingen te kijken wat er precies mis gaat." & vbCrLf & vbCrLf & _
+  "Wilt u doorgaan?"
+  
+  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
+    Exit Function
+  End If
+End If
+
+
+
+
 
 
 lenCheckDepotnummers = True
@@ -799,6 +843,86 @@ If (Err = 3021) Then Resume Next
 MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
+
+Public Function lenCheckDuplicateVers() As Boolean
+On Error GoTo fout
+lenCheckDuplicateVers = False
+
+Dim impVer As Recordset
+Set impVer = CurrentDb().OpenRecordset("select * from gIMP_LEN_ver where nz([imp_import]) order by nz([v_naam])")
+
+
+Dim lastVer As String
+lastVer = ""
+
+
+
+
+Dim nDupVers  As Integer
+nDupVers = 0
+Dim sDupVers As String
+sDupVers = ""
+
+
+impVer.MoveFirst
+Do Until impVer.EOF
+
+  Dim tpNaam As String
+  tpNaam = Nz(impVer("V_Naam"))
+  
+  If (tpNaam = lastVer) Then
+  
+    If (nDupVers < 5) Then
+      If (nDupVers > 0) Then
+        sDupVers = sDupVers & vbCrLf
+      End If
+      sDupVers = sDupVers & tpNaam
+    Else
+      sDupVers = sDupVers & vbCrLf & "en anderen"
+    End If
+  
+    nDupVers = nDupVers + 1
+    
+  End If
+  
+  lastVer = tpNaam
+  
+  impVer.MoveNext
+  
+Loop
+
+
+appCleanRS impVer
+
+
+
+If (nDupVers > 0) Then
+  'Have to ask whether to continue.
+  Dim msg As String
+  
+  msg = "Er zijn " & nDupVers & " vereniging(en) die dubbel werden aangetroffen." & vbCrLf & _
+  "Dit zijn de verenigingen:" & vbCrLf & sDupVers & "." & vbCrLf & vbCrLf & _
+  "Aangeraden wordt om nu NIET door te gaan met importeren, maar eerst in het wizardscherm met verenigingen te kijken wat er precies mis gaat." & vbCrLf & vbCrLf & _
+  "Wilt u doorgaan?"
+  
+  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
+    Exit Function
+  End If
+End If
+
+
+
+
+
+
+lenCheckDuplicateVers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lenCheckDuplicateVers" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
 
 
 Public Function lenCheckBlockedZwemmers() As Boolean
