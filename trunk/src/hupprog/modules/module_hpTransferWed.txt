@@ -2813,7 +2813,7 @@ Public Function lnhImportGenerateDefaultZwmImportSettings() As Boolean
 lnhImportGenerateDefaultZwmImportSettings = trfGenerateDefaultZwmImportSettings()
 End Function
 
-Public Function lnhImportGenerateDefaultProgImportSettings(ByVal wedDate As Date, ByVal wedLftMode As String) As Boolean
+Public Function lnhImportGenerateDefaultProgImportSettings(ByVal impWedAgeDate As Date, ByVal impWedLftMode As String) As Boolean
 On Error GoTo fout
 lnhImportGenerateDefaultProgImportSettings = False
 
@@ -2829,10 +2829,17 @@ Dim curProgs As Recordset
 Set curProgs = CurrentDb().OpenRecordset("dtProgramma")
 'curProgs.index = "PrimaryKey"
 
+
+Dim curWedInf As WED_BASIC_INFO
+curWedInf.wednr = -1
+
+Dim curWedLftMode As String
+Dim curWedAgeDate As Date
+
 impProgs.MoveFirst
 Do Until impProgs.EOF
   Dim wednr As Long
-  wednr = Nz(impProgs("IMP_WEdstrijdnummer"))
+  wednr = Nz(impProgs("IMP_Wedstrijdnummer"))
   Dim prognr As String
   prognr = Nz(impProgs("PR_ProgrammaNummer"))
   If (wednr = 0) Then
@@ -2844,6 +2851,23 @@ Do Until impProgs.EOF
       impProgs("IMP_blLftProblem") = False
     impProgs.Update
   Else
+  
+    If (wednr <> curWedInf.wednr) Then
+      Dim tpFnd As Boolean
+      If Not wedLookup(wednr, tpFnd, curWedInf) Then
+        Exit Function
+      End If
+      If (Not tpFnd) Then
+        curWedInf.wednr = -1
+        curWedLftMode = impWedLftMode
+        curWedAgeDate = impWedAgeDate
+      Else
+        curWedLftMode = curWedInf.lftBep
+        curWedAgeDate = curWedInf.ageDate
+      End If
+    End If
+  
+  
     'find out if the wedstrijd currently already has that programmanummer.
     Dim progIsFixed As Boolean
     progIsFixed = Nz(impProgs("PR_Programmanummer_Fixed"))
@@ -2854,19 +2878,19 @@ Do Until impProgs.EOF
     
     
     
-    Dim curAf As String, curSl As String, curCat As String, curMinAge As Integer, curMaxAge As Integer, curGes As String
+    Dim curAf As String, curSl As String, curCat As String, curCmpCat As CAT_COMPILED_INFO
+        
+    Dim impAf As String, impSl As String, impCat As String, impCmpCat As CAT_COMPILED_INFO
     
-    
-    Dim impAf As String, impSl As String, impCat As String, impMinAge As Integer, impMaxAge As Integer, impGes As String
     impAf = Nz(impProgs("PR_Afstand"))
     impSl = Nz(impProgs("PR_Slag"))
     impCat = Nz(impProgs("PR_Categorie"))
-    impMinAge = catGetMinAllowedAge_bare(impCat, wedDate, wedLftMode, False)
-    impMaxAge = catGetMaxAllowedAge_bare(impCat, wedDate, wedLftMode)
-    impGes = m_of_v(impCat)
     
     
-    
+    Dim blDummy As Boolean
+    If Not ctxCompileCat(impCat, impWedAgeDate, impWedLftMode, False, blDummy, impCmpCat) Then
+      Exit Function
+    End If
     
     If (progIsFixed) Then
       curProgs.Index = "PrimaryKey"
@@ -2888,9 +2912,12 @@ Do Until impProgs.EOF
         curAf = Nz(curProgs("PR_AFstand"))
         curSl = Nz(curProgs("PR_Slag"))
         curCat = Nz(curProgs("PR_Categorie"))
-        curMinAge = catGetMinAllowedAge_bare(curCat, wedDate, wedLftMode, False)
-        curMaxAge = catGetMaxAllowedAge_bare(curCat, wedDate, wedLftMode)
-        curGes = m_of_v(curCat)
+        
+        
+        If Not ctxCompileCat(curCat, curWedAgeDate, curWedLftMode, False, blDummy, curCmpCat) Then
+          Exit Function
+        End If
+        
         
         Dim isMatch As Boolean
         Dim lftBepMinAge As Integer
@@ -2898,19 +2925,19 @@ Do Until impProgs.EOF
         isMatch = True
          
         'Have to refine matching criteria.
-        If (curAf <> impAf Or curSl <> impSl Or curMaxAge <> impMaxAge Or curGes <> impGes) Then
+        If (curAf <> impAf Or curSl <> impSl Or curCmpCat.lOldYOB <> impCmpCat.lOldYOB Or curCmpCat.sGes <> impCmpCat.sGes) Then
           isMatch = False
         End If
         
         If (isMatch) Then
-          If (curMinAge <> impMinAge) Then
+          If (curCmpCat.lYngYOB <> impCmpCat.lYngYOB) Then
             
-            lftBepMinAge = catGetMinAllowedAgeLftBep(impMaxAge)
+            lftBepMinAge = catGetMinAllowedAgeLftBep(impCmpCat.iAuxOldAge)
             
             'Check to see if the problem of the differing minAges is real; or if it just
             'an artifact of the minimum age.
             
-            If (curMinAge > lftBepMinAge Or impMinAge > lftBepMinAge) Then
+            If (curCmpCat.iAuxYngAge > lftBepMinAge Or impCmpCat.iAuxYngAge > lftBepMinAge) Then
               isMatch = False
             End If
           End If
@@ -2943,9 +2970,10 @@ Do Until impProgs.EOF
         curAf = Nz(curProgs("PR_AFstand"))
         curSl = Nz(curProgs("PR_Slag"))
         curCat = Nz(curProgs("PR_Categorie"))
-        curMinAge = catGetMinAllowedAge_bare(curCat, wedDate, wedLftMode, False)
-        curMaxAge = catGetMaxAllowedAge_bare(curCat, wedDate, wedLftMode)
-        curGes = m_of_v(curCat)
+        
+        If Not ctxCompileCat(curCat, curWedAgeDate, curWedLftMode, False, blDummy, curCmpCat) Then
+          Exit Function
+        End If
         
         Dim isAfSlMatch As Boolean
         
@@ -2958,26 +2986,26 @@ Do Until impProgs.EOF
         Else
          
           'Have to refine matching criteria.
-          If (curAf <> impAf Or curSl <> impSl Or curGes <> impGes) Then
+          If (curAf <> impAf Or curSl <> impSl Or curCmpCat.sGes <> impCmpCat.sGes) Then
             isAfSlMatch = False
             isMatch = False
           End If
           
           If (isMatch) Then
-            If (curMaxAge <> impMaxAge) Then
+            If (curCmpCat.lOldYOB <> impCmpCat.lOldYOB) Then
               isMatch = False
             End If
           End If
             
           
           If (isMatch) Then
-            If (curMinAge <> impMinAge) Then
-              lftBepMinAge = catGetMinAllowedAgeLftBep(impMaxAge)
+            If (curCmpCat.lYngYOB <> impCmpCat.lYngYOB) Then
+              lftBepMinAge = catGetMinAllowedAgeLftBep(impCmpCat.iAuxOldAge)
               
               'Check to see if the problem of the differing minAges is real; or if it just
               'an artifact of the minimum age.
               
-              If (curMinAge > lftBepMinAge Or impMinAge > lftBepMinAge) Then
+              If (curCmpCat.iAuxYngAge > lftBepMinAge Or impCmpCat.iAuxYngAge > lftBepMinAge) Then
                 isMatch = False
               End If
             End If
@@ -3039,7 +3067,7 @@ End Function
 
 
 
-Private Function lnhImportGenerateDefaultImportSettings_wed(ByRef impWedDate As Date, ByRef impWedLftMode As String, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+Private Function lnhImportGenerateDefaultImportSettings_wed(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
 On Error GoTo fout
 lnhImportGenerateDefaultImportSettings_wed = False
 
@@ -3072,6 +3100,10 @@ nImpWeds = impWed.RecordCount
     If (isFirst) Then
       impWedDate = dat
       impWedLftMode = lftMode
+      impWedAgeDate = Nz(impWed("WE_Leeftijdsdatum"), #1/1/1900#)
+      If (Not lenDateIsValid(impWedAgeDate)) Then
+        impWedAgeDate = impWedDate
+      End If
       isFirst = False
     End If
     
@@ -3191,13 +3223,13 @@ MsgBox Err & " lnhImportGenerateDefaultImportSettings_wed" & Error$, 16
 End Function
 
 
-Public Function lnhImportGenerateDefaultImportSettings(ByRef impWedDate As Date, ByRef impWedLftMode As String, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+Public Function lnhImportGenerateDefaultImportSettings(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
 On Error GoTo fout
 lnhImportGenerateDefaultImportSettings = False
 
 
 
-If Not lnhImportGenerateDefaultImportSettings_wed(impWedDate, impWedLftMode, isWedOpened, openWedNr, openWedDat, openWedTime, openWedIsMeet, openWedMeetNr) Then
+If Not lnhImportGenerateDefaultImportSettings_wed(impWedDate, impWedLftMode, impWedAgeDate, isWedOpened, openWedNr, openWedDat, openWedTime, openWedIsMeet, openWedMeetNr) Then
   Exit Function
 End If
 

@@ -4753,10 +4753,10 @@ sql = " SELECT LEN_MEETINFO.* FROM LEN_MEETINFO INNER JOIN LEN_ARCHIVEDTIME ON L
 
 Set rsMtInf = CurrentDb().OpenRecordset(sql)
 
-Dim curDates As String, curCourseS As String, curCityS As String, curNameS As String, curNationS As String
+Dim curDateS As String, curCourseS As String, curCityS As String, curNameS As String, curNationS As String
 Dim curWedID As Long
 
-curDates = ""
+curDateS = ""
 curCourseS = ""
 curCityS = ""
 curNameS = ""
@@ -4765,21 +4765,21 @@ curWedID = -1
 
 rsMtInf.MoveFirst
 Do Until rsMtInf.EOF
-  Dim tpDateS As String, tpCourseS As String, tpCityS As String, tpNames As String, tpNationS As String
+  Dim tpDateS As String, tpCourseS As String, tpCityS As String, tpNameS As String, tpNationS As String
   tpDateS = Nz(rsMtInf("LEN_Date"))
   tpCourseS = Nz(rsMtInf("LEN_Course"))
   tpCityS = Nz(rsMtInf("LEN_City"))
-  tpNames = Nz(rsMtInf("LEN_Name"))
+  tpNameS = Nz(rsMtInf("LEN_Name"))
   tpNationS = Nz(rsMtInf("LEN_Nation"))
   
   
   
-  If (tpDateS <> curDates) Or (tpCourseS <> curCourseS) Or (tpCityS <> curCityS) Or (tpNames <> curNameS) Or (tpNationS <> curNationS) Then
+  If (tpDateS <> curDateS) Or (tpCourseS <> curCourseS) Or (tpCityS <> curCityS) Or (tpNameS <> curNameS) Or (tpNationS <> curNationS) Then
     'new match encountered.
-    curDates = tpDateS
+    curDateS = tpDateS
     curCourseS = tpCourseS
     curCityS = tpCityS
-    curNameS = tpNames
+    curNameS = tpNameS
     curNationS = tpNationS
     
     curWedID = muWedID + 1
@@ -9378,118 +9378,7 @@ MsgBox Err & " lenReadFile" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
-Public Function lenHandleCompleteImportSequence(lxfDir As String, lxfFileName As String, wedIsOpen As Boolean, curOpenWedNr As Long, curOpenWedDate As Date, curOpenWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
-On Error GoTo fout
-lenHandleCompleteImportSequence = False
 
-
-If Not lenReadFile(lxfDir, lxfFileName, False) Then
-  Exit Function
-End If
-
-Dim glbWedDate As Date, glbWedLftMode As String
-
-If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
-
-If Not lnhImportGenerateDefaultProgImportSettings(glbWedDate, glbWedLftMode) Then Exit Function
-
-If Not lnhImportGenerateDefaultZwmImportSettings() Then Exit Function
-
-
-'Now open the wizard.
-DoCmd.OpenForm "hxIMP_LEN_MASTER", acNormal, , , , acDialog
-
-lenHandleCompleteImportSequence = True
-Exit Function
-fout:
-MsgBox Err & " " & Error$, 16
-Exit Function
-End Function
-
-Public Function lenHandleCompleteExportSequence(lxfDir As String, lxfFName As String, singleWedOnly As Boolean, wednr As Long, strictLenex As Boolean, lxVersion As Long, expDlns As Boolean, expTd As Boolean) As Boolean
-On Error GoTo fout
-lenHandleCompleteExportSequence = False
-
-If Not lnhExportWedstrijd(wednr, singleWedOnly, expDlns, expTd, True, True, True) Then Exit Function
-
-
-'If Not gXMLWriter.exportStructureToXML(lxfName, "fdtgLEN_XML_OBJECTS", "fdtgLEN_XML_OBJECT_RELATIONS", "LEN_", , , strictLenex) Then Exit Function
-
-Dim actFileName As String
-actFileName = ""
-
-If Not lenWriteFile(lxfDir, lxfFName, strictLenex, lxVersion, actFileName) Then
-  Exit Function
-End If
-
-Dim cntWeds As Long
-cntWeds = Nz(DCount("WE_ID", "gIMP_LEN_Wedstrijden"))
-
-Dim msg As String
-msg = "Bestand: " & actFileName & " met succes aangemaakt."
-If (cntWeds > 1) Then
-  msg = msg & vbCrLf & "Er zijn: " & cntWeds & " wedstrijden geexporteerd."
-ElseIf (cntWeds = 1) Then
-  msg = msg & vbCrLf & "Er is: " & cntWeds & " wedstrijd geexporteerd."
-End If
-
-MsgBox msg, 64
-
-lenHandleCompleteExportSequence = True
-Exit Function
-fout:
-MsgBox Err & " " & Error$, 16
-Exit Function
-End Function
-
-Public Function lenHandleCompleteWasExportSequence(wasFName As String, wasFileType As Integer, wednr As Long, ByVal blSingleWedOnly As Boolean) As Boolean
-On Error GoTo fout
-lenHandleCompleteWasExportSequence = False
-
-If Not lnhExportWedstrijd(wednr, blSingleWedOnly, True, True, True, True, True) Then Exit Function
-
-
-'Make sure that aux fields are transferred to ID fields
-If Not lenApplyCorrectionsUsingAuxData(True, True, True) Then
-  Exit Function
-End If
-
-'As a service to the custom was2005 exporter, make sure that aux fields are also properly defined
-
-If Not lenFillAuxFields() Then
-  Exit Function
-End If
-
-If Not lenFillAuxFieldsCorrectPloegNummers() Then
-  Exit Function
-End If
-
-
-If Not wasExpFromLenTransTables(wasFName, wasFileType) Then
-  Exit Function
-End If
-
-
-Dim cntWeds As Long
-cntWeds = Nz(DCount("WE_ID", "gIMP_LEN_Wedstrijden"))
-
-Dim msg As String
-msg = "Bestand: " & wasFName & " met succes aangemaakt."
-
-If (cntWeds > 1) Then
-  msg = msg & vbCrLf & "Er zijn: " & cntWeds & " wedstrijden geexporteerd."
-ElseIf (cntWeds = 1) Then
-  msg = msg & vbCrLf & "Er is: " & cntWeds & " wedstrijd geexporteerd."
-End If
-
-MsgBox msg, 64
-
-lenHandleCompleteWasExportSequence = True
-Exit Function
-fout:
-MsgBox Err & " lenHandleCompleteWasExportSequence" & vbCrLf & Error$, 16
-Exit Function
-End Function
 
 
 

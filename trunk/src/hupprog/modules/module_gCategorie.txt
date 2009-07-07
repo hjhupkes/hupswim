@@ -2335,12 +2335,16 @@ Private Function ctxBuildCat_attemptNLConversion(ByVal blApplyLftRes As Boolean,
 On Error GoTo fout
 
 ctxBuildCat_attemptNLConversion = False
+
+
+blIsConvertedToNL = False
+
   
 Dim blUseDutchCats As Boolean
 blUseDutchCats = True
 
 If (blUseDutchCats) Then
-  If (sLftBep <> LFT_MODE_SZYR) Or (catParsedInfo.blIsEstSumAges) Then
+  If (sLftBep = LFT_MODE_WEDDAT) Or (catParsedInfo.blIsEstSumAges) Then
     blUseDutchCats = False
   End If
 End If
@@ -2361,23 +2365,49 @@ If (blUseDutchCats) Then
     If (catParsedInfo.lYngYOB <= 0) Or (catParsedInfo.lYngYOB >= 9999) Then
       tpYngAge = 0
     Else
-      tpYngAge = ctxConvertYOBToAge(catParsedInfo.lYngYOB, ageYear, ageMonth, sLftBep)
+      'Need to use LFT_MODE_SZYR to calculate an age, independent of sLftBep.
+      'This is due to the fact that LFT_MODE_SZYR is always used to calculate ages for dutch based cats
+      tpYngAge = ctxConvertYOBToAge(catParsedInfo.lYngYOB, ageYear, ageMonth, LFT_MODE_SZYR)
     End If
     If (catParsedInfo.lOldYOB <= 0) Or (catParsedInfo.lOldYOB >= 9999) Then
       tpOldAge = CAT_MAX_AGE
     Else
-      tpOldAge = ctxConvertYOBToAge(catParsedInfo.lOldYOB, ageYear, ageMonth, sLftBep)
+      'Need to use LFT_MODE_SZYR to calculate an age, independent of sLftBep.
+      'This is due to the fact that LFT_MODE_SZYR is always used to calculate ages for dutch based cats
+      tpOldAge = ctxConvertYOBToAge(catParsedInfo.lOldYOB, ageYear, ageMonth, LFT_MODE_SZYR)
     End If
   ElseIf (catParsedInfo.blIsAgeBased) Then
     tpYngAge = catParsedInfo.iYngAge
     tpOldAge = catParsedInfo.iOldAge
-    If (tpYngAge <= 0) Or (tpYngAge >= CAT_MAX_AGE) Then
-      tpYngAge = 0
+    
+    'Need to convert these ages from sLftBep to LFT_MODE_SZYR
+    
+    Dim tpCmpCat As CAT_COMPILED_INFO, tpIsOK As Boolean
+    If Not ctxCompileCat_perform(catParsedInfo, ageDate, sLftBep, False, tpIsOK, tpCmpCat) Then
+      Exit Function
     End If
-    If (tpOldAge <= 0) Or (tpOldAge >= CAT_MAX_AGE) Then
-      tpOldAge = CAT_MAX_AGE
+    If Not tpIsOK Then
+      blUseDutchCats = False
+    Else
+      If (tpCmpCat.lYngYOB <= 0) Or (tpCmpCat.lYngYOB >= 9999) Then
+        tpYngAge = 0
+      Else
+        tpYngAge = ctxConvertYOBToAge(tpCmpCat.lYngYOB, ageYear, ageMonth, LFT_MODE_SZYR)
+      End If
+      If (tpCmpCat.lOldYOB <= 0) Or (tpCmpCat.lOldYOB >= 9999) Then
+        tpOldAge = CAT_MAX_AGE
+      Else
+        tpOldAge = ctxConvertYOBToAge(tpCmpCat.lOldYOB, ageYear, ageMonth, LFT_MODE_SZYR)
+      End If
+      
+      If (tpYngAge <= 0) Or (tpYngAge >= CAT_MAX_AGE) Then
+        tpYngAge = 0
+      End If
+      If (tpOldAge <= 0) Or (tpOldAge >= CAT_MAX_AGE) Then
+        tpOldAge = CAT_MAX_AGE
+      End If
     End If
-  End If
+  End If 'if catParsedInfo.
   
   blYngValid = tpYngAge > 0
   blOldValid = tpOldAge < CAT_MAX_AGE
