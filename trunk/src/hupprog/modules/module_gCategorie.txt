@@ -1856,6 +1856,8 @@ ctxGetLftResMinAge = res
 
 End Function
 
+
+
 Private Function ctxGetLftModeDes(ByVal sLftBep As String, ageYear As Long, ageMonth As Long, ageDay As Long) As String
 Dim ageDate As Date
 ageDate = DateSerial(ageYear, ageMonth, ageDay)
@@ -1881,16 +1883,7 @@ ctxGetLftModeDes = "Lft. wordt berekend op: " & fmtDate(lftBepDate)
 
 ctxGetLftModeDes = ctxGetLftModeDes & " (Wedstr. peil datum: " & fmtDate(ageDate) & "; Lft bep. = "
 
-Select Case sLftBep
-  Case LFT_MODE_SZYR
-    ctxGetLftModeDes = ctxGetLftModeDes & "Standaard (31 dec wedstr. seiz.)"
-  Case LFT_MODE_WEDYR_END
-    ctxGetLftModeDes = ctxGetLftModeDes & "Wedstr. jaar (31 dec wedstr. jaar)"
-  Case LFT_MODE_WEDYR_START
-    ctxGetLftModeDes = ctxGetLftModeDes & "Begin wedstr. jr. (1 jan wedstr. jaar)"
-  Case LFT_MODE_WEDDAT
-    ctxGetLftModeDes = ctxGetLftModeDes & "Wedstr. datum"
-End Select
+ctxGetLftModeDes = ctxGetLftModeDes & fmtLftMode(sLftBep)
 
 ctxGetLftModeDes = ctxGetLftModeDes & ")"
 

@@ -528,6 +528,10 @@ Dim nProbs  As Integer
 nProbs = 0
 Dim sProbs As String
 sProbs = ""
+Dim sLftCurMatch As String
+Dim dAgeDateCurMatch As Date
+Dim sLftImpMatch As String
+Dim dAgeDateImpMatch As Date
 
 
 
@@ -597,6 +601,10 @@ Do Until rsProgs.EOF
       blAgeProblem = lenGetNormAgeCalcDate(curWedInf.lftBep, curWedInf.ageDate) <> lenGetNormAgeCalcDate(impWedLftMode, impWedAgeDate)
       
       If (blAgeProblem) Then
+        sLftCurMatch = curWedInf.lftBep
+        dAgeDateCurMatch = curWedInf.ageDate
+        sLftImpMatch = impWedLftMode
+        dAgeDateImpMatch = impWedAgeDate
         nProbs = nProbs + 1
         If (Len(sProbs) > 0) Then
           sProbs = sProbs + ", "
@@ -625,6 +633,10 @@ If (nProbs > 0) Then
   "Deze programmanummers moeten worden toegevoegd aan een bestaande wedstrijd, " & vbCrLf & _
   "maar de leeftijds berekening voor de te importeren wedstrijd " & _
   "wijkt af van de bestaande wedstrijd." & vbCrLf & vbCrLf & _
+  "Leeftijdsberekening huidige wedstrijd: " & vbCrLf & vbCrLf & _
+  "Peildatum: " & fmtDate(dAgeDateCurMatch) & ", berekening: " & fmtLftMode(sLftCurMatch) & vbCrLf & vbCrLf & _
+  "Leeftijdsberekening te importeren wedstrijd: " & vbCrLf & vbCrLf & _
+  "Peildatum: " & fmtDate(dAgeDateImpMatch) & ", berekening: " & fmtLftMode(sLftImpMatch) & vbCrLf & vbCrLf & _
   "U wordt aangeraden om NIET verder te gaan met importeren voordat u hebt uitgezocht waar deze verschillen vandaan komen." & vbCrLf & vbCrLf & _
   "Wilt u doorgaan met importeren?"
   
