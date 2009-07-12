@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1360844995
+Checksum =1110256416
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -13,9 +13,9 @@ Begin Form
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
     GridY =10
-    Width =11509
+    Width =11962
     DatasheetFontHeight =10
-    ItemSuffix =26
+    ItemSuffix =27
     Left =2565
     Top =450
     Right =14070
@@ -128,7 +128,7 @@ Begin Form
                     OverlapFlags =85
                     Left =56
                     Top =1133
-                    Width =11416
+                    Width =11855
                     Height =382
                     Name ="optView"
                     BeforeUpdate ="[Event Procedure]"
@@ -229,7 +229,7 @@ Begin Form
                             Caption ="Extra Records"
                         End
                         Begin ToggleButton
-                            OverlapFlags =87
+                            OverlapFlags =95
                             Left =10647
                             Top =1215
                             Width =825
@@ -237,6 +237,19 @@ Begin Form
                             OptionValue =9
                             Name ="optWinners"
                             Caption ="Winnaars"
+                        End
+                        Begin ToggleButton
+                            OverlapFlags =247
+                            Left =11281
+                            Top =1215
+                            Width =630
+                            Height =300
+                            OptionValue =10
+                            Name ="optPrn"
+                            Caption ="Printen"
+                            GUID = Begin
+                                0x10189883b718104bbf00c18a13770edd
+                            End
                         End
                     End
                 End
@@ -258,8 +271,8 @@ Begin Form
                     OverlapFlags =85
                     AccessKey =84
                     TextFontFamily =2
-                    Left =10374
-                    Top =170
+                    Left =10830
+                    Top =165
                     Width =1035
                     Height =330
                     FontSize =10
@@ -372,7 +385,7 @@ Begin Form
                 Begin Tab
                     OverlapFlags =93
                     Style =2
-                    Width =11509
+                    Width =11959
                     Height =5165
                     TabIndex =1
                     Name ="tabctl"
@@ -381,7 +394,7 @@ Begin Form
                             OverlapFlags =223
                             Left =75
                             Top =75
-                            Width =11355
+                            Width =11805
                             Height =5010
                             Name ="Page18"
                         End
@@ -389,7 +402,7 @@ Begin Form
                             OverlapFlags =223
                             Left =75
                             Top =75
-                            Width =11355
+                            Width =11805
                             Height =5010
                             Name ="Page19"
                         End
@@ -415,8 +428,6 @@ Option Explicit
 
 
 
-Private Const PAGE_MIN = 0
-Private Const PAGE_MAX = 9
 
 Private Const PAGE_DLN = 0
 Private Const PAGE_DLN_ADV = 1
@@ -428,6 +439,11 @@ Private Const PAGE_CAP = 6
 Private Const PAGE_DET = 7
 Private Const PAGE_EXR = 8
 Private Const PAGE_WIN = 9
+Private Const PAGE_PRN = 10
+
+Private Const PAGE_MIN = 0
+Private Const PAGE_MAX = PAGE_PRN
+
 
 
 
@@ -669,6 +685,8 @@ For i = PAGE_MIN To PAGE_MAX
       Set cntrl = Me.optExtRec
     Case PAGE_WIN
       Set cntrl = Me.optWinners
+    Case PAGE_PRN
+      Set cntrl = Me.optPrn
   End Select
   
   If (glbCurProg = "") Then
@@ -830,6 +848,8 @@ Select Case curPage
       pName = "DLN_ExtraRec"
     Case PAGE_WIN
       pName = "DLN_Winners"
+    Case PAGE_PRN
+      pName = "DLN_Printen"
 End Select
 
 

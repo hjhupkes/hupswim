@@ -277,6 +277,8 @@ Public Const RXP_PV_ARG_FIRST_PROG = "FirstProg"
 Public Const RXP_PV_ARG_LAST_PROG = "EndProg"
 Public Const RXP_PV_ARG_RESTRICT_RNK = "RestrictRank"
 Public Const RXP_PV_ARG_MAX_RNK = "MaxRank"
+Public Const RXP_PV_ARG_IS_SINGLE_PROG = "IsSingleProg"
+Public Const RXP_PV_ARG_SINGLE_PROG = "SingleProg"
 
 
 Private Const RXP_UTL_TXT_FULL_WIDTH = 120
@@ -3897,6 +3899,7 @@ Dim wednr As Long, wedInf As WED_BASIC_INFO
 
 Dim blEntireMeet As Boolean, sFirstProg As String, sLastProg As String
 Dim blRestrictRnk As Boolean, lMaxRnk As Long
+Dim blSingleProg As Boolean, sSingleProg As String
 
 Dim rs As Recordset
 Set rs = CurrentDb().OpenRecordset("hpoPV_Stats")
@@ -3909,6 +3912,8 @@ sFirstProg = Nz(rs("PV_FirstProgrammanummer"))
 sLastProg = Nz(rs("PV_LastProgrammanummer"))
 blRestrictRnk = Nz(rs("PV_RestrictRank"))
 lMaxRnk = Nz(rs("PV_MaxRank"))
+blSingleProg = Nz(rs("PV_IsSingleProg"))
+sSingleProg = Nz(rs("PV_SingleProg"))
 
 appCleanRS rs
 
@@ -3966,6 +3971,15 @@ If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_MAX_RNK, lMaxRnk) Then
   Exit Function
 End If
 
+If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_IS_SINGLE_PROG, rxpFormatBoolean(blSingleProg)) Then
+  Exit Function
+End If
+
+If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_SINGLE_PROG, sSingleProg) Then
+  Exit Function
+End If
+
+
   
   
 
@@ -4019,6 +4033,7 @@ End If
 Dim wednr As Long, blEntireMeet As Boolean, wedMainNr As Long, blIsOW As Boolean
 Dim sFirstProg As String, sLastProg As String
 Dim blRestrictRnk As Boolean, lMaxRnk As Long
+Dim blSingleProg As Boolean, sSingleProg As String
 
 wednr = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_NR))
 blEntireMeet = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_ENTIRE_MEET))
@@ -4028,7 +4043,8 @@ sFirstProg = rxpGetUserArg(rxpPnt, RXP_PV_ARG_FIRST_PROG)
 sLastProg = rxpGetUserArg(rxpPnt, RXP_PV_ARG_LAST_PROG)
 blRestrictRnk = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_RESTRICT_RNK))
 lMaxRnk = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_MAX_RNK))
-
+blSingleProg = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_IS_SINGLE_PROG))
+sSingleProg = rxpGetUserArg(rxpPnt, RXP_PV_ARG_SINGLE_PROG)
 
 
 
@@ -4065,7 +4081,10 @@ End If
 
 whereClause = whereClause & " AND ( nz([de_geweigerd]) <> ""J"" ) "
 
-If (sFirstProg = "") And (sLastProg = "") Then
+
+If (blSingleProg) Then
+  whereClause = whereClause & " AND ( [pr_programmanummer] = """ & sSingleProg & """ ) "
+ElseIf (sFirstProg = "") And (sLastProg = "") Then
 ElseIf (sLastProg = "") Then
   whereClause = whereClause & " AND ( val(nz([pr_programmanummer])) >= " & val(sFirstProg) & " ) "
 ElseIf (sFirstProg = "") Then

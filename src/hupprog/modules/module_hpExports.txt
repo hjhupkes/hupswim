@@ -199,26 +199,44 @@ If (blUseSuppFName) Then
   fName = sSuppFileName
 End If
 
+Dim sProgSfx As String
+sProgSfx = ""
+
+If (rptName = REP_PRG) Or (rptName = REP_UTB) Or (rptName = REP_UTL) Or (rptName = REP_STL) Or (rptName = REP_STL_CAT) _
+  Or (rptName = REP_STL_KLEIN) Or (rptName = REP_STL_CAT_KLEIN) Then
+  If Not blUseSuppFName Then
+    Dim blIsSingleProg As Boolean
+    Dim sSingleProg As String
+    
+    blIsSingleProg = Nz(DLookup("PV_IsSingleProg", "hpoPV_Stats"), False)
+    sSingleProg = Nz(DLookup("PV_SingleProg", "hpoPV_Stats"))
+    
+    If (blIsSingleProg) And (sSingleProg <> "") Then
+      sProgSfx = "_prog_" & GoedTekens(sSingleProg)
+    End If
+  End If
+End If
+
 
 If (rptName = REP_UTL) Then
   If Not blUseSuppFName Then
-    fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslaglijst" & fExt
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslaglijst" & sProgSfx & fExt
   End If
 ElseIf (rptName = REP_UTB) Then
   If Not blUseSuppFName Then
-    fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslag" & fExt
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslag" & sProgSfx & fExt
   End If
 ElseIf (rptName = REP_PRG) Then
   If Not blUseSuppFName Then
-    fName = dbdir() & "\" & wedSuggestBaseFName() & "_programmablad" & fExt
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_programmablad" & sProgSfx & fExt
   End If
 ElseIf (rptName = REP_STL) Or (rptName = REP_STL_KLEIN) Then
   If Not blUseSuppFName Then
-    fName = dbdir() & "\" & wedSuggestBaseFName() & "_startlijst" & fExt
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_startlijst" & sProgSfx & fExt
   End If
 ElseIf (rptName = REP_STL_CAT) Or (rptName = REP_STL_CAT_KLEIN) Then
   If Not blUseSuppFName Then
-    fName = dbdir() & "\" & wedSuggestBaseFName() & "_startlijst" & fExt
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_startlijst" & sProgSfx & fExt
   End If
 ElseIf (rptName = REP_JRY) Then
   If Not blUseSuppFName Then
