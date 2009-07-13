@@ -2333,8 +2333,8 @@ sql = "SELECT DISTINCTROW dtWedstrijdGegevens.WE_Wedstrijdnummer, dtWedstrijdGeg
 "dtWedstrijdGegevens.WE_JuryWissel, dtWedstrijdGegevens.WE_AantalZiekmeldingen, " & _
 "dtWedstrijdGegevens.WE_AantalZiekmeldingen_Txt,dtWedstrijdGegevens.WE_AantalAFM,dtWedstrijdGegevens.WE_AantalNG,dtWedstrijdGegevens.WE_AantalNGZA, dtWedstrijdGegevens.WE_ZonderKennisGevingAfwezig, " & _
 "dtWedstrijdGegevens.WE_MetKennisGevingAfwezig, dtWedstrijdGegevens.WE_Opmerkingen_Scheidsrechter, " & _
-"dtWedstrijdGegevens.WE_Einde, dtWedstrijdGegevens.WE_AantalDagStartVg, dtWedstrijdGegevens.WE_WaterTemp, " & _
-"dtWedstrijdGegevens.WE_Kosten_ProgBoekje, False AS JUX_KlokTimeEntered " & _
+"dtWedstrijdGegevens.WE_Einde, dtWedstrijdGegevens.WE_AantalDagStartVg, dtWedstrijdGegevens.WE_WaterTemp, dtWedstrijdGegevens.WE_KlokkenStatus, " & _
+"dtWedstrijdGegevens.WE_Kosten_ProgBoekje, False AS JUX_FunctieEntered " & _
 "INTO [~voorblad] " & _
 "FROM dtWedstrijdGegevens LEFT JOIN (dtWedstrijdJury LEFT JOIN dtOfficials ON dtWedstrijdJury.JD_Index = " & _
 "dtOfficials.JU_index) ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtWedstrijdJury.JD_Wedstrijdnummer " & _
@@ -2346,12 +2346,12 @@ DoCmd.SetWarnings False
 DoCmd.RunSQL sql
 DoCmd.SetWarnings True
 
-Dim blTimesEntered As Boolean
+Dim blFncEntered As Boolean
 
-blTimesEntered = False
+blFncEntered = False
 
-If (Nz(DMax("JD_Klokken", "~voorblad")) > 1) Then
-  blTimesEntered = True
+If (Nz(DMax("[JD_Echte functie]", "~voorblad")) <> "") Then
+  blFncEntered = True
 End If
 
 
@@ -2393,7 +2393,7 @@ rs.MoveFirst
 Do Until rs.EOF
   rs.Edit
     rs("jux_line_number") = vbldPrepare_GetLineNumber(curLineOrder, Nz(rs("jd_functie")))
-    rs("JUX_KlokTimeEntered") = blTimesEntered
+    rs("JUX_FunctieEntered") = blFncEntered
     
     rs("jux_order") = curOrder + 1
     curOrder = curOrder + 1

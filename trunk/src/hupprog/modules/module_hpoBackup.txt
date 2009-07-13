@@ -1966,6 +1966,10 @@ Exit Function
 fout:
 If Err = 3021 Then Resume Next 'no current record
 
+If (Err = 3163) Then Resume Next 'field too small
+
+Dim msg As String
+msg = Err & " VerwerkTabel" & vbCrLf & Error$
 
 appCleanRS uit
 appCleanRS geg
@@ -1973,7 +1977,7 @@ appCleanRS geg
 Set mydb = Nothing
 
 
-MsgBox Err & " VerwerkTabel" & Chr(13) & Error$, 16
+MsgBox msg, 16
 
 'debug
 'On Error GoTo 0
