@@ -940,7 +940,7 @@ Exit Function
 End Function
 
 
-Private Function splTMImpFillLenTransTables_handleResultsWeds_writeEstTime(ByRef rsResEst As Recordset, ByRef rsTd As Recordset, ByRef rsRelay As Recordset, ByRef rsPll As Recordset, ByRef skPos As Recordset, ByRef muTdID As Long, ByRef muPllID As Long, ByVal dSwimTime As Double, ByVal lWedID As Long, ByVal sAfstand As String, ByVal sSlag As String) As Boolean
+Private Function splTMImpFillLenTransTables_handleResultsWeds_writeEstTime(ByRef rsResEst As Recordset, ByRef rsTd As Recordset, ByRef rsRelay As Recordset, ByRef rsPll As Recordset, ByRef skPos As Recordset, ByRef muTdID As Long, ByRef muPllID As Long, ByVal dSwimTime As Double, ByVal lWedID As Long, ByVal sAfstand As String, ByVal sSlag As String, ByVal blIsDis As Boolean) As Boolean
 On Error GoTo fout
 splTMImpFillLenTransTables_handleResultsWeds_writeEstTime = False
 
@@ -977,8 +977,7 @@ rsTd.AddNew
   rsTd("TD_Afstand") = hzn(sAfstand)
   rsTd("TD_Slag") = hzn(sSlag)
   
-  'TODO: extract disqualification codes
-  rsTd("TD_Dis") = Null
+  rsTd("TD_Dis") = IIf(blIsDis, "DQ", Null)
   rsTd("TD_Opm") = Null
   rsTd("TD_IsTusTijd") = False
   
@@ -1040,7 +1039,7 @@ Exit Function
 End Function
 
 
-Private Function splTMImpFillLenTransTables_handleResultsWeds_writePersTime(ByRef rsResPers As Recordset, ByRef rsTd As Recordset, ByRef skMembers As Recordset, ByRef muTdID As Long, ByVal dSwimTime As Double, ByVal lWedID As Long, ByVal sAfstand As String, ByVal sSlag As String) As Boolean
+Private Function splTMImpFillLenTransTables_handleResultsWeds_writePersTime(ByRef rsResPers As Recordset, ByRef rsTd As Recordset, ByRef skMembers As Recordset, ByRef muTdID As Long, ByVal dSwimTime As Double, ByVal lWedID As Long, ByVal sAfstand As String, ByVal sSlag As String, ByVal blIsDis As Boolean, ByVal blIsTst As Boolean) As Boolean
 On Error GoTo fout
 splTMImpFillLenTransTables_handleResultsWeds_writePersTime = False
 
@@ -1073,10 +1072,9 @@ rsTd.AddNew
   rsTd("TD_Tijd") = dSwimTime
   rsTd("TD_Afstand") = hzn(sAfstand)
   rsTd("TD_Slag") = hzn(sSlag)
-  'TODO: extract disqualification codes
-  rsTd("TD_Dis") = Null
+  rsTd("TD_Dis") = IIf(blIsDis, "DQ", Null)
   rsTd("TD_Opm") = Null
-  rsTd("TD_IsTusTijd") = False
+  rsTd("TD_IsTusTijd") = blIsTst
 
 rsTd.Update
   
@@ -1146,6 +1144,11 @@ If (iSplTMVersion = SPL_TM_VER_2009) Then
 Else
   skStyles.Index = "PrimaryKey"
 End If
+
+
+Dim skFSNStyles As Recordset
+Set skFSNStyles = CurrentDb().OpenRecordset("fdtgSplashStyleConversion")
+skFSNStyles.Index = "PrimaryKey"
 
 
 
@@ -1237,35 +1240,58 @@ Do Until blDone
   skStyles.Seek "=", tpStyleID
   
   If Not skStyles.NoMatch Then
-    Dim iDistance As Integer, iStroke As Integer, iRelayCount As Integer
-    iDistance = Nz(skStyles("distance"))
-    iStroke = Nz(skStyles("stroke"))
-    iRelayCount = Nz(skStyles("relaycount"))
-    
-    tpAf = splReadDistance(iDistance)
-    
-    If (iSplTMVersion = SPL_TM_VER_2007) Then
-      tpSl = splReadStrokeAsSlag_TM2007(iStroke)
-    Else
-      tpSl = splReadStrokeAsSlag(iStroke)
-    End If
   
-  
-    If (tpAf = "") Or (tpSl = "") Or (tpSl = "ONB") Then
-      blValid = False
-    Else
-      If (iRelayCount > 1) Then
-        If (tpProcPers) Then
-          blValid = False
-        Else
-          tpAf = iRelayCount & "x" & tpAf
-        End If
+    If (Not tpProcPers) And (iSplTMVersion = SPL_TM_VER_2007) Then
+    
+      Dim tpFSNId As Long
+      tpFSNId = Nz(skStyles("fsnid"))
+      
+      skFSNStyles.Seek "=", tpFSNId
+      
+      If (skFSNStyles.NoMatch) Then
+        blValid = False
       Else
-        If (Not tpProcPers) Then
-          blValid = False
+        tpAf = Nz(skFSNStyles("afstand"))
+        tpSl = Nz(skFSNStyles("slag"))
+      End If
+      
+      If (tpAf = "") Or (tpSl = "") Or (tpSl = "ONB") Then
+        blValid = False
+      ElseIf Not (tpAf Like "*x*") Then
+        blValid = False
+      End If
+        
+    Else
+      Dim iDistance As Integer, iStroke As Integer, iRelayCount As Integer
+      iDistance = Nz(skStyles("distance"))
+      iStroke = Nz(skStyles("stroke"))
+      iRelayCount = Nz(skStyles("relaycount"))
+      
+      tpAf = splReadDistance(iDistance)
+      
+      If (iSplTMVersion = SPL_TM_VER_2007) Then
+        tpSl = splReadStrokeAsSlag_TM2007(iStroke)
+      Else
+        tpSl = splReadStrokeAsSlag(iStroke)
+      End If
+    
+    
+      If (tpAf = "") Or (tpSl = "") Or (tpSl = "ONB") Then
+        blValid = False
+      Else
+        If (iRelayCount > 1) Then
+          If (tpProcPers) Then
+            blValid = False
+          Else
+            tpAf = iRelayCount & "x" & tpAf
+          End If
+        Else
+          If (Not tpProcPers) Then
+            blValid = False
+          End If
         End If
       End If
-    End If
+    End If 'if not tpProcPers and TM_VER_2007
   Else
     blValid = False
   End If
@@ -1285,6 +1311,52 @@ Do Until blDone
     End If
     
   End If
+  
+   
+  
+  If (blValid) Then
+    
+    'add sanity check on imported time
+    If Not swtIsValid(tpTd) Then
+      blValid = False
+    Else
+    
+      Dim dSwtPer50 As Double
+      Dim dTotDist As Double
+      
+      dTotDist = afstand_tot_distance(tpAf)
+      If (dTotDist < 1) Then
+        blValid = False
+      Else
+        dSwtPer50 = swtToSeconds(tpTd) * 50 / dTotDist
+        If (dSwtPer50 < 16) Or (dSwtPer50 > 150) Then
+          blValid = False
+        End If
+      End If
+    End If 'if swtValid
+    
+  End If 'if blValid
+  
+  
+  Dim tpIsDis As Boolean, tpIsTst As Boolean
+  tpIsDis = False
+  tpIsTst = False
+  
+  If (blValid) Then
+    Dim iResultType As Integer
+    If (tpProcPers) Then
+      iResultType = Nz(rsResPers("resulttyp"), 0)
+    Else
+      iResultType = Nz(rsResEst("resulttyp"), 0)
+    End If
+    
+    If (iResultType = 5) Then
+      tpIsDis = True
+    ElseIf (iResultType = 2) Then
+      tpIsTst = True
+    End If
+  End If
+  
 
   
   If (blValid) Then
@@ -1325,11 +1397,11 @@ Do Until blDone
   If (blValid) Then
   
     If (tpProcPers) Then
-      If Not splTMImpFillLenTransTables_handleResultsWeds_writePersTime(rsResPers, rsTd, skMembers, muTdID, tpTd, muWedID, tpAf, tpSl) Then
+      If Not splTMImpFillLenTransTables_handleResultsWeds_writePersTime(rsResPers, rsTd, skMembers, muTdID, tpTd, muWedID, tpAf, tpSl, tpIsDis, tpIsTst) Then
         Exit Function
       End If
     Else
-      If Not splTMImpFillLenTransTables_handleResultsWeds_writeEstTime(rsResEst, rsTd, rsRelay, rsPll, skPos, muTdID, muPllID, tpTd, muWedID, tpAf, tpSl) Then
+      If Not splTMImpFillLenTransTables_handleResultsWeds_writeEstTime(rsResEst, rsTd, rsRelay, rsPll, skPos, muTdID, muPllID, tpTd, muWedID, tpAf, tpSl, tpIsDis) Then
         Exit Function
       End If
     End If
@@ -1367,7 +1439,7 @@ appCleanRS skStyles
 appCleanRS skMeets
 appCleanRS skMembers
 appCleanRS skPos
-
+appCleanRS skFSNStyles
 
 SysCmd acSysCmdClearStatus
 
