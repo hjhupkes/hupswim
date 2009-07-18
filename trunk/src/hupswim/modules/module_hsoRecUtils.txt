@@ -1706,6 +1706,7 @@ MsgBox Err & " recRemoveGaps" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
+'this function has been obsoleted
 Public Function recNumberChronological(ByVal Code As String, ByVal startDate As Date) As Boolean
 On Error GoTo fout
 recNumberChronological = False
@@ -1886,6 +1887,10 @@ If (Err = 3022) Then
 End If
 MsgBox Err & " recNumberChronological" & vbCrLf & Error$, 16
 Exit Function
+
+'debug
+On Error GoTo 0
+Resume
 
 End Function
 
@@ -3375,15 +3380,15 @@ Dim tpRecAf As String
       
       recNDecimals = Nz(skExt("RC_AantalDecimalen"))
       If (tpRecIsEstaf) Then
-        Dim tpNames As String
-        tpNames = Nz(skExt("RC_EST_Deelnemers"))
-        estDeelnemers = tpNames
+        Dim tpNameS As String
+        tpNameS = Nz(skExt("RC_EST_Deelnemers"))
+        estDeelnemers = tpNameS
         If (estDeelnemers <> "") Then
           estIsValid = True
         End If
         
         Dim tpPllName As String
-        tpPllName = Trim(extractToken(tpNames, ","))
+        tpPllName = Trim(extractToken(tpNameS, ","))
         nEstZwemmers = 0
         While (tpPllName <> "")
           estStarts(nEstZwemmers) = ""
@@ -3400,7 +3405,7 @@ Dim tpRecAf As String
           
           
           nEstZwemmers = nEstZwemmers + 1
-          tpPllName = Trim(extractToken(tpNames, ","))
+          tpPllName = Trim(extractToken(tpNameS, ","))
         Wend
         
       Else
@@ -4232,7 +4237,7 @@ Set rs = CurrentDb().OpenRecordset(sql)
 
 Dim curDisplayTimes(0 To 5) As String
 Dim curDisplayNames(0 To 5) As String
-Dim curDates(0 To 5) As Date
+Dim curDateS(0 To 5) As Date
 Dim curPlaats(0 To 5) As String
 
 Dim slag(0 To 5) As String, nSlag As Integer
@@ -4289,8 +4294,8 @@ Do Until done
         For i = 0 To nSlag - 1
           outp("RH_DisplayTime" & slag(i)) = hzn(curDisplayTimes(i))
           outp("RH_DisplayNaam" & slag(i)) = hzn(curDisplayNames(i))
-          If (lenDateIsValid(curDates(i))) Then
-            outp("RH_Datum" & slag(i)) = curDates(i)
+          If (lenDateIsValid(curDateS(i))) Then
+            outp("RH_Datum" & slag(i)) = curDateS(i)
           Else
             outp("RH_Datum" & slag(i)) = Null
           End If
@@ -4305,7 +4310,7 @@ Do Until done
       For i = 0 To nSlag - 1
         curDisplayTimes(i) = ""
         curDisplayNames(i) = ""
-        curDates(i) = #1/1/1900#
+        curDateS(i) = #1/1/1900#
         curPlaats(i) = ""
       Next i
       
@@ -4330,7 +4335,7 @@ Do Until done
     If (tpSlIdx >= 0) Then
       curDisplayNames(tpSlIdx) = Nz(rs("RH_DisplayNaamVer"))
       curDisplayTimes(tpSlIdx) = Nz(rs("RH_DisplayTijd"))
-      curDates(tpSlIdx) = Nz(rs("RH_Datum"), #1/1/1900#)
+      curDateS(tpSlIdx) = Nz(rs("RH_Datum"), #1/1/1900#)
       curPlaats(tpSlIdx) = Nz(rs("RH_Plaats"))
     End If
   
@@ -5761,4 +5766,373 @@ fout:
 If (Err = 3021) Then Resume Next
 DoCmd.SetWarnings True
 MsgBox Err & " recMarkInvalidRecs" & vbCrLf & Error$, 16
+End Function
+
+
+
+
+
+Private Function recNrChange_clean() As Boolean
+On Error GoTo fout
+recNrChange_clean = False
+
+DoCmd.SetWarnings False
+
+Dim sql As String
+sql = "delete * from hsoRecNummerChange;"
+
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+recNrChange_clean = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " recNrChange_clean" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+
+Private Function recNrChange_perform_testValidity(ByVal sRecCode As String, ByRef isValid As Boolean, ByRef offendingRecNr As Long) As Boolean
+On Error GoTo fout
+recNrChange_perform_testValidity = False
+
+isValid = True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRecNummerChange")
+
+Dim skRec As Recordset
+Set skRec = CurrentDb().OpenRecordset("dtRecordsInternal")
+skRec.Index = "PrimaryKey"
+
+Dim skChange As Recordset
+Set skChange = CurrentDb().OpenRecordset("hsoRecNummerChange")
+skChange.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpNewNr As Long
+  tpNewNr = Nz(rs("NR_NewNummer"))
+  
+  skRec.Seek "=", sRecCode, tpNewNr
+  
+  If (Not skRec.NoMatch) Then
+    skChange.Seek "=", tpNewNr
+    If (skChange.NoMatch) Then
+      'This will cause an external block: anticipate and fail.
+      offendingRecNr = tpNewNr
+      isValid = False
+      Exit Do
+    End If
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skRec
+appCleanRS skChange
+
+recNrChange_perform_testValidity = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recNrChange_perform_testValidity" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function recNrChange_perform_updateRecNrs(ByVal sCode As String, ByRef freeRecNr As Long) As Boolean
+On Error GoTo fout
+recNrChange_perform_updateRecNrs = False
+
+
+Dim skRec As Recordset
+Set skRec = CurrentDb().OpenRecordset("dtRecordsInternal")
+skRec.Index = "PrimaryKey"
+
+
+skRec.Seek "=", sCode, freeRecNr
+If Not skRec.NoMatch Then
+  Err.Raise 1, , "Internal error"
+End If
+
+Dim skChangeCurNr As Recordset
+Set skChangeCurNr = CurrentDb().OpenRecordset("hsoRecNummerChange")
+skChangeCurNr.Index = "IdxCurNummer"
+
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from hsoRecNummerChange;", dbOpenDynaset)
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpCurNr As Long
+  tpCurNr = Nz(rs("NR_INT_CurrentNummer"), -1)
+  
+  Dim tpNewNr As Long
+  tpNewNr = Nz(rs("NR_NewNummer"))
+  
+  
+  If (tpCurNr <> tpNewNr) Then
+  
+    'first check to see if this nummer is free
+    skRec.Seek "=", sCode, tpNewNr
+    
+    'First free up this new nummer
+    If (Not skRec.NoMatch) Then
+      skChangeCurNr.Seek "=", tpNewNr
+      If (skChangeCurNr.NoMatch) Then
+        'We have a block in place
+        'This should have been trapped
+        Err.Raise 1, , "Internal error"
+      End If
+      
+      
+      'Change the nummer and mark this change
+      skRec.Edit
+        skRec("RC_Recordnummer") = freeRecNr
+      skRec.Update
+      
+      skChangeCurNr.Edit
+        skChangeCurNr("NR_INT_CurrentNummer") = freeRecNr
+      skChangeCurNr.Update
+      
+      'update the freeWedNr
+      freeRecNr = tpNewNr
+      
+    End If
+    
+    
+    'The new nummer is free
+    
+    'Update the wedstrijd nummer
+    skRec.Seek "=", sCode, tpCurNr
+    skRec.Edit
+      skRec("RC_Recordnummer") = tpNewNr
+    skRec.Update
+    
+    rs.Edit
+      rs("NR_INT_CurrentNummer") = tpNewNr
+    rs.Update
+    
+    If (freeRecNr = tpNewNr) Then
+      freeRecNr = tpCurNr
+    End If
+    
+  End If 'if tpCurNr <> tpNewNr
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skRec
+appCleanRS skChangeCurNr
+
+recNrChange_perform_updateRecNrs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recNrChange_perform_updateRecNrs" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function recNrChange_perform(ByVal sCode As String) As Boolean
+On Error GoTo fout
+recNrChange_perform = False
+
+'First check if we have a free wedstrijd nummer which we can use
+Dim freeRecNr As Long
+freeRecNr = -100
+
+If Nz(DLookup("[RC_Recordnummer]", "dtRecordsInternal", "rc_code = """ & sCode & """ and rc_recordnummer = " & freeRecNr), 0) <> 0 Then
+  Err.Raise 1, , "Het recordnummer: -100 is in gebruik "
+End If
+
+
+Dim blIsValid As Boolean, tpOffRecNr As Long
+
+If Not recNrChange_perform_testValidity(sCode, blIsValid, tpOffRecNr) Then
+  Exit Function
+End If
+
+If (Not blIsValid) Then
+  Err.Raise 1, , "Het recordnummer: " & tpOffRecNr & " valt buiten het datum bereik maar is nodig voor de chronologische volgorde. " & vbCrLf & "Vergroot het datum-bereik"
+End If
+
+
+'Initialize the current nummers.
+Dim sql As String
+sql = "update hsoRecNummerChange set NR_INT_CurrentNummer = NR_OldNummer;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+Dim blIsOK As Boolean
+
+blIsOK = True
+
+If Not recNrChange_perform_updateRecNrs(sCode, freeRecNr) Then
+  Exit Function
+End If
+
+recNrChange_perform = True
+Exit Function
+
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " recNrChange_perform" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Function recNrChronologicalChange(ByVal sCode As String, ByVal dFirstDate As Date) As Boolean
+
+
+'=========================================================
+'Hernummert de records in chronologische volgorde.
+'Vereiste is dat in de geselecteerde periode geen wedstrijdnummers
+'van een andere periode liggen.
+'=========================================================
+
+
+On Error GoTo fout
+recNrChronologicalChange = False
+
+
+notifyRecordChange
+
+If Not recNrChange_clean() Then
+  Exit Function
+End If
+
+'Perform two scans of the data; one to find the minimum wedstrijd numer in the selected period for each year
+'The second pass is to fill the hsoWedNummerChange table
+Dim sql As String
+
+sql = "SELECT dtRecordsInternal.* FROM [dtWedstrijden] INNER JOIN dtRecordsInternal ON " & _
+"[dtWedstrijden].[Wedstrijd nummer] = dtRecordsInternal.rc_wedstrijdnummer " & _
+"where rc_code= """ & sCode & """ and  [datum] >= #" & Format(dFirstDate, "mm\-dd\-yyyy") & "# and rc_recordnummer > 1905000 order by [datum], rc_recordnummer;"
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("hsoRecNummerChange")
+
+Dim lYears(0 To 1000) As Long
+Dim lYearMinEncNr(0 To 1000) As Long
+Dim iYearNProcessed(0 To 1000) As Integer
+Dim nYears As Integer
+
+nYears = 0
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpNr As Long, tpYear As Long
+  tpNr = Nz(rs("rc_recordnummer"))
+  tpYear = tpNr \ 1000
+  Dim lkpPos As Integer
+  lkpPos = bSearchLong(tpYear, nYears, lYears)
+  If (lkpPos < 0) Then
+    'need to insert
+    Dim insPos As Integer
+    insPos = insLong(tpYear, nYears, lYears)
+    shiftRightLong insPos, 1, (nYears - 1), lYearMinEncNr
+    
+    
+    lYearMinEncNr(insPos) = tpNr
+    
+  Else
+    If (tpNr < lYearMinEncNr(lkpPos)) Then
+      lYearMinEncNr(lkpPos) = tpNr
+    End If
+  End If
+  rs.MoveNext
+Loop
+
+Dim i As Integer
+For i = 0 To nYears - 1
+  iYearNProcessed(i) = 0
+Next i
+
+
+'The second pass:
+rs.MoveFirst
+Do Until rs.EOF
+  tpNr = Nz(rs("rc_recordnummer"))
+  tpYear = tpNr \ 1000
+  
+  lkpPos = bSearchLong(tpYear, nYears, lYears)
+  If (lkpPos < 0) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  Dim tpNewNr As Long
+  
+    
+  tpNewNr = lYearMinEncNr(lkpPos) + iYearNProcessed(lkpPos)
+  
+  rsOut.AddNew
+    rsOut("NR_OldNummer") = tpNr
+    rsOut("NR_NewNummer") = tpNewNr
+  rsOut.Update
+  
+  iYearNProcessed(lkpPos) = iYearNProcessed(lkpPos) + 1
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsOut
+
+
+If Not recNrChange_perform(sCode) Then
+  Exit Function
+End If
+
+If Not recNrChange_clean() Then
+  Exit Function
+End If
+
+
+recNrChronologicalChange = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " recNrChronologicalChange" & vbCrLf & Error$, 16
+
+Exit Function
+
+
+'debug
+
+On Error GoTo 0
+Resume
+
 End Function

@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =681179617
+Checksum =-681172421
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -715,7 +715,7 @@ Begin Form
                                     Left =2147
                                     Top =3954
                                     Width =3516
-                                    TabIndex =14
+                                    TabIndex =11
                                     Name ="MainBeschrijving"
                                     ControlSource ="MainBeschrijving"
                                     GUID = Begin
@@ -753,7 +753,7 @@ Begin Form
                                     OverlapFlags =215
                                     Left =2154
                                     Top =4443
-                                    TabIndex =11
+                                    TabIndex =12
                                     Name ="blCombine"
                                     ControlSource ="combineFacStartLim"
                                     DefaultValue ="True"
@@ -826,7 +826,7 @@ Begin Form
                                     OverlapFlags =215
                                     Left =2154
                                     Top =4801
-                                    TabIndex =12
+                                    TabIndex =13
                                     Name ="blSepVers"
                                     ControlSource ="ExportSeparateVers"
                                     DefaultValue ="False"
@@ -861,7 +861,7 @@ Begin Form
                                     Height =343
                                     FontSize =8
                                     FontWeight =400
-                                    TabIndex =13
+                                    TabIndex =14
                                     Name ="btnEditWedstrijdNr"
                                     Caption ="Wijzig..."
                                     OnClick ="[Event Procedure]"
@@ -2419,6 +2419,17 @@ End Sub
 Private Sub Datum_AfterUpdate()
 On Error Resume Next
 Seizoen.value = ssGetSeason(Nz(Me.Datum, #1/1/1900#))
+
+If Nz(Me.Wedstrijd_nummer.OldValue, 0) = 0 Then
+  If lenDateIsValid(Nz(Me.Datum, #1/1/1900#)) Then
+    If DatePart("yyyy", Nz(Me.Datum, #1/1/1900#)) <> DatePart("yyyy", Now()) Then
+      If IsNull(Me.MainWedstrijdNummer) And (Not Nz(Me.IsPartOfMeet, False)) Then
+        Me.Wedstrijd_nummer = nieuw_wedstrijd_nr(Nz(Me.Datum, #1/1/1900#))
+      End If
+    End If
+  End If
+End If
+
 End Sub
 
 Private Sub EchtInzwemmen_KeyPress(KeyAscii As Integer)

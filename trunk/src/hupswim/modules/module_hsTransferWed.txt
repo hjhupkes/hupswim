@@ -2572,10 +2572,6 @@ Do Until inp.EOF
   End If
   
   
-  If (isEstaf) Then
-    If Not lnhPrepareProgForEstafs(wedS, wednr, prognr, impDln, impTd, True) Then Exit Function
-  End If
-  
   
   
   inp.MoveNext
@@ -2905,6 +2901,9 @@ Resume
 Exit Function
 End Function
 
+
+
+'this function is obsoleted.
 Private Function lnhPrepareProgForEstafs(ByRef wedS As Recordset, wednr As Long, prognr As String, impDln As Boolean, impTd As Boolean, ByVal blFindInsWedNrs As Boolean) As Boolean
 On Error GoTo fout
 lnhPrepareProgForEstafs = False
@@ -3391,16 +3390,6 @@ Dim blIsMultiVer As Boolean
 blIsMultiVer = dbIsMultipleVer()
 
 
-'feb 2007 addition.
-'Need to correct estafNrs in Hupswim, so that multiple verenigingen can
-'be read in as a single vereniging.
-
-If Not lnhCorrectEstafNrs(impTd, impDlns) Then
-  Exit Function
-End If
-
-
-
 
 
 
@@ -3417,6 +3406,12 @@ If Not lnhWriteZwemmers(blIsMultiVer, owZws, nNewSwimmers) Then Exit Function
 
 
 If Not lnhWriteProgramma(owProgs, impDlns, impTd, nNewProgs) Then Exit Function
+
+
+
+If Not lnhPrepareProgsForEstafs(blIsMultiVer, impDlns, impTd) Then
+  Exit Function
+End If
 
 
 
@@ -3617,7 +3612,12 @@ Do Until pllInp.EOF
     
     
   If (tpWedNr <> curWedNr) Or (tpProg <> curProg) Then
-    curProgMaxUsedEstNr = 0
+    
+    'the prognr is no longer gauranteed to be empty. Therefore need to lookup up max used relay nr.
+    curProgMaxUsedEstNr = Nz(DMax("[estafette nummer]", "dtDeelnemers", "wedstrijdnr=" & tpWedNr & " and programmanr=""" & tpProg & """"), 0)
+    If (curProgMaxUsedEstNr < 0) Then
+      curProgMaxUsedEstNr = 0
+    End If
     
     curWedNr = tpWedNr
     curProg = tpProg
@@ -3707,5 +3707,496 @@ Exit Function
 fout:
 If (Err = 3021) Then Resume Next ' no current record.
 MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+Private Function lnhPrepareProgsForEstafs_purgePll_handleProg(ByVal lWedNr As Long, ByVal sProgNr As String, ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean, ByRef skEst As Recordset) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_purgePll_handleProg = False
+
+Dim sVers(0 To MAX_N_DLN_VERS) As String
+Dim nVers As Integer
+nVers = 0
+
+
+Dim sqlBase As String, sql As String
+  
+sqlBase = "SELECT gIMP_LEN_ploegleden.*, gIMP_LEN_Ver.V_Naam " & _
+        "FROM (gIMP_LEN_ploegleden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_ploegleden.PLL_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID) INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID " & _
+        " WHERE (nz(gIMP_LEN_ploegleden.[aux_startnummer]) <> """") and nz(gIMP_LEN_ploegleden.[aux_wedstrijdnummer]) = " & lWedNr & " and ((nz(gIMP_LEN_ploegleden.[aux_depotnummer])) <> """") and nz(gIMP_LEN_ploegleden.[aux_programmanummer]) = """ & sProgNr & """ "
+
+If (impTd And impDln) Then
+  sql = sqlBase & " and (nz([pll_tijd_id],-1) <> -1 or nz([pll_deelnemer_id], -1) <> -1) "
+Else
+  If (impTd) Then
+    sql = sqlBase & " and nz([pll_tijd_id],-1) <> -1 "
+  Else
+    sql = sqlBase & " and nz([pll_deelnemer_id],-1) <> -1 "
+  End If
+End If
+'make sure that dlns are encountered before tijden
+sql = sql & " ORDER BY nz([pll_tijd_id], -1);"
+
+Dim rsPll As Recordset
+Set rsPll = CurrentDb().OpenRecordset(sql)
+
+
+
+
+If (blIsMultiVer) Then
+  'First, get list of all the vers that have estafs in this prognr
+  rsPll.MoveFirst
+  Do Until rsPll.EOF
+    Dim tpVer As String
+    tpVer = Nz(rsPll("V_Naam"))
+    
+    If (bSearchString(tpVer, nVers, sVers) < 0) Then
+      insString tpVer, nVers, sVers
+    End If
+    
+    rsPll.MoveNext
+  Loop
+    
+End If
+
+
+
+'Now loop through currently registered dlns and delete ones that are not present in the relays contained in rsPll
+
+Dim rsDlns As Recordset
+Set rsDlns = CurrentDb().OpenRecordset("select * from [dtDeelnemers] where [wedstrijdnr]=" & lWedNr & " and [programmanr]=""" & sProgNr & """;", dbOpenDynaset)
+
+
+rsDlns.MoveFirst
+Do Until rsDlns.EOF
+  Dim tpStart As String, tpEstNr As Integer
+  tpStart = Nz(rsDlns("Startnummer"))
+  tpEstNr = Nz(rsDlns("Estafette nummer"))
+  
+  Dim blAllowAsIs As Boolean
+  blAllowAsIs = False
+  
+  If (blIsMultiVer) Then
+    Dim sCurVer As String
+    sCurVer = Nz(ver())
+    
+    skEst.Seek "=", lWedNr, sProgNr, tpEstNr, sCurVer
+    If Not skEst.NoMatch Then
+      Dim tpActVer As String
+      tpActVer = Nz(skEst("EST_ActVereniging"))
+      If bSearchString(tpActVer, nVers, sVers) < 0 Then
+        'ver is not present in list of vers that need to be imported.
+        'therefore allow dln to remain
+        blAllowAsIs = True
+      End If
+    End If
+  End If
+  
+  
+  
+  If (Not blAllowAsIs) Then
+    rsPll.FindFirst "[aux_startnummer]=""" & tpStart & """"
+  
+    'update sep 2008: we want to delete if a match is NOT found in pll.
+    'If Not pll.NoMatch Then
+    If rsPll.NoMatch Then
+      'delete
+      rsDlns.Delete
+    Else
+      'Need to set estafnr to zero in order to allow correct determination of new estafette nrs
+      rsDlns.Edit
+        rsDlns("estafette nummer") = 0
+      rsDlns.Update
+    End If
+  End If
+
+  rsDlns.MoveNext
+Loop
+
+
+
+
+appCleanRS rsDlns
+appCleanRS rsPll
+
+
+
+
+lnhPrepareProgsForEstafs_purgePll_handleProg = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_purgePll_handleProg" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+'loop through programmanummer that are estafs and flush out any current swimmers in dtDeelnemers
+'that are not part of the final estafs.
+Private Function lnhPrepareProgsForEstafs_purgePll(ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_purgePll = False
+
+If (Not impDln) And (Not impTd) Then
+  lnhPrepareProgsForEstafs_purgePll = True
+  Exit Function
+End If
+
+
+Dim skEst As Recordset
+Set skEst = Nothing
+
+If (blIsMultiVer) Then
+  If Not lnhAnEstafs() Then
+    Exit Function
+  End If
+  Set skEst = CurrentDb().OpenRecordset("~AN_Estafs")
+  skEst.Index = "P"
+End If
+
+
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma where nz([aux_wedstrijdnummer]) > 0 and nz([corr_programmanummer]) <> """";")
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim wednr As Long
+  Dim prognr As String
+  wednr = Nz(inp("AUX_Wedstrijdnummer"))
+  prognr = Nz(inp("CORR_Programmanummer"))
+  
+  Dim tpAf As String
+  tpAf = Nz(inp("PR_Afstand"))
+  
+  If tpAf Like "*x*" Then
+  
+    If Not lnhPrepareProgsForEstafs_purgePll_handleProg(wednr, prognr, blIsMultiVer, impDln, impTd, skEst) Then
+      Exit Function
+    End If
+  
+  End If
+  
+  inp.MoveNext
+Loop
+
+appCleanRS inp
+appCleanRS skEst
+
+
+
+
+
+lnhPrepareProgsForEstafs_purgePll = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_purgePll" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+Private Function lnhPrepareProgsForEstafs_writePll_handleProg(ByVal lWedNr As Long, ByVal sProgNr As String, ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean, ByRef wedS As Recordset, ByVal blFindInsWedNrs) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_writePll_handleProg = False
+
+
+Dim sqlBase As String, sql As String
+  
+sqlBase = "SELECT gIMP_LEN_ploegleden.*, gIMP_LEN_Ver.V_Naam " & _
+        "FROM (gIMP_LEN_ploegleden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_ploegleden.PLL_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID) INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID " & _
+        " WHERE (nz(gIMP_LEN_ploegleden.[aux_startnummer]) <> """") and nz(gIMP_LEN_ploegleden.[aux_wedstrijdnummer]) = " & lWedNr & " and ((nz(gIMP_LEN_ploegleden.[aux_depotnummer])) <> """") and nz(gIMP_LEN_ploegleden.[aux_programmanummer]) = """ & sProgNr & """ "
+
+If (impTd And impDln) Then
+  sql = sqlBase & " and (nz([pll_tijd_id],-1) <> -1 or nz([pll_deelnemer_id], -1) <> -1) "
+Else
+  If (impTd) Then
+    sql = sqlBase & " and nz([pll_tijd_id],-1) <> -1 "
+  Else
+    sql = sqlBase & " and nz([pll_deelnemer_id],-1) <> -1 "
+  End If
+End If
+'make sure that dlns are encountered before tijden
+sql = sql & " ORDER BY nz([pll_tijd_id], -1);"
+
+Dim rsPll As Recordset
+Set rsPll = CurrentDb().OpenRecordset(sql)
+
+
+Dim skImpDlns As Recordset
+Set skImpDlns = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+skImpDlns.Index = "PrimaryKey"
+
+
+Dim skOutDlns As Recordset
+Set skOutDlns = CurrentDb().OpenRecordset("dtDeelnemers")
+skOutDlns.Index = "PrimaryKey"
+
+
+rsPll.MoveFirst
+Do Until rsPll.EOF
+  Dim startnr As String
+  startnr = Nz(rsPll("Aux_startnummer"))
+  Dim estNr As Long, volgNr As Long
+  estNr = Nz(rsPll("AUX_Estafettenummer"))
+  volgNr = Nz(rsPll("PLL_Volgorde"))
+  Dim isRes As Boolean
+  isRes = Nz(rsPll("PLL_Reserve"))
+  
+  
+  Dim pllDlnID As Long
+  pllDlnID = Nz(rsPll("PLL_Deelnemer_ID"), -1)
+  
+  Dim blIsExtInsTime As Boolean
+  Dim lExtInsWedNr As Long
+  Dim blExtInsWedNrFound As Boolean
+  
+  blIsExtInsTime = False
+  lExtInsWedNr = -1
+  blExtInsWedNrFound = False
+  
+    
+  Dim qlfExtTime As Double
+  Dim qlfExtDatum As Date
+  Dim qlfExtPlaats As String
+  Dim qlfExtBaan As Integer
+  
+  
+  If pllDlnID >= 0 Then
+    skImpDlns.Seek "=", pllDlnID
+    If Not skImpDlns.NoMatch Then
+      qlfExtTime = Nz(skImpDlns("DE_Inschrijftijd"))
+      qlfExtDatum = Nz(skImpDlns("DE_QLF_Datum"), #1/1/1900#)
+      qlfExtPlaats = Nz(skImpDlns("DE_QLF_Plaats"))
+      qlfExtBaan = Nz(skImpDlns("DE_QLF_Baan"))
+      
+      If (lenDateIsValid(qlfExtDatum)) Then
+        blIsExtInsTime = True
+      End If
+    End If
+  End If
+  
+  If (blIsExtInsTime) Then
+    'attempt to find the corresponding wedstrijd nummer
+    If (lenDateIsValid(qlfExtDatum) And blFindInsWedNrs) Then
+      wedS.FindFirst "Datum = #" & Format(qlfExtDatum, "mm\-dd\-yyyy") & "# and plaats = """ & qlfExtPlaats & """ and baanlengte = " & qlfExtBaan
+      If Not wedS.NoMatch Then
+        blExtInsWedNrFound = True
+        lExtInsWedNr = Nz(wedS("Wedstrijd nummer"))
+      End If
+    End If
+  End If
+  
+  
+  
+  
+  Dim qlfTime As Double, qlfValid As Boolean
+  qlfTime = Nz(rsPll("PLL_QLF_Tijd"))
+  qlfValid = swtIsValid(qlfTime)
+  
+  Dim inPlaats As String, inDat As Date, inBaan As Integer
+  inPlaats = Nz(rsPll("PLL_QLF_Plaats"))
+  inDat = Nz(rsPll("PLL_QLF_Datum"), #1/1/1900#)
+  inBaan = Nz(rsPll("PLL_QLF_Baan"))
+    
+  Dim inswednr As Long
+  inswednr = -1
+  Dim insWedNrFnd As Boolean
+  insWedNrFnd = False
+    
+    
+  If (lenDateIsValid(inDat) And blFindInsWedNrs) Then
+    wedS.FindFirst "Datum = #" & Format(inDat, "mm-dd-yyyy") & "# and plaats = """ & inPlaats & """ and baanlengte = " & inBaan
+    If Not wedS.NoMatch Then
+      insWedNrFnd = True
+      inswednr = Nz(wedS("Wedstrijd nummer"))
+    End If
+  End If
+
+  
+  
+  
+  skOutDlns.Seek "=", lWedNr, sProgNr, startnr
+  
+  If (skOutDlns.NoMatch) Then
+    skOutDlns.AddNew
+    skOutDlns("Estafette nummer") = estNr
+    skOutDlns("Volgorde") = volgNr
+    skOutDlns("Reserve") = IIf(isRes, "J", "N")
+    skOutDlns("Wedstrijdnr") = lWedNr
+    skOutDlns("Programmanr") = hzn(sProgNr)
+    skOutDlns("Startnummer") = hzn(startnr)
+    
+    'Note: only update if valid qualification time found.
+    If (qlfValid) Then
+      skOutDlns("Inschrijftijd") = qlfTime
+      If (insWedNrFnd) Then
+        skOutDlns("WedstrijdNrInsTijd") = inswednr
+      Else
+        skOutDlns("WedstrijdNrInsTijd") = 0
+      End If
+    End If
+    
+    If (blIsExtInsTime) Then
+      skOutDlns("ESTINS_UseExtInsTime") = True
+      skOutDlns("ESTINS_ExtInsTime") = qlfExtTime
+      If (blExtInsWedNrFound) Then
+        skOutDlns("ESTINS_ExtInsWedNr") = lExtInsWedNr
+      End If
+    End If
+    
+    skOutDlns.Update
+  Else
+    skOutDlns.Edit
+    skOutDlns("estafette nummer") = estNr
+    skOutDlns("volgorde") = volgNr
+    skOutDlns("Reserve") = IIf(isRes, "J", "N")
+    
+    'Note: only update if valid qualification time found
+    If (qlfValid) Then
+      skOutDlns("Inschrijftijd") = qlfTime
+      If (insWedNrFnd) Then
+        skOutDlns("WedstrijdNrInsTijd") = inswednr
+      Else
+        skOutDlns("WedstrijdNrInsTijd") = 0
+      End If
+    End If
+    
+    If (blIsExtInsTime) Then
+      skOutDlns("ESTINS_UseExtInsTime") = True
+      skOutDlns("ESTINS_ExtInsTime") = qlfExtTime
+      If (blExtInsWedNrFound) Then
+        skOutDlns("ESTINS_ExtInsWedNr") = lExtInsWedNr
+      End If
+    End If
+    
+    
+    skOutDlns.Update
+  End If
+  
+  rsPll.MoveNext
+Loop
+
+
+
+
+
+
+
+appCleanRS skImpDlns
+appCleanRS skOutDlns
+appCleanRS rsPll
+
+
+
+
+lnhPrepareProgsForEstafs_writePll_handleProg = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_writePll_handleProg" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+'loop through programmanummer that are estafs and flush out any current swimmers in dtDeelnemers
+'that are not part of the final estafs.
+Private Function lnhPrepareProgsForEstafs_writePll(ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_writePll = False
+
+If (Not impDln) And (Not impTd) Then
+  lnhPrepareProgsForEstafs_writePll = True
+  Exit Function
+End If
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma where nz([aux_wedstrijdnummer]) > 0 and nz([corr_programmanummer]) <> """";")
+
+Dim wedS As Recordset
+Set wedS = CurrentDb().OpenRecordset("dtWedstrijden", dbOpenDynaset)
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim wednr As Long
+  Dim prognr As String
+  wednr = Nz(inp("AUX_Wedstrijdnummer"))
+  prognr = Nz(inp("CORR_Programmanummer"))
+  
+  Dim tpAf As String
+  tpAf = Nz(inp("PR_Afstand"))
+  
+  If tpAf Like "*x*" Then
+  
+    If Not lnhPrepareProgsForEstafs_writePll_handleProg(wednr, prognr, blIsMultiVer, impDln, impTd, wedS, True) Then
+      Exit Function
+    End If
+  
+  End If
+  
+  inp.MoveNext
+Loop
+
+appCleanRS inp
+appCleanRS wedS
+
+lnhPrepareProgsForEstafs_writePll = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_writePll" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function lnhPrepareProgsForEstafs(ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs = False
+
+If Not lnhPrepareProgsForEstafs_purgePll(blIsMultiVer, impDln, impTd) Then
+  Exit Function
+End If
+
+If Not lnhCorrectEstafNrs(impTd, impDln) Then
+  Exit Function
+End If
+
+If Not lnhPrepareProgsForEstafs_writePll(blIsMultiVer, impDln, impTd) Then
+  Exit Function
+End If
+
+
+
+lnhPrepareProgsForEstafs = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhPrepareProgsForEstafs" & vbCrLf & Error$, 16
 Exit Function
 End Function

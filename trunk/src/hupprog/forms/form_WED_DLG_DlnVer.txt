@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-883362675
+Checksum =344680786
 Begin Form
     PopUp = NotDefault
     Modal = NotDefault
@@ -91,7 +91,7 @@ Begin Form
                     Top =930
                     Width =360
                     Height =240
-                    Name ="Text12"
+                    Name ="lbBM"
                     Caption ="BM:"
                     FontName ="MS Sans Serif"
                 End
@@ -113,7 +113,7 @@ Begin Form
                     Top =932
                     Width =1365
                     Height =240
-                    Name ="Label21"
+                    Name ="lbTst"
                     Caption ="Pnt. Tussenstand:"
                     FontName ="MS Sans Serif"
                 End
@@ -276,7 +276,19 @@ Option Explicit
 
 
 
+Private Sub initView()
+On Error Resume Next
 
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+Me.DV_BM.Visible = Not blIsSimplified
+Me.lbBM.Visible = Not blIsSimplified
+
+Me.DV_Tussenstand.Visible = Not blIsSimplified
+Me.lbTst.Visible = Not blIsSimplified
+
+End Sub
 
 
 Private Sub btnTerug_Click()
@@ -422,6 +434,7 @@ End Sub
 Private Sub Form_Load()
 On Error Resume Next
 Me.OrderBy = ""
+initView
 End Sub
 
 

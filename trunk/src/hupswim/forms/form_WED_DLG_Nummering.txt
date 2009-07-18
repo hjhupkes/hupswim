@@ -171,6 +171,15 @@ Option Explicit
 Private Sub btnOK_Click()
 On Error Resume Next
 
+
+
+If Nz(Me.Datum, "") = "" Then
+  MsgBox "Kies een datum!", 16
+  Me.Datum.SetFocus
+  Exit Sub
+End If
+
+
 If MsgBox("Weet u zeker dat u alle wedstrijden vanaf deze datum wilt hernummeren" _
   & vbCrLf & "naar chronologische volgorde?", vbOKCancel + vbQuestion) = vbCancel Then
   Exit Sub
@@ -180,11 +189,6 @@ End If
 
 
 
-If Nz(Me.Datum, "") = "" Then
-  MsgBox "Kies een datum!", 16
-  Me.Datum.SetFocus
-  Exit Sub
-End If
 
 DoCmd.Hourglass True
 

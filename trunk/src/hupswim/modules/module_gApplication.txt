@@ -180,23 +180,40 @@ End If
 Dim dbFName As String
 dbFName = CurrentDb().name
 
-Dim sBaseName As String
-sBaseName = "LXF.HUPSOFT.5x"
+Dim sBaseNameLXF As String
+sBaseNameLXF = "LXF.HUPSOFT.5x"
+
+Dim sBaseNameLEF As String
+sBaseNameLEF = "LEF.HUPSOFT.5x"
 
 
 
-If Not regSetKeyValueString(HKEY_CLASSES_ROOT, ".lxf", vbNullString, sBaseName) Then
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, ".lxf", vbNullString, sBaseNameLXF) Then
+  Exit Function
+End If
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, ".lef", vbNullString, sBaseNameLEF) Then
   Exit Function
 End If
 
 
-If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sBaseName, vbNullString, "Lenex file") Then
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sBaseNameLXF, vbNullString, "Lenex file") Then
+  Exit Function
+End If
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sBaseNameLEF, vbNullString, "Lenex file") Then
   Exit Function
 End If
 
 
-Dim sCmdKeyName As String
-sCmdKeyName = sBaseName & "\Shell\Open\Command"
+
+Dim sCmdKeyNameLXF As String
+sCmdKeyNameLXF = sBaseNameLXF & "\Shell\Open\Command"
+
+Dim sCmdKeyNameLEF As String
+sCmdKeyNameLEF = sBaseNameLEF & "\Shell\Open\Command"
 
 
 
@@ -204,13 +221,20 @@ sCmdKeyName = sBaseName & "\Shell\Open\Command"
 Dim sCmdValueName As String
 sCmdValueName = vbNullString
 
+
+
 Dim sCmdValue As String
 sCmdValue = """" & sAccesFName & "msaccess.exe"" /runtime " & """" & dbFName & """ /x gLoadLXF /cmd %1"
 
 
-If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sCmdKeyName, sCmdValueName, sCmdValue) Then
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sCmdKeyNameLXF, sCmdValueName, sCmdValue) Then
   Exit Function
 End If
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sCmdKeyNameLEF, sCmdValueName, sCmdValue) Then
+  Exit Function
+End If
+
 
 appRegisterLXF = True
 Exit Function

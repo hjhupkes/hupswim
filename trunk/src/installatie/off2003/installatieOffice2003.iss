@@ -321,9 +321,20 @@ begin
         end;
       end;
     end;
+    
+    //Need to delete potential registry links for lef files
+    if RegKeyExists( HKEY_CLASSES_ROOT, '.lef' ) then begin
+      if RegQueryStringValue( HKEY_CLASSES_ROOT, '.lef', '' , sRegValue) then begin
+        if (sRegValue = 'LEF.HUPSOFT.5x' ) then begin
+          RegDeleteValue( HKEY_CLASSES_ROOT, '.lef', '');
+          RegDeleteKeyIfEmpty(HKEY_CLASSES_ROOT, '.lef');
+        end;
+      end;
+    end;
 
 
     RegDeleteKeyIncludingSubkeys(HKEY_CLASSES_ROOT, 'LXF.HUPSOFT.5x');
+    RegDeleteKeyIncludingSubkeys(HKEY_CLASSES_ROOT, 'LEF.HUPSOFT.5x');
 
   end;
 
