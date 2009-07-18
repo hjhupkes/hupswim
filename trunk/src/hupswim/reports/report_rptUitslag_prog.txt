@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1520998741
+Checksum =-1297575022
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -9,9 +9,9 @@ Begin Report
     Width =10969
     ItemSuffix =128
     Left =435
-    Top =390
-    Right =14895
-    Bottom =8310
+    Top =1170
+    Right =435
+    Bottom =1170
     ShortcutMenuBar ="gShortcutRpt"
     Toolbar ="gRptToolbar"
     RecSrcDt = Begin
@@ -1549,7 +1549,18 @@ End Sub
 
 Private Sub scPageFooter_Format(Cancel As Integer, FormatCount As Integer)
 On Error Resume Next
-Me.fldFooterDes = "Uitslag " & firstWedInfo.des & " " & Format(firstWedInfo.date, "dd\-mm\-yyyy") & " te " & firstWedInfo.Plaats
+
+If (blEntireMeet) Then
+  If (firstWedInfo.meetMinDate <> firstWedInfo.meetMaxDate) Then
+    Me.fldFooterDes = "Uitslag " & firstWedInfo.meetDes & ", " & fmtDateShort(firstWedInfo.meetMinDate) & " t/m " & fmtDateShort(firstWedInfo.meetMaxDate) & " te " & firstWedInfo.Plaats
+  Else
+    Me.fldFooterDes = "Uitslag " & firstWedInfo.meetDes & ", " & rxpFormatDateNL(firstWedInfo.date) & " te " & firstWedInfo.Plaats
+  End If
+Else
+  Me.fldFooterDes = "Uitslag " & firstWedInfo.des & ", " & rxpFormatDateNL(firstWedInfo.date) & " te " & firstWedInfo.Plaats
+End If
+
+
 End Sub
 
 Private Sub scProgDisFooter_Format(Cancel As Integer, FormatCount As Integer)

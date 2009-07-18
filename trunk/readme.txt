@@ -53,7 +53,7 @@ as a patch, by using the tortoise-svn create patch command.
 To do this, open windows explorer ( or you favorite file-browser program), 
 navigate to the top level directory of the hupswim project on your computer, 
 use the right mouse button, find the tortoise-svn submenu,
-and choose the create path command.
+and choose the create patch command.
 
 
 -------------------------
