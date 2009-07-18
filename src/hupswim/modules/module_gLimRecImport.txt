@@ -2463,9 +2463,9 @@ Do Until prs.EOF
   tpAf = Nz(prs(FNM_PR_AF))
   tpSl = Nz(prs(FNM_PR_SL))
   
-  Dim tpWedNr As Long, tpPrognr As String, tpProgCat As String
+  Dim tpWedNr As Long, tpProgNr As String, tpProgCat As String
   tpWedNr = Nz(prs(FNM_PR_WED))
-  tpPrognr = Nz(prs(FNM_PR_PROG))
+  tpProgNr = Nz(prs(FNM_PR_PROG))
   tpProgCat = Nz(prs(FNM_PR_CAT))
   
     
@@ -2475,13 +2475,13 @@ Do Until prs.EOF
    'First check to see if we have to clear
    If (recAction = REC_ACTION_CLEAR_EXTRA) Or (recAction = REC_ACTION_SET_EXTRA And blSetExtraClear) Then
      'We need to clear all current extra records.
-     sql = "Delete * from dtProgrammaExtraRecords where prr_wedstrijdnummer = " & tpWedNr & " and prr_programmanummer=""" & tpPrognr & """;"
+     sql = "Delete * from dtProgrammaExtraRecords where prr_wedstrijdnummer = " & tpWedNr & " and prr_programmanummer=""" & tpProgNr & """;"
      DoCmd.SetWarnings False
      DoCmd.RunSQL sql
      DoCmd.SetWarnings True
      maxUsedOrder = 0
    Else
-     maxUsedOrder = Nz(DMax("PRR_Order", "dtProgrammaExtraRecords", "PRR_Wedstrijdnummer=" & tpWedNr & " and prr_programmanummer=""" & tpPrognr & """"), 0)
+     maxUsedOrder = Nz(DMax("PRR_Order", "dtProgrammaExtraRecords", "PRR_Wedstrijdnummer=" & tpWedNr & " and prr_programmanummer=""" & tpProgNr & """"), 0)
    End If
    
    
@@ -2550,7 +2550,7 @@ Do Until prs.EOF
           
            prer.AddNew
              prer("PRR_Wedstrijdnummer") = tpWedNr
-             prer("PRR_Programmanummer") = hzn(tpPrognr)
+             prer("PRR_Programmanummer") = hzn(tpProgNr)
              prer("PRR_Order") = maxUsedOrder + tpOrder
              prer("PRR_LftCat") = hzn(tpCat)
              prer("PRR_LftCatDes") = hzn(tpCatDes)
