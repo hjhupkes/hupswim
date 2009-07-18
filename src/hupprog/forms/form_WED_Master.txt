@@ -1915,6 +1915,13 @@ Private curPage As Integer
 
 Private Sub updateView()
 On Error Resume Next
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+Me.btnBackupRead.Visible = Not blIsSimplified
+Me.btnBackupWrite.Visible = Not blIsSimplified
+
 Me.WE_PNT_Lft_Beperking.Enabled = (Nz(Me.WE_Vervangende_tijd) = "J")
 Me.WE_PuntenTerugRekenen.Enabled = (Nz(Me.WE_Vervangende_tijd) = "J")
 Me.WE_Meetellende_deelnemers.Enabled = (Nz(Me.WE_Vervangende_tijd) = "J")
@@ -2413,6 +2420,11 @@ fstPage = PAGE_ALG
 End Sub
 Private Sub pvcNewViewSetPages(ByRef pageVisible() As Boolean, ByRef pageCaption() As String, ByRef pageControls() As ToggleButton)
 On Error GoTo fout
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+
 Dim i As Integer
 For i = PAGE_MIN To PAGE_MAX
 
@@ -2433,16 +2445,20 @@ For i = PAGE_MIN To PAGE_MAX
       Set cntrl = Me.optKosten
     Case PAGE_PNT
       Set cntrl = Me.optPuntentelling
+      blVis = Not blIsSimplified
     Case PAGE_PNTADV
       Set cntrl = Me.optPntAdv
+      blVis = Not blIsSimplified
     Case PAGE_RGL
       Set cntrl = Me.optReglementen
+      blVis = Not blIsSimplified
     Case PAGE_JRY
       Set cntrl = Me.optJury
     Case PAGE_DNV
       Set cntrl = Me.optDlnVer
     Case PAGE_ACT
       Set cntrl = Me.optActies
+      blVis = Not blIsSimplified
   End Select
   
 

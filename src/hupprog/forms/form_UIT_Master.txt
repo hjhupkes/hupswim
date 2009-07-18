@@ -740,6 +740,12 @@ End Sub
 
 
 Private Sub Form_Load()
+On Error Resume Next
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+
 Me.OrderBy = ""
 DoCmd.Maximize
 If Forms![wed_master]![WE_Vervangende_tijd] = "N" Then
@@ -751,12 +757,18 @@ If Forms![wed_master]![WE_Vervangende_tijd] = "N" Then
     [PR_AantMeetel].Visible = False
     [mt].Visible = False
 Else
-    Me.btnPnt.Visible = True
+    Me.btnPnt.Visible = (Not blIsSimplified)
     [PR_Vervangende tijd].Visible = True
     [ver].Visible = True
     [opm].Visible = False
     [PR_Opmerking].Visible = False
 End If
+
+Me.btnFinIndelen.Visible = Not blIsSimplified
+
+
+
+
 End Sub
 
 

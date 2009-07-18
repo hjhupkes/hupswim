@@ -2636,223 +2636,226 @@ Do Until est.EOF
     
     estSeek.Seek "=", tpWedNr, tpProgNr, tpEstNr, tpEstVer
     If (estSeek.NoMatch) Then
-      Err.Raise 1, , "Internal error. Could not find estafette ploeg (" & tpWedNr & ", " & tpProgNr & ", " & tpEstVer & ", " & tpEstNr & " )"
-    End If
+      'It may happen that we have orphaned relay times, since the relay may have been deleted from the dtDeelnemers table
+      'In this case, simply ignore the time
+      'Err.Raise 1, , "Internal error. Could not find estafette ploeg (" & tpWedNr & ", " & tpProgNr & ", " & tpEstVer & ", " & tpEstNr & " )"
+    Else
       
       
-    estSZNr = Nz(estSeek("EST_Startnummer_1"))
-    estSZNaam = Nz(estSeek("EST_Naam_1"))
-    estSZGes = Nz(estSeek("EST_Startzwemmer_Geslacht"))
-    estSZGebDate = Nz(estSeek("EST_Startzwemmer_Geboortedatum"), #1/1/1900#)
-    estSZActVer = Nz(estSeek("EST_Startzwemmer_ActVereniging"))
+      estSZNr = Nz(estSeek("EST_Startnummer_1"))
+      estSZNaam = Nz(estSeek("EST_Naam_1"))
+      estSZGes = Nz(estSeek("EST_Startzwemmer_Geslacht"))
+      estSZGebDate = Nz(estSeek("EST_Startzwemmer_Geboortedatum"), #1/1/1900#)
+      estSZActVer = Nz(estSeek("EST_Startzwemmer_ActVereniging"))
+      
+      If (estSZActVer = "") Then
+        estSZActVer = dbMainVerName
+      End If
+      
+      tpActVer = Nz(estSeek("EST_ActVereniging"))
+      
+      If (tpActVer = "") Then
+        tpActVer = dbMainVerName
+      End If
+      
+      
+      tpEstGes = Nz(estSeek("EST_Geslacht"))
+      tpEstMinYOB = Nz(estSeek("EST_MinYOB"))
+      tpEstMaxYOB = Nz(estSeek("EST_MaxYOB"))
+      tpEstSumYOB = Nz(estSeek("EST_SumYOB"))
+      tpEstCntYOB = Nz(estSeek("EST_ActPloegCnt"))
+      
     
-    If (estSZActVer = "") Then
-      estSZActVer = dbMainVerName
-    End If
-    
-    tpActVer = Nz(estSeek("EST_ActVereniging"))
-    
-    If (tpActVer = "") Then
-      tpActVer = dbMainVerName
-    End If
-    
-    
-    tpEstGes = Nz(estSeek("EST_Geslacht"))
-    tpEstMinYOB = Nz(estSeek("EST_MinYOB"))
-    tpEstMaxYOB = Nz(estSeek("EST_MaxYOB"))
-    tpEstSumYOB = Nz(estSeek("EST_SumYOB"))
-    tpEstCntYOB = Nz(estSeek("EST_ActPloegCnt"))
-    
-  
-    
-    outpMain.AddNew
       
-      tyFullMaxUsedID = tyFullMaxUsedID + 1
-      
-      outpMain("TY_ID") = tyFullMaxUsedID
-      
-      
-      
-      outpMain("TY_EST_MinYOB") = tpEstMinYOB
-      outpMain("TY_EST_MaxYOB") = tpEstMaxYOB
-      outpMain("TY_EST_SumYOB") = tpEstSumYOB
-      outpMain("TY_EST_CntYOB") = tpEstCntYOB
-      outpMain("TY_Est_Geslacht") = hzn(tpEstGes)
-      
-      
-      estDeelns = ""
-      For i = 1 To MAX_ESTAF_CNT
-        estStartNrs(i - 1) = Nz(estSeek("EST_Startnummer_" & i))
-        estNames(i - 1) = Nz(estSeek("EST_NAAM_" & i))
-        If (Len(estNames(i - 1)) > 0) Then
-          If Len(estDeelns) > 0 Then
-            estDeelns = estDeelns & ", "
+      outpMain.AddNew
+        
+        tyFullMaxUsedID = tyFullMaxUsedID + 1
+        
+        outpMain("TY_ID") = tyFullMaxUsedID
+        
+        
+        
+        outpMain("TY_EST_MinYOB") = tpEstMinYOB
+        outpMain("TY_EST_MaxYOB") = tpEstMaxYOB
+        outpMain("TY_EST_SumYOB") = tpEstSumYOB
+        outpMain("TY_EST_CntYOB") = tpEstCntYOB
+        outpMain("TY_Est_Geslacht") = hzn(tpEstGes)
+        
+        
+        estDeelns = ""
+        For i = 1 To MAX_ESTAF_CNT
+          estStartNrs(i - 1) = Nz(estSeek("EST_Startnummer_" & i))
+          estNames(i - 1) = Nz(estSeek("EST_NAAM_" & i))
+          If (Len(estNames(i - 1)) > 0) Then
+            If Len(estDeelns) > 0 Then
+              estDeelns = estDeelns & ", "
+            End If
+            estDeelns = estDeelns & estNames(i - 1)
           End If
-          estDeelns = estDeelns & estNames(i - 1)
+          
+          outpMain("TY_EST_Startnummer_" & i) = hzn(estStartNrs(i - 1))
+          outpMain("TY_EST_Naam_" & i) = hzn(estNames(i - 1))
+        Next i
+        
+        outpMain("TY_EST_Deelnemers") = hzn(estDeelns)
+        
+       
+        
+        outpMain("TY_Wedstrijdnummer") = est("TY_Wedstrijdnummer")
+        outpMain("TY_Programmanummer") = est("TY_Programmanummer")
+        outpMain("TY_IsEstaf") = True
+        outpMain("TY_Startnummer") = "00-000"
+        
+        
+        'feb 2007 modification
+        'outpMain("TY_Naam") = "Estafette"
+        outpMain("TY_Naam") = estSeek("EST_ActVereniging")
+        
+        tpDis = Nz(est("TY_Dis"))
+        If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpProgNr) Then
+          Exit Function
         End If
         
-        outpMain("TY_EST_Startnummer_" & i) = hzn(estStartNrs(i - 1))
-        outpMain("TY_EST_Naam_" & i) = hzn(estNames(i - 1))
-      Next i
-      
-      outpMain("TY_EST_Deelnemers") = hzn(estDeelns)
-      
-     
-      
-      outpMain("TY_Wedstrijdnummer") = est("TY_Wedstrijdnummer")
-      outpMain("TY_Programmanummer") = est("TY_Programmanummer")
-      outpMain("TY_IsEstaf") = True
-      outpMain("TY_Startnummer") = "00-000"
-      
-      
-      'feb 2007 modification
-      'outpMain("TY_Naam") = "Estafette"
-      outpMain("TY_Naam") = estSeek("EST_ActVereniging")
-      
-      tpDis = Nz(est("TY_Dis"))
-      If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpProgNr) Then
-        Exit Function
-      End If
-      
-      outpMain("TY_Dis") = hzn(tpDis)
-      outpMain("TY_Opm") = est("TY_Opm")
-      outpMain("TY_Eindplaats") = est("TY_plaats")
-      
-      
-      tstCnt = 0
-      If Not (tstExtractTussenTijden(Nz(est("TY_ExtraTussentijden")), tstCnt, tstAf, tstTd)) Then
-        Exit Function
-      End If
-      
-      
-      blHasExtraTst = (tstCnt > 0)
-      
-      'Combine the tussentijden
-      
-      
-      For tpTstI = 1 To 4
-        tpTstAf = CInt(val(Nz(est("TY_Afstand" & tpTstI))))
-        tpTstTd = Nz(est("TY_Tijd" & tpTstI))
-        If (tpTstTd > 0.01) Then
-          If (tpTstAf > 0) Then
-            If Not tstSetTussenTijd(tpTstAf, tpTstTd, tstCnt, tstAf, tstTd) Then
-              Exit Function
-            End If
-          End If
+        outpMain("TY_Dis") = hzn(tpDis)
+        outpMain("TY_Opm") = est("TY_Opm")
+        outpMain("TY_Eindplaats") = est("TY_plaats")
+        
+        
+        tstCnt = 0
+        If Not (tstExtractTussenTijden(Nz(est("TY_ExtraTussentijden")), tstCnt, tstAf, tstTd)) Then
+          Exit Function
         End If
-      Next tpTstI
-      
-      If (blHasExtraTst) Then
-        outpMain("TY_Tussentijden") = hzn(tstFormatTussentijdenArray(tstCnt, tstAf, tstTd))
-      End If
-    
-      
-      
-      For i = 0 To tstCnt - 1
-        tstMainIdx(i) = -1
-      Next i
-      
-      
-      Dim tpAfstandIndPart As Long
-      tpAfstandIndPart = val(afstand_ind_part(Nz(est("TY_Eindafstand"))))
-      
-      
-      tpEindAfstand = Nz(est("TY_Eindafstand"))
-      
-      tpEindSlag = Nz(est("TY_Eindslag"))
-      If (tpEindSlag = "WISSEL") Then
-        tstSlag = "RUG"
-      Else
-        tstSlag = tpEindSlag
-      End If
-      
-      For tpTstI = 1 To 4
-        tpTstAf = CInt(val(Nz(est("TY_Afstand" & tpTstI))))
-        tpTstTd = Nz(est("TY_Tijd" & tpTstI))
-        lkpPos = tstFindTussenTijd(tpTstAf, tstCnt, tstAf)
-        If (lkpPos >= 0) Then
-          tstMainIdx(lkpPos) = tpTstI
-        End If
-      Next tpTstI
-      
-      For i = 0 To tstCnt - 1
-        tstShouldTransfer(i) = False
-        If (tstMainIdx(i) >= 0) Then
-          tstShouldTransfer(i) = True
-        Else
-          'Need to check if it is a stored distance
-          'Also need to make sure that the tussen afstand is no longer than the first swimmers distance
-          If (tstAf(i) <= tpAfstandIndPart) Then
-            If (tpEindSlag = "WISSEL") Then
-              If (uitAnalyze_WriteTimes_checkIsWisselTstOK(tstAf(i), tpEindAfstand)) Then
-                tstShouldTransfer(i) = True
-              End If
-            Else
-              If (bSearchAfSlag(tstAf(i), tstSlag, allAf, allSl, nAllAfSl) >= 0) Then
-                tstShouldTransfer(i) = True
+        
+        
+        blHasExtraTst = (tstCnt > 0)
+        
+        'Combine the tussentijden
+        
+        
+        For tpTstI = 1 To 4
+          tpTstAf = CInt(val(Nz(est("TY_Afstand" & tpTstI))))
+          tpTstTd = Nz(est("TY_Tijd" & tpTstI))
+          If (tpTstTd > 0.01) Then
+            If (tpTstAf > 0) Then
+              If Not tstSetTussenTijd(tpTstAf, tpTstTd, tstCnt, tstAf, tstTd) Then
+                Exit Function
               End If
             End If
           End If
+        Next tpTstI
+        
+        If (blHasExtraTst) Then
+          outpMain("TY_Tussentijden") = hzn(tstFormatTussentijdenArray(tstCnt, tstAf, tstTd))
         End If
-      Next i
       
-      
-      
-      
-      
-      'Eindtijd
-      
-      tpTd = Nz(est("TY_eindtijd"))
-      tpAf = Nz(est("TY_EindAfstand"))
-      tpSl = Nz(est("TY_EindSlag"))
-      
-      outpMain("TY_Eindtijd") = tpTd
-      outpMain("TY_Eindafstand") = hzn(tpAf)
-      outpMain("TY_Eindslag") = hzn(tpSl)
-      
-
-      
-      If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, 0, isOvergezet, False, _
-        tpWedNr, tpProgNr, True, tpEstNr, tpEstGes, tpEstMinYOB, "", "", #1/1/1900#, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
-        Exit Function
-      End If
-      
-      
-      'Now handle the tussentijden
-      
-      'Need to check if the startzwemmer is valid.
-      If (estSZNr <> "") Then
+        
+        
         For i = 0 To tstCnt - 1
-          If tstShouldTransfer(i) Then
-            tpTd = tstTd(i)
-            tpAf = tstAf(i)
-            tpSl = tstSlag
-            
-            'Determine if this is the full distance for the startzwemmer, in order to get the IsTusTijd right.
-            Dim tpIsFullSzDistance As Boolean
-            tpIsFullSzDistance = (tstAf(i) = tpAfstandIndPart)
-            
-            
-            If (tstMainIdx(i) <> -1) Then
-              outpMain("TY_Tijd" & tstMainIdx(i)) = tpTd
-              outpMain("TY_Afstand" & tstMainIdx(i)) = hzn(tpAf)
-              outpMain("TY_slag" & tstMainIdx(i)) = hzn(tpSl)
-            End If
-            
-            'Use the startzwemmer dis here
-            If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, tstMainIdx(i), isOvergezet, Not tpIsFullSzDistance, _
-              tpWedNr, tpProgNr, False, -1, "", -1, estSZNr, estSZGes, estSZGebDate, estSZActVer, tppSzDis, tpAf, tpSl, tpTd) Then
-              Exit Function
-            End If
-  
-          
-          End If 'if tstShouldTransfer
+          tstMainIdx(i) = -1
         Next i
-      End If 'if estSZNr <> ""
-      
-
+        
+        
+        Dim tpAfstandIndPart As Long
+        tpAfstandIndPart = val(afstand_ind_part(Nz(est("TY_Eindafstand"))))
+        
+        
+        tpEindAfstand = Nz(est("TY_Eindafstand"))
+        
+        tpEindSlag = Nz(est("TY_Eindslag"))
+        If (tpEindSlag = "WISSEL") Then
+          tstSlag = "RUG"
+        Else
+          tstSlag = tpEindSlag
+        End If
+        
+        For tpTstI = 1 To 4
+          tpTstAf = CInt(val(Nz(est("TY_Afstand" & tpTstI))))
+          tpTstTd = Nz(est("TY_Tijd" & tpTstI))
+          lkpPos = tstFindTussenTijd(tpTstAf, tstCnt, tstAf)
+          If (lkpPos >= 0) Then
+            tstMainIdx(lkpPos) = tpTstI
+          End If
+        Next tpTstI
+        
+        For i = 0 To tstCnt - 1
+          tstShouldTransfer(i) = False
+          If (tstMainIdx(i) >= 0) Then
+            tstShouldTransfer(i) = True
+          Else
+            'Need to check if it is a stored distance
+            'Also need to make sure that the tussen afstand is no longer than the first swimmers distance
+            If (tstAf(i) <= tpAfstandIndPart) Then
+              If (tpEindSlag = "WISSEL") Then
+                If (uitAnalyze_WriteTimes_checkIsWisselTstOK(tstAf(i), tpEindAfstand)) Then
+                  tstShouldTransfer(i) = True
+                End If
+              Else
+                If (bSearchAfSlag(tstAf(i), tstSlag, allAf, allSl, nAllAfSl) >= 0) Then
+                  tstShouldTransfer(i) = True
+                End If
+              End If
+            End If
+          End If
+        Next i
+        
+        
+        
+        
+        
+        'Eindtijd
+        
+        tpTd = Nz(est("TY_eindtijd"))
+        tpAf = Nz(est("TY_EindAfstand"))
+        tpSl = Nz(est("TY_EindSlag"))
+        
+        outpMain("TY_Eindtijd") = tpTd
+        outpMain("TY_Eindafstand") = hzn(tpAf)
+        outpMain("TY_Eindslag") = hzn(tpSl)
+        
+  
+        
+        If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, 0, isOvergezet, False, _
+          tpWedNr, tpProgNr, True, tpEstNr, tpEstGes, tpEstMinYOB, "", "", #1/1/1900#, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
+          Exit Function
+        End If
+        
+        
+        'Now handle the tussentijden
+        
+        'Need to check if the startzwemmer is valid.
+        If (estSZNr <> "") Then
+          For i = 0 To tstCnt - 1
+            If tstShouldTransfer(i) Then
+              tpTd = tstTd(i)
+              tpAf = tstAf(i)
+              tpSl = tstSlag
+              
+              'Determine if this is the full distance for the startzwemmer, in order to get the IsTusTijd right.
+              Dim tpIsFullSzDistance As Boolean
+              tpIsFullSzDistance = (tstAf(i) = tpAfstandIndPart)
+              
+              
+              If (tstMainIdx(i) <> -1) Then
+                outpMain("TY_Tijd" & tstMainIdx(i)) = tpTd
+                outpMain("TY_Afstand" & tstMainIdx(i)) = hzn(tpAf)
+                outpMain("TY_slag" & tstMainIdx(i)) = hzn(tpSl)
+              End If
+              
+              'Use the startzwemmer dis here
+              If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, tstMainIdx(i), isOvergezet, Not tpIsFullSzDistance, _
+                tpWedNr, tpProgNr, False, -1, "", -1, estSZNr, estSZGes, estSZGebDate, estSZActVer, tppSzDis, tpAf, tpSl, tpTd) Then
+                Exit Function
+              End If
+    
+            
+            End If 'if tstShouldTransfer
+          Next i
+        End If 'if estSZNr <> ""
+        
+  
       outpMain.Update
-  End If
+    End If 'if estSeek.nomatch
+  End If 'if not blSkip
 
   est.MoveNext
 Loop

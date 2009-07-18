@@ -466,7 +466,6 @@ Private curPage As Integer
 
 
 
-
 Private Sub btnVolgend_Click()
 On Error Resume Next
 moveProg 1
@@ -649,6 +648,10 @@ End If
 End Sub
 Private Sub pvcNewViewSetPages(ByRef pageVisible() As Boolean, ByRef pageCaption() As String, ByRef pageControls() As ToggleButton)
 On Error GoTo fout
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
 Dim i As Integer
 For i = PAGE_MIN To PAGE_MAX
 
@@ -664,27 +667,31 @@ For i = PAGE_MIN To PAGE_MAX
       blVis = Not (curProgInfo.isRank Or curProgInfo.isPnt)
     Case PAGE_DLN_ADV
       Set cntrl = Me.optDlnAdv
-      blVis = (Not blIsOW) And (Not (curProgInfo.isRank Or curProgInfo.isPnt))
+      blVis = (Not blIsOW) And (Not (curProgInfo.isRank Or curProgInfo.isPnt)) And (Not blIsSimplified)
     Case PAGE_TD
       Set cntrl = Me.optTd
       blVis = Not (curProgInfo.isRank Or curProgInfo.isPnt)
     Case PAGE_LFT
       Set cntrl = Me.optLft
-      blVis = curProgInfo.isMCat
+      blVis = curProgInfo.isMCat And (Not blIsSimplified)
     Case PAGE_REC
       Set cntrl = Me.optRec
-      blVis = curProgInfo.isMCat
+      blVis = curProgInfo.isMCat And (Not blIsSimplified)
     Case PAGE_ABC
       Set cntrl = Me.optABC
+      blVis = Not blIsSimplified
     Case PAGE_CAP
       Set cntrl = Me.optCap
-      blVis = blIsOW
+      blVis = blIsOW And (Not blIsSimplified)
     Case PAGE_DET
       Set cntrl = Me.optDetails
+      blVis = Not blIsSimplified
     Case PAGE_EXR
       Set cntrl = Me.optExtRec
+      blVis = Not blIsSimplified
     Case PAGE_WIN
       Set cntrl = Me.optWinners
+      blVis = Not blIsSimplified
     Case PAGE_PRN
       Set cntrl = Me.optPrn
   End Select

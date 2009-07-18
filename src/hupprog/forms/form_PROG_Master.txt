@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =654401504
+Checksum =475447345
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -67,6 +67,7 @@ Begin Form
     End
     OnActivate ="[Event Procedure]"
     OnResize ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
     Begin
         Begin Label
             BackStyle =0
@@ -488,7 +489,15 @@ Private Const PAGE_MAX = PAGE_ACT
 Private Const MAX_N_PAGES = 10
 Private curPage As Integer
 
+Private Sub updateView()
+On Error Resume Next
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
 
+Me.btnAlleDeeln.Visible = Not blIsSimplified
+Me.btnDetails.Visible = Not blIsSimplified
+
+End Sub
 
 
 
@@ -540,6 +549,11 @@ On Error Resume Next
 End Sub
 Private Sub pvcNewViewSetPages(ByRef pageVisible() As Boolean, ByRef pageCaption() As String, ByRef pageControls() As ToggleButton)
 On Error GoTo fout
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+
 Dim i As Integer
 For i = PAGE_MIN To PAGE_MAX
 
@@ -554,14 +568,19 @@ For i = PAGE_MIN To PAGE_MAX
       Set cntrl = Me.optBas
     Case PAGE_ADV
       Set cntrl = Me.optAdv
+      blVis = Not blIsSimplified
     Case PAGE_REC
       Set cntrl = Me.optRec
+      blVis = Not blIsSimplified
     Case PAGE_RNK
       Set cntrl = Me.optRnk
+      blVis = Not blIsSimplified
     Case PAGE_PNT
       Set cntrl = Me.optPnt
+      blVis = Not blIsSimplified
     Case PAGE_ACT
       Set cntrl = Me.optActies
+      blVis = Not blIsSimplified
   End Select
   
 
@@ -937,6 +956,11 @@ End Sub
 Private Sub Form_Activate()
 On Error Resume Next
 DoCmd.Maximize
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+updateView
 End Sub
 
 Private Sub Form_Open(Cancel As Integer)

@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-255911451
+Checksum =-1205043027
 Begin Form
     PopUp = NotDefault
     Modal = NotDefault
@@ -25,7 +25,7 @@ Begin Form
     RecSrcDt = Begin
         0x065bb075969ee140
     End
-    Caption ="Wedstrijden Hernummeren"
+    Caption ="Records Hernummeren"
     DatasheetFontName ="Arial"
     Begin
         Begin Label
@@ -105,7 +105,6 @@ Begin Form
                     Width =1251
                     Name ="datum"
                     Format ="dd-mm-yyyy"
-                    InputMask ="00/00/0000;0;\" \""
                     Begin
                         Begin Label
                             BackStyle =1
@@ -184,11 +183,17 @@ If (MsgBox("Weet u zeker dat u alle records vanaf deze datum wilt hernummeren" _
   Exit Sub
 End If
     
-
-If Not recNumberChronological(waarde_rcs(), Nz(Me.Datum, #1/1/1900#)) Then
+    
+DoCmd.Hourglass True
+If Not recNrChronologicalChange(waarde_rcs(), Nz(Me.Datum, #1/1/1900#)) Then
+  DoCmd.Hourglass False
   Exit Sub
 End If
 
+DoCmd.Hourglass False
+
+
+MsgBox "Hernummering succesvol verlopen!", 64
 
 DoCmd.Close
 

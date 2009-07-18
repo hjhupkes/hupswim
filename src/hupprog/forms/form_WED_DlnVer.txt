@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-625948148
+Checksum =829836906
 Begin Form
     PopUp = NotDefault
     Modal = NotDefault
@@ -91,7 +91,7 @@ Begin Form
                     Top =85
                     Width =360
                     Height =240
-                    Name ="Text12"
+                    Name ="lbBM"
                     Caption ="BM:"
                     FontName ="MS Sans Serif"
                 End
@@ -113,7 +113,7 @@ Begin Form
                     Top =87
                     Width =1365
                     Height =240
-                    Name ="Label21"
+                    Name ="lbTst"
                     Caption ="Pnt. Tussenstand:"
                     FontName ="MS Sans Serif"
                 End
@@ -124,7 +124,7 @@ Begin Form
                     Top =85
                     Width =1275
                     Height =240
-                    Name ="Label22"
+                    Name ="lbCnt"
                     Caption ="Contactpersoon:"
                     FontName ="MS Sans Serif"
                 End
@@ -230,7 +230,7 @@ Begin Form
         Begin FormFooter
             Height =1417
             BackColor =16776960
-            Name ="FormFooter2"
+            Name ="frmFooter"
             Begin
                 Begin CommandButton
                     OverlapFlags =85
@@ -314,6 +314,29 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Compare Database   'Use database order for string comparisons
 Option Explicit
+
+Private Sub initView()
+On Error Resume Next
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+Me.DV_BM.Visible = Not blIsSimplified
+Me.lbBM.Visible = Not blIsSimplified
+
+Me.DV_Tussenstand.Visible = Not blIsSimplified
+Me.lbTst.Visible = Not blIsSimplified
+
+Me.blMeet.Visible = Not blIsSimplified
+Me.btnMailMerge.Visible = Not blIsSimplified
+Me.btnNStarts.Visible = Not blIsSimplified
+Me.btnVerGeg.Visible = Not blIsSimplified
+
+Me.dv_cont_naam.Visible = Not blIsSimplified
+Me.lbCnt.Visible = Not blIsSimplified
+
+Me.frmFooter.Visible = Not blIsSimplified
+End Sub
 
 Private Sub btnMailMerge_Click()
 On Error Resume Next
@@ -513,6 +536,7 @@ End Sub
 Private Sub Form_Load()
 On Error Resume Next
 Me.OrderBy = ""
+initView
 End Sub
 
 

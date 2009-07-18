@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =269266
+Checksum =-61824153
 Begin Form
     MaxButton = NotDefault
     MinButton = NotDefault
@@ -15,9 +15,9 @@ Begin Form
     Width =9900
     ItemSuffix =64
     Left =4740
-    Top =1500
+    Top =720
     Right =16185
-    Bottom =9975
+    Bottom =9195
     BeforeDelConfirm ="[Event Procedure]"
     RecSrcDt = Begin
         0xad4dd9dd3d5fe340
@@ -406,7 +406,16 @@ Option Compare Database   'Use database order for string comparisons
 Option Explicit
 
 
+Private Sub initView()
+On Error Resume Next
 
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+
+Me.btnMailMerge.Visible = Not blIsSimplified
+
+End Sub
 
 
 
@@ -477,6 +486,7 @@ Private Sub Form_Load()
 On Error Resume Next
 Me.OrderBy = ""
 DoCmd.Maximize
+initView
 Exit Sub
 End Sub
 
