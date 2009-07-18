@@ -167,7 +167,7 @@ End If 'if expLims
 
 'Now look at records.
 If (expRecs) Then
-  If (catInf.rec.Tijd > 0.01) Then
+  If (catInf.rec.tijd > 0.01) Then
     'Have to export the record.
     'For the moment we do not bother (too many restrictions etc).
   End If
@@ -1989,13 +1989,13 @@ Dim maxRecAge As Integer
       If (tpMaxAge <= maxRecMaxAge) Then
         maxRecMaxAge = tpMaxAge
     
-        catInf.rec.Datum = Nz(recs("REC_Datum"), #1/10/1900#)
+        catInf.rec.datum = Nz(recs("REC_Datum"), #1/10/1900#)
         If Not (Nz(recs("REC_IsEstaf"))) Then
           catInf.rec.naam = Nz(recs("ZWNAAM"))
         End If
         catInf.rec.Plaats = Nz(recs("REC_PLaats"))
         catInf.rec.recType = Nz(recs("REC_TYPE"))
-        catInf.rec.Tijd = Nz(recs("REC_TIJD"))
+        catInf.rec.tijd = Nz(recs("REC_TIJD"))
         catInf.rec.tussentijden = Nz(recs("REC_TUSSENTIJDEN"))
       End If
       
@@ -2295,7 +2295,7 @@ If ((Not catInf.blDetFromEvDetails) And detLims And (Trim(catInf.lim) = "" Or ca
   
 End If
 
-If ((Not catInf.blDetFromEvDetails) And detRecs And catInf.rec.Tijd < 0.01) Then
+If ((Not catInf.blDetFromEvDetails) And detRecs And catInf.rec.tijd < 0.01) Then
   
   If Not lenDetermineRecords(recs, Afstand, slag, baan, recAgeMode, wedAgeDate, lftBep, catInf) Then
     Exit Function
@@ -2354,9 +2354,9 @@ If (eventDetailsID >= 0) Then
         Dim datS As String
         datS = Nz(shRecords("LEN_DATE"))
         If datS <> "" Then
-          cat.rec.Datum = lenParseDate(datS)
+          cat.rec.datum = lenParseDate(datS)
         End If
-        cat.rec.Tijd = lenParseSwimtime(Nz(shRecords("LEN_TIME")))
+        cat.rec.tijd = lenParseSwimtime(Nz(shRecords("LEN_TIME")))
         cat.rec.naam = Nz(shRecords("LEN_NAME"))
         cat.rec.Plaats = Nz(shRecords("LEN_CITY"))
         cat.rec.recType = Nz(shRecords("LEN_TYPE"))
@@ -2396,20 +2396,20 @@ eventDetails.AddNew
     eventDetails("LEN_REPLACETIME") = hzn(lenFormatSwimTime(cat.vvt))
   End If
   
-  If (cat.rec.Tijd > 1) Then
+  If (cat.rec.tijd > 1) Then
     shRec.AddNew
       shRec("ID_SHORTRECORD") = maxUsedShRecID + 1
       maxUsedShRecID = maxUsedShRecID + 1
       
      shRec("LEN_CITY") = hzn(Trim(cat.rec.Plaats))
      Dim dIsValid As Boolean
-     dIsValid = lenDateIsValid(cat.rec.Datum)
+     dIsValid = lenDateIsValid(cat.rec.datum)
      If (dIsValid) Then
-       shRec("LEN_DATE") = hzn(lenFormatDate(cat.rec.Datum))
+       shRec("LEN_DATE") = hzn(lenFormatDate(cat.rec.datum))
      End If
      shRec("LEN_NAME") = hzn(Trim(cat.rec.naam))
      shRec("LEN_SPLITS") = hzn(Trim(cat.rec.tussentijden))
-     shRec("LEN_TIME") = hzn(lenFormatSwimTime(cat.rec.Tijd))
+     shRec("LEN_TIME") = hzn(lenFormatSwimTime(cat.rec.tijd))
      shRec("LEN_TYPE") = hzn(Trim(cat.rec.recType))
 
    shRec.Update
@@ -2524,8 +2524,8 @@ catInf.lim = ""
 catInf.resLim = ""
 catInf.vvt = 0
 catInf.Code = ""
-catInf.rec.Datum = #1/1/1900#
-catInf.rec.Tijd = 0
+catInf.rec.datum = #1/1/1900#
+catInf.rec.tijd = 0
 catInf.rec.naam = ""
 catInf.rec.Plaats = ""
 catInf.rec.recType = ""
@@ -3091,7 +3091,7 @@ Do Until pr.EOF
           blAllAGHaveVVT = False
         End If
         
-        If (agCatInf.rec.Tijd < 1) Then
+        If (agCatInf.rec.tijd < 1) Then
           blAllAGHaveRec = False
         End If
         
@@ -3110,7 +3110,7 @@ Do Until pr.EOF
           blAllAGHaveVVT = False
         End If
         
-        If (curAGCatInf.rec.Tijd < 1) Then
+        If (curAGCatInf.rec.tijd < 1) Then
           blAllAGHaveRec = False
         End If
         
@@ -3189,7 +3189,7 @@ Do Until pr.EOF
         detCatInf.vvt = 0
       End If
       If (blAllAGHaveRec) Then
-        detCatInf.rec.Tijd = 0
+        detCatInf.rec.tijd = 0
       End If
     End If
     If (Not lenWriteCatInfo(prOutp, "PR_", False, detCatInf)) Then
@@ -3934,18 +3934,18 @@ Exit Function
 
 End Function
 
-Private Function lenLoadLXSplit(ByRef sp As Recordset, ByVal splitID As Long, ByRef afst As Long, ByRef Tijd As Double) As Boolean
+Private Function lenLoadLXSplit(ByRef sp As Recordset, ByVal splitID As Long, ByRef afst As Long, ByRef tijd As Double) As Boolean
 On Error GoTo fout
 lenLoadLXSplit = False
 
 afst = 0
-Tijd = 0
+tijd = 0
 
 If splitID >= 0 Then
   sp.Seek "=", splitID
   If Not sp.NoMatch Then
     afst = CLng(val(Nz(sp("LEN_Distance"))))
-    Tijd = lenParseSwimtime(Nz(sp("LEN_Swimtime")))
+    tijd = lenParseSwimtime(Nz(sp("LEN_Swimtime")))
   End If
 End If
 
@@ -3957,14 +3957,14 @@ MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
 
-Private Function lenAppendLXSplit(ByRef sp As Recordset, ByVal splitID As Long, ByVal afst As Integer, ByVal Tijd As Double) As Boolean
+Private Function lenAppendLXSplit(ByRef sp As Recordset, ByVal splitID As Long, ByVal afst As Integer, ByVal tijd As Double) As Boolean
 On Error GoTo fout
 lenAppendLXSplit = False
 
 sp.AddNew
   sp("ID_Split") = splitID
   sp("LEN_Distance") = afst
-  sp("LEN_Swimtime") = hzn(lenFormatSwimTime(Tijd))
+  sp("LEN_Swimtime") = hzn(lenFormatSwimTime(tijd))
 sp.Update
 
 lenAppendLXSplit = True
@@ -4994,11 +4994,11 @@ Resume
 Exit Function
 End Function
 
-Private Function lenLoadLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByRef baan As Integer, ByRef Plaats As String, ByRef nation As String, ByRef Datum As Date, ByRef sWedName As String, ByRef qlfTime As Double) As Boolean
+Private Function lenLoadLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByRef baan As Integer, ByRef Plaats As String, ByRef nation As String, ByRef datum As Date, ByRef sWedName As String, ByRef qlfTime As Double) As Boolean
 On Error GoTo fout
 lenLoadLXMeetInfo = False
 
-Datum = #1/1/1900#
+datum = #1/1/1900#
 baan = 25
 Plaats = ""
 qlfTime = 0
@@ -5009,7 +5009,7 @@ If (meetInfID >= 0) Then
   If Not mt.NoMatch Then
     baan = lenParseCourse(Nz(mt("LEN_COURSE")))
     Plaats = Nz(mt("LEN_CITY"))
-    Datum = lenParseDate(Nz(mt("LEN_DATE")))
+    datum = lenParseDate(Nz(mt("LEN_DATE")))
     nation = Nz(mt("LEN_NATION"))
     qlfTime = lenParseSwimtime(Nz(mt("LEN_QUALIFICATIONTIME")))
     sWedName = Nz(mt("LEN_Name"))
@@ -5024,7 +5024,7 @@ MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
 
-Private Function lenAppendLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByVal baan As Integer, ByVal Plaats As String, ByVal nation As String, ByVal Datum As Date, ByVal sWedName As String, ByVal qlfTime As Double) As Boolean
+Private Function lenAppendLXMeetInfo(ByRef mt As Recordset, ByVal meetInfID As Long, ByVal baan As Integer, ByVal Plaats As String, ByVal nation As String, ByVal datum As Date, ByVal sWedName As String, ByVal qlfTime As Double) As Boolean
 On Error GoTo fout
 lenAppendLXMeetInfo = False
 
@@ -5032,8 +5032,8 @@ mt.AddNew
   mt("ID_Meetinfo") = meetInfID
   mt("LEN_CITY") = hzn(Plaats)
   mt("LEN_COURSE") = lenFormatBaanlengte(baan)
-  If (lenDateIsValid(Datum)) Then
-    mt("LEN_DATE") = hzn(lenFormatDate(Datum))
+  If (lenDateIsValid(datum)) Then
+    mt("LEN_DATE") = hzn(lenFormatDate(datum))
   Else
     mt("LEN_DATE") = hzn(lenFormatDate(#1/1/1900#))
   End If

@@ -9,10 +9,10 @@ Dim impProg As Recordset
 Set impProg = CurrentDb().OpenRecordset("select * from gIMP_LEN_programma where( nz( [imp_import] ) = true ) and ( nz([aux_wedstrijdnummer]) > 0 ) order by nz([aux_wedstrijdnummer]), nz([corr_programmanummer]) ;")
 
 
-Dim lastWednr As Long
+Dim lastWedNr As Long
 Dim lastProg As String
 lastProg = ""
-lastWednr = -1
+lastWedNr = -1
 
 impProg.MoveFirst
 Do Until impProg.EOF
@@ -21,11 +21,11 @@ Do Until impProg.EOF
   wednr = Nz(impProg("AUX_Wedstrijdnummer"))
   prognr = Nz(impProg("CORR_Programmanummer"))
   
-  If (wednr = lastWednr And lastProg = prognr) Then
+  If (wednr = lastWedNr And lastProg = prognr) Then
     Err.Raise 1, , "Dubbel programmanr gevonden: " & wednr & "," & prognr
   End If
   
-  lastWednr = wednr
+  lastWedNr = wednr
   lastProg = prognr
 
   impProg.MoveNext
