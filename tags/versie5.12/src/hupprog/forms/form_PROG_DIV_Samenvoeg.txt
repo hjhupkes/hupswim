@@ -1,0 +1,238 @@
+Version =20
+VersionRequired =20
+Checksum =-277096312
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =8617
+    DatasheetFontHeight =10
+    ItemSuffix =20
+    Left =780
+    Top =2235
+    Right =10485
+    Bottom =8205
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x1d1d43183e5fe340
+    End
+    RecordSource ="SELECT * FROM dtSamenvoegen WHERE sa_wedstrijdnummer = waarde() order by  Val([s"
+        "a_programmanummer]), Val([sa_serienummer]);"
+    Caption ="Samenvoeg gegevens"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =1190
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =2267
+                    Top =226
+                    Width =3180
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =65280
+                    Name ="Label13"
+                    Caption ="Samenvoeg gegevens"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =84
+                    Left =7200
+                    Top =226
+                    Width =1296
+                    Height =343
+                    FontWeight =700
+                    ForeColor =255
+                    Name ="btnTerug"
+                    Caption ="&Terug"
+                    OnClick ="[Event Procedure]"
+                    FontName ="System"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =907
+                    Width =630
+                    Height =240
+                    Name ="Label15"
+                    Caption ="Progrnr:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =1360
+                    Top =907
+                    Width =615
+                    Height =240
+                    Name ="Label16"
+                    Caption ="Serienr:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2267
+                    Top =907
+                    Width =4020
+                    Height =240
+                    Name ="Label17"
+                    Caption ="Beschrijving        (Deze komt in het programma te staan)"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =1360
+                    Width =456
+                    TabIndex =1
+                    Name ="SA_Serienummer"
+                    ControlSource ="SA_Serienummer"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =93
+                    TextAlign =1
+                    Left =2267
+                    Width =6240
+                    TabIndex =2
+                    Name ="SA_Beschrijving"
+                    ControlSource ="SA_Beschrijving"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =247
+                    Left =6008
+                    Width =741
+                    TabIndex =3
+                    Name ="Text11"
+                    ControlSource ="SA_Wedstrijdnummer"
+                    DefaultValue ="=waarde()"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    ColumnCount =5
+                    ListWidth =4290
+                    Left =113
+                    Width =1086
+                    BoundColumn =1
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"10\";\"100\""
+                    Name ="Combo18"
+                    ControlSource ="SA_Programmanummer"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW Programma.PR_Wedstrijdnummer, Programma.PR_Programmanummer, P"
+                        "rogramma.PR_Afstand, Programma.PR_Slag, Programma.PR_Categorie FROM Programma WH"
+                        "ERE (((Programma.PR_Wedstrijdnummer)=waarde())) ORDER BY Val([pr_programmanummer"
+                        "]);"
+                    ColumnWidths ="0;1020;750;1290;1230"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =453
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1020
+                    Top =113
+                    Width =1026
+                    Name ="SA_Wedstrijdnummer"
+                    ControlSource ="=waarde()"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =825
+                    Height =240
+                    Name ="Label8"
+                    Caption ="Wedstrijd: "
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =2154
+                    Top =113
+                    Width =4146
+                    TabIndex =1
+                    Name ="Text9"
+                    ControlSource ="=[Forms]![wed_master]![WE_beschrijving]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub btnTerug_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

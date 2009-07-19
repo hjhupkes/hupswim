@@ -1,0 +1,4210 @@
+Option Compare Database
+Option Explicit
+
+Type LNH_TRANSFER_DATA
+  lTotWeds As Long
+  lTotTimes As Long
+  lTotRecs As Long
+  lTotSuspectRecs As Long
+  blRecsOverflowed As Boolean
+End Type
+
+Public Function lnhImportGenerateDefaultZwmImportSettings() As Boolean
+lnhImportGenerateDefaultZwmImportSettings = trfGenerateDefaultZwmImportSettings()
+End Function
+
+Public Function lnhImportGenerateDefaultProgImportSettings(ByVal impWedAgeDate As Date, ByVal impWedLftMode As String) As Boolean
+On Error GoTo fout
+lnhImportGenerateDefaultProgImportSettings = False
+
+Dim sql As String
+sql = "SELECT gIMP_LEN_Wedstrijden.IMP_Wedstrijdnummer, gIMP_LEN_Programma.* " & _
+      "FROM gIMP_LEN_Programma INNER JOIN gIMP_LEN_Wedstrijden ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID " & _
+      "WHERE (((gIMP_LEN_Wedstrijden.IMP_Import)=True));"
+
+Dim impProgs As Recordset
+Set impProgs = CurrentDb().OpenRecordset(sql)
+
+Dim curProgs As Recordset
+Set curProgs = CurrentDb().OpenRecordset("dtProgrammanummers")
+'curProgs.index = "PrimaryKey"
+
+
+Dim curWedInf As WED_BASIC_INFO
+curWedInf.wednr = -1
+
+Dim curWedLftMode As String
+Dim curWedAgeDate As Date
+
+impProgs.MoveFirst
+Do Until impProgs.EOF
+  Dim wednr As Long
+  wednr = Nz(impProgs("IMP_Wedstrijdnummer"))
+  Dim prognr As String
+  prognr = Nz(impProgs("PR_ProgrammaNummer"))
+  If (wednr = 0) Then
+    impProgs.Edit
+      'wedstrijd will be appended -> no progs yet.
+      impProgs("IMP_IMPORT") = True
+      impProgs("IMP_Programmanummer") = prognr
+      impProgs("IMP_INT_Wedstrijdnummer") = Null
+      impProgs("IMP_blLftProblem") = False
+    impProgs.Update
+  Else
+  
+    If (wednr <> curWedInf.wednr) Then
+      Dim tpFnd As Boolean
+      If Not wedLookup(wednr, tpFnd, curWedInf) Then
+        Exit Function
+      End If
+      If (Not tpFnd) Then
+        curWedInf.wednr = -1
+        curWedLftMode = impWedLftMode
+        curWedAgeDate = impWedAgeDate
+      Else
+        curWedLftMode = curWedInf.lftBep
+        curWedAgeDate = curWedInf.ageDate
+      End If
+    End If
+  
+    'find out if the wedstrijd currently already has that programmanummer.
+    Dim progIsFixed As Boolean
+    progIsFixed = Nz(impProgs("PR_Programmanummer_Fixed"))
+    
+    Dim impProgNr As String
+    impProgNr = prognr
+    
+    Dim curAf As String, curSl As String, curCat As String, curCmpCat As CAT_COMPILED_INFO
+        
+    Dim impAf As String, impSl As String, impCat As String, impCmpCat As CAT_COMPILED_INFO
+    
+    
+  
+    impAf = Nz(impProgs("PR_Afstand"))
+    impSl = Nz(impProgs("PR_Slag"))
+    impCat = Nz(impProgs("PR_Categorie"))
+    
+    
+    Dim blDummy As Boolean
+    If Not ctxCompileCat(impCat, impWedAgeDate, impWedLftMode, False, blDummy, impCmpCat) Then
+      Exit Function
+    End If
+    
+    
+    
+    
+    
+    
+    If (progIsFixed) Then
+      curProgs.Index = "PrimaryKey"
+      curProgs.Seek "=", wednr, prognr
+    Else
+       curProgs.Index = "len"
+       Dim lenID  As Long
+       lenID = Nz(impProgs("INT_LEN_ID"))
+       curProgs.Seek "=", wednr, lenID
+       
+       If (curProgs.NoMatch) Then
+         'now use normal programmanummer.
+          curProgs.Index = "PrimaryKey"
+          curProgs.Seek "=", wednr, prognr
+       Else
+       
+         'modification feb 2007
+               
+         curAf = Nz(curProgs("afstand"))
+         curSl = Nz(curProgs("slag"))
+         curCat = Nz(curProgs("categorie"))
+        
+        
+         If Not ctxCompileCat(curCat, curWedAgeDate, curWedLftMode, False, blDummy, curCmpCat) Then
+           Exit Function
+         End If
+         
+         
+         Dim isMatch As Boolean
+         Dim lftBepMinAge As Integer
+             
+            isMatch = True
+             
+            'Have to refine matching criteria.
+            If (curAf <> impAf Or curSl <> impSl Or curCmpCat.lOldYOB <> impCmpCat.lOldYOB Or curCmpCat.sGes <> impCmpCat.sGes) Then
+              isMatch = False
+            End If
+            
+            If (isMatch) Then
+              If (curCmpCat.lYngYOB <> impCmpCat.lYngYOB) Then
+            
+                lftBepMinAge = catGetMinAllowedAgeLftBep(impCmpCat.iAuxOldAge)
+                
+                'Check to see if the problem of the differing minAges is real; or if it just
+                'an artifact of the minimum age.
+                
+                If (curCmpCat.iAuxYngAge > lftBepMinAge Or impCmpCat.iAuxYngAge > lftBepMinAge) Then
+                  isMatch = False
+                End If
+              End If
+            End If
+       
+       
+         
+         If Not isMatch Then
+           'try and use normal programmanummer.
+           curProgs.Index = "PrimaryKey"
+           curProgs.Seek "=", wednr, prognr
+         Else
+           impProgNr = curProgs("Programmanummer")
+         End If
+       End If
+    End If
+      
+    If (curProgs.NoMatch) Then
+      'This guarantees that (wednr, prognr) = (wednr, impProgNr) and that this pair is NOT present in the match.
+        impProgs.Edit
+          impProgs("IMP_IMPORT") = True
+          impProgs("IMP_Programmanummer") = hzn(impProgNr)
+          impProgs("IMP_INT_Wedstrijdnummer") = wednr
+          impProgs("IMP_blLftProblem") = False
+        impProgs.Update
+    Else
+        'Have to compare the progs.
+        
+        curAf = Nz(curProgs("afstand"))
+        curSl = Nz(curProgs("slag"))
+        curCat = Nz(curProgs("categorie"))
+         
+        If Not ctxCompileCat(curCat, curWedAgeDate, curWedLftMode, False, blDummy, curCmpCat) Then
+          Exit Function
+        End If
+        
+        Dim isAfSlMatch As Boolean
+        
+        isMatch = True
+        isAfSlMatch = True
+        
+        If (progIsFixed And impAf = "100" And impSl = "RUG" And impCat = "MIX") Then
+          'import from was2005 -> treat as exact match
+        Else
+         
+         
+           
+          'Have to refine matching criteria.
+          If (curAf <> impAf Or curSl <> impSl Or curCmpCat.sGes <> impCmpCat.sGes) Then
+            isAfSlMatch = False
+            isMatch = False
+          End If
+          
+          If (isMatch) Then
+            If (curCmpCat.lOldYOB <> impCmpCat.lOldYOB) Then
+              isMatch = False
+            End If
+          End If
+            
+          
+          If (isMatch) Then
+            If (curCmpCat.lYngYOB <> impCmpCat.lYngYOB) Then
+              lftBepMinAge = catGetMinAllowedAgeLftBep(impCmpCat.iAuxOldAge)
+              
+              'Check to see if the problem of the differing minAges is real; or if it just
+              'an artifact of the minimum age.
+              
+              If (curCmpCat.iAuxYngAge > lftBepMinAge Or impCmpCat.iAuxYngAge > lftBepMinAge) Then
+                isMatch = False
+              End If
+            End If
+          End If
+          
+        End If
+        
+        If isMatch Then
+          
+          impProgs.Edit
+            impProgs("IMP_IMPORT") = True
+            impProgs("IMP_Programmanummer") = hzn(impProgNr)
+            'modification feb 2007: changed NULL -> wednr
+            impProgs("IMP_INT_Wedstrijdnummer") = wednr
+            impProgs("IMP_blLftProblem") = False
+          impProgs.Update
+        ElseIf (isAfSlMatch) Then
+          impProgs.Edit
+            impProgs("IMP_IMPORT") = True
+            impProgs("IMP_Programmanummer") = hzn(impProgNr)
+            impProgs("IMP_INT_Wedstrijdnummer") = wednr
+            impProgs("IMP_blLftProblem") = True
+          impProgs.Update
+        Else
+          impProgs.Edit
+            impProgs("IMP_IMPORT") = True
+            impProgs("IMP_Programmanummer") = Null 'meaning: need to generate one.
+            impProgs("IMP_INT_Wedstrijdnummer") = wednr
+            impProgs("IMP_blLftProblem") = False
+          impProgs.Update
+        End If
+    End If
+  End If
+  
+  
+  impProgs.MoveNext
+  
+Loop
+      
+
+appCleanRS impProgs
+appCleanRS curProgs
+
+
+
+
+lnhImportGenerateDefaultProgImportSettings = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Private Function lnhImportGenerateDefaultImportSettings_wed(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+On Error GoTo fout
+lnhImportGenerateDefaultImportSettings_wed = False
+
+
+Dim wed As Recordset
+  Dim sql As String
+  sql = "SELECT [dtWedstrijden].*, [dtWedstrijdGegevens].Aanvang " & _
+        "FROM [dtWedstrijden] LEFT JOIN [dtWedstrijdGegevens] ON [dtWedstrijden].[Wedstrijd nummer] = [dtWedstrijdGegevens].Wedstrijdnummer;"
+  Set wed = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+
+Dim impWed As Recordset
+Set impWed = CurrentDb().OpenRecordset("gIMP_LEN_wedstrijden")
+impWed.MoveLast
+
+Dim nImpWeds As Integer
+nImpWeds = impWed.RecordCount
+
+
+ 
+  Dim isFirst As Boolean
+  isFirst = True
+
+  
+  impWed.MoveFirst
+  Do Until impWed.EOF
+    Dim dat As Date
+    dat = Nz(impWed("WE_Datum"), #1/1/1900#)
+    
+    If (isFirst) Then
+      impWedDate = dat
+      impWedLftMode = Nz(impWed("WE_Leeftijdsbepaling"))
+      impWedAgeDate = Nz(impWed("WE_Leeftijdsdatum"), #1/1/1900#)
+      If (Not lenDateIsValid(impWedAgeDate)) Then
+        impWedAgeDate = impWedDate
+      End If
+      isFirst = False
+    End If
+    
+    
+    Dim Plaats As String
+    Plaats = Nz(impWed("WE_Plaats"))
+    Dim bn As Integer
+    bn = Nz(impWed("WE_Baanlengte"))
+    
+    Dim avst As Date
+    avst = Nz(impWed("WE_Aanvang"), #12:00:00 AM#)
+    
+    
+    Dim blImport As Boolean
+    Dim blImpUseWedNr As Boolean
+    Dim lImpWedNr As Long
+    Dim blHandled As Boolean
+    blHandled = False
+    
+    blImport = False
+    blImpUseWedNr = False
+    
+    
+    
+    
+    'First check if we can simply attribute this wedstrijd to the opened match.
+    If (nImpWeds = 1) And (isWedOpened) And (Not openWedIsMeet) Then
+      Dim blIsMatch As Boolean
+      blIsMatch = True
+      If Format(openWedDat, "mm\-dd\-yyyy") <> Format(dat, "mm\-dd\-yyyy") Then
+        blIsMatch = False
+      End If
+      
+      If (blIsMatch) Then
+        If (Format(openWedTime, "hh:nn") <> "00:00") And (Format(avst, "hh:nn") <> "00:00") Then
+          If avst <> openWedTime Then
+            blIsMatch = False
+          End If
+        End If
+      End If
+      
+      If (blIsMatch) Then
+        blImport = True
+        blImpUseWedNr = True
+        lImpWedNr = openWedNr
+        blHandled = True
+      End If
+      
+      
+    End If
+    
+    If Not blHandled Then
+      'do not search on plaats
+      wed.FindFirst "Datum = #" & Format(dat, "mm\-dd\-yyyy") & "# and baanlengte = " & bn & " and format(aanvang,""hh:nn"") = """ & Format(avst, "hh:nn") & """"
+    
+    
+        If wed.NoMatch Then
+          If Not isWedOpened Then
+            blImport = True
+          End If
+        Else
+        
+          'OK; we know what wedstrijdnummer to use. Only question is if we should import.
+          If (Nz(wed("Wedstrijd nummer"), -1) >= 0) Then
+            blImpUseWedNr = True
+            lImpWedNr = wed("Wedstrijd nummer")
+          End If
+        
+          If Not isWedOpened Then
+            blImport = True
+          Else
+            blImport = False
+            If (openWedIsMeet) Then
+              If (Nz(wed("Wedstrijd nummer")) = openWedMeetNr Or Nz(wed("MainWedstrijdNummer")) = openWedMeetNr) Then
+                blImport = True
+              End If
+            ElseIf (Nz(wed("Wedstrijd nummer")) = openWedNr) Then
+              blImport = True
+            End If
+          End If 'if not isWedOpened
+          
+        End If 'if wed.nomatch
+    End If 'if not blHandled
+    
+    impWed.Edit
+      impWed("IMP_Import") = blImport
+      If (blImpUseWedNr) Then
+        impWed("IMP_Wedstrijdnummer") = lImpWedNr
+      Else
+        impWed("IMP_Wedstrijdnummer") = Null
+      End If
+    impWed.Update
+    
+    
+    
+    
+    impWed.MoveNext
+  Loop
+
+
+
+
+appCleanRS wed
+appCleanRS impWed
+
+
+
+
+lnhImportGenerateDefaultImportSettings_wed = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhImportGenerateDefaultImportSettings_wed" & Error$, 16
+End Function
+
+
+
+Public Function lnhImportGenerateDefaultImportSettings(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+On Error GoTo fout
+lnhImportGenerateDefaultImportSettings = False
+
+If Not lnhImportGenerateDefaultImportSettings_wed(impWedDate, impWedLftMode, impWedAgeDate, isWedOpened, openWedNr, openWedDat, openWedTime, openWedIsMeet, openWedMeetNr) Then
+  Exit Function
+End If
+
+
+If Not trfGenerateDefaultVerImportSettings() Then
+  Exit Function
+End If
+
+
+If Not trfGenerateDefaultOptsImportSettings() Then
+  Exit Function
+End If
+
+
+lnhImportGenerateDefaultImportSettings = True
+Exit Function
+fout:
+MsgBox Err & " lnhImportGenerateDefaultImportSettings" & Error$, 16
+End Function
+
+
+
+
+
+
+
+
+
+
+Public Function lnhTransferTimes_checkWed(ByVal wednr As Long, ByRef blCannotProcessWed As Boolean) As Boolean
+On Error GoTo fout
+lnhTransferTimes_checkWed = False
+
+
+blCannotProcessWed = False
+
+'Check if a time is already present for this wedstrijd.
+If Nz(DFirst("[wedstr nr]", "dtTijden", "[wedstr nr]= " & wednr), -1) >= 0 Then
+  blCannotProcessWed = True
+End If
+
+lnhTransferTimes_checkWed = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhTransferTimes_processWed" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lnhTransferTimes_Init(ByRef lnhTransferdata As LNH_TRANSFER_DATA) As Boolean
+On Error GoTo fout
+lnhTransferTimes_Init = False
+
+lnhTransferdata.lTotWeds = 0
+lnhTransferdata.lTotTimes = 0
+lnhTransferdata.lTotRecs = 0
+lnhTransferdata.lTotSuspectRecs = 0
+lnhTransferdata.blRecsOverflowed = False
+
+
+lnhTransferTimes_Init = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhTransferTimes_init" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Public Function lnhTransferTimes_processWed(ByRef lnhTransferdata As LNH_TRANSFER_DATA, ByVal wednr As Long) As Boolean
+On Error GoTo fout
+lnhTransferTimes_processWed = False
+
+Dim blSkip As Boolean
+blSkip = False
+
+If Not lnhTransferTimes_checkWed(wednr, blSkip) Then
+  Exit Function
+End If
+
+
+
+If Not blSkip Then
+  Dim tpOverflow As Boolean, tpNewTimes As Long, tpNewRecs As Long, tpSuspRecs As Long
+  
+  If Not uitTransferTimes(wednr, -1, False, tpNewTimes, tpOverflow, tpNewRecs, tpSuspRecs) Then
+    Exit Function
+  End If
+  
+  lnhTransferdata.lTotWeds = lnhTransferdata.lTotWeds + 1
+  lnhTransferdata.lTotTimes = lnhTransferdata.lTotTimes + tpNewTimes
+  lnhTransferdata.lTotRecs = lnhTransferdata.lTotRecs + tpNewRecs
+  lnhTransferdata.lTotSuspectRecs = lnhTransferdata.lTotSuspectRecs + tpSuspRecs
+  
+  If (tpOverflow) Then
+    lnhTransferdata.blRecsOverflowed = True
+  End If
+
+
+End If
+
+lnhTransferTimes_processWed = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhTransferTimes_processWed" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Public Function lnhTransferTimes_Clean(ByRef lnhTransferdata As LNH_TRANSFER_DATA) As Boolean
+On Error GoTo fout
+lnhTransferTimes_Clean = False
+
+
+lnhTransferTimes_Clean = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhTransferTimes_Clean" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lnhDisplaySuccessMessage(ByRef lnhTransferdata As LNH_TRANSFER_DATA, ByRef lxImpStats As LX_IMP_STATS) As Boolean
+On Error GoTo fout
+lnhDisplaySuccessMessage = False
+
+
+Dim msg As String
+msg = "Er zijn met succes " & lxImpStats.nImpWed & " wedstrijd(en) geimporteerd."
+If (lxImpStats.nNewWeds > 0) Then
+  msg = msg & Chr(13) & "Als gevolg hiervan zijn er: " & lxImpStats.nNewWeds & " nieuwe wedstrijden aangemaakt in het bestand," & Chr(13) & _
+  "met wedstrijdnummers: " & lxImpStats.newWedMinNr & " en hoger."
+End If
+If (lxImpStats.nNewProgs > 0) Then
+  msg = msg & vbCrLf & vbCrLf & "Er zijn: " & lxImpStats.nNewProgs & " nieuwe programmanummers toegevoegd."
+End If
+If (lxImpStats.nNewSwimmer > 0) Then
+  msg = msg & vbCrLf & vbCrLf & "Er zijn: " & lxImpStats.nNewSwimmer & " nieuwe zwemmers toegevoegd."
+End If
+
+If (lnhTransferdata.lTotWeds > 0) Then
+  msg = msg & vbCrLf & vbCrLf & "De tijden van " & lnhTransferdata.lTotWeds & " wedstrijd(en) zijn verwerkt in de hoofd administratie."
+  
+  msg = msg & vbCrLf & "Als gevolg hiervan zijn er " & lnhTransferdata.lTotTimes & " nieuwe tijden toegevoegd."
+
+  If (lnhTransferdata.blRecsOverflowed) Then
+    msg = msg & vbCrLf & vbCrLf & "Er zijn " & lnhTransferdata.lTotRecs & " nieuwe records toegevoegd. " & vbCrLf & _
+      "Hierdoor is het record-bestand overvol geraakt en konden niet alle records worden toegevoegd." & vbCrLf & _
+      "Probeer uw record-bestand op te schonen."
+   
+  ElseIf (lnhTransferdata.lTotRecs > 0) Then
+    msg = msg & vbCrLf & vbCrLf & "Er zijn " & lnhTransferdata.lTotRecs & " nieuwe records toegevoegd."
+    If (lnhTransferdata.lTotSuspectRecs > 0) Then
+      msg = msg & vbCrLf & "Hiervan hebben er " & lnhTransferdata.lTotSuspectRecs & " handmatige controle nodig."
+    End If
+  End If
+  
+  If (lnhTransferdata.lTotTimes = 0) Then
+    msg = msg & vbCrLf & vbCrLf & "Mochten dit minder tijden zijn dan u verwacht, komt dit waarschijnlijk vanwege het feit dat " & _
+    "tijden slechts eenmaal worden geregistreerd." & vbCrLf & "Pas na gebruik van de functie <Tijden herstellen> kunt u tijden opnieuw laten registreren."
+  End If
+
+
+End If
+
+MsgBox msg, vbInformation + vbOKOnly
+
+
+lnhDisplaySuccessMessage = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhDisplaySuccessMessage" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+Public Function lnhProcessUserImportSettings() As Boolean
+On Error GoTo fout
+lnhProcessUserImportSettings = False
+
+
+
+If Not trfProcessWedImportSettings() Then
+  Exit Function
+End If
+
+
+If Not trfProcessVerImportSettings() Then
+  Exit Function
+End If
+
+If Not trfProcessProgImportSettings() Then
+  Exit Function
+End If
+
+If Not trfProcessZwmImportSettings() Then
+  Exit Function
+End If
+
+
+lnhProcessUserImportSettings = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhProcessUserImportSettings" & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+
+
+'to become obsolete
+Private Function lnhExportDetWedSettings(ByVal singleWedOnly As Boolean, ByRef actSingleWedOnly As Boolean, wednr As Long, ByRef actWedNr As Long, ByRef blSepVers As Boolean) As Boolean
+On Error GoTo fout
+lnhExportDetWedSettings = False
+
+actSingleWedOnly = True
+actWedNr = wednr
+
+blSepVers = False
+
+If Not singleWedOnly Then
+  Dim wed As Recordset
+  Set wed = CurrentDb().OpenRecordset("dtWedstrijden")
+  wed.Index = "PrimaryKey"
+  wed.Seek "=", wednr
+  
+  Dim mainWednr As Long
+  mainWednr = Nz(wed("MainWedstrijdNummer"))
+  Dim isMeet As Boolean
+  isMeet = Nz(wed("IsPartOfMeet"))
+  If (mainWednr > 0 And isMeet) Then
+    actSingleWedOnly = False
+    actWedNr = mainWednr
+  End If
+  
+  appCleanRS wed
+  
+  
+End If
+
+
+If dbIsMultipleVer Then
+  blSepVers = Nz(DLookup("ExportSeparateVers", "dtWedstrijdGegevens", "wedstrijdnummer=" & actWedNr), False)
+End If
+
+lnhExportDetWedSettings = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function lnhExportWedstrijdGegevens(ByVal singleWedOnly As Boolean, ByRef wedInf As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+lnhExportWedstrijdGegevens = False
+
+
+Dim inp As Recordset
+Dim sql As String
+
+If (singleWedOnly Or (Not wedInf.isMeet)) Then
+  sql = "SELECT [dtWedstrijden].*, [dtWedstrijdGegevens].* FROM [dtWedstrijden] LEFT JOIN [dtWedstrijdGegevens] " & _
+  "ON [dtWedstrijden].[Wedstrijd nummer] = [dtWedstrijdGegevens].Wedstrijdnummer where [wedstrijd nummer] = " & wedInf.wednr & ";"
+Else
+  sql = "SELECT [dtWedstrijden].*, [dtWedstrijdGegevens].* FROM [dtWedstrijden] LEFT JOIN [dtWedstrijdGegevens] " & _
+  "ON [dtWedstrijden].[Wedstrijd nummer] = [dtWedstrijdGegevens].Wedstrijdnummer where ([wedstrijd nummer] = " & wedInf.meetMainNr & " or [MainWedstrijdNummer]= " & wedInf.meetMainNr & " );"
+End If
+  
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+
+inp.MoveFirst
+Do Until inp.EOF
+  outp.AddNew
+    outp("WE_ID") = inp("Wedstrijd nummer")
+    outp("WE_Datum") = inp("Datum")
+    outp("WE_Plaats") = inp("Plaats")
+    
+    If (Not singleWedOnly) And (wedInf.isMeet) Then
+      outp("WE_Beschrijving") = hzn(wedInf.meetDes)
+    Else
+      outp("WE_Beschrijving") = inp("Beschrijving")
+    End If
+    
+    outp("WE_Beschrijving_Extra") = inp("Beschrijving")
+    
+    outp("WE_Baanlengte") = inp("Baanlengte")
+    
+    
+    outp("WE_Zwembad") = inp("Zwembad")
+    outp("WE_Adres") = inp("Adres")
+    outp("WE_Aanvang") = inp("Aanvang")
+    outp("WE_Inzwemmen") = inp("EchtInzwemmen")
+    outp("WE_BulkKostenVer") = inp("BulkKostenVer")
+    outp("WE_BulkKostenZwemmer") = inp("BulkKostenZwemmer")
+    
+    
+    If Not Nz(inp("ApartKosten"), False) Then
+      If (Nz(inp("kosten1 spec")) = 2) Then
+        outp("WE_KostenRelay") = inp("kosten_est")
+      End If
+    End If
+        
+    
+    outp("WE_Kosten_Currency") = inp("Kosten_Currency")
+    outp("WE_Organiserende_Vereniging") = inp("Organiserende_Vereniging")
+    
+    
+    'These settings are controlled at a meet-level
+    outp("WE_Leeftijdsbepaling") = hzn(wedInf.lftBep)
+    outp("WE_Leeftijdsdatum") = wedInf.ageDate
+    
+    outp("WE_QLF_CONVERSION") = hzn(wedInf.qlfConvMode)
+       
+    outp("WE_QLF_FROM") = Null
+    outp("WE_QLF_UNTIL") = Null
+    
+    If lenDateIsValid(wedInf.qlfMinDate) Then
+      outp("WE_QLF_From") = wedInf.qlfMinDate
+    End If
+    
+    If (lenDateIsValid(wedInf.qlfMaxDate)) Then
+       outp("WE_QLF_UNTIL") = wedInf.qlfMaxDate
+    End If
+    
+    outp("WE_QLF_RelayMode") = hzn(wedInf.qlfRelayMode)
+    
+    'end meet-level settings
+    
+    
+    outp("WE_ElektronischeTijd") = False
+    outp("WE_AantalBanen") = 6
+    outp("WE_Nation") = "NED"
+    outp("WE_Contact_ID") = Null
+    
+    
+    
+    outp("WE_PartOfTimeArchive") = False
+    
+  outp.Update
+
+
+  inp.MoveNext
+Loop
+
+
+
+appCleanRS inp
+appCleanRS outp
+
+
+
+lnhExportWedstrijdGegevens = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Private Function lnhExportProgramma(wedBn As Integer, wedQlfConvMode As String, ByRef lastUsedLimID As Long, ByRef lastUsedRecID As Long, ByRef outpLims As Recordset, ByRef outpRecs As Recordset, ByVal expLims As Boolean, ByVal expRecs As Boolean) As Boolean
+On Error GoTo fout
+lnhExportProgramma = False
+
+Dim inp As Recordset
+Dim sql As String
+sql = "SELECT [dtProgrammanummers].* " & _
+  "FROM gIMP_LEN_Wedstrijden INNER JOIN [dtProgrammanummers] ON gIMP_LEN_Wedstrijden.WE_ID = [dtProgrammanummers].Wedstrijdnr; "
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
+
+Dim prID As Long
+prID = 1
+
+inp.MoveFirst
+Do Until inp.EOF
+  outp.AddNew
+    outp("PR_ID") = prID
+    outp("PR_WED_ID") = inp("wedstrijdnr")
+    outp("PR_Programmanummer") = inp("programmanummer")
+    outp("PR_Programmanummer_Fixed") = True
+    outp("PR_Afstand") = inp("Afstand")
+    outp("PR_Slag") = inp("Slag")
+    outp("PR_Opmerking") = inp("OPmerking")
+    
+    
+    'febr 2007.
+    Dim prAfstand As String
+    Dim prSlag As String
+    prAfstand = Nz(inp("Afstand"))
+    prSlag = Nz(inp("Slag"))
+    
+    
+    Dim catInf As CAT_INFO
+    If Not lenReadCatInfo(inp, "", False, catInf, "Beschrijving categorie", "Res_Marge", "Vervangende_TIJD") Then Exit Function
+    If Not lenWriteCatInfo(outp, "PR_", False, catInf) Then Exit Function
+    
+    'feb 2007
+    If Not lenExtractLimsRecsFromCatInfo(wedBn, wedQlfConvMode, prAfstand, prSlag, catInf, lastUsedRecID, lastUsedLimID, outpRecs, outpLims, expLims, expRecs) Then
+      Exit Function
+    End If
+    
+    outp("PR_KOsten") = inp("KOsten")
+    outp("PR_TYPE") = inp("TYPE")
+    outp("AUX_Vorig_Prog") = inp("Vorig_programmanummer")
+    outp("PR_VORIG_PROG_ID") = Null
+    
+    outp("INT_Vorig_Prog_LEN_ID") = Null
+    
+    outp("PR_BeschrijvingAfwijkend") = inp("Beschrijving_afwijkend")
+    outp("PR_aanvang") = inp("Aanvangstijd")
+    
+    'nov 2006 modification.
+    outp("EXP_LEN_ID") = inp("INT_LEN_ID")
+    outp("EXP_LEN_NR_ID") = inp("INT_LEN_NR_ID")
+    
+    'feb 2007 modification
+    outp("PR_AantMeetel") = inp("N_Meetellende_deelnemers")
+    
+    
+    
+  outp.Update
+
+  prID = prID + 1
+  inp.MoveNext
+Loop
+
+'still have to update PR_VORIG_PROG_ID
+'This is moved to lenexTransfer.lenApplyAuxCorrections
+
+
+appCleanRS inp
+appCleanRS outp
+
+
+lnhExportProgramma = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+
+Private Function lnhExportLeeftijdsGroepen(wedBn As Integer, wedQlfConvMode As String, ByRef lastUsedLimID As Long, ByRef lastUsedRecID As Long, ByRef outpLims As Recordset, ByRef outpRecs As Recordset, ByVal expLims As Boolean, ByVal expRecs As Boolean) As Boolean
+On Error GoTo fout
+lnhExportLeeftijdsGroepen = False
+
+Dim inp As Recordset
+Dim sql As String
+
+sql = "SELECT gIMP_LEN_Programma.PR_ID, gIMP_LEN_Programma.PR_Afstand, gIMP_LEN_Programma.PR_Slag, dtProgrammaLeeftijdsgroepen.* " & _
+   "FROM dtProgrammaLeeftijdsgroepen INNER JOIN gIMP_LEN_Programma ON (dtProgrammaLeeftijdsgroepen.Programmanummer = gIMP_LEN_Programma.PR_Programmanummer) AND (dtProgrammaLeeftijdsgroepen.Wedstrijdnr = gIMP_LEN_Programma.PR_WED_ID); "
+   
+
+
+
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_Leeftijdsgroepen")
+
+Dim lfID As Long
+lfID = 1
+
+inp.MoveFirst
+Do Until inp.EOF
+  outp.AddNew
+  outp("LF_ID") = lfID
+  outp("LF_PR_ID") = inp("PR_ID")
+  
+  'febr 2007.
+    Dim prAfstand As String
+    Dim prSlag As String
+    prAfstand = Nz(inp("PR_Afstand"))
+    prSlag = Nz(inp("PR_Slag"))
+  
+  Dim catInf As CAT_INFO
+  If Not lenReadCatInfo(inp, "", True, catInf, "Beschrijving categorie", "RES_Marge", "Vervangende_tijd") Then Exit Function
+  
+  If Not lenWriteCatInfo(outp, "LF_", True, catInf) Then Exit Function
+  
+      'feb 2007
+    If Not lenExtractLimsRecsFromCatInfo(wedBn, wedQlfConvMode, prAfstand, prSlag, catInf, lastUsedRecID, lastUsedLimID, outpRecs, outpLims, expLims, expRecs) Then
+      Exit Function
+    End If
+  
+  outp.Update
+
+  lfID = lfID + 1
+  inp.MoveNext
+Loop
+
+
+appCleanRS inp
+appCleanRS outp
+
+
+lnhExportLeeftijdsGroepen = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Private Function lnhExportVer(ByVal blSepVers As Boolean, ByRef ordVers() As String, ByRef ordVerIDs() As Long, ByRef nVers As Integer) As Boolean
+On Error GoTo fout
+lnhExportVer = False
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_VER")
+  
+
+If (Not blSepVers) Then
+
+  If Not lnhExportContact() Then
+    Exit Function
+  End If
+
+  outp.AddNew
+    outp("V_ID") = 1
+    outp("V_Naam") = ver()
+    outp("V_LangNaam") = ver()
+    
+    Dim sMainDepot As String
+    sMainDepot = depot()
+    
+    outp("V_Depot") = hzn(sMainDepot)
+    outp("V_Region") = hzn(verGetRegion(sMainDepot))
+    
+    outp("V_Depot_Fixed") = True
+    outp("V_Plaats") = Null
+    outp("V_Land") = "NED"
+    outp("V_LEN_TYPE") = Null
+    outp("V_Contact_ID") = 1
+    outp("V_PartOfRecord") = False
+    outp("V_PartOfTimeArchive") = False
+  outp.Update
+End If
+
+nVers = 1
+ordVers(0) = ver()
+ordVerIDs(0) = 1
+
+
+
+If blSepVers Then
+  'Have to do more work.
+  
+  'We will get all valid verenigingen. Invalid and absent verenigingen will be caught by the exportZwemmers routine.
+  
+  Dim glbVer As String
+  glbVer = ver()
+  
+  Dim sql As String
+  sql = "SELECT  [dtLeden].Vereniging  " & _
+   "FROM [dtLeden] INNER JOIN (gIMP_LEN_Wedstrijden INNER JOIN [dtDeelnemers] ON gIMP_LEN_Wedstrijden.WE_ID = [dtDeelnemers].Wedstrijdnr) ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer  " & _
+   "GROUP BY [dtLeden].Vereniging order by [dtLeden].vereniging; "
+
+  Dim skVer As Recordset
+  Set skVer = CurrentDb().OpenRecordset("dtVerenigingen")
+  skVer.Index = "PrimaryKey"
+
+  Dim rs As Recordset
+  Set rs = CurrentDb().OpenRecordset(sql)
+  
+  rs.MoveFirst
+  Do Until rs.EOF
+    Dim tpVer As String
+    tpVer = Nz(rs("Vereniging"))
+    
+    If (tpVer <> "" And tpVer <> glbVer) Then
+    
+      skVer.Seek "=", tpVer
+      If Not skVer.NoMatch Then
+        Dim tpDepot As String, tpPlaats As String
+        tpDepot = Nz(skVer("V_Depotnummer"))
+        tpPlaats = Nz(skVer("V_Plaats"))
+        
+        Dim tpVerID As Long
+        
+        Dim insPos As Integer
+        Dim oldNVers As Integer
+        
+        oldNVers = nVers
+        tpVerID = oldNVers + 1
+        
+               
+        insPos = insString(tpVer, nVers, ordVers)
+        shiftRightLong insPos, 1, oldNVers, ordVerIDs
+        ordVerIDs(insPos) = tpVerID
+        
+        outp.AddNew
+          outp("V_ID") = tpVerID
+          outp("V_Naam") = hzn(tpVer)
+          outp("V_LangNaam") = hzn(tpVer)
+          
+          outp("V_Depot") = hzn(tpDepot)
+          outp("V_Region") = hzn(verGetRegion(tpDepot))
+          outp("V_Depot_Fixed") = True
+          
+          
+          outp("V_Plaats") = hzn(tpPlaats)
+          outp("V_Land") = "NED"
+          outp("V_LEN_TYPE") = Null
+          outp("V_Contact_ID") = Null
+          outp("V_PartOfRecord") = False
+          outp("V_PartOfTimeArchive") = False
+        outp.Update
+          
+          
+      End If
+    End If
+    rs.MoveNext
+  Loop
+
+  appCleanRS rs
+  appCleanRS skVer
+  
+  
+
+End If
+
+appCleanRS outp
+
+
+lnhExportVer = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Private Function lnhExportZwemmers_writeZwemmer(ByRef outp As Recordset, ByRef inp As Recordset, ByVal zwID As Long, ByVal verID As Long) As Boolean
+On Error GoTo fout
+lnhExportZwemmers_writeZwemmer = False
+
+
+outp.AddNew
+  
+  outp("ZW_ID") = zwID
+  outp("ZW_Ver_ID") = verID
+  
+  outp("ZW_Voornaam") = inp("Voornaam")
+  outp("ZW_Voegsel") = hzn(Trim(Nz(inp("Voegsel"))))
+  outp("ZW_Achternaam") = inp("Achternaam")
+  
+  outp("ZW_Geslacht") = inp("Geslacht")
+  outp("ZW_Jaartal") = CLng(val(Left(stnrExpand(Nz(inp("Startnummer"))), 4)))
+  outp("ZW_Geboortedatum") = inp("Geboortedatum")
+  outp("ZW_Startnummer") = inp("Startnummer")
+  outp("ZW_Startnummer_Fixed") = True
+  outp("ZW_Nation") = "NED"
+  outp("ZW_PartOfRecord") = False
+  outp("ZW_PartOfTimeArchive") = False
+  
+outp.Update
+
+
+lnhExportZwemmers_writeZwemmer = True
+Exit Function
+fout:
+MsgBox Err & " lnhExportZwemmers_writeZwemmer" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function lnhExportZwemmers(ByVal blSepVers, ByRef ordVers() As String, ByRef ordVerIDs() As Long, ByVal nVers As Integer) As Boolean
+On Error GoTo fout
+lnhExportZwemmers = False
+
+'dit zijn alle zwemmers, inclusief estafette zwemmers...
+
+Dim sql As String
+sql = "SELECT [dtDeelnemers].Startnummer, [dtLeden].Lidnr, [dtLeden].Geslacht, [dtLeden].Voornaam, [dtLeden].Voegsel, [dtLeden].Achternaam, [dtLeden].Geboortedatum, [dtLeden].vereniging " & _
+   "FROM [dtLeden] INNER JOIN (gIMP_LEN_Wedstrijden INNER JOIN [dtDeelnemers] ON gIMP_LEN_Wedstrijden.WE_ID = [dtDeelnemers].Wedstrijdnr) ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer  " & _
+   "GROUP BY [dtDeelnemers].Startnummer, [dtLeden].Lidnr, [dtLeden].Geslacht, [dtLeden].Voornaam, [dtLeden].Voegsel, [dtLeden].Achternaam, [dtLeden].Geboortedatum, [dtLeden].vereniging; "
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+
+
+inp.MoveFirst
+Do Until inp.EOF
+
+  Dim zwID As Long
+  Dim verID As Long
+  
+  If (Not blSepVers) Then
+    zwID = Nz(inp("LidNr"))
+    verID = 1
+  
+    If Not lnhExportZwemmers_writeZwemmer(outp, inp, zwID, verID) Then
+      Exit Function
+    End If
+  Else
+    
+    
+    Dim tpVer As String
+    tpVer = Nz(inp("Vereniging"))
+    Dim verLkpPos As Integer
+    verLkpPos = bSearchString(tpVer, nVers, ordVers)
+    
+    If (tpVer = "") Or (verLkpPos < 0) Then
+      'Fail.
+      Dim tpName As String
+      tpName = fmtName(Nz(inp("voornaam")), Nz(inp("voegsel")), Nz(inp("achternaam")))
+      
+      Err.Raise 1, , "De zwemmer: " & vbCrLf & tpName & " ( " & Nz(inp("startnummer")) & ")" & vbCrLf & "is niet gekoppeld aan een geldige vereniging." & vbCrLf & "Zorg dat alle zwemmers goed zijn onderverdeeld in de diverse verenigingen of schakel het vakje <Apart inschrijven> uit in het <Wedstrijden> scherm."
+      
+    End If
+    
+   
+    'Only output in the separate vereniging
+    zwID = 2 * Nz(inp("LidNr"))
+    verID = ordVerIDs(verLkpPos)
+    If Not lnhExportZwemmers_writeZwemmer(outp, inp, zwID, verID) Then
+      Exit Function
+    End If
+
+    
+    
+  End If
+  
+  inp.MoveNext
+Loop
+
+
+
+appCleanRS inp
+appCleanRS outp
+
+
+
+lnhExportZwemmers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Private Function lnhAddPloegLid(ByRef skIns As Recordset, ByRef skWed As Recordset, ByRef pll As Recordset, ByVal verID As Long, ByVal pllID As Long, ByVal plID As Long, ByVal stnr As String, ByVal volg As Integer, ByVal isRes As Boolean, ByVal tdID As Long, ByVal dlnID As Long, ByVal recID As Long, ByVal pllWednr As Long, ByVal pllPrognr As String, ByVal pllEstNr As Integer, ByVal blAddInsTime As Boolean, ByVal sPloeglidDis As String) As Boolean
+On Error GoTo fout
+lnhAddPloegLid = False
+
+
+
+
+Dim qlfTime As Double
+Dim qlfWedNr As Long
+Dim qlfValid As Boolean
+
+qlfValid = False
+qlfTime = 0
+qlfWedNr = -1
+
+If (blAddInsTime) Then
+  skIns.Seek "=", pllWednr, pllPrognr, stnr
+  If (Not skIns.NoMatch) Then
+    qlfTime = Nz(skIns("Inschrijftijd"))
+    qlfWedNr = Nz(skIns("WedstrijdnrInsTijd"))
+    qlfValid = swtIsValid(qlfTime)
+  End If
+End If
+
+
+pll.AddNew
+  pll("PLL_ID") = pllID
+  pll("PLL_Deelnemer_ID") = Null
+  pll("PLL_Record_ID") = Null
+  pll("PLL_Tijd_ID") = Null
+  pll("PLL_TMA_TIJD_ID") = Null
+  
+  If (dlnID <> -1) Then
+    pll("PLL_Deelnemer_ID") = dlnID
+  End If
+  If (tdID <> -1) Then
+    pll("PLL_TIJD_ID") = tdID
+  End If
+    
+  If recID <> -1 Then
+    pll("PLL_Record_ID") = recID
+  End If
+    
+  If (blAddInsTime) Then
+    If (qlfValid) Then
+      pll("PLL_QLF_Tijd") = qlfTime
+     
+      skWed.Seek "=", qlfWedNr
+      If (Not skWed.NoMatch) Then
+        pll("PLL_QLF_Baan") = skWed("Baanlengte")
+        pll("PLL_QLF_Plaats") = skWed("Plaats")
+        pll("PLL_QLF_Datum") = skWed("Datum")
+        pll("PLL_QLF_WedDescription") = skWed("Beschrijving")
+      End If
+    End If
+  End If
+    
+    
+  pll("PLL_Ploeg_ID") = plID
+  pll("AUX_Startnummer") = stnr
+  
+  pll("AUX_INT_VER_ID") = verID
+  pll("AUX_Depotnummer") = Null
+  
+  pll("AUX_Wedstrijdnummer") = pllWednr
+  pll("AUX_Programmanummer") = hzn(pllPrognr)
+  pll("AUX_Estafettenummer") = pllEstNr
+  
+  pll("PLL_Volgorde") = IIf(isRes, -1, volg)
+  pll("PLL_Reserve") = isRes
+  
+  pll("PLL_Dis") = hzn(sPloeglidDis)
+  
+pll.Update
+
+lnhAddPloegLid = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+Private Function lnhExportPloegleden(ByRef skIns As Recordset, ByRef skWed As Recordset, ByRef pll As Recordset, ByRef est As Recordset, ByRef maxUsedPLLID As Long, ByVal verID As Long, ByVal plID As Long, ByVal tdID As Long, ByVal dlnID As Long, ByVal recID As Long, ByVal blAddInsTimes As Boolean, ByVal sStartZwDis As String) As Boolean
+On Error GoTo fout
+lnhExportPloegleden = False
+
+Dim i As Integer
+
+
+Dim curWed As Long
+Dim curProg As String
+Dim curEstNr As Integer
+
+curWed = Nz(est("EST_Wedstrijdnummer"))
+curProg = Nz(est("EST_Programmanummer"))
+curEstNr = Nz(est("EST_Estafettenummer"))
+
+
+
+  For i = 1 To MAX_ESTAF_CNT
+    Dim st As String
+    st = Nz(est("EST_Startnummer_" & i))
+    
+    
+    If (st <> "") Then
+      'write to AUX_Startnummer field for update later on.
+      maxUsedPLLID = maxUsedPLLID + 1
+      
+      Dim tpPllDis As String
+      tpPllDis = ""
+      If (i = 1) Then
+        tpPllDis = sStartZwDis
+      End If
+      
+      If Not lnhAddPloegLid(skIns, skWed, pll, verID, maxUsedPLLID, plID, st, i, False, tdID, dlnID, recID, curWed, curProg, curEstNr, blAddInsTimes, tpPllDis) Then Exit Function
+      
+    End If
+  Next i
+  For i = 1 To 2
+    
+    st = Nz(est("EST_Startnummer_Res_" & i))
+    If (st <> "") Then
+      'write to AUX_Startnummer field for update later on.
+      maxUsedPLLID = maxUsedPLLID + 1
+      
+      tpPllDis = ""
+      
+      If Not lnhAddPloegLid(skIns, skWed, pll, verID, maxUsedPLLID, plID, st, -1, True, tdID, dlnID, recID, curWed, curProg, curEstNr, blAddInsTimes, tpPllDis) Then Exit Function
+      
+    End If
+  Next i
+  
+
+
+
+lnhExportPloegleden = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+Private Function lnhAppendTijd(ByRef inp As Recordset, ByRef outpTd As Recordset, ByVal tdID As Long, ByVal isEstaf As Boolean, ByVal prID As Long, ByVal plID As Long, ByVal zwID As Long, ByVal stzwID As Long, ByVal stZwStNr As String, ByVal verID As Long) As Boolean
+On Error GoTo fout
+lnhAppendTijd = False
+
+outpTd.AddNew
+
+  outpTd("TY_ID") = tdID
+
+  If (prID >= 0) Then
+    outpTd("TY_Prog_ID") = prID
+  Else
+    outpTd("AUX_Programmanummer") = inp("TY_Programmanummer")
+    outpTd("AUX_Wedstrijdnummer") = inp("TY_Wedstrijdnummer")
+  End If
+  
+  
+  If (isEstaf) Then
+    'cannot read BM from input table
+    outpTd("TY_BM") = False
+  Else
+    outpTd("TY_BM") = Nz(inp("BM")) = "J"
+  End If
+  
+
+  If (verID >= 0) Then
+    outpTd("TY_Ver_ID") = verID
+    outpTd("AUX_Depotnummer") = Null
+  Else
+    Err.Raise 1, , "internal error"
+  End If
+
+  outpTd("TY_IsEstaf") = isEstaf
+    
+  If (isEstaf) Then
+    outpTd("TY_Zwemmer_ID") = Null
+    If (plID >= 0) Then
+      outpTd("TY_Ploeg_ID") = plID
+    Else
+      outpTd("AUX_Depotnummer") = Null
+      outpTd("AUX_Estafettenummer") = inp("TY_Estafettenummer")
+    End If
+      
+    If (stzwID >= 0) Then
+      outpTd("TY_Startzwemmer_ID") = stzwID
+    Else
+      outpTd("AUX_Startzwemmer") = stZwStNr
+      outpTd("AUX_Depotnummer") = Null
+    End If
+      
+  Else
+    outpTd("TY_Ploeg_ID") = Null
+    If (zwID >= 0) Then
+      outpTd("TY_Zwemmer_ID") = zwID
+    Else
+      outpTd("AUX_Depotnummer") = Null
+      outpTd("AUX_Startnummer") = inp("TY_Startnummer")
+    End If
+  End If
+    
+  outpTd("TY_Eindtijd") = inp("TY_Eindtijd")
+  outpTd("TY_ExtraTussentijden") = inp("TY_ExtraTussentijden")
+  outpTd("TY_DIS") = hzn(Nz(inp("TY_DIS")))
+  'outpTd("TY_AB") = inp("TY_AB")
+  outpTd("TY_eindplaats") = inp("TY_plaats")
+  outpTd("TY_Opm") = hzn(Left(Nz(inp("TY_Opm")), 50))
+  outpTd("TY_Slag1") = inp("TY_Slag1")
+  outpTd("TY_Slag2") = inp("TY_Slag2")
+  outpTd("TY_Slag3") = inp("TY_Slag3")
+  outpTd("TY_Slag4") = inp("TY_Slag4")
+  outpTd("TY_afstand1") = inp("TY_Afstand1")
+  outpTd("TY_afstand2") = inp("TY_Afstand2")
+  outpTd("TY_Afstand3") = inp("TY_Afstand3")
+  outpTd("TY_Afstand4") = inp("TY_Afstand4")
+  outpTd("TY_Tijd1") = inp("TY_Tijd1")
+  outpTd("TY_Tijd2") = inp("TY_Tijd2")
+  outpTd("TY_Tijd3") = inp("TY_Tijd3")
+  outpTd("TY_Tijd4") = inp("TY_Tijd4")
+  outpTd("TY_Eindslag") = inp("TY_Eindslag")
+  outpTd("TY_Eindafstand") = inp("TY_Eindafstand")
+    
+  outpTd("TY_AGEGROUP_ID") = Null
+  outpTd("INT_AGEGROUP_LEN_ID") = Null
+      
+outpTd.Update
+      
+
+lnhAppendTijd = True
+Exit Function
+fout:
+
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+Private Function lnhExportPloegen(ByRef maxUsedDlnID As Long, ByRef maxUsedTijdID As Long, ByVal expDlns As Boolean, ByVal expTd As Boolean, ByVal blSepVers As Boolean, ByRef ordVers() As String, ByRef ordVerIDs() As Long, ByVal nVers As Integer) As Boolean
+On Error GoTo fout
+lnhExportPloegen = False
+
+Dim sql As String
+     
+sql = "SELECT gIMP_LEN_Programma.PR_ID, gIMP_LEN_Programma.PR_Categorie AS PROGCAT, [~AN_Estafs].*, dtUitslagenEst.* " & _
+      "FROM ([~AN_Estafs] INNER JOIN gIMP_LEN_Programma ON ([~AN_Estafs].EST_Programmanummer = gIMP_LEN_Programma.PR_Programmanummer) AND " & _
+      "([~AN_Estafs].EST_Wedstrijdnummer = gIMP_LEN_Programma.PR_WED_ID)) LEFT JOIN dtUitslagenEst ON ([~AN_Estafs].EST_Estafettenummer = " & _
+      "dtUitslagenEst.TY_Estafettenummer) AND ([~AN_Estafs].EST_Programmanummer = dtUitslagenEst.TY_Programmanummer) AND ([~AN_Estafs].EST_Wedstrijdnummer = " & _
+      "dtUitslagenEst.TY_Wedstrijdnummer);"
+     
+     
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+Dim skIns As Recordset
+Set skIns = CurrentDb().OpenRecordset("dtDeelnemers")
+skIns.Index = "PrimaryKey"
+
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+
+Dim outpPloegLeden As Recordset
+Set outpPloegLeden = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+
+Dim outpDln As Recordset
+Set outpDln = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+
+Dim outpTd As Recordset
+Set outpTd = CurrentDb().OpenRecordset("gIMP_LEN_TIJDEN")
+
+
+Dim plID As Long
+plID = 1
+
+Dim muPllID As Long
+muPllID = 0
+
+Dim dlnID As Long
+Dim tijdID As Long
+
+
+
+Dim verID As Long
+Dim verName As String
+
+
+
+inp.MoveFirst
+Do Until inp.EOF
+  outp.AddNew
+    outp("PL_ID") = plID
+    
+    
+    If (blSepVers) Then
+      Dim actVerName As String
+      actVerName = Nz(inp("EST_ActVereniging"))
+      Dim verLkpPos As Integer
+      verLkpPos = bSearchString(actVerName, nVers, ordVers)
+      If (verLkpPos < 0) Then
+        Err.Raise 1, , "De estafetteploeg: (" & Nz(inp("EST_Wedstrijdnummer")) & ", " & Nz(inp("EST_Programmanummer")) & ", " & Nz(inp("EST_Estafettenummer")) & " ) " & vbCrLf & "kon niet worden toegewezen aan een geldige vereniging."
+      End If
+      
+      verID = ordVerIDs(verLkpPos)
+      verName = ordVers(verLkpPos)
+    Else
+      verID = 1
+      verName = ver()
+    End If
+    
+    outp("PL_VER_ID") = verID
+    
+    
+    
+    outp("PL_Geslacht") = m_of_v(Nz(inp("PROGCAT")))
+    outp("PL_Naam") = verName & " " & Nz(inp("EST_EStafettenummer"))
+    outp("PL_Nummer") = Nz(inp("EST_Estafettenummer"))
+    outp("PL_PartOfRecord") = False
+    outp("PL_PartOfTimeArchive") = False
+    
+    'wijziging dd february 2007
+    If (Nz(inp("EST_ProgCategorie")) <> "") Then
+      outp("PL_SatisfiedCategorie") = inp("EST_ProgCategorie")
+    Else
+      outp("PL_SatisfiedCategorie") = inp("PROGCAT")
+    End If
+  outp.Update
+  
+  maxUsedDlnID = maxUsedDlnID + 1
+  dlnID = maxUsedDlnID
+  
+  If (expDlns) Then
+  
+    Dim blIsExtInsTime As Boolean
+  
+    outpDln.AddNew
+      outpDln("DE_ID") = dlnID
+      outpDln("DE_PROG_ID") = inp("PR_ID")
+      
+      outpDln("DE_Ver_ID") = verID
+      
+      outpDln("DE_IsEstaf") = True
+      outpDln("DE_Zwemmer_ID") = Null
+      outpDln("DE_Ploeg_ID") = plID
+      outpDln("DE_Inschrijftijd") = inp("EST_Inschrijftijd")
+      outpDln("DE_QLF_Tijd") = Null
+      
+      
+      blIsExtInsTime = Nz(inp("EST_UseExtInsTime"))
+      
+      If (blIsExtInsTime) Then
+        Dim lExtWedNr As Long
+        lExtWedNr = Nz(inp("EST_ExtInsWedNr"))
+        
+        skWed.Seek "=", lExtWedNr
+        
+        If (Not skWed.NoMatch) Then
+          outpDln("DE_QLF_Plaats") = skWed("Plaats")
+          outpDln("DE_QLF_Datum") = skWed("Datum")
+          outpDln("DE_QLF_Baan") = skWed("Baanlengte")
+          outpDln("DE_QLF_WedDescription") = skWed("Beschrijving")
+        End If
+      End If
+      
+      
+      
+      
+      outpDln("DE_Reserve") = inp("Est_IsReserve")
+      outpDln("DE_BM") = False
+      outpDln("AUX_Wedstrijdnummer") = inp("EST_Wedstrijdnummer")
+      outpDln("AUX_Programmanummer") = inp("EST_Programmanummer")
+      outpDln("AUX_Estafettenummer") = inp("EST_Estafettenummer")
+      outpDln("AUX_Depotnummer") = Null
+      
+      outpDln("DE_AGEGROUP_ID") = Null
+      outpDln("INT_AGEGROUP_LEN_ID") = Null
+      
+      
+    outpDln.Update
+    
+    
+    'immediately add the ploeg as a deelnemer.
+    muPllID = muPllID + 1
+    If Not lnhExportPloegleden(skIns, skWed, outpPloegLeden, inp, muPllID, verID, plID, -1, dlnID, -1, Not blIsExtInsTime, "") Then Exit Function
+  End If 'if expDlns
+  
+  
+  Dim tdIsValid As Boolean
+  tdIsValid = Nz(inp("TY_eindtijd")) > 0.01 Or Nz(inp("TY_Dis")) <> ""
+  
+  If (tdIsValid And expTd) Then
+    Dim tdID As Long
+    maxUsedTijdID = maxUsedTijdID + 1
+    tdID = maxUsedTijdID
+    
+    If Not lnhAppendTijd(inp, outpTd, tdID, True, Nz(inp("PR_ID")), plID, -1, -1, Nz(inp("EST_Startnummer_1")), verID) Then Exit Function
+    
+    
+    Dim tpStartZwDis As String
+    tpStartZwDis = Nz(inp("TY_DIS_Startzwemmer"))
+    
+    'immediately add the ploeg as a deelnemer.
+     muPllID = muPllID + 1
+     If Not lnhExportPloegleden(Nothing, Nothing, outpPloegLeden, inp, muPllID, verID, plID, tdID, -1, -1, False, tpStartZwDis) Then Exit Function
+    
+    
+  End If
+  
+  
+  
+  
+  plID = plID + 1
+  inp.MoveNext
+Loop
+
+
+appCleanRS inp
+appCleanRS skWed
+appCleanRS skIns
+appCleanRS outp
+appCleanRS outpPloegLeden
+appCleanRS outpDln
+appCleanRS outpTd
+
+
+
+lnhExportPloegen = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+Private Function lnhExportPersoonlijk(ByRef maxUsedDlnID As Long, maxUsedTdID As Long, ByVal expDlns As Boolean, ByVal expTd As Boolean, ByVal blSepVers As Boolean, ByRef ordVers() As String, ByRef ordVerIDs() As Long, ByVal nVers As Integer) As Boolean
+On Error GoTo fout
+lnhExportPersoonlijk = False
+
+Dim sql As String
+sql = "SELECT gIMP_LEN_Programma.PR_ID, [dtDeelnemers].*, dtUitslagenPers.*, [dtWedstrijden].Datum AS inDat, [dtWedstrijden].Plaats AS inPl,[dtWedstrijden].Beschrijving AS inWedDes, [dtWedstrijden].Baanlengte AS inBn " & _
+      "FROM [dtWedstrijden] RIGHT JOIN (([dtDeelnemers] INNER JOIN gIMP_LEN_Programma ON ([dtDeelnemers].Wedstrijdnr = gIMP_LEN_Programma.PR_WED_ID) AND ([dtDeelnemers].Programmanr = gIMP_LEN_Programma.PR_Programmanummer)) LEFT JOIN dtUitslagenPers ON ([dtDeelnemers].Startnummer = dtUitslagenPers.TY_Startnummer) AND ([dtDeelnemers].Programmanr = dtUitslagenPers.TY_Programmanummer) AND ([dtDeelnemers].Wedstrijdnr = dtUitslagenPers.TY_Wedstrijdnummer)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd " & _
+      "WHERE (((gIMP_LEN_Programma.PR_Afstand) Not Like ""*x*""));"
+
+
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim outpDln As Recordset
+Set outpDln = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+
+Dim outpTd As Recordset
+Set outpTd = CurrentDb().OpenRecordset("gIMP_LEN_TIJDEN")
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+Dim verID As Long
+verID = -1
+
+
+
+inp.MoveFirst
+Do Until inp.EOF
+
+  
+  
+  If (blSepVers) Then
+    Dim tpStart As String
+    tpStart = Nz(inp("startnummer"))
+    skZwm.Seek "=", tpStart
+    If (skZwm.NoMatch) Then
+      Err.Raise 1, , "internal error"
+    End If
+    
+    Dim tpVer As String
+    tpVer = Nz(skZwm("vereniging"))
+    
+    Dim verLkpPos As Integer
+    verLkpPos = bSearchString(tpVer, nVers, ordVers)
+    If (tpVer = "") Or (verLkpPos < 0) Then
+      'Fail.
+      Dim tpName As String
+      tpName = fmtName(Nz(skZwm("voornaam")), Nz(skZwm("voegsel")), Nz(skZwm("achternaam")))
+  
+      Err.Raise 1, , "De zwemmer: " & vbCrLf & tpName & " ( " & tpStart & ")" & vbCrLf & "is niet gekoppeld aan een geldige vereniging." & vbCrLf & "Zorg dat alle zwemmers goed zijn onderverdeeld in de diverse verenigingen of schakel het vakje <Apart inschrijven> uit in het <Wedstrijden> scherm."
+  
+    End If
+    
+    verID = ordVerIDs(verLkpPos)
+    
+  Else
+    verID = 1
+  End If
+
+  
+  
+  
+  
+    
+  If (expDlns) Then
+  
+    Dim dlnID As Long
+    maxUsedDlnID = maxUsedDlnID + 1
+    dlnID = maxUsedDlnID
+  
+  
+    outpDln.AddNew
+      outpDln("DE_ID") = dlnID
+      outpDln("DE_PROG_ID") = inp("PR_ID")
+      
+      
+      
+      
+      outpDln("DE_Ver_ID") = verID
+      outpDln("DE_IsEstaf") = False
+      outpDln("DE_Zwemmer_ID") = Null
+      outpDln("DE_Ploeg_ID") = Null
+      outpDln("DE_Inschrijftijd") = inp("Inschrijftijd")
+      outpDln("DE_QLF_Tijd") = Null
+      outpDln("DE_QLF_Plaats") = inp("inPl")
+      outpDln("DE_QLF_Datum") = inp("inDat")
+      outpDln("DE_QLF_Baan") = inp("inBn")
+      outpDln("DE_QLF_WedDescription") = inp("inWedDes")
+      
+      outpDln("DE_Reserve") = Nz(inp("Reserve")) = "J"
+      
+      outpDln("DE_BM") = Nz(inp("BM")) = "J"
+      
+      outpDln("DE_ABC") = inp("A/B/C")
+      
+      
+      outpDln("AUX_Depotnummer") = Null
+      outpDln("AUX_Startnummer") = inp("Startnummer")
+      
+      outpDln("DE_AGEGROUP_ID") = Null
+      outpDln("INT_AGEGROUP_LEN_ID") = Null
+      
+    outpDln.Update
+  End If
+  
+  
+    
+  Dim tdIsValid As Boolean
+  tdIsValid = Nz(inp("TY_eindtijd")) > 0.01 Or Nz(inp("TY_Dis")) <> ""
+  
+  If (tdIsValid And expTd) Then
+    Dim tdID As Long
+    maxUsedTdID = maxUsedTdID + 1
+    tdID = maxUsedTdID
+    
+    If Not lnhAppendTijd(inp, outpTd, tdID, False, Nz(inp("PR_ID")), -1, -1, -1, "", verID) Then Exit Function
+    
+    
+  End If
+  
+    
+  inp.MoveNext
+Loop
+
+
+appCleanRS inp
+appCleanRS outpDln
+appCleanRS outpTd
+appCleanRS skZwm
+
+
+
+lnhExportPersoonlijk = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+Private Function lnhExportAddGlobalVer(ByVal blSepVers As Boolean) As Boolean
+On Error GoTo fout
+lnhExportAddGlobalVer = False
+
+If Not blSepVers Then
+  lnhExportAddGlobalVer = True
+  Exit Function
+End If
+
+Dim blNeedGlobalVer As Boolean
+blNeedGlobalVer = False
+
+
+Dim tpCnt As Long
+tpCnt = Nz(DCount("PL_VER_ID", "gIMP_LEN_ploeg", "PL_VER_ID = 1"), 0)
+If (tpCnt > 0) Then
+  blNeedGlobalVer = True
+End If
+
+
+Dim sql As String
+sql = "select aux_startnummer from gIMP_LEN_ploegleden where aux_int_ver_id = 1 group by aux_startnummer; "
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpStart As String
+  tpStart = Nz(rs("AUX_Startnummer"))
+  
+  skZwm.Seek "=", tpStart
+  
+  If skZwm.NoMatch Then
+    Err.Raise 1, , "internal error"
+  End If
+  
+  Dim verID As Long, zwmID As Long
+  zwmID = 2 * Nz(skZwm("lidNr")) + 1
+  verID = 1
+  
+  If Not lnhExportZwemmers_writeZwemmer(outp, skZwm, zwmID, verID) Then
+    Exit Function
+  End If
+  
+  blNeedGlobalVer = True
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skZwm
+appCleanRS outp
+
+If (blNeedGlobalVer) Then
+  'Append the global ver
+  
+  If Not lnhExportContact() Then
+    Exit Function
+  End If
+  
+  
+  Set outp = CurrentDb().OpenRecordset("gIMP_LEN_VER")
+  outp.AddNew
+    outp("V_ID") = 1
+    outp("V_Naam") = ver()
+    outp("V_LangNaam") = ver()
+    outp("V_Depot") = depot()
+    outp("V_Depot_Fixed") = True
+    outp("V_Plaats") = Null
+    outp("V_Land") = "NED"
+    outp("V_LEN_TYPE") = Null
+    outp("V_Contact_ID") = 1
+    outp("V_PartOfRecord") = False
+    outp("V_PartOfTimeArchive") = False
+  outp.Update
+  
+  
+  appCleanRS outp
+End If
+
+
+
+lnhExportAddGlobalVer = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhExportAddGlobalVer" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function lnhExportCorrectPloegNrs(ByVal blSepVers As Boolean) As Boolean
+On Error GoTo fout
+lnhExportCorrectPloegNrs = False
+
+If Not blSepVers Then
+  lnhExportCorrectPloegNrs = True
+  Exit Function
+End If
+
+'Need to recalculate the ploegnummers.
+Dim sql As String
+Dim pllInp As Recordset
+
+sql = "Select * from gIMP_LEN_ploegleden where (nz([pll_tijd_id],-1) <> -1 or nz([pll_deelnemer_id], -1) <> -1) order by aux_wedstrijdnummer, aux_programmanummer,  aux_int_ver_id, aux_estafettenummer, pll_ploeg_id;"
+
+
+Set pllInp = CurrentDb().OpenRecordset(sql)
+
+
+Dim curWedNr As Long, curProg As String, curVerID As Long, curPloegID As Long
+Dim tpWedNr As Long, tpProg As String, tpVerID As Long, tpPloegID As Integer
+
+Dim curVerMaxUsedEstNr As Integer
+
+curWedNr = -1
+curProg = ""
+curVerID = -1
+curPloegID = -1
+
+
+Dim rsPloeg As Recordset
+Set rsPloeg = CurrentDb().OpenRecordset("gIMP_LEN_ploeg")
+rsPloeg.Index = "PrimaryKey"
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("gIMP_LEN_ver")
+skVer.Index = "PrimaryKey"
+
+Dim blAppliedCorrection As Boolean
+blAppliedCorrection = False
+
+
+pllInp.MoveFirst
+Do Until pllInp.EOF
+  tpWedNr = Nz(pllInp("AUX_Wedstrijdnummer"))
+  tpProg = Nz(pllInp("AUX_Programmanummer"))
+  tpVerID = Nz(pllInp("AUX_INT_VER_ID"))
+  tpPloegID = Nz(pllInp("PLL_Ploeg_ID"))
+    
+    
+  If (tpWedNr <> curWedNr) Or (tpProg <> curProg) Or (tpVerID <> curVerID) Then
+    curWedNr = tpWedNr
+    curProg = tpProg
+    curVerID = tpVerID
+    
+    curVerMaxUsedEstNr = 0
+    curPloegID = -999
+  End If
+  
+  If (tpPloegID <> curPloegID) Then
+    Dim tpEstNr As Integer
+    tpEstNr = Nz(pllInp("AUX_Estafettenummer"))
+  
+    If (tpEstNr = curVerMaxUsedEstNr + 1) Then
+      curVerMaxUsedEstNr = tpEstNr
+    Else
+      'need to apply a correction to the current ploeg.
+      Dim newEstNr As Integer
+      newEstNr = curVerMaxUsedEstNr + 1
+      
+      rsPloeg.Seek "=", tpPloegID
+      If rsPloeg.NoMatch Then
+        Err.Raise 1, , "internal error"
+      End If
+      
+      skVer.Seek "=", Nz(rsPloeg("PL_Ver_ID"))
+      If skVer.NoMatch Then
+        Err.Raise 1, , "internal error"
+      End If
+      
+      rsPloeg.Edit
+        rsPloeg("PL_Nummer") = newEstNr
+        rsPloeg("PL_Naam") = Nz(skVer("V_naam")) & " " & newEstNr
+      rsPloeg.Update
+      
+      
+      curVerMaxUsedEstNr = newEstNr
+      
+    End If
+    
+    curPloegID = tpPloegID
+  End If
+  
+    
+  pllInp.MoveNext
+Loop
+
+appCleanRS pllInp
+appCleanRS rsPloeg
+appCleanRS skVer
+
+
+
+lnhExportCorrectPloegNrs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhExportCorrectPloegNrs" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Private Function lnhExportContact() As Boolean
+On Error GoTo fout
+lnhExportContact = False
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_contact")
+
+outp.AddNew
+  outp("CT_ID") = 1
+  outp("CT_Adres") = hzn(cont_adres())
+  outp("CT_Email") = hzn(cont_email())
+  outp("CT_Naam") = hzn(cont())
+  outp("CT_Plaats") = hzn(cont_plaats())
+  outp("CT_Postcode") = hzn(cont_postcode_sep())
+  outp("CT_Telefoonnummer") = hzn(cont_tel())
+outp.Update
+
+appCleanRS outp
+
+
+lnhExportContact = True
+Exit Function
+fout:
+MsgBox Err & " lnhExportContact" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lnhExportWedstrijd(wednr As Long, singleWedOnly As Boolean, expDlns As Boolean, expTd As Boolean, expLims As Boolean, expRecs As Boolean, cleanImpTables As Boolean) As Boolean
+On Error GoTo fout
+lnhExportWedstrijd = False
+
+
+
+'febr 2007
+Dim lastUsedLimID As Long
+Dim lastUsedRecID As Long
+lastUsedLimID = 0
+lastUsedRecID = 0
+
+Dim outpLims As Recordset
+Dim outpRecs As Recordset
+
+Set outpLims = CurrentDb().OpenRecordset("gIMP_LEN_Limieten")
+Set outpRecs = CurrentDb().OpenRecordset("gIMP_LEN_Records")
+
+
+If (cleanImpTables) Then
+  If Not lenCleanTransferTables() Then Exit Function
+End If
+
+
+
+
+
+Dim wedInf As WED_BASIC_INFO
+
+Dim blFnd As Boolean
+If Not wedLookup(wednr, blFnd, wedInf) Then
+  Exit Function
+End If
+If Not blFnd Then
+  Err.Raise 1, , "Kon wedstrijd: " & wednr & " niet vinden."
+End If
+
+Dim blSepVers As Boolean
+If dbIsMultipleVer() Then
+  blSepVers = Nz(DLookup("ExportSeparateVers", "dtWedstrijdGegevens", "wedstrijdnummer=" & wedInf.meetMainNr), False)
+End If
+
+
+
+
+If Not lnhExportWedstrijdGegevens(singleWedOnly, wedInf) Then
+  Exit Function
+End If
+
+
+
+
+If Not lnhExportProgramma(wedInf.baan, wedInf.qlfConvMode, lastUsedLimID, lastUsedRecID, outpLims, outpRecs, expLims, expRecs) Then Exit Function
+
+If Not lnhExportLeeftijdsGroepen(wedInf.baan, wedInf.qlfConvMode, lastUsedLimID, lastUsedRecID, outpLims, outpRecs, expLims, expRecs) Then Exit Function
+
+appCleanRS outpLims
+appCleanRS outpRecs
+
+
+
+If (expLims) Then
+  If Not lenCleanupDuplicateLimits() Then
+    Exit Function
+  End If
+End If
+
+If (expRecs) Then
+  If Not lenCleanupDuplicateRecords() Then
+    Exit Function
+  End If
+End If
+
+
+
+If expDlns Or expTd Then
+
+    If Not analyzeEstafs(singleWedOnly Or (Not wedInf.isMeet), wedInf.wednr, wedInf.meetMainNr, "~AN_Estafs") Then
+      Exit Function
+    End If
+    
+    
+    Dim ordVers(0 To 1000) As String
+    Dim ordVerIDs(0 To 1000) As Long
+    Dim nVers As Integer
+    
+    
+    If Not lnhExportVer(blSepVers, ordVers, ordVerIDs, nVers) Then Exit Function
+    
+    If Not lnhExportZwemmers(blSepVers, ordVers, ordVerIDs, nVers) Then Exit Function
+    
+    Dim maxUsedDlnID As Long, maxUsedTijdID As Long
+    maxUsedDlnID = 0
+    maxUsedTijdID = 0
+    
+    
+    If Not lnhExportPloegen(maxUsedDlnID, maxUsedTijdID, expDlns, expTd, blSepVers, ordVers, ordVerIDs, nVers) Then Exit Function
+    
+    If Not lnhExportPersoonlijk(maxUsedDlnID, maxUsedTijdID, expDlns, expTd, blSepVers, ordVers, ordVerIDs, nVers) Then Exit Function
+
+End If
+
+
+If Not lnhExportAddGlobalVer(blSepVers) Then
+  Exit Function
+End If
+
+If Not lnhExportCorrectPloegNrs(blSepVers) Then
+  Exit Function
+End If
+
+
+lnhExportWedstrijd = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function lnhWriteWedstrijd(ByRef wed As Recordset, ByRef wedGeg As Recordset, wedInp As Recordset, ByVal wednr As Long, ByVal isMeet As Boolean, ByVal meetMainWedNr As Long, ByVal meetFirstWedDate As Date) As Boolean
+On Error GoTo fout
+lnhWriteWedstrijd = False
+
+'both recordsets must have been initialized to the actual wedstrijd nr
+wed("Wedstrijd nummer") = wednr
+wed("Datum") = wedInp("WE_Datum")
+
+Dim curWedLftDat As Date
+Dim curWedDat As Date
+curWedLftDat = Nz(wedInp("WE_Leeftijdsdatum"))
+If (lenDateIsValid(curWedLftDat)) Then
+  If (isMeet) Then
+    If (curWedLftDat <> meetFirstWedDate) Then
+      'set ageDate to differing value
+      wed("AgeDate") = wedInp("WE_Leeftijdsdatum")
+    End If
+  Else
+    curWedDat = Nz(wedInp("WE_Datum"))
+    If (curWedDat <> curWedLftDat) Then
+      'set ageDate to differing value
+      wed("AgeDate") = wedInp("WE_Leeftijdsdatum")
+    End If
+  End If
+End If
+
+
+'wijziging nov 2006
+'wed("Beschrijving") = left(Trim(Nz(wedInp("WE_Beschrijving")) & " " & Nz(wedInp("WE_Beschrijving_Extra"))), 255)
+If (Nz(wedInp("WE_Beschrijving_Extra")) = "") Then
+  wed("Beschrijving") = wedInp("WE_Beschrijving")
+Else
+  wed("Beschrijving") = wedInp("WE_Beschrijving_Extra")
+End If
+
+
+
+If (isMeet) And (meetMainWedNr = wednr) Then
+  If Nz(wedInp("WE_Beschrijving")) <> Nz(wedInp("WE_Beschrijving_Extra")) Then
+    wed("MainBeschrijving") = wedInp("WE_Beschrijving")
+  End If
+End If
+
+
+wed("Plaats") = wedInp("WE_Plaats")
+wed("Seizoen") = hzn(ssGetSeason(Nz(wedInp("WE_Datum"), 0)))
+wed("Baanlengte") = wedInp("WE_Baanlengte")
+
+wed("IsPartOfMeet") = isMeet
+If (isMeet) Then
+  wed("MainWedstrijdNummer") = meetMainWedNr
+Else
+  wed("MainWedstrijdNummer") = Null
+End If
+
+wedGeg("Wedstrijdnummer") = wednr
+wedGeg("Aanvang") = wedInp("WE_Aanvang")
+wedGeg("EchtInzwemmen") = wedInp("WE_Inzwemmen")
+wedGeg("Zwembad") = wedInp("WE_Zwembad")
+wedGeg("Adres") = wedInp("WE_Adres")
+wedGeg("Leeftijdsbepaling") = wedInp("WE_LeeftijdsBepaling")
+wedGeg("BulkKostenVer") = wedInp("WE_BulkKostenVer")
+wedGeg("BulkKostenZwemmer") = wedInp("WE_BulkKostenZwemmer")
+wedGeg("Kosten_est") = wedInp("WE_KostenRelay")
+If (Nz(wedGeg("kosten_Est")) > 0.01) Then
+  wedGeg("Kosten1 spec") = 2
+End If
+
+wedGeg("Kosten_Currency") = wedInp("WE_Kosten_Currency")
+
+
+wedGeg("Organiserende_Vereniging") = wedInp("WE_Organiserende_Vereniging")
+
+wedGeg("KwalificatieMode") = wedInp("WE_QLF_CONVERSION")
+wedGeg("KwalificatieMinDatum") = wedInp("WE_QLF_FROM")
+wedGeg("KwalificatieMaxDatum") = wedInp("WE_QLF_UNTIL")
+wedGeg("KwalificatieRelayMode") = wedInp("WE_QLF_RelayMode")
+
+
+
+
+lnhWriteWedstrijd = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function lnhWriteWedstrijden(owWed As Boolean, clearAllDlns As Boolean, clearAllTd As Boolean, ByRef nNewWeds As Integer, ByRef newWedMinNr As Long) As Boolean
+On Error GoTo fout
+lnhWriteWedstrijden = False
+
+Dim wed As Recordset, wedGeg As Recordset
+
+Set wed = CurrentDb().OpenRecordset("dtWedstrijden")
+Set wedGeg = CurrentDb().OpenRecordset("dtWedstrijdGegevens")
+
+wed.Index = "PrimaryKey"
+wedGeg.Index = "PrimaryKey"
+
+nNewWeds = 0
+newWedMinNr = 0
+
+
+'Dim sql As String
+'sql = "SELECT [dtWedstrijden].*, [dtWedstrijdGegevens].* " & _
+'     "FROM [dtWedstrijden] INNER JOIN [dtWedstrijdGegevens] ON [dtWedstrijden].[Wedstrijd nummer] = " & _
+'     "[dtWedstrijdGegevens].Wedstrijdnummer;"
+
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_wedstrijden where corr_wedstrijdnummer > 0 order by corr_wedstrijdnummer;")
+
+inp.MoveLast
+
+Dim wedCnt As Long
+wedCnt = 0
+If Not inp.EOF Then
+  wedCnt = inp.RecordCount
+End If
+
+Dim isMeet As Boolean
+isMeet = wedCnt > 1
+Dim meetMainWedNr As Long
+meetMainWedNr = -1
+
+Dim meetFirstWedDate As Date
+meetFirstWedDate = #1/1/1900#
+
+
+Dim isFirst As Boolean
+isFirst = True
+
+
+
+
+Dim sql As String
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim wednr  As Long
+  wednr = Nz(inp("corr_wedstrijdnummer"))
+  
+  If (isFirst) Then
+    If (isMeet) Then
+      meetMainWedNr = wednr
+      meetFirstWedDate = Nz(inp("WE_datum"), #1/1/1900#)
+    End If
+    isFirst = False
+  End If
+  
+  
+  
+  If (clearAllDlns) Then
+  
+    sql = "delete * from [dtDeelnemers] where wedstrijdnr = " & wednr & ";"
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  End If
+  
+  If (clearAllTd) Then
+    DoCmd.SetWarnings False
+    sql = "delete * from dtUitslagenPers where ty_wedstrijdnummer=" & wednr & ";"
+    DoCmd.RunSQL sql
+    
+    sql = "Delete * from dtUitslagenEst where ty_wedstrijdnummer=" & wednr & ";"
+    DoCmd.RunSQL sql
+    DoCmd.SetWarnings True
+  End If
+    
+
+  
+  
+  
+  wed.Seek "=", wednr
+  
+  If wed.NoMatch Then
+    'need to append the wedstrijd.
+    wed.AddNew
+    wedGeg.AddNew
+    
+    If Not lnhWriteWedstrijd(wed, wedGeg, inp, wednr, isMeet, meetMainWedNr, meetFirstWedDate) Then Exit Function
+    
+    
+    
+    wed.Update
+    wedGeg.Update
+    
+    nNewWeds = nNewWeds + 1
+    If (nNewWeds = 1) Or (wednr < newWedMinNr) Then
+      newWedMinNr = wednr
+    End If
+    
+    
+  ElseIf (owWed) Then
+    'need to overwrite the wedstrijd.
+    wed.Edit
+    wedGeg.Seek "=", wednr
+    If wedGeg.NoMatch Then
+      wedGeg.AddNew
+    Else
+      wedGeg.Edit
+    End If
+    
+    If Not lnhWriteWedstrijd(wed, wedGeg, inp, wednr, isMeet, meetMainWedNr, meetFirstWedDate) Then Exit Function
+    
+    wedGeg.Update
+    wed.Update
+    
+  End If
+  
+  
+  inp.MoveNext
+Loop
+
+appCleanRS wed
+appCleanRS wedGeg
+appCleanRS inp
+
+
+
+lnhWriteWedstrijden = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+Private Function lnhWriteProgrammaNummer(ByRef progs As Recordset, ByRef progInp As Recordset, wednr As Long, prognr As String, progID As Long) As Boolean
+On Error GoTo fout
+lnhWriteProgrammaNummer = False
+
+progs("WedstrijdNr") = wednr
+progs("Programmanummer") = prognr
+progs("Afstand") = progInp("PR_Afstand")
+progs("Slag") = progInp("PR_Slag")
+
+Dim catInf As CAT_INFO
+If Not lenReadCatInfo(progInp, "PR_", False, catInf) Then Exit Function
+
+If Not lenWriteCatInfo(progs, "", False, catInf, "Beschrijving Categorie", "RES_Marge", "Vervangende_tijd") Then Exit Function
+
+progs("N_Meetellende_deelnemers") = 0
+progs("Opmerking") = progInp("PR_Opmerking")
+
+progs("TYPE") = progInp("PR_Type")
+progs("Beschrijving_afwijkend") = progInp("PR_BeschrijvingAfwijkend")
+progs("Kosten") = progInp("PR_Kosten")
+progs("Vorig_Programmanummer") = progInp("AUX_Vorig_Prog")
+progs("Aanvangstijd") = progInp("PR_Aanvang")
+progs("INT_LEN_ID") = progInp("INT_LEN_ID")
+progs("INT_LEN_NR_ID") = progInp("INT_LEN_NR_ID")
+
+'february 2007 addition.
+progs("N_Meetellende_deelnemers") = Nz(progInp("PR_AantMeetel"), 0)
+
+
+
+
+
+lnhWriteProgrammaNummer = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+Private Function lnhWriteProgramma(owProgs As Boolean, impDln As Boolean, impTd As Boolean, ByRef nNewProgs As Integer) As Boolean
+On Error GoTo fout
+lnhWriteProgramma = False
+
+Dim progs As Recordset
+Set progs = CurrentDb().OpenRecordset("dtProgrammanummers")
+
+progs.Index = "PrimaryKey"
+
+nNewProgs = 0
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma where nz([aux_wedstrijdnummer]) > 0 and nz([corr_programmanummer]) <> """";")
+
+
+Dim wedS As Recordset
+Set wedS = CurrentDb().OpenRecordset("dtWedstrijden", dbOpenDynaset)
+
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim wednr As Long
+  Dim prognr As String
+  wednr = Nz(inp("AUX_Wedstrijdnummer"))
+  prognr = Nz(inp("CORR_Programmanummer"))
+  Dim progID As Long
+  progID = Nz(inp("PR_ID"))
+  
+  
+  Dim isEstaf As Boolean
+  isEstaf = Nz(inp("PR_AFstand")) Like "*x*"
+  
+  
+  Dim blEdited As Boolean
+  blEdited = False
+  
+  progs.Seek "=", wednr, prognr
+  
+  If progs.NoMatch Then
+    'have to append
+    progs.AddNew
+    
+    If Not lnhWriteProgrammaNummer(progs, inp, wednr, prognr, progID) Then Exit Function
+    
+    blEdited = True
+    progs.Update
+    
+    nNewProgs = nNewProgs + 1
+    
+  ElseIf (owProgs) Then
+    'have to overwrite
+    progs.Edit
+    
+    If Not lnhWriteProgrammaNummer(progs, inp, wednr, prognr, progID) Then Exit Function
+    
+    blEdited = True
+    
+    progs.Update
+  End If
+  
+  
+  
+  'now have to handle agegroups.
+  If (blEdited) Then
+    Dim delSQL As String
+    delSQL = "Delete * from [dtProgrammaLeeftijdsgroepen] where [wedstrijdnr]= " & wednr & " and [programmanummer]=""" & prognr & """;"
+    DoCmd.SetWarnings False
+    
+    
+    DoCmd.RunSQL delSQL
+    
+    Dim insSQL As String
+    insSQL = "INSERT INTO dtProgrammaLeeftijdsgroepen ( Categorie, [Beschrijving categorie], Limiet, Res_Marge, Code,Vervangende_Tijd, " & _
+    "Record_Omschrijving, Record_Naam, Record_Tijd, Record_Plaats, Record_Datum, Record_Tussentijden, Programmanummer, Wedstrijdnr ) " & _
+    "SELECT gIMP_LEN_Leeftijdsgroepen.LF_Categorie, gIMP_LEN_Leeftijdsgroepen.LF_BeschrijvingCategorie, gIMP_LEN_Leeftijdsgroepen.LF_Limiet, " & _
+    "gIMP_LEN_Leeftijdsgroepen.LF_ResMarge,gIMP_LEN_Leeftijdsgroepen.LF_Code, gIMP_LEN_Leeftijdsgroepen.LF_VervangendeTijd, gIMP_LEN_Leeftijdsgroepen.LF_Record_Omschrijving, " & _
+    "gIMP_LEN_Leeftijdsgroepen.LF_Record_Naam, gIMP_LEN_Leeftijdsgroepen.LF_Record_Tijd, gIMP_LEN_Leeftijdsgroepen.LF_Record_Plaats, " & _
+    "gIMP_LEN_Leeftijdsgroepen.LF_Record_Datum, gIMP_LEN_Leeftijdsgroepen.LF_Record_Tussentijden, gIMP_LEN_Leeftijdsgroepen.AUX_Programmanummer, " & _
+    "gIMP_LEN_Leeftijdsgroepen.AUX_Wedstrijdnummer FROM gIMP_LEN_Leeftijdsgroepen " & _
+    "WHERE (((gIMP_LEN_Leeftijdsgroepen.LF_PR_ID)=" & progID & "));"
+    
+    DoCmd.RunSQL insSQL
+    
+    
+    DoCmd.SetWarnings True
+  End If
+  
+  
+  
+  
+  inp.MoveNext
+Loop
+
+
+appCleanRS progs
+appCleanRS inp
+appCleanRS wedS
+
+
+
+
+lnhWriteProgramma = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhWriteProgramma" & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+Private Function lnhWriteZwemmer(ByVal blIsMultiVer As Boolean, ByRef zw As Recordset, ByRef inp As Recordset, ByVal startnr As String) As Boolean
+On Error GoTo fout
+lnhWriteZwemmer = False
+
+
+zw("Startnummer") = startnr
+zw("Geslacht") = inp("ZW_Geslacht")
+zw("Actief lid") = True
+zw("Voornaam") = inp("ZW_Voornaam")
+zw("Voegsel") = inp("ZW_Voegsel")
+zw("Achternaam") = inp("ZW_Achternaam")
+zw("Geboortedatum") = inp("ZW_Geboortedatum")
+
+'modification feb 2007: want to include vereniging
+If (blIsMultiVer) Then
+  zw("Vereniging") = inp("V_Naam")
+End If
+
+lnhWriteZwemmer = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Private Function lnhWriteZwemmers(blIsMultiVer As Boolean, owZws As Boolean, ByRef nNewZwms As Long) As Boolean
+On Error GoTo fout
+lnhWriteZwemmers = False
+
+nNewZwms = 0
+
+Dim zw As Recordset
+Set zw = CurrentDb().OpenRecordset("dtLeden")
+zw.Index = "PrimaryKey"
+
+'modification feb 2007: need to have vernames.
+'modification feb 2008: need to check corr_startnummer
+Dim sql As String
+sql = "SELECT gIMP_LEN_Ver.V_Naam, gIMP_LEN_Zwemmers.* " & _
+      "FROM gIMP_LEN_Zwemmers INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Zwemmers.ZW_VER_ID = gIMP_LEN_Ver.V_ID " & _
+      "where (nz([corr_startnummer]) <> """") and nz([aux_depotnummer]) <> """";"
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset(sql)
+'Set inp = CurrentDb().OpenRecordset("Select * from gIMP_LEN_zwemmers where nz([aux_depotnummer]) <> """";")
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim startnr As String
+  startnr = Nz(inp("CORR_Startnummer"))
+  
+  zw.Seek "=", startnr
+  
+  If (zw.NoMatch) Then
+    'need to append.
+    zw.AddNew
+    If Not lnhWriteZwemmer(blIsMultiVer, zw, inp, startnr) Then Exit Function
+    zw.Update
+    
+    nNewZwms = nNewZwms + 1
+    
+  ElseIf (owZws) Then
+    'need to overwrite
+    zw.Edit
+    If Not lnhWriteZwemmer(blIsMultiVer, zw, inp, startnr) Then Exit Function
+    zw.Update
+  End If
+  
+  inp.MoveNext
+
+Loop
+
+
+appCleanRS zw
+appCleanRS inp
+
+
+lnhWriteZwemmers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Private Function lnhWritePersoonlijk(clearAllDlns As Boolean, impDlns As Boolean, impTd As Boolean, clearAllTd As Boolean, findInsWedNrs As Boolean) As Boolean
+On Error GoTo fout
+lnhWritePersoonlijk = False
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+
+If (impDlns) Then
+  'write the deelnemers.
+  
+  
+  'modification feb 2008: check for aux_startnummer
+  Dim inp As Recordset
+  Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_deelnemers where (nz([aux_startnummer]) <> """") and nz([aux_wedstrijdnummer]) > 0 and ((nz([aux_depotnummer])) <> """") and nz([aux_Programmanummer]) <> """" and not nz([de_isEstaf]);")
+  
+  Dim wed As Recordset
+  Set wed = CurrentDb().OpenRecordset("dtWedstrijden", dbOpenDynaset)
+  
+  Dim outp As Recordset
+  Set outp = CurrentDb().OpenRecordset("dtDeelnemers")
+  
+  outp.Index = "PrimaryKey"
+  
+  
+  
+  inp.MoveFirst
+  Do Until inp.EOF
+  
+    Dim wednr As Long
+    Dim prognr As String
+    Dim startnr As String
+    wednr = Nz(inp("AUX_Wedstrijdnummer"))
+    prognr = Nz(inp("AUX_Programmanummer"))
+    startnr = Nz(inp("AUX_Startnummer"))
+    
+    
+    If (Not clearAllDlns) Then
+      outp.Seek "=", wednr, prognr, startnr
+      If (Not outp.NoMatch) Then
+        outp.Delete
+      End If
+    End If
+      
+    
+    Dim inPlaats As String, inDat As Date, inBaan As Integer
+    inPlaats = Nz(inp("DE_QLF_Plaats"))
+    inDat = Nz(inp("DE_QLF_Datum"), #1/1/1900#)
+    inBaan = Nz(inp("DE_QLF_Baan"))
+    
+    Dim inswednr As Long
+    inswednr = -1
+    Dim insWedNrFnd As Boolean
+    insWedNrFnd = False
+    
+    
+    If (lenDateIsValid(inDat) And findInsWedNrs) Then
+      wed.FindFirst "Datum = #" & Format(inDat, "mm-dd-yyyy") & "# and plaats = """ & inPlaats & """ and baanlengte = " & inBaan
+      If Not wed.NoMatch Then
+        insWedNrFnd = True
+        inswednr = Nz(wed("Wedstrijd nummer"))
+      End If
+    End If
+    
+    outp.AddNew
+      outp("Wedstrijdnr") = wednr
+      outp("Programmanr") = hzn(prognr)
+      outp("Startnummer") = hzn(startnr)
+      outp("Volgorde") = 0
+      outp("Estafette nummer") = 0
+      outp("Reserve") = IIf(Nz(inp("DE_Reserve")), "J", "N")
+      outp("BM") = IIf(Nz(inp("DE_BM")), "J", "N")
+      outp("A/B/C") = inp("DE_ABC")
+      outp("Inschrijftijd") = Nz(inp("DE_Inschrijftijd"))
+      outp("WedstrijdnrInsTijd") = IIf(insWedNrFnd, inswednr, 0)
+    outp.Update
+      
+    
+    
+  
+  
+    inp.MoveNext
+  Loop
+  
+  appCleanRS inp
+  appCleanRS outp
+  appCleanRS wed
+  
+    
+    
+End If
+
+
+If (impTd) Then
+
+  'modification feb 2008: check for aux_startnummer
+
+  'Need to make sure there are deelnemer entries for all tijden which we will import.
+  sql = "INSERT INTO [dtDeelnemers] ( Wedstrijdnr, Programmanr, Startnummer, Volgorde, Reserve, BM, [Estafette nummer] ) " & _
+        "SELECT gIMP_LEN_Tijden.AUX_Wedstrijdnummer, gIMP_LEN_Tijden.AUX_Programmanummer, gIMP_LEN_Tijden.AUX_Startnummer, 0 AS Expr3, ""N"" AS Expr4, iif(nz([TY_BM], false),""J"",""N"" ) AS Expr5, 0 AS Expr6 " & _
+        "FROM gIMP_LEN_Tijden LEFT JOIN [dtDeelnemers] ON (gIMP_LEN_Tijden.AUX_Startnummer = [dtDeelnemers].Startnummer) AND (gIMP_LEN_Tijden.AUX_Programmanummer = [dtDeelnemers].Programmanr) AND (gIMP_LEN_Tijden.AUX_Wedstrijdnummer = [dtDeelnemers].Wedstrijdnr) " & _
+        "WHERE   (nz([gIMP_LEN_tijden].aux_startnummer) <> """") and  ((([dtDeelnemers].Wedstrijdnr) Is Null) AND ((nz([AUX_Wedstrijdnummer]))>0) and ((nz([aux_depotnummer])) <> """") AND ((nz([AUX_Programmanummer]))<>"""") AND ((gIMP_LEN_Tijden.TY_IsEstaf)=False)); "
+
+  DoCmd.RunSQL sql
+    'have to loop through tijden individually in order to check if one already exists....
+    
+  'modification feb 2008: check for aux_startnummer
+  sql = "SELECT gIMP_LEN_Wedstrijden.WE_Datum, gIMP_LEN_Tijden.*, gIMP_LEN_Zwemmers.ZW_Geslacht " & _
+        "FROM ((gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Programma ON gIMP_LEN_Tijden.TY_PROG_ID = gIMP_LEN_Programma.PR_ID) INNER JOIN gIMP_LEN_Wedstrijden ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID) INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Tijden.TY_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID " & _
+        "WHERE (nz([gIMP_LEN_tijden].aux_startnummer) <> """") and (((nz([ty_isEstaf]))=false) AND ((nz([gIMP_LEN_tijden].aux_wedstrijdnummer))>0) and ((nz([gIMP_LEN_tijden].aux_depotnummer)) <> """") AND ((nz([aux_programmanummer]))<>""""));"
+
+  
+    
+  Dim td As Recordset
+  Set td = CurrentDb().OpenRecordset(sql)
+  Dim outpTd As Recordset
+  Set outpTd = CurrentDb().OpenRecordset("dtUitslagenPers")
+  outpTd.Index = "PrimaryKey"
+  
+  td.MoveFirst
+  Do Until td.EOF
+    wednr = Nz(td("AUX_Wedstrijdnummer"))
+    prognr = Nz(td("AUX_Programmanummer"))
+    startnr = Nz(td("AUX_Startnummer"))
+    
+    If (Not clearAllTd) Then
+      outpTd.Seek "=", wednr, prognr, startnr
+    
+      If (Not outpTd.NoMatch) Then
+        outpTd.Delete
+      End If
+    End If
+    
+    'have to make ty_categorie work somehow. Need wedstrijddatum.
+    Dim wedDat As Date
+    wedDat = Nz(td("WE_Datum"), #1/1/1900#)
+    If (Not lenDateIsValid(wedDat)) Then
+      wedDat = Now()
+    End If
+    
+    Dim cat As String
+    Dim ges As String
+    ges = Nz(td("ZW_Geslacht"))
+    cat = ""
+    
+    outpTd.AddNew
+      
+      outpTd("TY_Wedstrijdnummer") = wednr
+      outpTd("TY_Programmanummer") = hzn(prognr)
+      outpTd("TY_Startnummer") = hzn(startnr)
+      outpTd("TY_Categorie") = hzn(cat)
+      
+      outpTd("TY_Eindtijd") = td("TY_Eindtijd")
+      outpTd("TY_ExtraTussentijden") = td("TY_ExtraTussentijden")
+      outpTd("TY_DIS") = td("TY_DIS")
+      'outpTd("TY_AB") = td("TY_AB")
+      outpTd("TY_plaats") = IIf(Nz(td("TY_Eindplaats"), 0) < 0, 0, td("TY_Eindplaats"))
+      outpTd("TY_Opm") = hzn(Left(Nz(td("TY_Opm")), 50))
+      outpTd("TY_Slag1") = td("TY_Slag1")
+      outpTd("TY_Slag2") = td("TY_Slag2")
+      outpTd("TY_Slag3") = td("TY_Slag3")
+      outpTd("TY_Slag4") = td("TY_Slag4")
+      outpTd("TY_afstand1") = td("TY_Afstand1")
+      outpTd("TY_afstand2") = td("TY_Afstand2")
+      outpTd("TY_Afstand3") = td("TY_Afstand3")
+      outpTd("TY_Afstand4") = td("TY_Afstand4")
+      outpTd("TY_Tijd1") = td("TY_Tijd1")
+      outpTd("TY_Tijd2") = td("TY_Tijd2")
+      outpTd("TY_Tijd3") = td("TY_Tijd3")
+      outpTd("TY_Tijd4") = td("TY_Tijd4")
+      outpTd("TY_Eindslag") = td("TY_Eindslag")
+      outpTd("TY_Eindafstand") = td("TY_Eindafstand")
+    
+    outpTd.Update
+    
+    
+    
+    
+    
+  
+    td.MoveNext
+  Loop
+  
+  
+  appCleanRS td
+  appCleanRS outpTd
+  
+    
+  
+End If
+
+
+
+
+DoCmd.SetWarnings True
+
+
+lnhWritePersoonlijk = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+
+'this function is obsoleted.
+Private Function lnhPrepareProgForEstafs(ByRef wedS As Recordset, wednr As Long, prognr As String, impDln As Boolean, impTd As Boolean, ByVal blFindInsWedNrs As Boolean) As Boolean
+On Error GoTo fout
+lnhPrepareProgForEstafs = False
+
+If (Not impDln) And (Not impTd) Then
+  lnhPrepareProgForEstafs = True
+  Exit Function
+End If
+
+'Need to check if the estafettes present in deelnemers match the ploegen for this programmanummer.
+'If not, then clear everything and write out the estafettes.
+Dim pll As Recordset
+Dim sql As String
+
+'modification feb 2008: check for aux_startnummer
+If (impTd And impDln) Then
+  sql = "Select * from gImp_len_ploegleden where (nz([aux_startnummer]) <> """") and nz([aux_wedstrijdnummer]) = " & wednr & " and ((nz([aux_depotnummer])) <> """") and nz([aux_programmanummer]) = """ & prognr & """ and (nz([pll_tijd_id],-1) <> -1 or nz([pll_deelnemer_id], -1) <> -1);"
+Else
+    If (impTd) Then
+      sql = "Select * from gIMP_LEN_ploegleden where (nz([aux_startnummer]) <> """") and nz([aux_wedstrijdnummer]) = " & wednr & " and ((nz([aux_depotnummer])) <> """") and nz([aux_programmanummer]) = """ & prognr & """ and nz([pll_tijd_id],-1) <> -1;"
+    Else
+      sql = "Select * from gIMP_LEN_ploegleden where (nz([aux_startnummer]) <> """") and nz([aux_wedstrijdnummer]) = " & wednr & " and ((nz([aux_depotnummer])) <> """") and nz([aux_programmanummer]) = """ & prognr & """ and nz([pll_deelnemer_id],-1) <> -1;"
+    End If
+End If
+Set pll = CurrentDb().OpenRecordset(sql)
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from [dtDeelnemers] where [wedstrijdnr]=" & wednr & " and [programmanr]=""" & prognr & """;", dbOpenDynaset)
+
+
+Dim skDlns As Recordset
+Set skDlns = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+skDlns.Index = "PrimaryKey"
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim startnr As String
+  startnr = Nz(inp("Startnummer"))
+  
+  pll.FindFirst "[aux_startnummer]=""" & startnr & """"
+  
+  'update sep 2008: we want to delete if a match is NOT found in pll.
+  'If Not pll.NoMatch Then
+  If pll.NoMatch Then
+     'delete
+     inp.Delete
+  End If
+
+  inp.MoveNext
+Loop
+
+
+Dim insv As Recordset
+Set insv = CurrentDb().OpenRecordset("dtDeelnemers")
+insv.Index = "PrimaryKey"
+
+pll.MoveFirst
+Do Until pll.EOF
+  startnr = Nz(pll("Aux_startnummer"))
+  Dim estNr As Long, volgNr As Long
+  estNr = Nz(pll("AUX_Estafettenummer"))
+  volgNr = Nz(pll("PLL_Volgorde"))
+  Dim isRes As Boolean
+  isRes = Nz(pll("PLL_Reserve"))
+  
+  
+  Dim pllDlnID As Long
+  pllDlnID = Nz(pll("PLL_Deelnemer_ID"), -1)
+  
+  Dim blIsExtInsTime As Boolean
+  Dim lExtInsWedNr As Long
+  Dim blExtInsWedNrFound As Boolean
+  
+  blIsExtInsTime = False
+  lExtInsWedNr = -1
+  blExtInsWedNrFound = False
+  
+    
+  Dim qlfExtTime As Double
+  Dim qlfExtDatum As Date
+  Dim qlfExtPlaats As String
+  Dim qlfExtBaan As Integer
+  
+  
+  If pllDlnID >= 0 Then
+    skDlns.Seek "=", pllDlnID
+    If Not skDlns.NoMatch Then
+      qlfExtTime = Nz(skDlns("DE_Inschrijftijd"))
+      qlfExtDatum = Nz(skDlns("DE_QLF_Datum"), #1/1/1900#)
+      qlfExtPlaats = Nz(skDlns("DE_QLF_Plaats"))
+      qlfExtBaan = Nz(skDlns("DE_QLF_Baan"))
+      
+      If (lenDateIsValid(qlfExtDatum)) Then
+        blIsExtInsTime = True
+      End If
+    End If
+  End If
+  
+  If (blIsExtInsTime) Then
+    'attempt to find the corresponding wedstrijd nummer
+    If (lenDateIsValid(qlfExtDatum) And blFindInsWedNrs) Then
+      wedS.FindFirst "Datum = #" & Format(qlfExtDatum, "mm\-dd\-yyyy") & "# and plaats = """ & qlfExtPlaats & """ and baanlengte = " & qlfExtBaan
+      If Not wedS.NoMatch Then
+        blExtInsWedNrFound = True
+        lExtInsWedNr = Nz(wedS("Wedstrijd nummer"))
+      End If
+    End If
+  End If
+  
+  
+  
+  
+  Dim qlfTime As Double, qlfValid As Boolean
+  qlfTime = Nz(pll("PLL_QLF_Tijd"))
+  qlfValid = swtIsValid(qlfTime)
+  
+  Dim inPlaats As String, inDat As Date, inBaan As Integer
+  inPlaats = Nz(pll("PLL_QLF_Plaats"))
+  inDat = Nz(pll("PLL_QLF_Datum"), #1/1/1900#)
+  inBaan = Nz(pll("PLL_QLF_Baan"))
+    
+  Dim inswednr As Long
+  inswednr = -1
+  Dim insWedNrFnd As Boolean
+  insWedNrFnd = False
+    
+    
+  If (lenDateIsValid(inDat) And blFindInsWedNrs) Then
+    wedS.FindFirst "Datum = #" & Format(inDat, "mm-dd-yyyy") & "# and plaats = """ & inPlaats & """ and baanlengte = " & inBaan
+    If Not wedS.NoMatch Then
+      insWedNrFnd = True
+      inswednr = Nz(wedS("Wedstrijd nummer"))
+    End If
+  End If
+
+  
+  
+  
+  insv.Seek "=", wednr, prognr, startnr
+  
+  If (insv.NoMatch) Then
+    insv.AddNew
+    insv("Estafette nummer") = estNr
+    insv("Volgorde") = volgNr
+    insv("Reserve") = IIf(isRes, "J", "N")
+    insv("Wedstrijdnr") = wednr
+    insv("Programmanr") = prognr
+    insv("Startnummer") = startnr
+    
+    'Note: only update if valid qualification time found.
+    If (qlfValid) Then
+      insv("Inschrijftijd") = qlfTime
+      If (insWedNrFnd) Then
+        insv("WedstrijdNrInsTijd") = inswednr
+      Else
+        insv("WedstrijdNrInsTijd") = 0
+      End If
+    End If
+    
+    If (blIsExtInsTime) Then
+      insv("ESTINS_UseExtInsTime") = True
+      insv("ESTINS_ExtInsTime") = qlfExtTime
+      If (blExtInsWedNrFound) Then
+        insv("ESTINS_ExtInsWedNr") = lExtInsWedNr
+      End If
+    End If
+    
+    insv.Update
+  Else
+    insv.Edit
+    insv("estafette nummer") = estNr
+    insv("volgorde") = volgNr
+    insv("Reserve") = IIf(isRes, "J", "N")
+    
+    'Note: only update if valid qualification time found
+    If (qlfValid) Then
+      insv("Inschrijftijd") = qlfTime
+      If (insWedNrFnd) Then
+        insv("WedstrijdNrInsTijd") = inswednr
+      Else
+        insv("WedstrijdNrInsTijd") = 0
+      End If
+    End If
+    
+    If (blIsExtInsTime) Then
+      insv("ESTINS_UseExtInsTime") = True
+      insv("ESTINS_ExtInsTime") = qlfExtTime
+      If (blExtInsWedNrFound) Then
+        insv("ESTINS_ExtInsWedNr") = lExtInsWedNr
+      End If
+    End If
+    
+    
+    insv.Update
+  End If
+  pll.MoveNext
+Loop
+
+
+
+appCleanRS pll
+appCleanRS inp
+appCleanRS skDlns
+appCleanRS insv
+
+
+
+lnhPrepareProgForEstafs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgForEstafs" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+Exit Function
+End Function
+
+
+Private Function lnhWriteEstafette(clearAllDlns As Boolean, impDlns As Boolean, impTd As Boolean, clearAllTd As Boolean) As Boolean
+On Error GoTo fout
+lnhWriteEstafette = False
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+
+Dim anEstafs As Recordset
+Set anEstafs = CurrentDb().OpenRecordset("~AN_Estafs")
+anEstafs.Index = "P"
+
+
+'Everything has already been prepared for the estafettes.
+
+If (impTd) Then
+  'have to clear all results.
+  
+  
+  Dim skPll As Recordset
+  Set skPll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+  skPll.Index = "PrimaryKey"
+  
+  
+  'modification feb 2008: check for aux_startzwemmer
+  sql = "select * from gIMP_LEN_tijden where ( nz([aux_startzwemmer]) <> """") and nz([aux_wedstrijdnummer]) > 0 and ((nz([aux_depotnummer])) <> """") and nz([aux_programmanummer]) <> """" and nz([ty_isEstaf]) = true;"
+  
+  Dim td As Recordset
+  Set td = CurrentDb().OpenRecordset(sql)
+  Dim outpTd As Recordset
+  Set outpTd = CurrentDb().OpenRecordset("dtUitslagenEst")
+  outpTd.Index = "PrimaryKey"
+  
+  td.MoveFirst
+  Do Until td.EOF
+  
+    Dim wednr As Long, prognr As String, estNr As Integer, verName As String
+    Dim startZw As String, startZwPLLID As Long
+  
+    wednr = Nz(td("AUX_Wedstrijdnummer"))
+    prognr = Nz(td("AUX_Programmanummer"))
+    estNr = Nz(td("AUX_Estafettenummer"))
+    startZw = Nz(td("AUX_Startzwemmer"))
+    
+    startZwPLLID = Nz(td("TY_Startzwemmer_PLL_ID"), -1)
+    
+    Dim tpStartZwDis As String
+    tpStartZwDis = Nz(td("TY_DIS"))
+    
+    If (startZwPLLID >= 0) Then
+      skPll.Seek "=", startZwPLLID
+      If (Not skPll.NoMatch) Then
+        tpStartZwDis = Nz(skPll("PLL_Dis"))
+      End If
+    End If
+    
+    
+    
+    
+    'modification jan 2008
+    'depNr = depot() 'Nz(td("AUX_Depotnummer"))
+    verName = ver()
+    
+    If (Not clearAllTd) Then
+      outpTd.Seek "=", wednr, prognr, estNr
+    
+      If (Not outpTd.NoMatch) Then
+        outpTd.Delete
+      End If
+    End If
+    
+    'have to make ty_categorie work somehow. Need wedstrijddatum.
+    'Dim wedDat As Date
+    'wedDat = Nz(td("WE_Datum"), #1/1/1900#)
+    'If (Not lenDateIsValid(wedDat)) Then
+    '  wedDat = Now()
+    'End If
+    
+    Dim cat As String
+    
+    cat = ""
+    
+    'cat = "MIX"
+    '  anEstafs.Seek "=", wednr, prognr, estnr, verName
+    '  If (Not anEstafs.NoMatch) Then
+    '    cat = Nz(anEstafs("EST_Categorie"))
+    '  End If
+    
+    
+    
+    
+    'Dim ges As String
+    'ges = Nz(td("ZW_Geslacht"))
+    'cat = Nz(clubrecCat(startnr, ges, wedDat))
+    
+    outpTd.AddNew
+      
+      outpTd("TY_Wedstrijdnummer") = wednr
+      outpTd("TY_Programmanummer") = prognr
+      outpTd("TY_Estafettenummer") = estNr
+      outpTd("TY_Categorie") = hzn(cat)
+      
+      outpTd("TY_Eindtijd") = td("TY_Eindtijd")
+      outpTd("TY_ExtraTussentijden") = td("TY_ExtraTussentijden")
+      outpTd("TY_DIS") = td("TY_DIS")
+      
+      outpTd("TY_DIS_Startzwemmer") = hzn(tpStartZwDis)
+      
+      
+      'outpTd("TY_AB") = td("TY_AB")
+      outpTd("TY_plaats") = td("TY_Eindplaats")
+      outpTd("TY_Opm") = hzn(Left(Nz(td("TY_Opm")), 50))
+      outpTd("TY_Slag1") = td("TY_Slag1")
+      outpTd("TY_Slag2") = td("TY_Slag2")
+      outpTd("TY_Slag3") = td("TY_Slag3")
+      outpTd("TY_Slag4") = td("TY_Slag4")
+      outpTd("TY_afstand1") = td("TY_Afstand1")
+      outpTd("TY_afstand2") = td("TY_Afstand2")
+      outpTd("TY_Afstand3") = td("TY_Afstand3")
+      outpTd("TY_Afstand4") = td("TY_Afstand4")
+      outpTd("TY_Tijd1") = td("TY_Tijd1")
+      outpTd("TY_Tijd2") = td("TY_Tijd2")
+      outpTd("TY_Tijd3") = td("TY_Tijd3")
+      outpTd("TY_Tijd4") = td("TY_Tijd4")
+      outpTd("TY_Eindslag") = td("TY_Eindslag")
+      outpTd("TY_Eindafstand") = td("TY_Eindafstand")
+      outpTd("TY_Start1") = hzn(startZw)
+      outpTd("TY_Start2") = hzn(startZw)
+    
+    outpTd.Update
+    
+    
+    
+    
+    
+  
+    td.MoveNext
+  Loop
+  
+  appCleanRS td
+  appCleanRS outpTd
+  appCleanRS skPll
+  
+    
+
+End If
+
+
+
+DoCmd.SetWarnings True
+
+
+appCleanRS anEstafs
+
+
+lnhWriteEstafette = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+
+
+Private Function lnhAnEstafs() As Boolean
+On Error GoTo fout
+lnhAnEstafs = False
+
+Dim isFirst As Boolean
+isFirst = True
+
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_wedstrijden where corr_wedstrijdnummer > 0 order by corr_wedstrijdnummer;")
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim wednr As Long
+  wednr = Nz(inp("Corr_Wedstrijdnummer"))
+  
+  If (isFirst) Then
+    If Not analyzeEstafs(True, wednr, wednr, "~AN_Estafs", False) Then Exit Function
+    isFirst = False
+  Else
+    If Not analyzeEstafs(True, wednr, wednr, "~AN_Estafs", True) Then Exit Function
+  End If
+  
+  inp.MoveNext
+Loop
+
+
+appCleanRS inp
+
+
+If (isFirst) Then
+  'no table was built yet -> need to build a table
+  If Not analyzeEstafs(True, -1, -1, "~AN_Estafs", False) Then
+    Exit Function
+  End If
+End If
+
+
+lnhAnEstafs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume Next
+End Function
+
+
+Public Function lnhImportWedstrijd(ByRef nNewWeds As Integer, ByRef newWedMinNr As Long, ByRef nNewProgs As Integer, ByRef nNewSwimmers As Long) As Boolean
+On Error GoTo fout
+lnhImportWedstrijd = False
+
+
+'need to mark that wed structure has changed
+notifyWedStructureChange
+
+
+
+
+'first read options from gIMP_LEN_options table.
+Dim owWed As Boolean, owProgs As Boolean, owVer As Boolean
+Dim owZws As Boolean, impDlns As Boolean, impTd As Boolean, clearAllDlns As Boolean, clearAllTd As Boolean
+Dim cleanDlnsPerVer As Boolean, cleanTdPerVer As Boolean
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("gIMP_LEN_options")
+inp.MoveFirst
+If (inp.EOF) Then
+  Err.Raise 1, , "Internal Error loading Lenex import options."
+End If
+
+owWed = Nz(inp("IMP_Overwrite_Wedstrijden"))
+owProgs = Nz(inp("IMP_Overwrite_Programmanummers"))
+owVer = Nz(inp("IMP_Overwrite_Verenigingen"))
+owZws = Nz(inp("IMP_Overwrite_Zwemmers"))
+
+impDlns = Nz(inp("IMP_Deelnemers"))
+impTd = Nz(inp("IMP_Tijden"))
+
+clearAllDlns = Nz(inp("IMP_CLEAR_ALL_DEELNEMERS"))
+clearAllTd = Nz(inp("IMP_CLEAR_ALL_TIJDEN"))
+
+cleanDlnsPerVer = Nz(inp("IMP_CLEAR_ALL_DEELNEMERS_PER_VER"))
+cleanTdPerVer = Nz(inp("IMP_Clear_All_TIjden_Per_Ver"))
+
+
+
+appCleanRS inp
+
+
+
+Dim blIsMultiVer As Boolean
+blIsMultiVer = dbIsMultipleVer()
+
+
+
+
+
+'First do all the necessary overwriting.
+'swimmers, wedstrijden, programmanummers need to be EDITED, the rest
+'can simply be deleted.
+If Not lnhWriteWedstrijden(owWed, clearAllDlns, clearAllTd, nNewWeds, newWedMinNr) Then Exit Function
+
+'feb 2007 addition. Include possible new verenigingen.
+If Not lnhWriteVers(blIsMultiVer, owVer, clearAllDlns, clearAllTd) Then Exit Function
+
+
+If Not lnhWriteZwemmers(blIsMultiVer, owZws, nNewSwimmers) Then Exit Function
+
+
+If Not lnhWriteProgramma(owProgs, impDlns, impTd, nNewProgs) Then Exit Function
+
+
+
+If Not lnhPrepareProgsForEstafs(blIsMultiVer, impDlns, impTd) Then
+  Exit Function
+End If
+
+
+
+If Not lnhWritePersoonlijk(clearAllDlns, impDlns, impTd, clearAllTd, True) Then Exit Function
+
+'now create ~anEstafs
+If Not lnhAnEstafs() Then Exit Function
+
+If Not lnhWriteEstafette(clearAllDlns, impDlns, impTd, clearAllTd) Then Exit Function
+
+
+
+lnhImportWedstrijd = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+
+Public Function lnhWriteVer(ByRef ver As Recordset, ByRef inp As Recordset, ByVal depNr As String, ByVal naam As String) As Boolean
+On Error GoTo fout
+lnhWriteVer = False
+
+
+ver("V_Naam") = naam
+ver("V_Depotnummer") = depNr
+If (Nz(inp("V_PLAATS"), "") <> "") Then
+  ver("V_Plaats") = inp("V_Plaats")
+End If
+'ver("V_Nation") = inp("V_Land")
+'ver("V_DepotGenerated") = Not Nz(inp("V_Depot_Fixed"))
+'ver("V_ExternalCode") = inp("V_Extern_Code")
+
+
+lnhWriteVer = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function lnhWriteVers(blIsMultiVer As Boolean, owVers As Boolean, impClnAllDlns As Boolean, impClnAllTd As Boolean) As Boolean
+On Error GoTo fout
+lnhWriteVers = False
+
+If (Not blIsMultiVer) Then
+  lnhWriteVers = True
+  Exit Function
+End If
+
+Dim ver As Recordset
+Set ver = CurrentDb().OpenRecordset("dtVerenigingen")
+ver.Index = "PrimaryKey"
+
+
+'First calculate maxcode.
+Dim maxVerCodeNr As Long
+maxVerCodeNr = Nz(DMax("val(nz([V_afkorting]))", "dtVerenigingen"))
+
+
+Dim inp As Recordset
+
+Dim sql As String
+'modification 26 september: exclude verenigingen with zero-length names.
+sql = "SELECT * from gIMP_LEN_Ver where nz([corr_depot]) <> """" and nz([V_Naam]) <> """";"
+
+Set inp = CurrentDb().OpenRecordset(sql)
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim depNr As String
+  Dim naam As String
+  
+  depNr = Nz(inp("CORR_DEPOT"))
+  naam = Nz(inp("V_NAAM"))
+  Dim Plaats As String
+  Plaats = Nz(inp("V_Plaats"))
+  
+  ver.Seek "=", naam
+  
+  If (ver.NoMatch) Then
+    'need to append.
+    maxVerCodeNr = maxVerCodeNr + 1
+    If (maxVerCodeNr > 999) Then
+      Err.Raise 1, , "Er zijn niet genoeg vrije verenigingsafkortingen meer over. De laatste vrije was 999."
+    End If
+    ver.AddNew
+      ver("V_Afkorting") = Format(maxVerCodeNr, "000")
+      If Not lnhWriteVer(ver, inp, depNr, naam) Then Exit Function
+    ver.Update
+  ElseIf (owVers) Then
+    'need to overwrite
+    ver.Edit
+    If Not lnhWriteVer(ver, inp, depNr, naam) Then Exit Function
+    Plaats = Nz(ver("V_Plaats"))
+    ver.Update
+  Else
+    Plaats = Nz(ver("V_Plaats"))
+  End If
+  
+  
+
+  
+  
+  
+  
+  inp.MoveNext
+
+Loop
+
+
+
+
+
+lnhWriteVers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+'Correct the estafnr's to account for the fact that one needs to read multiple verenigingen
+Private Function lnhCorrectEstafNrs(ByVal impTd As Boolean, ByVal impDln As Boolean) As Boolean
+On Error GoTo fout
+lnhCorrectEstafNrs = False
+
+If (Not impTd) And (Not impDln) Then
+  lnhCorrectEstafNrs = True
+  Exit Function
+End If
+
+Dim sql As String
+Dim pllInp As Recordset
+
+If (impTd And impDln) Then
+  sql = "Select * from gIMP_LEN_ploegleden where ((nz([aux_depotnummer])) <> """")  and (nz([pll_tijd_id],-1) <> -1 or nz([pll_deelnemer_id], -1) <> -1) order by aux_wedstrijdnummer, aux_programmanummer, pll_ploeg_id, aux_estafettenummer;"
+Else
+    If (impTd) Then
+      sql = "Select * from gIMP_LEN_ploegleden where  ((nz([aux_depotnummer])) <> """")  and nz([pll_tijd_id],-1) <> -1 order by aux_wedstrijdnummer, aux_programmanummer, pll_ploeg_id, aux_estafettenummer;"
+    Else
+      sql = "Select * from gIMP_LEN_ploegleden where  ((nz([aux_depotnummer])) <> """")  and nz([pll_deelnemer_id],-1) <> -1 order by aux_wedstrijdnummer, aux_programmanummer, pll_ploeg_id, aux_estafettenummer;"
+    End If
+End If
+
+Set pllInp = CurrentDb().OpenRecordset(sql)
+
+
+Dim curWedNr As Long, curProg As String, curPloegID As Long
+Dim tpWedNr As Long, tpProg As String, tpPloegID As Long, tpEstNr As Integer
+
+Dim curPloegNeedsCorrection As Boolean
+Dim curPloegDLNCorrected As Boolean
+Dim curPloegTDCorrected As Boolean
+Dim curPloegCorrectedEstNr As Integer
+Dim curProgMaxUsedEstNr As Integer
+
+curWedNr = -1
+curProg = ""
+curPloegID = -1
+
+
+Dim rsDLN As Recordset
+Set rsDLN = CurrentDb().OpenRecordset("gIMP_LEN_deelnemers")
+rsDLN.Index = "PrimaryKey"
+
+
+Dim rsTd As Recordset
+Set rsTd = CurrentDb().OpenRecordset("gIMP_LEN_tijden")
+rsTd.Index = "PrimaryKey"
+
+Dim blAppliedCorrection As Boolean
+blAppliedCorrection = False
+
+
+pllInp.MoveFirst
+Do Until pllInp.EOF
+  tpWedNr = Nz(pllInp("AUX_Wedstrijdnummer"))
+  tpProg = Nz(pllInp("AUX_Programmanummer"))
+  tpPloegID = Nz(pllInp("PLL_Ploeg_ID"))
+  tpEstNr = Nz(pllInp("AUX_Estafettenummer"))
+    
+    
+  If (tpWedNr <> curWedNr) Or (tpProg <> curProg) Then
+    
+    'the prognr is no longer gauranteed to be empty. Therefore need to lookup up max used relay nr.
+    curProgMaxUsedEstNr = Nz(DMax("[estafette nummer]", "dtDeelnemers", "wedstrijdnr=" & tpWedNr & " and programmanr=""" & tpProg & """"), 0)
+    If (curProgMaxUsedEstNr < 0) Then
+      curProgMaxUsedEstNr = 0
+    End If
+    
+    curWedNr = tpWedNr
+    curProg = tpProg
+    curPloegID = -999
+  End If
+  
+  If (tpPloegID <> curPloegID) Then
+    If (tpEstNr > curProgMaxUsedEstNr) Then
+      curPloegNeedsCorrection = False
+      curProgMaxUsedEstNr = tpEstNr
+    Else
+      'need to apply a correction to the current ploeg.
+      curPloegNeedsCorrection = True
+      curPloegDLNCorrected = False
+      curPloegTDCorrected = False
+      
+      curPloegCorrectedEstNr = curProgMaxUsedEstNr + 1
+      curProgMaxUsedEstNr = curPloegCorrectedEstNr
+      
+    End If
+    
+    curPloegID = tpPloegID
+  End If
+  
+  
+  Dim tpDlnID As Long
+  Dim tpTdID As Long
+  
+  tpDlnID = Nz(pllInp("PLL_Deelnemer_ID"), -1)
+  tpTdID = Nz(pllInp("PLL_Tijd_ID"), -1)
+  
+  
+  If (curPloegNeedsCorrection) Then
+    If (tpDlnID >= 0 And Not curPloegDLNCorrected) Then
+      
+      rsDLN.Seek "=", tpDlnID
+      If (rsDLN.NoMatch) Then
+        Err.Raise 1, , "Internal error. Could not find deelnemer with id: " & tpDlnID
+      End If
+      
+      rsDLN.Edit
+        rsDLN("AUX_EstafetteNummer") = curPloegCorrectedEstNr
+      rsDLN.Update
+      
+      
+      curPloegDLNCorrected = True
+      blAppliedCorrection = True
+    End If
+    
+    If (tpTdID >= 0 And Not curPloegTDCorrected) Then
+      rsTd.Seek "=", tpTdID
+      If (rsTd.NoMatch) Then
+        Err.Raise 1, , "Internal error. Could not find deelnemer with id: " & tpDlnID
+      End If
+      
+      rsTd.Edit
+        rsTd("AUX_EstafetteNummer") = curPloegCorrectedEstNr
+      rsTd.Update
+    
+      curPloegTDCorrected = True
+      blAppliedCorrection = True
+    End If
+  End If 'if curPloegNeedsCorrection
+  
+  
+    
+  pllInp.MoveNext
+Loop
+
+
+
+appCleanRS pllInp
+appCleanRS rsDLN
+appCleanRS rsTd
+
+If (blAppliedCorrection) Then
+  'Need to update everything.
+  If Not lenFillAuxFieldsCorrectPloegNummers() Then
+    Exit Function
+  End If
+End If
+
+
+
+lnhCorrectEstafNrs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+Private Function lnhPrepareProgsForEstafs_purgePll_handleProg(ByVal lWedNr As Long, ByVal sProgNr As String, ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean, ByRef skEst As Recordset) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_purgePll_handleProg = False
+
+Dim sVers(0 To MAX_N_DLN_VERS) As String
+Dim nVers As Integer
+nVers = 0
+
+
+Dim sqlBase As String, sql As String
+  
+sqlBase = "SELECT gIMP_LEN_ploegleden.*, gIMP_LEN_Ver.V_Naam " & _
+        "FROM (gIMP_LEN_ploegleden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_ploegleden.PLL_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID) INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID " & _
+        " WHERE (nz(gIMP_LEN_ploegleden.[aux_startnummer]) <> """") and nz(gIMP_LEN_ploegleden.[aux_wedstrijdnummer]) = " & lWedNr & " and ((nz(gIMP_LEN_ploegleden.[aux_depotnummer])) <> """") and nz(gIMP_LEN_ploegleden.[aux_programmanummer]) = """ & sProgNr & """ "
+
+If (impTd And impDln) Then
+  sql = sqlBase & " and (nz([pll_tijd_id],-1) <> -1 or nz([pll_deelnemer_id], -1) <> -1) "
+Else
+  If (impTd) Then
+    sql = sqlBase & " and nz([pll_tijd_id],-1) <> -1 "
+  Else
+    sql = sqlBase & " and nz([pll_deelnemer_id],-1) <> -1 "
+  End If
+End If
+'make sure that dlns are encountered before tijden
+sql = sql & " ORDER BY nz([pll_tijd_id], -1);"
+
+Dim rsPll As Recordset
+Set rsPll = CurrentDb().OpenRecordset(sql)
+
+
+
+
+If (blIsMultiVer) Then
+  'First, get list of all the vers that have estafs in this prognr
+  rsPll.MoveFirst
+  Do Until rsPll.EOF
+    Dim tpVer As String
+    tpVer = Nz(rsPll("V_Naam"))
+    
+    If (bSearchString(tpVer, nVers, sVers) < 0) Then
+      insString tpVer, nVers, sVers
+    End If
+    
+    rsPll.MoveNext
+  Loop
+    
+End If
+
+
+
+'Now loop through currently registered dlns and delete ones that are not present in the relays contained in rsPll
+
+Dim rsDlns As Recordset
+Set rsDlns = CurrentDb().OpenRecordset("select * from [dtDeelnemers] where [wedstrijdnr]=" & lWedNr & " and [programmanr]=""" & sProgNr & """;", dbOpenDynaset)
+
+
+rsDlns.MoveFirst
+Do Until rsDlns.EOF
+  Dim tpStart As String, tpEstNr As Integer
+  tpStart = Nz(rsDlns("Startnummer"))
+  tpEstNr = Nz(rsDlns("Estafette nummer"))
+  
+  Dim blAllowAsIs As Boolean
+  blAllowAsIs = False
+  
+  If (blIsMultiVer) Then
+    Dim sCurVer As String
+    sCurVer = Nz(ver())
+    
+    skEst.Seek "=", lWedNr, sProgNr, tpEstNr, sCurVer
+    If Not skEst.NoMatch Then
+      Dim tpActVer As String
+      tpActVer = Nz(skEst("EST_ActVereniging"))
+      If bSearchString(tpActVer, nVers, sVers) < 0 Then
+        'ver is not present in list of vers that need to be imported.
+        'therefore allow dln to remain
+        blAllowAsIs = True
+      End If
+    End If
+  End If
+  
+  
+  
+  If (Not blAllowAsIs) Then
+    rsPll.FindFirst "[aux_startnummer]=""" & tpStart & """"
+  
+    'update sep 2008: we want to delete if a match is NOT found in pll.
+    'If Not pll.NoMatch Then
+    If rsPll.NoMatch Then
+      'delete
+      rsDlns.Delete
+    Else
+      'Need to set estafnr to zero in order to allow correct determination of new estafette nrs
+      rsDlns.Edit
+        rsDlns("estafette nummer") = 0
+      rsDlns.Update
+    End If
+  End If
+
+  rsDlns.MoveNext
+Loop
+
+
+
+
+appCleanRS rsDlns
+appCleanRS rsPll
+
+
+
+
+lnhPrepareProgsForEstafs_purgePll_handleProg = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_purgePll_handleProg" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+'loop through programmanummer that are estafs and flush out any current swimmers in dtDeelnemers
+'that are not part of the final estafs.
+Private Function lnhPrepareProgsForEstafs_purgePll(ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_purgePll = False
+
+If (Not impDln) And (Not impTd) Then
+  lnhPrepareProgsForEstafs_purgePll = True
+  Exit Function
+End If
+
+
+Dim skEst As Recordset
+Set skEst = Nothing
+
+If (blIsMultiVer) Then
+  If Not lnhAnEstafs() Then
+    Exit Function
+  End If
+  Set skEst = CurrentDb().OpenRecordset("~AN_Estafs")
+  skEst.Index = "P"
+End If
+
+
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma where nz([aux_wedstrijdnummer]) > 0 and nz([corr_programmanummer]) <> """";")
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim wednr As Long
+  Dim prognr As String
+  wednr = Nz(inp("AUX_Wedstrijdnummer"))
+  prognr = Nz(inp("CORR_Programmanummer"))
+  
+  Dim tpAf As String
+  tpAf = Nz(inp("PR_Afstand"))
+  
+  If tpAf Like "*x*" Then
+  
+    If Not lnhPrepareProgsForEstafs_purgePll_handleProg(wednr, prognr, blIsMultiVer, impDln, impTd, skEst) Then
+      Exit Function
+    End If
+  
+  End If
+  
+  inp.MoveNext
+Loop
+
+appCleanRS inp
+appCleanRS skEst
+
+
+
+
+
+lnhPrepareProgsForEstafs_purgePll = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_purgePll" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+Private Function lnhPrepareProgsForEstafs_writePll_handleProg(ByVal lWedNr As Long, ByVal sProgNr As String, ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean, ByRef wedS As Recordset, ByVal blFindInsWedNrs) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_writePll_handleProg = False
+
+
+Dim sqlBase As String, sql As String
+  
+sqlBase = "SELECT gIMP_LEN_ploegleden.*, gIMP_LEN_Ver.V_Naam " & _
+        "FROM (gIMP_LEN_ploegleden INNER JOIN gIMP_LEN_Ploeg ON gIMP_LEN_ploegleden.PLL_Ploeg_ID = gIMP_LEN_Ploeg.PL_ID) INNER JOIN gIMP_LEN_Ver ON gIMP_LEN_Ploeg.PL_VER_ID = gIMP_LEN_Ver.V_ID " & _
+        " WHERE (nz(gIMP_LEN_ploegleden.[aux_startnummer]) <> """") and nz(gIMP_LEN_ploegleden.[aux_wedstrijdnummer]) = " & lWedNr & " and ((nz(gIMP_LEN_ploegleden.[aux_depotnummer])) <> """") and nz(gIMP_LEN_ploegleden.[aux_programmanummer]) = """ & sProgNr & """ "
+
+If (impTd And impDln) Then
+  sql = sqlBase & " and (nz([pll_tijd_id],-1) <> -1 or nz([pll_deelnemer_id], -1) <> -1) "
+Else
+  If (impTd) Then
+    sql = sqlBase & " and nz([pll_tijd_id],-1) <> -1 "
+  Else
+    sql = sqlBase & " and nz([pll_deelnemer_id],-1) <> -1 "
+  End If
+End If
+'make sure that dlns are encountered before tijden
+sql = sql & " ORDER BY nz([pll_tijd_id], -1);"
+
+Dim rsPll As Recordset
+Set rsPll = CurrentDb().OpenRecordset(sql)
+
+
+Dim skImpDlns As Recordset
+Set skImpDlns = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+skImpDlns.Index = "PrimaryKey"
+
+
+Dim skOutDlns As Recordset
+Set skOutDlns = CurrentDb().OpenRecordset("dtDeelnemers")
+skOutDlns.Index = "PrimaryKey"
+
+
+rsPll.MoveFirst
+Do Until rsPll.EOF
+  Dim startnr As String
+  startnr = Nz(rsPll("Aux_startnummer"))
+  Dim estNr As Long, volgNr As Long
+  estNr = Nz(rsPll("AUX_Estafettenummer"))
+  volgNr = Nz(rsPll("PLL_Volgorde"))
+  Dim isRes As Boolean
+  isRes = Nz(rsPll("PLL_Reserve"))
+  
+  
+  Dim pllDlnID As Long
+  pllDlnID = Nz(rsPll("PLL_Deelnemer_ID"), -1)
+  
+  Dim blIsExtInsTime As Boolean
+  Dim lExtInsWedNr As Long
+  Dim blExtInsWedNrFound As Boolean
+  
+  blIsExtInsTime = False
+  lExtInsWedNr = -1
+  blExtInsWedNrFound = False
+  
+    
+  Dim qlfExtTime As Double
+  Dim qlfExtDatum As Date
+  Dim qlfExtPlaats As String
+  Dim qlfExtBaan As Integer
+  
+  
+  If pllDlnID >= 0 Then
+    skImpDlns.Seek "=", pllDlnID
+    If Not skImpDlns.NoMatch Then
+      qlfExtTime = Nz(skImpDlns("DE_Inschrijftijd"))
+      qlfExtDatum = Nz(skImpDlns("DE_QLF_Datum"), #1/1/1900#)
+      qlfExtPlaats = Nz(skImpDlns("DE_QLF_Plaats"))
+      qlfExtBaan = Nz(skImpDlns("DE_QLF_Baan"))
+      
+      If (lenDateIsValid(qlfExtDatum)) Then
+        blIsExtInsTime = True
+      End If
+    End If
+  End If
+  
+  If (blIsExtInsTime) Then
+    'attempt to find the corresponding wedstrijd nummer
+    If (lenDateIsValid(qlfExtDatum) And blFindInsWedNrs) Then
+      wedS.FindFirst "Datum = #" & Format(qlfExtDatum, "mm\-dd\-yyyy") & "# and plaats = """ & qlfExtPlaats & """ and baanlengte = " & qlfExtBaan
+      If Not wedS.NoMatch Then
+        blExtInsWedNrFound = True
+        lExtInsWedNr = Nz(wedS("Wedstrijd nummer"))
+      End If
+    End If
+  End If
+  
+  
+  
+  
+  Dim qlfTime As Double, qlfValid As Boolean
+  qlfTime = Nz(rsPll("PLL_QLF_Tijd"))
+  qlfValid = swtIsValid(qlfTime)
+  
+  Dim inPlaats As String, inDat As Date, inBaan As Integer
+  inPlaats = Nz(rsPll("PLL_QLF_Plaats"))
+  inDat = Nz(rsPll("PLL_QLF_Datum"), #1/1/1900#)
+  inBaan = Nz(rsPll("PLL_QLF_Baan"))
+    
+  Dim inswednr As Long
+  inswednr = -1
+  Dim insWedNrFnd As Boolean
+  insWedNrFnd = False
+    
+    
+  If (lenDateIsValid(inDat) And blFindInsWedNrs) Then
+    wedS.FindFirst "Datum = #" & Format(inDat, "mm-dd-yyyy") & "# and plaats = """ & inPlaats & """ and baanlengte = " & inBaan
+    If Not wedS.NoMatch Then
+      insWedNrFnd = True
+      inswednr = Nz(wedS("Wedstrijd nummer"))
+    End If
+  End If
+
+  
+  
+  
+  skOutDlns.Seek "=", lWedNr, sProgNr, startnr
+  
+  If (skOutDlns.NoMatch) Then
+    skOutDlns.AddNew
+    skOutDlns("Estafette nummer") = estNr
+    skOutDlns("Volgorde") = volgNr
+    skOutDlns("Reserve") = IIf(isRes, "J", "N")
+    skOutDlns("Wedstrijdnr") = lWedNr
+    skOutDlns("Programmanr") = hzn(sProgNr)
+    skOutDlns("Startnummer") = hzn(startnr)
+    
+    'Note: only update if valid qualification time found.
+    If (qlfValid) Then
+      skOutDlns("Inschrijftijd") = qlfTime
+      If (insWedNrFnd) Then
+        skOutDlns("WedstrijdNrInsTijd") = inswednr
+      Else
+        skOutDlns("WedstrijdNrInsTijd") = 0
+      End If
+    End If
+    
+    If (blIsExtInsTime) Then
+      skOutDlns("ESTINS_UseExtInsTime") = True
+      skOutDlns("ESTINS_ExtInsTime") = qlfExtTime
+      If (blExtInsWedNrFound) Then
+        skOutDlns("ESTINS_ExtInsWedNr") = lExtInsWedNr
+      End If
+    End If
+    
+    skOutDlns.Update
+  Else
+    skOutDlns.Edit
+    skOutDlns("estafette nummer") = estNr
+    skOutDlns("volgorde") = volgNr
+    skOutDlns("Reserve") = IIf(isRes, "J", "N")
+    
+    'Note: only update if valid qualification time found
+    If (qlfValid) Then
+      skOutDlns("Inschrijftijd") = qlfTime
+      If (insWedNrFnd) Then
+        skOutDlns("WedstrijdNrInsTijd") = inswednr
+      Else
+        skOutDlns("WedstrijdNrInsTijd") = 0
+      End If
+    End If
+    
+    If (blIsExtInsTime) Then
+      skOutDlns("ESTINS_UseExtInsTime") = True
+      skOutDlns("ESTINS_ExtInsTime") = qlfExtTime
+      If (blExtInsWedNrFound) Then
+        skOutDlns("ESTINS_ExtInsWedNr") = lExtInsWedNr
+      End If
+    End If
+    
+    
+    skOutDlns.Update
+  End If
+  
+  rsPll.MoveNext
+Loop
+
+
+
+
+
+
+
+appCleanRS skImpDlns
+appCleanRS skOutDlns
+appCleanRS rsPll
+
+
+
+
+lnhPrepareProgsForEstafs_writePll_handleProg = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_writePll_handleProg" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+'loop through programmanummer that are estafs and flush out any current swimmers in dtDeelnemers
+'that are not part of the final estafs.
+Private Function lnhPrepareProgsForEstafs_writePll(ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs_writePll = False
+
+If (Not impDln) And (Not impTd) Then
+  lnhPrepareProgsForEstafs_writePll = True
+  Exit Function
+End If
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma where nz([aux_wedstrijdnummer]) > 0 and nz([corr_programmanummer]) <> """";")
+
+Dim wedS As Recordset
+Set wedS = CurrentDb().OpenRecordset("dtWedstrijden", dbOpenDynaset)
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim wednr As Long
+  Dim prognr As String
+  wednr = Nz(inp("AUX_Wedstrijdnummer"))
+  prognr = Nz(inp("CORR_Programmanummer"))
+  
+  Dim tpAf As String
+  tpAf = Nz(inp("PR_Afstand"))
+  
+  If tpAf Like "*x*" Then
+  
+    If Not lnhPrepareProgsForEstafs_writePll_handleProg(wednr, prognr, blIsMultiVer, impDln, impTd, wedS, True) Then
+      Exit Function
+    End If
+  
+  End If
+  
+  inp.MoveNext
+Loop
+
+appCleanRS inp
+appCleanRS wedS
+
+lnhPrepareProgsForEstafs_writePll = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lnhPrepareProgsForEstafs_writePll" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function lnhPrepareProgsForEstafs(ByVal blIsMultiVer As Boolean, ByVal impDln As Boolean, ByVal impTd As Boolean) As Boolean
+On Error GoTo fout
+lnhPrepareProgsForEstafs = False
+
+If Not lnhPrepareProgsForEstafs_purgePll(blIsMultiVer, impDln, impTd) Then
+  Exit Function
+End If
+
+If Not lnhCorrectEstafNrs(impTd, impDln) Then
+  Exit Function
+End If
+
+If Not lnhPrepareProgsForEstafs_writePll(blIsMultiVer, impDln, impTd) Then
+  Exit Function
+End If
+
+
+
+lnhPrepareProgsForEstafs = True
+Exit Function
+
+fout:
+MsgBox Err & " lnhPrepareProgsForEstafs" & vbCrLf & Error$, 16
+Exit Function
+End Function

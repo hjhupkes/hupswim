@@ -1,0 +1,219 @@
+Version =20
+VersionRequired =20
+Checksum =-561438258
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =4025
+    DatasheetFontHeight =10
+    ItemSuffix =21
+    Left =7545
+    Top =2340
+    Right =11565
+    Bottom =6405
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x065bb075969ee140
+    End
+    Caption ="Wedstrijden hernummeren"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+            Width =1701
+            Height =1701
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =566
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =-15
+                    Top =120
+                    Width =4005
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =16776960
+                    Name ="Label0"
+                    Caption ="Wedstrijd nummering"
+                End
+            End
+        End
+        Begin Section
+            Height =2834
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =113
+                    Top =453
+                    Width =3750
+                    Height =2355
+                    Name ="Label16"
+                    Caption ="Wedstrijden vanaf deze datum worden hernummerd.\015\012\015\012Met behulp van de"
+                        "ze functie kunt u uw wedstrijdnummering aanpassen, zodat deze op chronologische "
+                        "volgorde komt te staan.\015\012\015\012NB: Bij problemen kan het zijn dat in de "
+                        "huidige nummering wedstrijden die buiten de geselecteerde periode vallen verhind"
+                        "eren dat de functie correct uitgevoerd worden. Vergroot in dit geval het datum-b"
+                        "ereik.\015\012"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1246
+                    Top =116
+                    Width =1251
+                    Name ="datum"
+                    Format ="dd-mm-yyyy"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OldBorderStyle =1
+                            OverlapFlags =85
+                            Left =113
+                            Top =113
+                            Width =900
+                            Height =240
+                            BorderColor =16777215
+                            Name ="Label20"
+                            Caption ="Kies datum:"
+                        End
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =680
+            BackColor =12632256
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    Default = NotDefault
+                    OverlapFlags =85
+                    Left =2607
+                    Top =170
+                    Width =1200
+                    Height =345
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnOK"
+                    Caption ="OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =170
+                    Top =170
+                    Width =1200
+                    Height =345
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnCancel"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub btnOK_Click()
+On Error Resume Next
+
+
+
+If Nz(Me.Datum, "") = "" Then
+  MsgBox "Kies een datum!", 16
+  Me.Datum.SetFocus
+  Exit Sub
+End If
+
+
+If MsgBox("Weet u zeker dat u alle wedstrijden vanaf deze datum wilt hernummeren" _
+  & vbCrLf & "naar chronologische volgorde?", vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Sub
+End If
+    
+    
+
+
+
+
+DoCmd.Hourglass True
+
+
+
+
+If Not wedNrChronologicalChange(Nz(Me.Datum, #1/1/1900#)) Then
+  DoCmd.Hourglass False
+  Exit Sub
+End If
+DoCmd.Hourglass False
+
+
+MsgBox "Hernummering succesvol verlopen!", 64
+
+DoCmd.Close
+
+
+End Sub
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+
+
+DoCmd.Close
+
+    
+End Sub

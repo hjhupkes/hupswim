@@ -1,0 +1,854 @@
+Option Compare Database
+Option Explicit
+
+Private Function lenCheckProgrammanummers() As Boolean
+On Error GoTo fout
+lenCheckProgrammanummers = False
+
+Dim impProg As Recordset
+Set impProg = CurrentDb().OpenRecordset("select * from gIMP_LEN_programma where( nz( [imp_import] ) = true ) and ( nz([aux_wedstrijdnummer]) > 0 ) order by nz([aux_wedstrijdnummer]), nz([corr_programmanummer]) ;")
+
+
+Dim lastWedNr As Long
+Dim lastProg As String
+lastProg = ""
+lastWedNr = -1
+
+impProg.MoveFirst
+Do Until impProg.EOF
+  Dim wednr As Long
+  Dim prognr As String
+  wednr = Nz(impProg("AUX_Wedstrijdnummer"))
+  prognr = Nz(impProg("CORR_Programmanummer"))
+  
+  If (wednr = lastWedNr And lastProg = prognr) Then
+    Err.Raise 1, , "Dubbel programmanr gevonden: " & wednr & "," & prognr
+  End If
+  
+  lastWedNr = wednr
+  lastProg = prognr
+
+  impProg.MoveNext
+Loop
+
+
+appCleanRS impProg
+
+
+lenCheckProgrammanummers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+'debug
+'On Error GoTo 0
+'Resume
+
+
+Exit Function
+End Function
+
+
+
+
+Public Function lenIntFinishImportSequence(ByRef blErrorRecoverable As Boolean) As Boolean
+On Error GoTo fout
+lenIntFinishImportSequence = False
+
+Dim wrkSpace  As Workspace
+
+'Set wrkSpace = DBEngine.Workspaces(0)
+'wrkSpace.BeginTrans
+
+If (lenIntFinishImportSequence_perform(blErrorRecoverable)) Then
+  'wrkSpace.CommitTrans
+Else
+  'wrkSpace.Rollback
+  Exit Function
+End If
+    
+
+
+'Set wrkSpace = Nothing
+
+lenIntFinishImportSequence = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Private Function lenIntFinishImportSequence_perform(ByRef blErrRecoverable As Boolean) As Boolean
+On Error GoTo fout
+lenIntFinishImportSequence_perform = False
+
+
+'Initial preparation
+
+blErrRecoverable = False
+
+
+'Mark that we will not be importing weds & clubs that belong to time archives or records
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "update gIMP_LEN_Wedstrijden set IMP_Import = false where we_partOfTimeArchive;"
+DoCmd.RunSQL sql
+
+sql = "update gIMP_LEN_Ver set IMP_Import = false where (V_partOfTimeArchive or V_partOfRecord);"
+DoCmd.RunSQL sql
+
+
+DoCmd.SetWarnings True
+
+
+'Repair phase:
+'Work with user to repair issues
+
+blErrRecoverable = True
+
+If Not trfRepairInvalidStartnummers() Then
+  Exit Function
+End If
+
+If Not trfRepairDuplicateStartnummers(False) Then
+  Exit Function
+End If
+
+
+'First check to see if there are any problematic programmanummers.
+
+blErrRecoverable = True
+
+If Not lenCheckUnmatchableProgrammanummers() Then Exit Function
+
+If Not lenCheckLftProblemProgrammanummers() Then Exit Function
+
+blErrRecoverable = False
+
+
+If Not lnhProcessUserImportSettings() Then Exit Function
+
+If Not lenFillAuxFields() Then Exit Function
+
+'now need to test if everything is OK.
+
+blErrRecoverable = True
+
+If Not lenCheckDepotnummers() Then Exit Function
+
+If Not lenCheckDuplicateVers() Then Exit Function
+
+If Not lenCheckProgrammanummers() Then Exit Function
+
+If Not lenCheckAgeDateProgProblems() Then Exit Function
+
+If Not lenCheckBlockedZwemmers() Then Exit Function
+
+If Not lenCheckTransferTimes() Then Exit Function
+
+blErrRecoverable = False
+
+Dim nNewWeds As Integer, nNewProgs As Integer, newWedMinNr As Long, nNewSwimmers As Long
+
+
+
+If Not lnhImportWedstrijd(nNewWeds, newWedMinNr, nNewProgs, nNewSwimmers) Then
+  Exit Function
+End If
+
+
+
+Dim lnhTransferdata As LNH_TRANSFER_DATA
+
+If Not lnhTransferTimes_Init(lnhTransferdata) Then
+  Exit Function
+End If
+
+
+If Not lenFinishImportTransferTimes(lnhTransferdata) Then
+  Exit Function
+End If
+
+
+'Show some statistics and query user if he wants to keep the changes
+If Not lenFinishImportShowStats(lnhTransferdata, nNewWeds, nNewProgs, newWedMinNr, nNewSwimmers) Then
+  Exit Function
+End If
+
+
+
+
+If Not lnhTransferTimes_Clean(lnhTransferdata) Then
+  Exit Function
+End If
+
+
+lenIntFinishImportSequence_perform = True
+Exit Function
+fout:
+MsgBox Err & " lenIntFinishImportSequence_perform" & vbCrLf & Error$, 16
+End Function
+
+
+Private Function lenFinishImportTransferTimes(ByRef lnhTransferdata As LNH_TRANSFER_DATA) As Boolean
+lenFinishImportTransferTimes = lenFinishTransferTimes_perform(False, False, lnhTransferdata)
+End Function
+
+
+
+Private Function lenFinishImportShowStats(ByRef lnhTransferdata As LNH_TRANSFER_DATA, ByVal nNewWeds As Integer, ByVal nNewProgs As Integer, ByVal newWedMinNr As Long, ByVal nNewSwimmer As Long) As Boolean
+On Error GoTo fout
+
+lenFinishImportShowStats = False
+
+Dim wedS As Recordset
+Set wedS = CurrentDb().OpenRecordset("gIMP_LEN_WEDSTRIJDEN")
+
+Dim inpCnt As Long
+inpCnt = 0
+
+
+wedS.MoveFirst
+Do Until wedS.EOF
+  If (Nz(wedS("IMP_IMPORT"))) Then
+    inpCnt = inpCnt + 1
+  End If
+  
+  wedS.MoveNext
+Loop
+
+appCleanRS wedS
+
+Dim lxImpStats As LX_IMP_STATS
+
+lxImpStats.nImpWed = inpCnt
+lxImpStats.newWedMinNr = newWedMinNr
+lxImpStats.nNewProgs = nNewProgs
+lxImpStats.nNewSwimmer = nNewSwimmer
+lxImpStats.nNewWeds = nNewWeds
+
+If Not lnhDisplaySuccessMessage(lnhTransferdata, lxImpStats) Then
+ Exit Function
+End If
+
+
+
+
+lenFinishImportShowStats = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+appCleanRS wedS
+
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function lenFinishTransferTimes_perform(ByVal blIsCheck As Boolean, ByRef blCheckFailed As Boolean, ByRef lnhTransferdata As LNH_TRANSFER_DATA) As Boolean
+On Error GoTo fout
+lenFinishTransferTimes_perform = False
+
+blCheckFailed = False
+
+
+
+Dim blTransferTimes As Boolean
+blTransferTimes = Nz(DLookup("IMP_VerwerkTijden", "gIMP_LEN_Options"), False)
+
+Dim blImpTimes As Boolean
+blImpTimes = Nz(DLookup("IMP_Tijden", "gImp_LEN_Options"))
+
+
+If (blTransferTimes And blImpTimes) Then
+  'Need to get the wedstrijden for which times have been imported.
+  Dim sql As String
+  sql = "SELECT gIMP_LEN_Tijden.AUX_Wedstrijdnummer FROM gIMP_LEN_Tijden " & _
+        "WHERE (((Nz([AUX_Programmanummer])) <> """") And ((Nz([AUX_Depotnummer])) <> """") " & _
+        "And ((Nz([AUX_Wedstrijdnummer])) > 0)) GROUP BY gIMP_LEN_Tijden.AUX_Wedstrijdnummer;"
+
+  Dim rs As Recordset
+  Set rs = CurrentDb().OpenRecordset(sql)
+  rs.MoveFirst
+  Do Until rs.EOF
+    Dim tpWed As Long
+    tpWed = Nz(rs("AUX_Wedstrijdnummer"))
+    
+    If (blIsCheck) Then
+      Dim tpCannotProcess As Boolean
+      tpCannotProcess = False
+      If Not lnhTransferTimes_checkWed(tpWed, tpCannotProcess) Then
+        Exit Function
+      End If
+      If (tpCannotProcess) Then
+        blCheckFailed = True
+      End If
+    Else
+    
+      If Not lnhTransferTimes_processWed(lnhTransferdata, tpWed) Then
+        Exit Function
+      End If
+    End If
+    
+    rs.MoveNext
+  Loop
+  appCleanRS rs
+End If
+
+
+lenFinishTransferTimes_perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lenFinishTransferTimes_perform" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function lenCheckTransferTimes() As Boolean
+On Error GoTo fout
+lenCheckTransferTimes = False
+
+Dim tpCheckFailed As Boolean, lnhDummy As LNH_TRANSFER_DATA
+If Not lenFinishTransferTimes_perform(True, tpCheckFailed, lnhDummy) Then
+  Exit Function
+End If
+
+
+If (tpCheckFailed) Then
+
+  'Have to ask whether to continue.
+  Dim msg As String
+  
+  msg = "Voor een of meerdere van de te importeren wedstrijden staan er in de hoofdadministratie al tijden geregistreerd." & vbCrLf & _
+  "Voor deze wedstrijden zal de optie <Tijden verwerken> niet worden uitgevoerd." & vbCrLf & _
+  "Wilt u desondanks doorgaan met importeren?"
+  
+  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
+    Exit Function
+  End If
+End If
+
+
+
+lenCheckTransferTimes = True
+Exit Function
+fout:
+MsgBox Err & " lenCheckTransferTimes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function lenCheckLftProblemProgrammanummers() As Boolean
+On Error GoTo fout
+lenCheckLftProblemProgrammanummers = False
+
+'The tactic will be to look for programmanummers met IMP_Import = true en IMP_blLftProblem = true.
+'These programmanummers have a leeftijdsgroep problem
+
+Dim progs As Recordset
+Dim sql As String
+
+sql = "SELECT * FROM gIMP_LEN_Programma INNER JOIN gIMP_LEN_Wedstrijden ON gIMP_LEN_Programma.PR_WED_ID = gIMP_LEN_Wedstrijden.WE_ID " & _
+      "WHERE (((gIMP_LEN_Programma.IMP_Import) = True) And ((Nz([IMP_blLftProblem], False)) = True) And ((gIMP_LEN_Wedstrijden.IMP_Import) = True)) " & _
+      "ORDER BY Val(nz([pr_programmanummer]));"
+
+
+Set progs = CurrentDb().OpenRecordset(sql)
+
+
+Dim nProbs  As Integer
+nProbs = 0
+Dim sProbs As String
+sProbs = ""
+
+progs.MoveFirst
+Do Until progs.EOF
+  Dim tpImpProg As String
+  tpImpProg = Nz(progs("IMP_Programmanummer"))
+  
+  If (tpImpProg <> "") Then
+    nProbs = nProbs + 1
+    If (Len(sProbs) > 0) Then
+      sProbs = sProbs + ", "
+    End If
+    sProbs = sProbs & Nz(progs("PR_Programmanummer"))
+  End If
+  progs.MoveNext
+Loop
+
+
+appCleanRS progs
+
+
+
+If (nProbs > 0) Then
+  'Have to ask whether to continue.
+  Dim msg As String
+  
+  msg = "Er zijn " & nProbs & " programmanummers die een probleem met de leeftijdsgroep hebben." & Chr(13) & _
+  "Dit zijn de prognrs " & sProbs & "." & vbCrLf & _
+  "De minimale en/of maximale leeftijden van deze programmanummers vertonen een afwijking." & vbCrLf & _
+  "U wordt aangeraden om NIET verder te gaan met importeren voordat u hebt uitgezocht waar deze verschillen vandaan komen." & vbCrLf & _
+  "Wilt u doorgaan met importeren?"
+  
+  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
+    Exit Function
+  End If
+End If
+
+
+lenCheckLftProblemProgrammanummers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " lenCheckLftProblemProgrammanummers" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function lenCheckUnmatchableProgrammanummers() As Boolean
+On Error GoTo fout
+lenCheckUnmatchableProgrammanummers = False
+
+'The tactic will be to look for programmanummers met IMP_Import = true en IMP_Programmanummer = null.
+'These programmanummers could not be matched!
+
+Dim progs As Recordset
+Dim sql As String
+sql = "select gIMP_LEN_Programma.* from (gIMP_LEN_Programma inner join gIMP_LEN_Wedstrijden on gIMP_LEN_Programma.pr_wed_id = gIMP_LEN_Wedstrijden.we_ID ) where gIMP_LEN_Wedstrijden.imp_import and   (nz(gIMP_LEN_Programma.[IMP_Import],false) = true and nz([imp_programmanummer]) = """" ) order by val(nz([pr_programmanummer]));"
+
+Set progs = CurrentDb().OpenRecordset(sql)
+
+
+Dim nUnmatchable  As Integer
+nUnmatchable = 0
+Dim sUnmatchable As String
+sUnmatchable = ""
+
+progs.MoveFirst
+Do Until progs.EOF
+  nUnmatchable = nUnmatchable + 1
+  If (Len(sUnmatchable) > 0) Then
+    sUnmatchable = sUnmatchable + ", "
+  End If
+  sUnmatchable = sUnmatchable & Nz(progs("PR_Programmanummer"))
+  progs.MoveNext
+Loop
+
+
+appCleanRS progs
+
+
+
+If (nUnmatchable > 0) Then
+  'Have to ask whether to continue.
+  Dim msg As String
+  
+  msg = "Er zijn " & nUnmatchable & " programmanummers die niet zonder meer verwerkt konden worden." & Chr(13) & _
+  "Dit zijn de prognrs " & sUnmatchable & "." & vbCrLf & _
+  "Oorzaken kunnen zijn dat afstand/slag niet overeenkomen met de programmanummers die nu al in de wedstrijd aanwezig zijn." & vbCrLf & _
+  "Als u nu doorgaat, zullen deze " & nUnmatchable & " programmanummer(s) worden toegevoegd met een nieuw nummer." & vbCrLf & _
+  "Aangeraden wordt om nu NIET door te gaan met importeren, maar eerst in het wizardscherm met programmanummers te kijken wat er precies mis gaat." & vbCrLf & _
+  "Wilt u doorgaan?"
+  
+  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
+    Exit Function
+  End If
+End If
+
+
+lenCheckUnmatchableProgrammanummers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function lenGetNormAgeCalcDate(ByVal sLftBep As String, ByVal dAgeDate As Date) As Date
+
+Dim ageMonth As Long, ageYear As Long
+ageMonth = DatePart("m", dAgeDate)
+ageYear = DatePart("yyyy", dAgeDate)
+
+Select Case sLftBep
+  Case LFT_MODE_WEDYR_END
+    lenGetNormAgeCalcDate = DateSerial(ageYear, 12, 31)
+  Case LFT_MODE_WEDYR_START
+    lenGetNormAgeCalcDate = DateSerial(ageYear - 1, 12, 31)
+  Case LFT_MODE_WEDDAT
+    lenGetNormAgeCalcDate = dAgeDate
+  Case Else 'mode LFT_MODE_SZYR
+    If (ageMonth >= 8) Then
+      lenGetNormAgeCalcDate = DateSerial(ageYear, 12, 31)
+    Else
+      lenGetNormAgeCalcDate = DateSerial(ageYear - 1, 12, 31)
+    End If
+End Select
+
+End Function
+
+'user import settings must have been processed.
+'lenFillAuxFields must have been called
+Private Function lenCheckAgeDateProgProblems() As Boolean
+On Error GoTo fout
+lenCheckAgeDateProgProblems = False
+
+'goal is to see if prog nrs need to be added to an existing match for which the lft calc settings do not match with the
+'ones of the current match.
+
+Dim blOwWed As Boolean
+blOwWed = Nz(DLookup("IMP_Overwrite_Wedstrijden", "gIMP_LEN_Options"), False)
+
+If (blOwWed) Then
+  lenCheckAgeDateProgProblems = True
+  Exit Function
+End If
+
+Dim nProbs  As Integer
+nProbs = 0
+Dim sProbs As String
+sProbs = ""
+Dim sLftCurMatch As String
+Dim dAgeDateCurMatch As Date
+Dim sLftImpMatch As String
+Dim dAgeDateImpMatch As Date
+
+
+
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset(TNM_PR)
+skProg.Index = "PrimaryKey"
+
+Dim rsProgs As Recordset
+Set rsProgs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma where nz([CORR_Programmanummer]) <> """" order by [aux_wedstrijdnummer]")
+
+Dim skImpWed As Recordset
+Set skImpWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+skImpWed.Index = "PrimaryKey"
+
+
+Dim curWedInf As WED_BASIC_INFO
+curWedInf.wednr = -1
+
+rsProgs.MoveFirst
+Do Until rsProgs.EOF
+  Dim tpProg As String, tpWed As Long, tpImpWedID As Long
+  Dim tpOrgProg As String
+  
+  tpOrgProg = Nz(rsProgs("PR_Programmanummer"))
+  tpProg = Nz(rsProgs("CORR_Programmanummer"))
+  tpWed = Nz(rsProgs("AUX_Wedstrijdnummer"))
+  tpImpWedID = Nz(rsProgs("PR_WED_ID"))
+  
+  
+  
+  If (tpWed <> curWedInf.wednr) Then
+    Dim tpFnd As Boolean
+    If Not wedLookup(tpWed, tpFnd, curWedInf) Then
+      Exit Function
+    End If
+    If (Not tpFnd) Then
+      curWedInf.wednr = -1
+    End If
+  End If
+  
+  If (curWedInf.wednr <> -1) Then
+    skProg.Seek "=", tpWed, tpProg
+    
+    If skProg.NoMatch Then
+    
+    
+      skImpWed.Seek "=", tpImpWedID
+      If skImpWed.NoMatch Then
+        Err.Raise 1, , "Internal error"
+      End If
+      
+      Dim impWedLftMode As String, impWedAgeDate As Date
+      
+      impWedLftMode = Nz(skImpWed("WE_Leeftijdsbepaling"))
+      impWedAgeDate = Nz(skImpWed("WE_Leeftijdsdatum"), #1/1/1900#)
+      If Not lenDateIsValid(impWedAgeDate) Then
+        impWedAgeDate = Nz(skImpWed("WE_Datum"))
+      End If
+      
+    
+      'A new prognr will be added
+      'Need to check if age calc modes are compatible.
+      Dim blAgeProblem As Boolean
+      blAgeProblem = False
+      
+      
+      blAgeProblem = lenGetNormAgeCalcDate(curWedInf.lftBep, curWedInf.ageDate) <> lenGetNormAgeCalcDate(impWedLftMode, impWedAgeDate)
+      
+      If (blAgeProblem) Then
+        sLftCurMatch = curWedInf.lftBep
+        dAgeDateCurMatch = curWedInf.ageDate
+        sLftImpMatch = impWedLftMode
+        dAgeDateImpMatch = impWedAgeDate
+        nProbs = nProbs + 1
+        If (Len(sProbs) > 0) Then
+          sProbs = sProbs + ", "
+        End If
+        sProbs = sProbs & tpOrgProg
+      End If
+      
+    End If 'if skProg.nomatch
+  
+  End If
+  
+  rsProgs.MoveNext
+Loop
+
+
+appCleanRS rsProgs
+appCleanRS skProg
+appCleanRS skImpWed
+
+If (nProbs > 0) Then
+  'Have to ask whether to continue.
+  Dim msg As String
+  
+  msg = "Er zijn problem opgetreden bij " & nProbs & " programmanummer(s)." & Chr(13) & _
+  "Dit zijn de prognrs " & sProbs & "." & vbCrLf & vbCrLf & _
+  "Deze programmanummers moeten worden toegevoegd aan een bestaande wedstrijd, " & vbCrLf & _
+  "maar de leeftijds berekening voor de te importeren wedstrijd " & _
+  "wijkt af van de bestaande wedstrijd." & vbCrLf & vbCrLf & _
+  "Leeftijdsberekening huidige wedstrijd: " & vbCrLf & vbCrLf & _
+  "Peildatum: " & fmtDate(dAgeDateCurMatch) & ", berekening: " & fmtLftMode(sLftCurMatch) & vbCrLf & vbCrLf & _
+  "Leeftijdsberekening te importeren wedstrijd: " & vbCrLf & vbCrLf & _
+  "Peildatum: " & fmtDate(dAgeDateImpMatch) & ", berekening: " & fmtLftMode(sLftImpMatch) & vbCrLf & vbCrLf & _
+  "U wordt aangeraden om NIET verder te gaan met importeren voordat u hebt uitgezocht waar deze verschillen vandaan komen." & vbCrLf & vbCrLf & _
+  "Wilt u doorgaan met importeren?"
+  
+  If (MsgBox(msg, vbExclamation + vbYesNo + vbDefaultButton2) = vbNo) Then
+    Exit Function
+  End If
+End If
+
+
+lenCheckAgeDateProgProblems = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " lenCheckAgeDateProgProblems" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+Public Function lenHandleCompleteMMImpSequence(splFDir As String, splFName As String, wedIsOpen As Boolean, curOpenWedNr As Long, curOpenWedDate As Date, curOpenWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+On Error GoTo fout
+lenHandleCompleteMMImpSequence = False
+
+Dim splFCompleteName As String
+splFCompleteName = directory_goedmaak(splFDir) & "\" & splFName
+
+'Clean up the transfer tables.
+If Not lenCleanTransferTables() Then
+  Exit Function
+End If
+
+'Read the file
+If Not splMMImpFillLenTransTables(splFCompleteName) Then
+  Exit Function
+End If
+
+
+Dim glbWedDate As Date, glbWedLftMode As String, glbWedAgeDate As Date
+
+If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
+
+If Not lnhImportGenerateDefaultProgImportSettings(glbWedAgeDate, glbWedLftMode) Then Exit Function
+
+
+'Now open the wizard.
+DoCmd.OpenForm "hxIMP_LEN_MASTER", acNormal, , , , acDialog
+
+lenHandleCompleteMMImpSequence = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lenHandleCompleteWasImpSequence(wasFDir As String, wasFName As String, wedIsOpen As Boolean, curOpenWedNr As Long, curOpenWedDate As Date, curOpenWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+On Error GoTo fout
+lenHandleCompleteWasImpSequence = False
+
+Dim wasFCompleteName As String
+wasFCompleteName = directory_goedmaak(wasFDir) & "\" & wasFName
+
+If Not wedIsOpen Then
+  Err.Raise 1, , "There must be an open wedstrijd nummer for this option to be supported."
+End If
+
+'Clean up the transfer tables.
+If Not lenCleanTransferTables() Then
+  Exit Function
+End If
+
+'Read the file
+If Not wasImpFillLenTransTables(wasFCompleteName, curOpenWedNr, False, #1/1/1900#) Then
+  Exit Function
+End If
+
+
+Dim glbWedDate As Date, glbWedLftMode As String, glbWedAgeDate As Date
+
+If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
+
+If Not lnhImportGenerateDefaultProgImportSettings(glbWedAgeDate, glbWedLftMode) Then Exit Function
+
+
+'Now open the wizard.
+DoCmd.OpenForm "hxIMP_LEN_MASTER", acNormal, , , , acDialog
+
+lenHandleCompleteWasImpSequence = True
+Exit Function
+fout:
+MsgBox Err & " lenHandleCompleteWasImpSequence" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function lenHandleCompleteImportSequence(lxfDir As String, lxfFileName As String, wedIsOpen As Boolean, curOpenWedNr As Long, curOpenWedDate As Date, curOpenWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+On Error GoTo fout
+lenHandleCompleteImportSequence = False
+
+
+If Not lenReadFile(lxfDir, lxfFileName, False) Then
+  Exit Function
+End If
+
+Dim glbWedDate As Date, glbWedLftMode As String, glbWedAgeDate As Date
+
+If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
+
+If Not lnhImportGenerateDefaultProgImportSettings(glbWedAgeDate, glbWedLftMode) Then Exit Function
+
+If Not lnhImportGenerateDefaultZwmImportSettings() Then Exit Function
+
+
+'Now open the wizard.
+DoCmd.OpenForm "hxIMP_LEN_MASTER", acNormal, , , , acDialog
+
+lenHandleCompleteImportSequence = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function lenHandleCompleteExportSequence(lxfDir As String, lxfFName As String, singleWedOnly As Boolean, wednr As Long, strictLenex As Boolean, lxVersion As Long, expDlns As Boolean, expTd As Boolean) As Boolean
+On Error GoTo fout
+lenHandleCompleteExportSequence = False
+
+If Not lnhExportWedstrijd(wednr, singleWedOnly, expDlns, expTd, True, True, True) Then Exit Function
+
+
+'If Not gXMLWriter.exportStructureToXML(lxfName, "fdtgLEN_XML_OBJECTS", "fdtgLEN_XML_OBJECT_RELATIONS", "LEN_", , , strictLenex) Then Exit Function
+
+Dim actFileName As String
+actFileName = ""
+
+If Not lenWriteFile(lxfDir, lxfFName, strictLenex, lxVersion, actFileName) Then
+  Exit Function
+End If
+
+Dim cntWeds As Long
+cntWeds = Nz(DCount("WE_ID", "gIMP_LEN_Wedstrijden"))
+
+Dim msg As String
+msg = "Bestand: " & actFileName & " met succes aangemaakt."
+If (cntWeds > 1) Then
+  msg = msg & vbCrLf & "Er zijn: " & cntWeds & " wedstrijden geexporteerd."
+ElseIf (cntWeds = 1) Then
+  msg = msg & vbCrLf & "Er is: " & cntWeds & " wedstrijd geexporteerd."
+End If
+
+MsgBox msg, 64
+
+lenHandleCompleteExportSequence = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function lenHandleCompleteWasExportSequence(wasFName As String, wasFileType As Integer, wednr As Long, ByVal blSingleWedOnly As Boolean) As Boolean
+On Error GoTo fout
+lenHandleCompleteWasExportSequence = False
+
+If Not lnhExportWedstrijd(wednr, blSingleWedOnly, True, True, True, True, True) Then Exit Function
+
+
+'Make sure that aux fields are transferred to ID fields
+If Not lenApplyCorrectionsUsingAuxData(True, True, True) Then
+  Exit Function
+End If
+
+'As a service to the custom was2005 exporter, make sure that aux fields are also properly defined
+
+If Not lenFillAuxFields() Then
+  Exit Function
+End If
+
+If Not lenFillAuxFieldsCorrectPloegNummers() Then
+  Exit Function
+End If
+
+
+If Not wasExpFromLenTransTables(wasFName, wasFileType) Then
+  Exit Function
+End If
+
+
+Dim cntWeds As Long
+cntWeds = Nz(DCount("WE_ID", "gIMP_LEN_Wedstrijden"))
+
+Dim msg As String
+msg = "Bestand: " & wasFName & " met succes aangemaakt."
+
+If (cntWeds > 1) Then
+  msg = msg & vbCrLf & "Er zijn: " & cntWeds & " wedstrijden geexporteerd."
+ElseIf (cntWeds = 1) Then
+  msg = msg & vbCrLf & "Er is: " & cntWeds & " wedstrijd geexporteerd."
+End If
+
+MsgBox msg, 64
+
+lenHandleCompleteWasExportSequence = True
+Exit Function
+fout:
+MsgBox Err & " lenHandleCompleteWasExportSequence" & vbCrLf & Error$, 16
+Exit Function
+End Function

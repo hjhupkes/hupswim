@@ -1,0 +1,394 @@
+Version =20
+VersionRequired =20
+Checksum =881266981
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =6122
+    DatasheetFontHeight =10
+    ItemSuffix =54
+    Left =3030
+    Top =2565
+    Right =9795
+    Bottom =6510
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x181d2dbd744ee340
+    End
+    Caption ="Baanindeling"
+    OnOpen ="[Event Procedure]"
+    OnClose ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin Rectangle
+            SpecialEffect =3
+            BackStyle =0
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =510
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =-45
+                    Top =60
+                    Width =6165
+                    Height =345
+                    FontSize =10
+                    FontWeight =700
+                    BackColor =65280
+                    Name ="Label6"
+                    Caption ="Baanindeling maken"
+                End
+            End
+        End
+        Begin Section
+            Height =1474
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =453
+                    Top =199
+                    Name ="blHuidig"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="False"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =795
+                            Top =174
+                            Width =3495
+                            Height =240
+                            Name ="Label23"
+                            Caption ="Alleen toepassen op huidig programmanummer:  "
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =453
+                    Top =597
+                    TabIndex =1
+                    Name ="blMeet"
+                    DefaultValue ="True"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =787
+                            Top =567
+                            Width =3240
+                            Height =225
+                            Name ="Label38"
+                            Caption ="Toepassen op gehele meerdaagse wedstrijd"
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =80
+                    Left =793
+                    Top =964
+                    Width =1641
+                    Height =403
+                    TabIndex =2
+                    Name ="cmdProgs"
+                    Caption ="&Programma nrs..."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =2550
+                    Top =964
+                    Width =3450
+                    Height =405
+                    Name ="Label41"
+                    Caption ="(selecteer de programmanummers waarvoor de baanindeling aangemaakt dient te word"
+                        "en.)"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    BackStyle =0
+                    Left =4365
+                    Top =170
+                    Width =1251
+                    FontWeight =700
+                    TabIndex =3
+                    Name ="Text52"
+                    ControlSource ="=waarde_prog()"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =566
+            BackColor =12632256
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =79
+                    Left =4364
+                    Top =113
+                    Width =1440
+                    Height =360
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =2
+                    Name ="cmdOK"
+                    Caption ="&OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =170
+                    Top =113
+                    Width =1230
+                    Height =360
+                    FontSize =10
+                    FontWeight =700
+                    Name ="cmdCancel"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =84
+                    Left =2777
+                    Top =113
+                    Width =1440
+                    Height =360
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="cmdToepassen"
+                    Caption ="&Toepassen"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub initOptions()
+On Error GoTo fout
+
+If (wed_IsMeet()) Then
+  Me.blMeet.Enabled = True
+Else
+  Me.blMeet.Enabled = False
+End If
+
+If (openArgs = "huidigProg") Then
+  Me.blHuidig = True
+Else
+  Me.blHuidig = False
+End If
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+End Sub
+
+Private Sub updateView()
+On Error GoTo fout
+
+Me.blMeet.Enabled = (Not (Nz(Me.blHuidig)) And wed_IsMeet())
+Me.cmdProgs.Enabled = Not (Nz(Me.blHuidig))
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+
+Private Function perform() As Boolean
+On Error GoTo fout
+perform = False
+
+
+'Dim blOptOverwriteExisting As Boolean
+Dim blOptHuidig As Boolean
+Dim blOptMeet As Boolean
+
+
+
+'blOptOverwriteExisting = Nz(Me.blOverwriteExisting)
+
+blOptHuidig = Nz(Me.blHuidig)
+blOptMeet = Nz(Me.blMeet)
+
+
+If MsgBox("Baanindeling genereren?", 33) = 2 Then Exit Function
+
+Dim curProg As String, curWedNr As Long, curMeetMainNr As Long
+
+curProg = waarde_prog()
+curWedNr = waarde()
+
+If Not wedBaanIndeling(blOptHuidig, blOptMeet, curProg, curWedNr) Then
+  Exit Function
+End If
+
+
+perform = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Sub blHuidig_AfterUpdate()
+On Error Resume Next
+updateView
+End Sub
+
+
+
+
+
+
+
+Private Sub cmdCancel_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+
+
+Private Sub cmdOK_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+If perform() Then
+  DoCmd.Close
+End If
+
+End Sub
+
+Private Sub cmdProgs_Click()
+On Error Resume Next
+Dim blOptMeet As Boolean
+blOptMeet = Nz(Me.blMeet)
+
+Dim openArgs As String
+openArgs = ""
+If (blOptMeet) Then
+  openArgs = "EntireMeet"
+End If
+
+DoCmd.OpenForm "gMeetellendeProgrammas", , , , , acDialog, openArgs
+
+End Sub
+
+Private Sub cmdToepassen_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+perform
+End Sub
+
+
+
+
+
+
+
+
+
+Private Sub Form_Close()
+On Error Resume Next
+
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+
+
+initOptions
+
+wedProgTabelVullen wed_MeetMainNr(), waarde(), wed_IsMeet, False, "", ""
+updateView
+
+End Sub
+
+
+
+
+
+
+
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

@@ -1,0 +1,129 @@
+Version =20
+VersionRequired =20
+Checksum =-2062497603
+Begin Form
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =0
+    BorderStyle =1
+    GridX =15
+    GridY =15
+    Width =9646
+    ItemSuffix =14
+    Left =2775
+    Top =465
+    Right =15285
+    Bottom =6090
+    RecSrcDt = Begin
+        0x555f5cd5f873e140
+    End
+    Caption ="Onderhoud"
+    OnOpen ="[Event Procedure]"
+    Begin
+        Begin Rectangle
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =65280
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =4157
+            BackColor =65280
+            Name ="Detail0"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =66
+                    Left =5441
+                    Top =570
+                    Width =1512
+                    Height =354
+                    Name ="btnBackup"
+                    Caption ="&Backup..."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =5441
+                    Top =1099
+                    Width =1512
+                    Height =354
+                    TabIndex =1
+                    ForeColor =16711680
+                    Name ="btnTeruglezen"
+                    Caption ="Teruglezen..."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =225
+                    Top =570
+                    Width =1200
+                    Height =354
+                    Name ="Text10"
+                    Caption ="Backup maken:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =225
+                    Top =1099
+                    Width =1455
+                    Height =354
+                    Name ="Text11"
+                    Caption ="Backup teruglezen:"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =65280
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+Private Sub btnBackup_Click()
+On Error Resume Next
+
+backup
+Exit Sub
+
+End Sub
+
+Private Sub btnTeruglezen_Click()
+On Error Resume Next
+
+DoCmd.OpenForm "WIZ_FU_Master", , , , , acDialog, "HUP_BCK"
+
+Exit Sub
+End Sub
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

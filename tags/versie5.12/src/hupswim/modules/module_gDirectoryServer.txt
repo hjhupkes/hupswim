@@ -1,0 +1,1358 @@
+Option Compare Database
+Option Explicit
+
+Global Const MAX_N_DIR_SERVER_PRV_IDS = 10
+
+'The maximum subtree directory depth
+Global Const MAX_N_DIR_TREE_DEPTH = 100
+
+
+Type DIR_SERVER_DATA
+
+  blIsTempTable As Boolean
+  sTempTableName As String
+
+  skDSIdx As Recordset
+  skDSNP As Recordset
+  
+  lMaxUsedID As Long
+  
+  
+  nPrvFullNames As Integer
+  sPrvFullNames(0 To MAX_N_DIR_SERVER_PRV_IDS) As String
+  lPrvFullNameIDs(0 To MAX_N_DIR_SERVER_PRV_IDS) As Long
+  iPrvFullNameHeader As Integer
+  
+  nPrvPartNames As Integer
+  sPrvPartNames(0 To MAX_N_DIR_SERVER_PRV_IDS) As String
+  lPrvPartParentIDs(0 To MAX_N_DIR_SERVER_PRV_IDS) As Long
+  lPrvPartNameIDs(0 To MAX_N_DIR_SERVER_PRV_IDS) As Long
+  iPrvPartNameHeader As Integer
+    
+End Type
+
+Private Function dsIntCreateTable(ByVal tbName As String) As Boolean
+On Error GoTo fout
+dsIntCreateTable = False
+
+DoCmd.DeleteObject acTable, tbName
+
+
+Dim db As Database
+
+Set db = CurrentDb()
+
+Dim tb As TableDef
+
+Set tb = db.CreateTableDef(tbName)
+
+
+tb.Fields.Append tb.CreateField("DIR_ID", dbLong)
+tb.Fields.Append tb.CreateField("DIR_PARENT_ID", dbLong)
+tb.Fields.Append tb.CreateField("DIR_Name", dbText, 50)
+tb.Fields.Append tb.CreateField("DIR_Value", dbText, 255)
+
+
+Dim idx As Index
+
+Set idx = tb.CreateIndex("PrimaryKey")
+
+idx.Fields.Append idx.CreateField("DIR_ID", dbLong)
+idx.Primary = True
+
+tb.Indexes.Append idx
+
+Set idx = Nothing
+
+Set idx = tb.CreateIndex("LocateByNameAndParent")
+idx.Fields.Append idx.CreateField("DIR_Name", dbText, 50)
+idx.Fields.Append idx.CreateField("DIR_PARENT_ID", dbLong)
+idx.Unique = True
+
+tb.Indexes.Append idx
+
+Set idx = Nothing
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Set db = Nothing
+
+
+
+dsIntCreateTable = True
+Exit Function
+
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+
+MsgBox Err & " dsIntCreateTable" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Sub dsIntAddPrvFullName(ByRef dsData As DIR_SERVER_DATA, ByVal sFullName As String, ByVal propID As Long)
+On Error Resume Next
+
+'first check if it currently is in list
+
+Dim isInList As Boolean
+isInList = False
+
+Dim i As Integer
+For i = 0 To dsData.nPrvFullNames - 1
+  If (dsData.sPrvFullNames(i) = sFullName) Then
+    isInList = True
+    Exit For
+  End If
+Next i
+
+
+If (Not isInList) Then
+  Dim insPos As Integer
+  
+  If (dsData.nPrvFullNames < MAX_N_DIR_SERVER_PRV_IDS) Then
+    insPos = dsData.nPrvFullNames
+    dsData.nPrvFullNames = dsData.nPrvFullNames + 1
+  Else
+    dsData.iPrvFullNameHeader = dsData.iPrvFullNameHeader - 1
+    If (dsData.iPrvFullNameHeader < 0) Then
+      dsData.iPrvFullNameHeader = MAX_N_DIR_SERVER_PRV_IDS - 1
+    End If
+    insPos = dsData.iPrvFullNameHeader
+  End If
+  
+  dsData.sPrvFullNames(insPos) = sFullName
+  dsData.lPrvFullNameIDs(insPos) = propID
+  
+End If
+
+
+
+End Sub
+
+
+Private Sub dsIntAddPrvPartName(ByRef dsData As DIR_SERVER_DATA, ByVal sPartName As String, ByVal lParentID As Long, ByVal propID As Long)
+On Error Resume Next
+
+'first check if it currently is in list
+
+Dim isInList As Boolean
+isInList = False
+
+Dim i As Integer
+For i = 0 To dsData.nPrvPartNames - 1
+  If (dsData.sPrvPartNames(i) = sPartName) And (dsData.lPrvPartParentIDs(i) = lParentID) Then
+    isInList = True
+    Exit For
+  End If
+Next i
+
+
+If (Not isInList) Then
+  Dim insPos As Integer
+  
+  If (dsData.nPrvPartNames < MAX_N_DIR_SERVER_PRV_IDS) Then
+    insPos = dsData.nPrvPartNames
+    dsData.nPrvPartNames = dsData.nPrvPartNames + 1
+  Else
+    dsData.iPrvPartNameHeader = dsData.iPrvPartNameHeader - 1
+    If (dsData.iPrvPartNameHeader < 0) Then
+      dsData.iPrvPartNameHeader = MAX_N_DIR_SERVER_PRV_IDS - 1
+    End If
+    insPos = dsData.iPrvPartNameHeader
+  End If
+  
+  dsData.sPrvPartNames(insPos) = sPartName
+  dsData.lPrvPartParentIDs(insPos) = lParentID
+  dsData.lPrvPartNameIDs(insPos) = propID
+  
+End If
+
+
+
+End Sub
+
+
+
+Private Function dsIntCheckPrvFullNames(ByRef dsData As DIR_SERVER_DATA, ByVal sFullName As String, ByRef isFnd As Boolean, ByRef propID As Long) As Boolean
+On Error GoTo fout
+dsIntCheckPrvFullNames = False
+
+
+isFnd = False
+propID = -1
+
+Dim i As Integer
+For i = 0 To dsData.nPrvFullNames - 1
+  If (dsData.sPrvFullNames(i) = sFullName) Then
+    isFnd = True
+    propID = dsData.lPrvFullNameIDs(i)
+    Exit For
+  End If
+Next i
+
+
+
+dsIntCheckPrvFullNames = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntCheckPrvFullNames" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function dsIntCheckPrvPartNames(ByRef dsData As DIR_SERVER_DATA, ByVal sPartName As String, ByVal lParentID As Long, ByRef isFnd As Boolean, ByRef propID As Long) As Boolean
+On Error GoTo fout
+dsIntCheckPrvPartNames = False
+
+
+isFnd = False
+propID = -1
+
+Dim i As Integer
+For i = 0 To dsData.nPrvPartNames - 1
+  If (dsData.sPrvPartNames(i) = sPartName) And (dsData.lPrvPartParentIDs(i) = lParentID) Then
+    isFnd = True
+    propID = dsData.lPrvPartNameIDs(i)
+    Exit For
+  End If
+Next i
+
+
+
+dsIntCheckPrvPartNames = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntCheckPrvPartNames" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function dsIntDelFromPrv_delPartList(ByRef dsData As DIR_SERVER_DATA, lPropID As Long) As Boolean
+On Error GoTo fout
+dsIntDelFromPrv_delPartList = False
+
+
+
+Dim isInList As Boolean, listPos As Integer
+isInList = False
+
+Dim i As Integer
+For i = 0 To dsData.nPrvPartNames - 1
+  If (dsData.lPrvPartNameIDs(i) = lPropID) Then
+    isInList = True
+    listPos = i
+    Exit For
+  End If
+Next i
+
+
+If (isInList) Then
+
+  'Need to extract from the list.
+  'Simply move last item back & reset the header
+  
+  dsData.nPrvPartNames = dsData.nPrvPartNames - 1
+  dsData.iPrvPartNameHeader = 0
+  
+  If (listPos <> dsData.nPrvPartNames) Then
+    dsData.sPrvPartNames(listPos) = dsData.sPrvPartNames(dsData.nPrvPartNames)
+    dsData.lPrvPartParentIDs(listPos) = dsData.lPrvPartParentIDs(dsData.nPrvPartNames)
+    dsData.lPrvPartNameIDs(listPos) = dsData.lPrvPartNameIDs(dsData.nPrvPartNames)
+  End If
+  
+  
+End If
+
+
+
+
+
+
+dsIntDelFromPrv_delPartList = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntDelFromPrv_delPartList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function dsIntDelFromPrv_delFullList(ByRef dsData As DIR_SERVER_DATA, lPropID As Long) As Boolean
+On Error GoTo fout
+dsIntDelFromPrv_delFullList = False
+
+
+
+Dim isInList As Boolean, listPos As Integer
+isInList = False
+
+Dim i As Integer
+For i = 0 To dsData.nPrvFullNames - 1
+  If (dsData.lPrvFullNameIDs(i) = lPropID) Then
+    isInList = True
+    listPos = i
+    Exit For
+  End If
+Next i
+
+
+If (isInList) Then
+
+  'Need to extract from the list.
+  'Simply move last item back & reset the header
+  
+  dsData.nPrvFullNames = dsData.nPrvFullNames - 1
+  dsData.iPrvFullNameHeader = 0
+  
+  If (listPos <> dsData.nPrvFullNames) Then
+    dsData.sPrvFullNames(listPos) = dsData.sPrvFullNames(dsData.nPrvFullNames)
+    dsData.lPrvFullNameIDs(listPos) = dsData.lPrvFullNameIDs(dsData.nPrvFullNames)
+  End If
+  
+  
+End If
+
+
+
+
+
+
+dsIntDelFromPrv_delFullList = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntDelFromPrv_delFullList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function dsIntDelFromPrv(ByRef dsData As DIR_SERVER_DATA, lPropID As Long) As Boolean
+On Error GoTo fout
+dsIntDelFromPrv = False
+
+
+If Not dsIntDelFromPrv_delPartList(dsData, lPropID) Then
+  Exit Function
+End If
+
+If Not dsIntDelFromPrv_delFullList(dsData, lPropID) Then
+  Exit Function
+End If
+
+
+dsIntDelFromPrv = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntDelFromPrv" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function dsInit(ByRef dsData As DIR_SERVER_DATA, ByVal blUseTempTable As Boolean, ByVal sTempTableName As String) As Boolean
+On Error GoTo fout
+dsInit = False
+
+
+
+dsData.blIsTempTable = False
+dsData.sTempTableName = ""
+
+Dim sActTableName As String
+
+sActTableName = "dtgDirectoryServer"
+
+If (blUseTempTable) Then
+  If Not dsIntCreateTable(sTempTableName) Then
+    Exit Function
+  End If
+  sActTableName = sTempTableName
+  
+  dsData.blIsTempTable = True
+  dsData.sTempTableName = sTempTableName
+  
+End If
+
+Set dsData.skDSIdx = CurrentDb().OpenRecordset(sActTableName)
+dsData.skDSIdx.Index = "PrimaryKey"
+
+Set dsData.skDSNP = CurrentDb().OpenRecordset(sActTableName)
+dsData.skDSNP.Index = "LocateByNameAndParent"
+
+dsData.nPrvFullNames = 0
+dsData.iPrvFullNameHeader = 0
+
+dsData.nPrvPartNames = 0
+
+dsData.iPrvPartNameHeader = 0
+
+
+dsData.lMaxUsedID = Nz(DMax("DIR_ID", sActTableName), 0)
+
+dsInit = True
+
+Exit Function
+
+fout:
+MsgBox Err & " dsInit" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function dsClean(ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+
+dsClean = False
+
+appCleanRS dsData.skDSIdx
+appCleanRS dsData.skDSNP
+
+
+If (dsData.blIsTempTable) Then
+  DoCmd.DeleteObject acTable, dsData.sTempTableName
+End If
+
+dsClean = True
+
+Exit Function
+
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+
+MsgBox Err & " dsClean" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+Private Function dsIntFindPropertyID(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByRef propID As Long, ByRef isFnd As Boolean, ByRef lLastFndParentID As Long, ByRef sNameLeftToMatch As String) As Boolean
+On Error GoTo fout
+dsIntFindPropertyID = False
+
+
+  
+
+
+Dim tpPropFullName As String
+tpPropFullName = sPropFullName
+
+isFnd = False
+propID = -1
+
+lLastFndParentID = -1
+sNameLeftToMatch = ""
+
+
+'Need to explicitly exclude empty name
+If (tpPropFullName = "") Then
+  dsIntFindPropertyID = True
+  Exit Function
+End If
+
+
+
+
+If Not dsIntCheckPrvFullNames(dsData, tpPropFullName, isFnd, propID) Then
+  Exit Function
+End If
+
+If (Not isFnd) Then
+
+    
+  Dim curParentID As Long
+  Dim curName As String
+  
+  curParentID = -1
+  curName = extractToken(tpPropFullName, "\")
+  
+  While (curName <> "")
+  
+    Dim tpPartIsFnd As Boolean
+    Dim tpPartID As Long
+    
+    If Not dsIntCheckPrvPartNames(dsData, curName, curParentID, tpPartIsFnd, tpPartID) Then
+      Exit Function
+    End If
+    
+    If (Not tpPartIsFnd) Then
+    
+      dsData.skDSNP.Seek "=", curName, curParentID
+      
+      If (dsData.skDSNP.NoMatch) Then
+        isFnd = False
+        lLastFndParentID = curParentID
+        sNameLeftToMatch = curName
+        If (tpPropFullName <> "") Then
+          sNameLeftToMatch = sNameLeftToMatch & "\" & tpPropFullName
+        End If
+        
+        dsIntFindPropertyID = True
+        Exit Function
+      End If
+      
+      Dim tpNewID As Long
+      tpNewID = Nz(dsData.skDSNP("DIR_ID"), -1)
+      
+      If (tpNewID < 0) Then
+        Err.Raise 1, , "Internal error"
+      End If
+      
+      dsIntAddPrvPartName dsData, curName, curParentID, tpNewID
+      
+      curParentID = tpNewID
+    Else
+      curParentID = tpPartID
+    End If
+    
+    curName = extractToken(tpPropFullName, "\")
+  
+  Wend
+  
+  'We have found the property
+  propID = curParentID
+  isFnd = True
+  
+  dsIntAddPrvFullName dsData, sPropFullName, propID
+
+
+End If 'if not isFnd
+
+
+dsIntFindPropertyID = True
+
+Exit Function
+
+fout:
+MsgBox Err & " dsIntFindPropertyID" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function dsIntLookupPropertyByName(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByRef sPropValue As String, ByRef isPresent As Boolean, ByRef lPropID As Long) As Boolean
+On Error GoTo fout
+dsIntLookupPropertyByName = False
+
+
+lPropID = -1
+isPresent = False
+
+Dim lDummy As Long, sDummy As String
+
+If Not dsIntFindPropertyID(dsData, sPropFullName, lPropID, isPresent, lDummy, sDummy) Then
+  Exit Function
+End If
+
+If (isPresent) Then
+  If Not dsIntLookupPropertyByID(dsData, lPropID, sPropValue) Then
+    Exit Function
+  End If
+End If
+
+
+dsIntLookupPropertyByName = True
+
+Exit Function
+
+fout:
+MsgBox Err & " dsIntLookupPropertyByName" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function dsIntLookupPropertyByID(ByRef dsData As DIR_SERVER_DATA, ByVal lPropID As Long, ByRef sPropValue As String) As Boolean
+On Error GoTo fout
+dsIntLookupPropertyByID = False
+
+
+
+dsData.skDSIdx.Seek "=", lPropID
+If (dsData.skDSIdx.NoMatch) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+sPropValue = Nz(dsData.skDSIdx("DIR_Value"))
+
+
+
+dsIntLookupPropertyByID = True
+
+Exit Function
+
+fout:
+MsgBox Err & " dsIntLookupPropertyByID" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function dsIntSetPropertyInDir(ByRef dsData As DIR_SERVER_DATA, ByVal sPropPartName As String, ByVal lParentID As Long, ByVal sPropValue As String, ByRef lPropID As Long) As Boolean
+On Error GoTo fout
+dsIntSetPropertyInDir = False
+
+
+dsData.skDSNP.Seek "=", sPropPartName, lParentID
+
+If (dsData.skDSNP.NoMatch) Then
+  'need to create property
+  
+  dsData.skDSNP.AddNew
+    lPropID = dsData.lMaxUsedID + 1
+    dsData.lMaxUsedID = lPropID
+    
+    dsData.skDSNP("DIR_ID") = lPropID
+    dsData.skDSNP("DIR_Parent_ID") = lParentID
+    dsData.skDSNP("DIR_Name") = hzn(sPropPartName)
+    dsData.skDSNP("DIR_Value") = hzn(sPropValue)
+  dsData.skDSNP.Update
+  
+  'need to mark propery in parent directory listing.
+  Dim tpParentListID As Long
+  dsData.skDSNP.Seek "=", "_int_ds_listing", lParentID
+  If (dsData.skDSNP.NoMatch) Then
+    dsData.skDSNP.AddNew
+      tpParentListID = dsData.lMaxUsedID + 1
+      dsData.lMaxUsedID = tpParentListID
+    
+      dsData.skDSNP("DIR_ID") = tpParentListID
+    
+      dsData.skDSNP("DIR_Parent_ID") = lParentID
+      dsData.skDSNP("DIR_NAME") = "_int_ds_listing"
+      dsData.skDSNP("DIR_VALUE") = Null
+    dsData.skDSNP.Update
+  Else
+    tpParentListID = Nz(dsData.skDSNP("DIR_ID"), -1)
+  End If
+  
+  If (tpParentListID < 0) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  'Now need to find counter
+  Dim tpIdxInDir As Long
+  
+  dsData.skDSNP.Seek "=", "_int_ds_counter", tpParentListID
+  
+  If (dsData.skDSNP.NoMatch) Then
+    'Need to add counter
+    dsData.skDSNP.AddNew
+      Dim tpNewID As Long
+      tpNewID = dsData.lMaxUsedID + 1
+      dsData.lMaxUsedID = tpNewID
+    
+      dsData.skDSNP("DIR_ID") = tpNewID
+      
+      dsData.skDSNP("DIR_Parent_ID") = tpParentListID
+      dsData.skDSNP("DIR_NAME") = "_int_ds_counter"
+      dsData.skDSNP("DIR_VALUE") = "1"
+    dsData.skDSNP.Update
+    tpIdxInDir = 0
+  Else
+    'Need to increment counter
+    tpIdxInDir = CLng(Nz(dsData.skDSNP("DIR_Value")))
+    dsData.skDSNP.Edit
+      dsData.skDSNP("DIR_Value") = tpIdxInDir + 1
+    dsData.skDSNP.Update
+  End If
+  
+  'Need to add record for new property
+  dsData.skDSNP.AddNew
+  
+    tpNewID = dsData.lMaxUsedID + 1
+    dsData.lMaxUsedID = tpNewID
+  
+    dsData.skDSNP("DIR_ID") = tpNewID
+  
+    dsData.skDSNP("DIR_Name") = "_int_ds_id_for_pos_" & tpIdxInDir
+    dsData.skDSNP("DIR_Value") = lPropID
+    dsData.skDSNP("DIR_Parent_ID") = tpParentListID
+  dsData.skDSNP.Update
+  
+  dsData.skDSNP.AddNew
+    tpNewID = dsData.lMaxUsedID + 1
+    dsData.lMaxUsedID = tpNewID
+  
+    dsData.skDSNP("DIR_ID") = tpNewID
+    
+    dsData.skDSNP("DIR_Name") = "_int_ds_pos_for_id_" & lPropID
+    dsData.skDSNP("DIR_Value") = tpIdxInDir
+    dsData.skDSNP("DIR_Parent_ID") = tpParentListID
+  dsData.skDSNP.Update
+  
+Else
+
+  'We may simply set the property.
+
+  lPropID = Nz(dsData.skDSNP("DIR_ID"))
+  dsData.skDSNP.Edit
+    dsData.skDSNP("DIR_Value") = hzn(sPropValue)
+  dsData.skDSNP.Update
+  
+  
+End If
+
+
+
+dsIntSetPropertyInDir = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntSetPropertyInDir" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function dsIntDeletePropertyByID(ByRef dsData As DIR_SERVER_DATA, ByVal lPropID As Long, ByRef sPrevValue As String) As Boolean
+On Error GoTo fout
+dsIntDeletePropertyByID = False
+
+
+Dim lParentID As Long
+
+dsData.skDSIdx.Seek "=", lPropID
+
+If (dsData.skDSIdx.NoMatch) Then
+  Err.Raise 1, , "Internal error. Property not found"
+End If
+
+
+
+lParentID = CLng(Nz(dsData.skDSIdx("DIR_PARENT_ID")))
+
+sPrevValue = Nz(dsData.skDSIdx("DIR_Value"))
+
+dsData.skDSIdx.Delete
+
+If Not dsIntDelFromPrv(dsData, lPropID) Then
+  Exit Function
+End If
+
+
+If Not dsIntDeletePropertyByID_updateParentDir(dsData, lPropID, lParentID) Then
+  Exit Function
+End If
+
+If Not dsIntDeletePropertyByID_clearSubTree(dsData, lPropID) Then
+  Exit Function
+End If
+
+
+
+
+dsIntDeletePropertyByID = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntDeletePropertyByID" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function dsIntDeletePropertyByID_updateParentDir(ByRef dsData As DIR_SERVER_DATA, ByVal lPropID As Long, ByVal lParentID As Long) As Boolean
+On Error GoTo fout
+dsIntDeletePropertyByID_updateParentDir = False
+
+
+'Remove the property from any lists from the list
+  
+Dim tpParentListID As Long
+dsData.skDSNP.Seek "=", "_int_ds_listing", lParentID
+  
+If (dsData.skDSNP.NoMatch) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+tpParentListID = Nz(dsData.skDSNP("DIR_ID"), -1)
+  
+dsData.skDSNP.Seek "=", "_int_ds_counter", tpParentListID
+  
+If (dsData.skDSNP.NoMatch) Then
+  Err.Raise 1, , "internal error"
+End If
+    
+'Need to decrement counter
+
+Dim tpDirCnt As Long
+tpDirCnt = CLng(Nz(dsData.skDSNP("DIR_Value")))
+
+dsData.skDSNP.Edit
+  dsData.skDSNP("DIR_Value") = tpDirCnt - 1
+dsData.skDSNP.Update
+
+
+Dim tpPropIDToDel As Long
+
+
+Dim tpIdxInDir As Integer
+
+    
+  
+dsData.skDSNP.Seek "=", "_int_ds_pos_for_id_" & lPropID, tpParentListID
+
+If (dsData.skDSNP.NoMatch) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+tpIdxInDir = CLng(Nz(dsData.skDSNP("DIR_Value")))
+
+'Now remove this node
+
+tpPropIDToDel = Nz(dsData.skDSNP("DIR_ID"))
+
+dsData.skDSNP.Delete
+
+If Not dsIntDelFromPrv(dsData, tpPropIDToDel) Then
+  Exit Function
+End If
+
+
+'get the id at the last position
+dsData.skDSNP.Seek "=", "_int_ds_id_for_pos_" & (tpDirCnt - 1), tpParentListID
+
+If (dsData.skDSNP.NoMatch) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+Dim tpIDLastPos As Long
+tpIDLastPos = CLng(Nz(dsData.skDSNP("DIR_Value")))
+
+'remove this node
+
+tpPropIDToDel = Nz(dsData.skDSNP("DIR_ID"))
+
+dsData.skDSNP.Delete
+
+If Not dsIntDelFromPrv(dsData, tpPropIDToDel) Then
+  Exit Function
+End If
+
+
+If (tpIdxInDir <> (tpDirCnt - 1)) Then
+  
+  'now move the last position to the freed up position
+  dsData.skDSNP.Seek "=", "_int_ds_pos_for_id_" & tpIDLastPos, tpParentListID
+  
+  If (dsData.skDSNP.NoMatch) Then
+    Err.Raise 1, , "internal error"
+  End If
+  
+  dsData.skDSNP.Edit
+    dsData.skDSNP("DIR_Value") = tpIdxInDir
+  dsData.skDSNP.Update
+  
+  dsData.skDSNP.Seek "=", "_int_ds_id_for_pos_" & tpIdxInDir, tpParentListID
+  
+  If (dsData.skDSNP.NoMatch) Then
+    Err.Raise 1, , "internal error"
+  End If
+  
+  dsData.skDSNP.Edit
+    dsData.skDSNP("DIR_Value") = tpIDLastPos
+  dsData.skDSNP.Update
+  
+End If
+
+
+dsIntDeletePropertyByID_updateParentDir = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntDeletePropertyByID_updateParentDir" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+'This deletes everything in the directory specified by rootID (including subdirectories).
+'The element rootID itself is not deleted
+Private Function dsIntDeletePropertyByID_clearSubTree(ByRef dsData As DIR_SERVER_DATA, ByVal rootID As Long) As Boolean
+On Error GoTo fout
+dsIntDeletePropertyByID_clearSubTree = False
+
+
+'We will perform a depth first search, deleting everything as we go.
+
+Dim dirIDs(0 To MAX_N_DIR_TREE_DEPTH) As Long
+Dim dirIDCurPos(0 To MAX_N_DIR_TREE_DEPTH) As Long
+Dim dirIDCnt(0 To MAX_N_DIR_TREE_DEPTH) As Long
+Dim dirIDListID(0 To MAX_N_DIR_TREE_DEPTH) As Long
+
+
+Dim curDepth As Integer
+curDepth = 0
+
+dirIDs(0) = rootID
+dirIDCurPos(0) = -1
+
+While (curDepth >= 0)
+  
+  
+  If (dirIDCurPos(curDepth) = -1) Then
+    'need to initialize count
+    dirIDCnt(curDepth) = 0
+    dirIDListID(curDepth) = -1
+    
+    
+    dsData.skDSNP.Seek "=", "_int_ds_listing", dirIDs(curDepth)
+    
+    If (Not dsData.skDSNP.NoMatch) Then
+      dirIDListID(curDepth) = Nz(dsData.skDSNP("DIR_ID"))
+      'delete the list directory main node
+            
+      Dim tpPropIDToDel As Long
+      tpPropIDToDel = Nz(dsData.skDSNP("DIR_ID"))
+
+      dsData.skDSNP.Delete
+      
+      If Not dsIntDelFromPrv(dsData, tpPropIDToDel) Then
+        Exit Function
+      End If
+
+      
+     
+      'look for the count node
+      dsData.skDSNP.Seek "=", "_int_ds_counter", dirIDListID(curDepth)
+      
+      If (Not dsData.skDSNP.NoMatch) Then
+        dirIDCnt(curDepth) = CLng(Nz(dsData.skDSNP("DIR_VALUE")))
+        
+        'delete the count node
+        
+        tpPropIDToDel = Nz(dsData.skDSNP("DIR_ID"))
+
+        dsData.skDSNP.Delete
+        
+        If Not dsIntDelFromPrv(dsData, tpPropIDToDel) Then
+          Exit Function
+        End If
+
+      End If
+    End If
+    
+    
+    
+  End If
+  
+  'advance the current position
+  dirIDCurPos(curDepth) = dirIDCurPos(curDepth) + 1
+  
+  'Check if we are done in the current subdirectory.
+  
+  If (dirIDCurPos(curDepth) >= dirIDCnt(curDepth)) Then
+    'we are done with this directory
+    curDepth = curDepth - 1
+  Else
+  
+    'need to process the current position.
+    
+    Dim lChildID As Long
+    dsData.skDSNP.Seek "=", "_int_ds_id_for_pos_" & dirIDCurPos(curDepth), dirIDListID(curDepth)
+    
+    If (dsData.skDSNP.NoMatch) Then
+      Err.Raise 1, , "internal error"
+    End If
+    
+    lChildID = CLng(Nz(dsData.skDSNP("DIR_Value")))
+    
+    'delete the node
+            
+    tpPropIDToDel = Nz(dsData.skDSNP("DIR_ID"))
+        
+    dsData.skDSNP.Delete
+    
+    If Not dsIntDelFromPrv(dsData, tpPropIDToDel) Then
+      Exit Function
+    End If
+    
+    
+    'find the pos_for_id node and delete it
+    dsData.skDSNP.Seek "=", "_int_ds_pos_for_id_" & lChildID, dirIDListID(curDepth)
+    
+    If (dsData.skDSNP.NoMatch) Then
+      Err.Raise 1, , "internal error"
+    End If
+    
+    tpPropIDToDel = Nz(dsData.skDSNP("DIR_ID"))
+        
+    dsData.skDSNP.Delete
+    
+    If Not dsIntDelFromPrv(dsData, tpPropIDToDel) Then
+      Exit Function
+    End If
+        
+    
+    'Now delete the child node
+    dsData.skDSIdx.Seek "=", lChildID
+    If dsData.skDSIdx.NoMatch Then
+      Err.Raise 1, , "internal error"
+    End If
+    dsData.skDSIdx.Delete
+    
+    If Not dsIntDelFromPrv(dsData, lChildID) Then
+      Exit Function
+    End If
+    
+  
+    dirIDs(curDepth + 1) = lChildID
+    dirIDCurPos(curDepth + 1) = -1
+    
+    
+    'move on to this new directory
+    
+    curDepth = curDepth + 1
+  
+  
+  
+  End If
+  
+
+
+
+
+Wend
+
+
+
+
+dsIntDeletePropertyByID_clearSubTree = True
+
+Exit Function
+
+fout:
+
+MsgBox Err & " dsIntDeletePropertyByID_clearSubTree" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function dsIntSetPropertyByName(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByVal sPropValue As String, ByRef lPropID As Long, ByRef blWasPresent As Boolean, ByRef sPrevValue As String) As Boolean
+On Error GoTo fout
+dsIntSetPropertyByName = False
+
+
+blWasPresent = False
+sPrevValue = ""
+lPropID = -1
+
+Dim blIsFnd As Boolean
+Dim lLastFndParentID As Long, sNameLeftToMatch As String
+
+If Not dsIntFindPropertyID(dsData, sPropFullName, lPropID, blIsFnd, lLastFndParentID, sNameLeftToMatch) Then
+  Exit Function
+End If
+
+If (blIsFnd) Then
+  blWasPresent = True
+  If Not dsIntSetPropertyByID(dsData, lPropID, sPropValue, sPrevValue) Then
+    Exit Function
+  End If
+Else
+
+  'Need to add
+  Dim tpPartName As String
+  tpPartName = extractToken(sNameLeftToMatch, "\")
+  While (tpPartName <> "")
+    Dim tpValue As String
+    tpValue = ""
+    If (sNameLeftToMatch = "") Then
+      tpValue = sPropValue
+    End If
+    
+    If Not dsIntSetPropertyInDir(dsData, tpPartName, lLastFndParentID, tpValue, lPropID) Then
+      Exit Function
+    End If
+    
+    tpPartName = extractToken(sNameLeftToMatch, "\")
+    lLastFndParentID = lPropID
+  Wend
+End If
+  
+
+
+
+
+
+dsIntSetPropertyByName = True
+
+Exit Function
+
+fout:
+MsgBox Err & " dsIntSetPropertyByName" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function dsIntSetPropertyByID(ByRef dsData As DIR_SERVER_DATA, ByVal lPropID As Long, ByVal sPropValue As String, ByRef sPrevValue As String) As Boolean
+On Error GoTo fout
+dsIntSetPropertyByID = False
+
+dsData.skDSIdx.Seek "=", lPropID
+
+If (dsData.skDSIdx.NoMatch) Then
+  Err.Raise 1, , "Internal error: Property not found"
+End If
+
+sPrevValue = Nz(dsData.skDSIdx("DIR_Value"))
+
+dsData.skDSIdx.Edit
+  dsData.skDSIdx("DIR_Value") = hzn(sPropValue)
+dsData.skDSIdx.Update
+
+
+dsIntSetPropertyByID = True
+
+Exit Function
+
+fout:
+MsgBox Err & " dsIntSetPropertyByID" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function dsIntDeletePropertyByName(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByRef wasPresent As Boolean, ByRef sPropValue As String) As Boolean
+On Error GoTo fout
+dsIntDeletePropertyByName = False
+
+wasPresent = False
+sPropValue = ""
+
+Dim lPropID As Long, blIsFnd As Boolean
+Dim lDummy As Long, sDummy As String
+
+If Not dsIntFindPropertyID(dsData, sPropFullName, lPropID, blIsFnd, lDummy, sDummy) Then
+  Exit Function
+End If
+
+If (blIsFnd) Then
+  wasPresent = True
+  If Not dsIntDeletePropertyByID(dsData, lPropID, sPropValue) Then
+    Exit Function
+  End If
+End If
+
+
+
+dsIntDeletePropertyByName = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntDeletePropertyByName" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Sub dsSetString(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByVal sPropValue As String)
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsIntSetPropertyByName(dsData, sPropFullName, sPropValue, lDummy, blDummy, sDummy) Then
+  Err.Raise 1, , "Could not set value " & sPropValue & " for property: " & sPropFullName
+End If
+End Sub
+
+
+Public Function dsGetString(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String) As String
+Dim sPropValue As String
+Dim blDummy As Boolean, lDummy As Long
+If Not dsIntLookupPropertyByName(dsData, sPropFullName, sPropValue, blDummy, lDummy) Then
+  Err.Raise 1, , "Error looking up property"
+End If
+
+dsGetString = sPropValue
+
+End Function
+
+Public Sub dsSetLong(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByVal lPropValue As Long)
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsIntSetPropertyByName(dsData, sPropFullName, CStr(lPropValue), lDummy, blDummy, sDummy) Then
+  Err.Raise 1, , "Could not set value " & CStr(lPropValue) & " for property: " & sPropFullName
+End If
+
+End Sub
+
+
+Public Function dsGetLong(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String) As Long
+Dim sPropValue As String
+Dim blDummy As Boolean, lDummy As Long
+If Not dsIntLookupPropertyByName(dsData, sPropFullName, sPropValue, blDummy, lDummy) Then
+  Err.Raise 1, , "Error looking up property"
+End If
+
+dsGetLong = CLng(val(sPropValue))
+
+End Function
+
+Public Sub dsSetBoolean(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByVal blPropValue As Boolean)
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsIntSetPropertyByName(dsData, sPropFullName, rxpFormatBoolean(blPropValue), lDummy, blDummy, sDummy) Then
+  Err.Raise 1, , "Could not set value " & rxpFormatBoolean(blPropValue) & " for property: " & sPropFullName
+End If
+End Sub
+
+
+Public Function dsGetBoolean(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String) As Boolean
+Dim sPropValue As String
+Dim blDummy As Boolean, lDummy As Long
+If Not dsIntLookupPropertyByName(dsData, sPropFullName, sPropValue, blDummy, lDummy) Then
+  Err.Raise 1, , "Error looking up property"
+End If
+
+dsGetBoolean = rxpParseBoolean(sPropValue)
+
+End Function
+
+Public Sub dsSetDate(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByVal dPropValue As Date)
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsIntSetPropertyByName(dsData, sPropFullName, rxpFormatDateNL(dPropValue), lDummy, blDummy, sDummy) Then
+  Err.Raise 1, , "Could not set value " & rxpFormatDateNL(dPropValue) & " for property: " & sPropFullName
+End If
+End Sub
+
+
+Public Function dsGetDate(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String) As Date
+Dim sPropValue As String
+Dim blDummy As Boolean, lDummy As Long
+If Not dsIntLookupPropertyByName(dsData, sPropFullName, sPropValue, blDummy, lDummy) Then
+  Err.Raise 1, , "Error looking up property"
+End If
+
+dsGetDate = rxpParseDateNL(sPropValue)
+
+End Function
+
+
+
+Public Function dsSetPropertyByName(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByVal sPropValue As String, ByRef lPropID As Long, ByRef blWasPresent As Boolean, ByRef sPrevValue As String) As Boolean
+dsSetPropertyByName = dsIntSetPropertyByName(dsData, sPropFullName, sPropValue, lPropID, blWasPresent, sPrevValue)
+End Function
+Public Function dsSetPropertyByID(ByRef dsData As DIR_SERVER_DATA, ByVal lPropID As Long, ByVal sPropValue As String, ByRef sPrevValue As String) As Boolean
+dsSetPropertyByID = dsIntSetPropertyByID(dsData, lPropID, sPropValue, sPrevValue)
+End Function
+
+
+Public Function dsLookupPropertyByName(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByRef blIsPresent As Boolean, ByRef sPropValue As String, ByRef lPropID As Long) As Boolean
+dsLookupPropertyByName = dsIntLookupPropertyByName(dsData, sPropFullName, sPropValue, blIsPresent, lPropID)
+End Function
+
+
+Public Function dsLookupPropertyByID(ByRef dsData As DIR_SERVER_DATA, ByVal lPropID As Long, ByRef sPropValue As String) As Boolean
+dsLookupPropertyByID = dsIntLookupPropertyByID(dsData, lPropID, sPropValue)
+End Function
+
+
+Public Function dsDeletePropertyByName(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByRef blWasPresent As Boolean, ByRef sPropValue As String) As Boolean
+dsDeletePropertyByName = dsIntDeletePropertyByName(dsData, sPropFullName, blWasPresent, sPropValue)
+End Function
+
+Public Function dsDeletePropertyByID(ByRef dsData As DIR_SERVER_DATA, ByVal lPropID As Long, ByRef sPropValue As String) As Boolean
+dsDeletePropertyByID = dsIntDeletePropertyByID(dsData, lPropID, sPropValue)
+End Function
+
+
+
+
+Public Sub dsTestInsert(ByVal sName As String, sVal As String)
+Dim dsData As DIR_SERVER_DATA
+dsInit dsData, False, ""
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+dsIntSetPropertyByName dsData, sName, sVal, lDummy, blDummy, sDummy
+
+
+dsClean dsData
+End Sub
+
+Public Sub dsTestDelete(ByVal sName As String)
+Dim dsData As DIR_SERVER_DATA
+dsInit dsData, False, ""
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+dsIntDeletePropertyByName dsData, sName, blDummy, sDummy
+
+dsClean dsData
+End Sub
+
+Public Function dsTestLong() As Boolean
+
+dsTestLong = False
+
+Dim dsData As DIR_SERVER_DATA
+dsInit dsData, False, ""
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+Dim i As Integer
+For i = 1 To 20
+
+  If Not dsIntSetPropertyByName(dsData, "ROOT\TESTS\SUBDIR_0\PROP_0_" & i, "0_" & i, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+
+Next i
+
+
+For i = 1 To 20
+
+  If Not dsIntSetPropertyByName(dsData, "ROOT\TESTS\SUBDIR_1\PROP_1_" & i, "1_" & i, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+
+Next i
+
+For i = 1 To 20
+
+  Dim lkpS As String
+  lkpS = ""
+  If Not dsIntLookupPropertyByName(dsData, "ROOT\TESTS\SUBDIR_0\PROP_0_" & i, lkpS, blDummy, lDummy) Then
+    Exit Function
+  End If
+  
+  If (lkpS <> "0_" & i) Then
+    Err.Raise 1, , "Internal error"
+  End If
+
+  If Not dsIntSetPropertyByName(dsData, "ROOT\TESTS\SUBDIR_0\PROP_0_" & i, "0_" & i & "_updated", lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+
+Next i
+
+
+For i = 1 To 20
+  Dim prvS As String
+  prvS = ""
+
+  If Not dsIntDeletePropertyByName(dsData, "ROOT\TESTS\SUBDIR_1\PROP_1_" & i, blDummy, prvS) Then
+    Exit Function
+  End If
+  
+  If (prvS <> "1_" & i) Then
+    Err.Raise 1, , "Internal error"
+  End If
+
+Next i
+
+
+dsClean dsData
+
+
+dsTestLong = True
+
+
+End Function

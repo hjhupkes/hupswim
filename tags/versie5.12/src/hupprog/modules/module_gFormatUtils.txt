@@ -1,0 +1,914 @@
+Option Compare Database
+Option Explicit
+
+Public Function lenFormatResLim(lim As Double) As String
+On Error Resume Next
+Dim nHun As Long, nHunTot As Long, nSec As Long
+nHunTot = CLng(lim * 100)
+nSec = nHunTot \ 100
+nHun = nHunTot Mod 100
+
+lenFormatResLim = nSec & "." & Format(nHun, "00")
+
+End Function
+
+
+Public Function finGetDescription(progType As String) As String
+On Error Resume Next
+Dim voorv As String
+voorv = ""
+If (progType = PROG_TYPE_FIN) Then
+  voorv = "Finale "
+ElseIf progType = PROG_TYPE_AFIN Then
+  voorv = "A-finale "
+ElseIf progType = PROG_TYPE_BFIN Then
+  voorv = "B-finale "
+ElseIf progType = PROG_TYPE_CFIN Then
+  voorv = "C-finale "
+ElseIf progType = PROG_TYPE_SF Then
+  voorv = "Halve finale "
+ElseIf progType = PROG_TYPE_QF Then
+  voorv = "Kwart finale "
+ElseIf progType = PROG_TYPE_SWOFF Then
+  voorv = "Swim-off "
+ElseIf progType = PROG_TYPE_RANKING Then
+  voorv = "Ranglijst "
+ElseIf progType = "PROG_TYPE_PUNT" Then
+  voorv = ""
+Else
+  voorv = ""
+End If
+finGetDescription = voorv
+End Function
+
+
+
+
+Public Function fmtRecTime_Decimals(td As Double, ByVal nDecimals As Integer, ByVal sSfx As String) As String
+On Error GoTo fout
+fmtRecTime_Decimals = ""
+
+Dim tpTijd As String
+
+
+tpTijd = CStr(CLng(td * 100))
+
+
+If td < 1 Or (td > 8888 And td < 9999.995) Then
+    fmtRecTime_Decimals = ""
+    Exit Function
+End If
+    
+Select Case Len(tpTijd)
+    Case 8
+      fmtRecTime_Decimals = Left(tpTijd, 2) & "." & Mid(tpTijd, 3, 2) & "." & Mid(tpTijd, 5, 2) & "." & Right(tpTijd, 2)
+    Case 7
+      fmtRecTime_Decimals = Left(tpTijd, 1) & "." & Mid(tpTijd, 2, 2) & "." & Mid(tpTijd, 4, 2) & "." & Right(tpTijd, 2)
+    Case 6
+        fmtRecTime_Decimals = Left(tpTijd, 2) & "." & Mid(tpTijd, 3, 2) & "." & Right(tpTijd, 2)
+    Case 5
+        'If (blAddLeftPadding) Then
+        '  fmtRecTime_Decimals = " "
+        'End If
+        fmtRecTime_Decimals = fmtRecTime_Decimals & Left(tpTijd, 1) & "." & Mid(tpTijd, 2, 2) & "." & Right(tpTijd, 2)
+    Case 4
+        'If (blAddLeftPadding) Then
+        '  fmtRecTime_Decimals = " 0."
+        'Else
+          fmtRecTime_Decimals = "0."
+        'End If
+        fmtRecTime_Decimals = fmtRecTime_Decimals & Left(tpTijd, 2) & "." & Right(tpTijd, 2)
+    Case Else
+        fmtRecTime_Decimals = Left(tpTijd, Len(tpTijd) - 2) & "." & Right(tpTijd, 2)
+End Select
+
+
+If (nDecimals = 1) Then
+  If (sSfx = "") Then
+    fmtRecTime_Decimals = Left(fmtRecTime_Decimals, Len(fmtRecTime_Decimals) - 1) & " "
+  Else
+    fmtRecTime_Decimals = Left(fmtRecTime_Decimals, Len(fmtRecTime_Decimals) - 1) & sSfx
+  End If
+Else
+  fmtRecTime_Decimals = fmtRecTime_Decimals & sSfx
+End If
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+Public Function fmtSwimTime(td As Double, Optional blAddLeftPadding As Boolean) As String
+On Error GoTo fout
+fmtSwimTime = ""
+
+Dim tpTijd As String
+
+
+tpTijd = CStr(CLng(td * 100))
+
+
+If td < 1 Or (td > 8888 And td < 9999.995) Then
+    fmtSwimTime = ""
+    Exit Function
+End If
+    
+Select Case Len(tpTijd)
+    Case 8
+      fmtSwimTime = Left(tpTijd, 2) & "." & Mid(tpTijd, 3, 2) & "." & Mid(tpTijd, 5, 2) & "." & Right(tpTijd, 2)
+    Case 7
+      fmtSwimTime = Left(tpTijd, 1) & "." & Mid(tpTijd, 2, 2) & "." & Mid(tpTijd, 4, 2) & "." & Right(tpTijd, 2)
+    Case 6
+        fmtSwimTime = Left(tpTijd, 2) & "." & Mid(tpTijd, 3, 2) & "." & Right(tpTijd, 2)
+    Case 5
+        If (blAddLeftPadding) Then
+          fmtSwimTime = " "
+        End If
+        fmtSwimTime = fmtSwimTime & Left(tpTijd, 1) & "." & Mid(tpTijd, 2, 2) & "." & Right(tpTijd, 2)
+    Case 4
+        If (blAddLeftPadding) Then
+          fmtSwimTime = " 0."
+        Else
+          fmtSwimTime = "0."
+        End If
+        fmtSwimTime = fmtSwimTime & Left(tpTijd, 2) & "." & Right(tpTijd, 2)
+    Case Else
+        fmtSwimTime = Left(tpTijd, Len(tpTijd) - 2) & "." & Right(tpTijd, 2)
+End Select
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+
+Function fmtProgDes(progType As String, besAfw As String, Afstand As String, slag As String, catDes As String) As String 'Geeft een fatsoenlijke gecombineerde string voor de te zwemmen afstand
+On Error GoTo fout
+
+Dim voorv As String
+voorv = finGetDescription(progType)
+If (Len(voorv) > 0) Then
+  voorv = voorv & " "
+End If
+
+If (Len(besAfw) = 0) Then
+  fmtProgDes = voorv & fmtAfSlCat(Afstand, slag, catDes)
+Else
+  fmtProgDes = voorv & Trim(besAfw) & " " & catDes
+End If
+
+Exit Function
+fout:
+MsgBox Err & " fmtProgDes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Function fmtProgDes_Kort(progType As String, besAfw As String, Afstand As String, slag As String, catDes As String) As String 'Geeft een fatsoenlijke gecombineerde string voor de te zwemmen afstand
+On Error GoTo fout
+
+Dim voorv As String
+voorv = finGetDescription(progType)
+If (Len(voorv) > 0) Then
+  voorv = voorv & " "
+End If
+
+If (Len(besAfw) = 0) Then
+  fmtProgDes_Kort = voorv & fmtAfSlCat_kort(Afstand, slag, catDes)
+Else
+  fmtProgDes_Kort = voorv & Trim(besAfw) & " " & catDes
+End If
+
+Exit Function
+fout:
+MsgBox Err & " fmtProgDes_Kort" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function fmtProgOpm(opm As String, lim As String, vvt As Double, includeStreepje As Boolean)
+On Error Resume Next
+Dim s As String
+s = opm
+Dim brckPart As String
+If (Len(lim) > 0) Then
+  brckPart = brckPart & "Lim. " & lim
+End If
+If (vvt > 1) Then
+  If (Len(brckPart) > 0) Then
+    brckPart = brckPart & ", "
+  End If
+  brckPart = brckPart & "Vvt. " & Trim(fmtSwimTime(vvt))
+End If
+
+If (Len(s) > 0) Then
+  If (Len(brckPart) > 0) Then
+    s = Trim(s & " (" & brckPart & ")")
+  End If
+Else
+  s = brckPart
+End If
+
+If (Len(s) > 0 And includeStreepje) Then
+  s = " - " & Trim(s)
+Else
+  s = Trim(s)
+End If
+
+fmtProgOpm = s
+Exit Function
+  
+
+End Function
+
+
+Public Function fmtCatLijst(ByRef catInfo() As CAT_INFO, ByVal offset As Integer, ByVal Length As Integer) As String
+On Error Resume Next
+If (Length = 0 Or offset = -1) Then
+  fmtCatLijst = ""
+End If
+Dim hasExtraInf As Boolean
+Dim apartRegel As Boolean
+
+Dim i As Integer
+
+
+
+Dim tpS As String
+tpS = ""
+Dim limS As String
+
+For i = 0 To Length - 1
+  If (i > 0) Then
+    tpS = tpS & ", "
+  End If
+  tpS = tpS & Trim(catInfo(offset + i).cat)
+  Dim actLim As String
+  actLim = Trim(catInfo(offset + i).lim)
+  If (Len(actLim) > 0) Then
+    tpS = tpS & " Lim. " & actLim
+  End If
+  If (catInfo(offset + i).vvt > 1) Then
+    tpS = tpS & " Vvt. " & Trim(fmtSwimTime(catInfo(offset + i).vvt))
+  End If
+Next i
+
+fmtCatLijst = tpS
+
+End Function
+
+
+
+Public Function fmtAfSlCat_kort(af As String, sl As String, bescat As String) As String    'Geeft een fatsoenlijke gecombineerde string voor de te zwemmen afstand
+On Error GoTo fout
+Dim z1 As String, x1 As String, y1 As String
+z1 = bescat
+x1 = af
+y1 = sl
+If IsNull(bescat) Then
+    z1 = ""
+End If
+If IsNull(af) Then
+    x1 = ""
+End If
+If IsNull(sl) Then
+    y1 = ""
+End If
+
+x1 = x1 & "m"
+If x1 Like "*x*" Then
+    Select Case y1
+        Case "SCHOOL"
+            fmtAfSlCat_kort = x1 & " " & "school" & " " & "est." & " " & z1
+        Case "RUG"
+             fmtAfSlCat_kort = x1 & " " & "rug" & " " & "est." & " " & z1
+        Case "VLINDER"
+             fmtAfSlCat_kort = x1 & " " & "vlinder" & " " & "est." & " " & z1
+        Case "VRIJ"
+             fmtAfSlCat_kort = x1 & " " & "vrij" & " " & "est." & " " & z1
+        Case "WISSEL"
+              fmtAfSlCat_kort = x1 & " " & "wissel" & " " & "est." & " " & z1
+        Case "OW"
+              fmtAfSlCat_kort = x1 & " " & "onderwater" & " " & "est." & " " & z1
+    End Select
+Else
+    Select Case y1
+        Case "SCHOOL"
+            fmtAfSlCat_kort = x1 & " " & "school" & " " & z1
+        Case "RUG"
+             fmtAfSlCat_kort = x1 & " " & "rug" & " " & z1
+        Case "VLINDER"
+             fmtAfSlCat_kort = x1 & " " & "vlinder" & " " & z1
+        Case "VRIJ"
+             fmtAfSlCat_kort = x1 & " " & "vrij" & " " & z1
+        Case "WISSEL"
+              fmtAfSlCat_kort = x1 & " " & "wissel" & " " & z1
+        Case "OW"
+              fmtAfSlCat_kort = x1 & " " & "Onderwater" & " " & z1
+    
+    End Select
+End If
+Exit Function
+fout:
+Exit Function
+End Function
+
+Public Function fmtAfSlCat(af As String, sl As String, bescat As String) As String   'Geeft een fatsoenlijke gecombineerde string voor de te zwemmen afstand
+On Error GoTo fout
+Dim x As String, y As String, z As String
+x = af
+y = sl
+z = bescat
+
+x = x & "m"
+If x Like "*x*" Then
+    Select Case y
+        Case "SCHOOL"
+            fmtAfSlCat = x & " " & "Schoolslag" & " " & "estafette" & " " & z
+        Case "RUG"
+             fmtAfSlCat = x & " " & "Rugslag" & " " & "estafette" & " " & z
+        Case "VLINDER"
+             fmtAfSlCat = x & " " & "Vlinderslag" & " " & "estafette" & " " & z
+        Case "VRIJ"
+             fmtAfSlCat = x & " " & "Vrijeslag" & " " & "estafette" & " " & z
+        Case "WISSEL"
+              fmtAfSlCat = x & " " & "Wisselslag" & " " & "estafette" & " " & z
+        Case "OW"
+              fmtAfSlCat = x & " " & "Onderwater" & " " & "estafette" & " " & z
+    End Select
+Else
+    Select Case y
+        Case "SCHOOL"
+            fmtAfSlCat = x & " " & "Schoolslag" & " " & z
+        Case "RUG"
+             fmtAfSlCat = x & " " & "Rugslag" & " " & z
+        Case "VLINDER"
+             fmtAfSlCat = x & " " & "Vlinderslag" & " " & z
+        Case "VRIJ"
+             fmtAfSlCat = x & " " & "Vrijeslag" & " " & z
+        Case "WISSEL"
+              fmtAfSlCat = x & " " & "Wisselslag" & " " & z
+        Case "OW"
+              fmtAfSlCat = x & " " & "Onderwater" & " " & z
+    
+    End Select
+End If
+Exit Function
+fout:
+Exit Function
+End Function
+
+Public Function fmtPntDesInd(ByVal pnt As Double, ByVal td As Double, ByVal tDis As Double, ByVal isDis As Double, ByVal isVVT As Double, ByVal isSmall As Boolean) As String
+On Error Resume Next
+fmtPntDesInd = ""
+If (pnt < LIMEPS) Then
+  fmtPntDesInd = fmtPnt(pnt, True)
+  Exit Function
+End If
+
+Dim tStr As String
+If Not swtIsValid(td) Then
+  tStr = "-.--.--"
+Else
+  tStr = fmtSwimTime(td)
+  
+  If (isSmall) And (isDis) Then
+    tStr = tStr & "D"
+  End If
+  'If (isVVT) Then
+  '  tStr = tStr & "*"
+  'ElseIf (isDis) Then
+  '  tStr = tStr & "D"
+  'Else
+  '  tStr = tStr & " "
+  'End If
+End If
+
+Dim pStr As String
+pStr = fmtPnt(pnt, True)
+
+Dim tDisStr As String
+tDisStr = ""
+If (Not isSmall) And (tDis > LIMEPS) Then
+  tDisStr = "  /  " & tDis
+End If
+
+fmtPntDesInd = tStr & "  /  " & pStr & tDisStr
+
+
+End Function
+
+Public Function fmtPnt(ByVal pnt As Double, ByVal blUseLine) As String
+On Error Resume Next
+fmtPnt = ""
+If pnt < LIMEPS Then
+  If (blUseLine) Then
+    fmtPnt = "---"
+  End If
+Else
+  fmtPnt = lenFormatResLim(pnt)
+End If
+
+End Function
+
+
+Public Function fmtUitslagEindtijd(td As Double, dis As String, ab As String) As String
+On Error GoTo fout
+
+If dis = DIS_NG Then
+  fmtUitslagEindtijd = "ng"
+ElseIf (dis = DIS_ZK) Then
+  fmtUitslagEindtijd = "ziek"
+ElseIf dis = DIS_AFM Then
+  fmtUitslagEindtijd = "afg."
+ElseIf dis = DIS_NGZA Then
+  fmtUitslagEindtijd = "ng za"
+ElseIf dis = DIS_VV Then
+  fmtUitslagEindtijd = "verv."
+Else
+  fmtUitslagEindtijd = fmtSwimTime(td) & ab
+End If
+
+Exit Function
+fout:
+MsgBox Err & " fmtUitslagEindtijd" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function fmtUitslagDis(dis As String, pl As String) As String
+On Error GoTo fout
+
+fmtUitslagDis = ""
+If (dis = DIS_NG Or dis = DIS_ZK Or dis = DIS_AFM Or dis = DIS_NGZA Or dis = DIS_VV) Then
+  fmtUitslagDis = ""
+Else
+  If (pl <> "" And dis <> "") Then
+    fmtUitslagDis = dis & "-" & pl
+  Else
+    fmtUitslagDis = dis & pl
+  End If
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " fmtUitslagDis" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function fmtName(vn As String, vg As String, an As String) As String
+On Error Resume Next
+If Trim(vg) = "" Then
+  fmtName = Trim(vn) & " " & Trim(an)
+Else
+  fmtName = Trim(vn) & " " & Trim(vg) & " " & Trim(an)
+End If
+
+
+
+End Function
+
+
+
+Public Function fmtCatCode(ByVal ges As String, ByVal lft As Long) As String
+On Error GoTo fout
+fmtCatCode = ""
+
+If (ges = "M") Then
+  If (lft < CAT_MAX_AGE) Then
+    fmtCatCode = "JO" & Format(lft, "00")
+  Else
+    fmtCatCode = "Heren"
+  End If
+ElseIf (ges = "V") Then
+  If (lft < CAT_MAX_AGE) Then
+    fmtCatCode = "MO" & Format(lft, "00")
+  Else
+    fmtCatCode = "Dames"
+  End If
+ElseIf (ges = "*") Then
+  If (lft < CAT_MAX_AGE) Then
+    fmtCatCode = "MJO" & Format(lft, "00")
+  Else
+    fmtCatCode = "Mix"
+  End If
+ElseIf (ges = "z") Then
+  fmtCatCode = "Zweeds"
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " fmtCatCode" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function fmtSlag(ByVal slag As String) As String
+On Error Resume Next
+Select Case slag
+Case "OW"
+  fmtSlag = "Onderwater"
+Case "RUG"
+  fmtSlag = "Rugslag"
+Case "SCHOOL"
+  fmtSlag = "Schoolslag"
+Case "VLINDER"
+  fmtSlag = "Vlinderslag"
+Case "VRIJ"
+  fmtSlag = "Vrijeslag"
+Case "WISSEL"
+  fmtSlag = "Wisselslag"
+End Select
+End Function
+
+Public Function fmtSlagShort(ByVal slag As String) As String
+On Error Resume Next
+Select Case slag
+Case "OW"
+  fmtSlagShort = "ow"
+Case "RUG"
+  fmtSlagShort = "rs"
+Case "SCHOOL"
+  fmtSlagShort = "ss"
+Case "VLINDER"
+  fmtSlagShort = "vl"
+Case "VRIJ"
+  fmtSlagShort = "vr"
+Case "WISSEL"
+  fmtSlagShort = "ws"
+End Select
+End Function
+
+Public Function fmtRecCat(cat As String) As String
+On Error Resume Next
+If cat = "HEREN" Then
+  fmtRecCat = "Heren"
+  Exit Function
+End If
+If cat = "DAMES" Then
+  fmtRecCat = "Dames"
+  Exit Function
+End If
+If cat = "ZWEEDS" Then
+  fmtRecCat = "Zweeds"
+  Exit Function
+End If
+If (cat = "MIX") Then
+  fmtRecCat = "Mix"
+  Exit Function
+End If
+
+Dim leeftijd As Integer
+Dim Geslacht As String
+leeftijd = CInt(val(Right(cat, 2)))
+
+If Left(Nz(cat), 2) = "MJ" Then
+  fmtRecCat = "Meisjes / Jongens 0/" & CStr(leeftijd) & " jaar"
+  Exit Function
+End If
+  
+
+
+Geslacht = Left(cat, 1)
+If Geslacht = "J" Then
+  fmtRecCat = "Jongens 0/" & CStr(leeftijd) & " jaar"
+  Exit Function
+End If
+If Geslacht = "M" Then
+  fmtRecCat = "Meisjes 0/" & CStr(leeftijd) & " jaar"
+  Exit Function
+End If
+
+fmtRecCat = cat
+
+End Function
+
+Public Function fmtDateSQL(ByVal dt As Date) As String
+On Error Resume Next
+fmtDateSQL = Format(dt, "mm\-dd\-yyyy")
+End Function
+
+Public Function fmtDate(ByVal dt As Date) As String
+On Error Resume Next
+If Not lenDateIsValid(dt) Then
+  fmtDate = ""
+Else
+  fmtDate = Format(dt, "dd\-mm\-yyyy")
+End If
+End Function
+Public Function fmtDateShort(ByVal dt As Date) As String
+On Error Resume Next
+If Not lenDateIsValid(dt) Then
+  fmtDateShort = ""
+Else
+  fmtDateShort = Format(dt, "dd\-mm\-yy")
+End If
+End Function
+
+
+Public Function fmtBaan(ByVal bn As Integer) As String
+On Error Resume Next
+If (bn = 25) Or (bn = 50) Then
+  fmtBaan = "(" & bn & "m)"
+Else
+  fmtBaan = ""
+End If
+End Function
+
+Public Function fmtBaanShort(ByVal bn As Integer) As String
+On Error Resume Next
+If (bn = 25) Or (bn = 50) Then
+  If (bn = 25) Then
+    fmtBaanShort = "(K)"
+  Else
+    fmtBaanShort = "(L)"
+  End If
+Else
+  fmtBaanShort = ""
+End If
+End Function
+
+
+
+Public Function fmtDateLong(ByVal dt As Date) As String
+On Error GoTo fout
+
+Dim d As Integer, dag As String, n As Integer, m As Integer, maand As String, jaar As Long
+d = CInt(val(Format(dt, "W")))
+Select Case d
+    Case 1
+        dag = "zondag"
+    Case 2
+        dag = "maandag"
+    Case 3
+        dag = "dinsdag"
+    Case 4
+        dag = "woensdag"
+    Case 5
+        dag = "donderdag"
+    Case 6
+        dag = "vrijdag"
+    Case 7
+        dag = "zaterdag"
+End Select
+n = CInt(val(Format(dt, "d")))
+m = CInt(val(Format(dt, "m")))
+Select Case m
+    Case 1
+        maand = "januari"
+    Case 2
+        maand = "februari"
+    Case 3
+        maand = "maart"
+    Case 4
+        maand = "april"
+    Case 5
+        maand = "mei"
+    Case 6
+        maand = "juni"
+    Case 7
+        maand = "juli"
+    Case 8
+        maand = "augustus"
+    Case 9
+        maand = "september"
+    Case 10
+        maand = "oktober"
+    Case 11
+        maand = "november"
+    Case 12
+        maand = "december"
+End Select
+jaar = CLng(val(Format(dt, "yyyy")))
+
+fmtDateLong = dag & " " & n & " " & maand & " " & jaar
+
+Exit Function
+fout:
+MsgBox Err & " fmtDateLong" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Function fmtKosten(dKosten As Double, sCrcy As String) As String
+On Error Resume Next
+Dim currencyStr As String
+If (sCrcy = "EUR" Or sCrcy = "") Then
+  sCrcy = "€"
+End If
+
+fmtKosten = sCrcy & " " & Format(dKosten, "0.00")
+
+End Function
+
+
+
+Public Function fmtResStr(ByVal nRes As Long) As String
+  If (nRes > 0) Then
+    fmtResStr = " (+" & nRes & "R)"
+  Else
+    fmtResStr = " "
+  End If
+End Function
+
+Public Function fmtResStrShort(ByVal nRes As Long, Optional extrStr As String = "") As String
+  If (nRes > 0) Then
+    fmtResStrShort = " (+" & nRes & extrStr & ")"
+  Else
+    fmtResStrShort = " "
+  End If
+End Function
+
+
+
+
+Public Function starts_voldoet(startnr As String, totstarts, perstarts) As String
+On Error Resume Next
+Dim leeftijd As Double
+leeftijd = Format(Now, "YYYY") - (CDbl(Left(startnr, 2)) + 1900)
+starts_voldoet = ""
+If leeftijd < 8 Then
+    If totstarts > 3 Then
+        starts_voldoet = "!"
+    End If
+    Exit Function
+End If
+
+If leeftijd < 12 Then
+    If totstarts > 4 Then
+        starts_voldoet = "!"
+    End If
+    Exit Function
+End If
+
+If perstarts > 3 Then
+    starts_voldoet = "?"
+End If
+Exit Function
+
+End Function
+
+
+
+Public Function fmtDisSlagFromCode(discode As String) As String
+On Error GoTo fout
+Dim s As String
+s = Left(discode, 2)
+
+
+If s Like "o*" Then
+    fmtDisSlagFromCode = "Open Water"
+    Exit Function
+End If
+
+If s Like "w*" Then
+    fmtDisSlagFromCode = "Wisselslag"
+    Exit Function
+End If
+If s Like "e*" Then
+    fmtDisSlagFromCode = "Estafette"
+    Exit Function
+End If
+If s Like "s*" Then
+    fmtDisSlagFromCode = "Schoolslag"
+    Exit Function
+End If
+If s Like "r*" Then
+    fmtDisSlagFromCode = "Rugslag"
+    Exit Function
+End If
+If s Like "vr*" Then
+    fmtDisSlagFromCode = "Vrijeslag"
+    Exit Function
+End If
+If s Like "v*" Then
+    fmtDisSlagFromCode = "Vlinderslag"
+    Exit Function
+End If
+If s Like "a*" Then
+    fmtDisSlagFromCode = "Algemeen"
+    Exit Function
+End If
+Exit Function
+fout:
+MsgBox Err & " fmtDisSlagFromCode" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+
+Public Function fmtKostenInfo(Kosten1, kosten1_spec, kosten2, Kosten2_spec, kostenestaf) As String
+
+On Error Resume Next
+If Nz(Kosten2_spec, "") = "" Then 'geen aparte kosten voor lagena afstanden
+  If Nz(kostenestaf) <> 0 Then
+    fmtKostenInfo = Format(Kosten1, "EUR 0.00") & IIf(Nz(kosten1_spec) = 2, " per start", "") & "; " & Format(kostenestaf, "EUR 0.00") & " per estafetteploeg"
+  Else
+    fmtKostenInfo = Format(Kosten1, "EUR 0.00") & IIf(Nz(kosten1_spec) = 2, " per start", "")
+  End If
+Else ' wel andere kosten voor lange afstanden
+  If Nz(kostenestaf) <> 0 Then
+    fmtKostenInfo = Format(Kosten1, "EUR 0.00") & IIf(Nz(kosten1_spec) = 2, " per start", "") & "; " & Format(kosten2, "EUR 0.00") & " voor afstanden van " & val(Nz(Kosten2_spec)) & "m en langer; " & Format(kostenestaf, "EUR 0.00") & " per estafetteploeg"
+  Else
+    fmtKostenInfo = Format(Kosten1, "EUR 0.00") & IIf(Nz(kosten1_spec) = 2, " per start", "") & "; " & Format(kosten2, "EUR 0.00") & " voor afstanden van " & val(Nz(Kosten2_spec)) & "m en langer"
+  End If
+End If
+
+
+
+
+End Function
+
+
+
+
+Public Function fmtTimeLong(x) As String
+On Error Resume Next
+If IsNull(x) Or x = "" Then
+    fmtTimeLong = ""
+Else
+    fmtTimeLong = Format(x, "hh:nn") & " uur"
+End If
+
+
+End Function
+
+Function fmtDateLongNoDay(x)
+On Error Resume Next
+
+Dim d As Integer, dag As String, m As Integer, n As Integer, maand As String, jaar
+
+d = Format(x, "W")
+Select Case d
+    Case 1
+        dag = "zondag"
+    Case 2
+        dag = "maandag"
+    Case 3
+        dag = "dinsdag"
+    Case 4
+        dag = "woensdag"
+    Case 5
+        dag = "donderdag"
+    Case 6
+        dag = "vrijdag"
+    Case 7
+        dag = "zaterdag"
+End Select
+n = Format(x, "d")
+m = Format(x, "m")
+Select Case m
+    Case 1
+        maand = "januari"
+    Case 2
+        maand = "februari"
+    Case 3
+        maand = "maart"
+    Case 4
+        maand = "april"
+    Case 5
+        maand = "mei"
+    Case 6
+        maand = "juni"
+    Case 7
+        maand = "juli"
+    Case 8
+        maand = "augustus"
+    Case 9
+        maand = "september"
+    Case 10
+        maand = "october"
+    Case 11
+        maand = "november"
+    Case 12
+        maand = "december"
+End Select
+jaar = Format(x, "yyyy")
+
+fmtDateLongNoDay = n & " " & maand & " " & jaar
+
+Exit Function
+
+End Function
+
+
+
+Public Function fmtLftMode(ByVal sLftBep As String) As String
+Select Case sLftBep
+  Case LFT_MODE_WEDYR_END
+    fmtLftMode = "Wedstr. jaar (31 dec wedstr. jaar)"
+  Case LFT_MODE_WEDYR_START
+    fmtLftMode = "Begin wedstr. jr. (1 jan wedstr. jaar)"
+  Case LFT_MODE_WEDDAT
+    fmtLftMode = "Wedstr. datum"
+  Case Else
+    fmtLftMode = "Standaard (31 dec wedstr. seiz.)"
+End Select
+End Function

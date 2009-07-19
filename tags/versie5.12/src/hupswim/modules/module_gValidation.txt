@@ -1,0 +1,921 @@
+Option Compare Database
+Option Explicit
+
+
+Public Const VAL_TYPE_LFT = 1
+Public Const VAL_TYPE_EST = 2
+Public Const VAL_TYPE_QLF = 3
+Public Const VAL_TYPE_TIME = 4
+Public Const VAL_TYPE_PROG = 5
+Public Const VAL_TYPE_CFG = 6
+
+Public Const VAL_LEVEL_CRITICAL = 8
+Public Const VAL_LEVEL_ERROR = 7
+Public Const VAL_LEVEL_WARNING = 6
+Public Const VAL_LEVEL_QLF_MISSING_INFO = 5
+Public Const VAL_LEVEL_TM_MAJOR = 4
+Public Const VAL_LEVEL_TM_MINOR = 3
+
+
+Public Const VAL_LIM_SATISFIED = -2
+Public Const VAL_LIM_SATISFIED_AS_RES = -1
+Public Const VAL_LIM_NOT_SATISFIED = 1
+Public Const VAL_LIM_UNRECOGNIZED_LIM = 2
+
+
+Public Function valTestLimit(ByVal wednr As Long, ByVal wedLftMode As String, ByVal wedAgeDate As Date, ByVal wedQlfConvMode As String, ByRef prInf As PROG_BASIC_INFO, ByRef skEst As Recordset, ByVal swmStart As String, ByVal swmGes As String, ByVal swmGebDat As String, ByVal estVer As String, estNr As Integer, _
+ByVal nMCatProgs As Integer, ByRef mCatProgNames() As String, ByRef mCatProgOffs() As Integer, ByRef mCatProgCatCnt() As Integer, ByRef catInfo() As CAT_INFO, _
+ByVal qlfTime As Double, ByVal qlfBn As Integer, ByRef appLimS As String, ByRef appResLimS, ByRef valLimResCode As Integer) As Boolean
+
+On Error GoTo fout
+
+valTestLimit = False
+
+'Need to check whether the limit / res limit is satisfied.
+'First find the appropriate limit
+  
+
+appLimS = Trim(prInf.lim)
+appResLimS = Trim(prInf.resLim)
+
+Dim tpProgIdx As Integer
+tpProgIdx = -1
+
+If (prInf.isMCat) Then
+  tpProgIdx = catInfoGetProgIdx(prInf.prognr, nMCatProgs, mCatProgNames)
+End If
+  
+If (prInf.isMCat) And (tpProgIdx >= 0) Then
+  'need to find the correct limit / res limit according to the agegroup
+  Dim tpCatIdx As Integer
+  tpCatIdx = -1
+    
+  If (Not prInf.isEstaf) Then
+    tpCatIdx = catInfoGetSatisfiedCatIdxFromList(wedAgeDate, wedLftMode, swmStart, swmGes, swmGebDat, mCatProgOffs(tpProgIdx), mCatProgOffs(tpProgIdx) + mCatProgCatCnt(tpProgIdx), catInfo)
+  Else
+          
+    skEst.Seek "=", wednr, prInf.prognr, estNr, estVer
+    If (skEst.NoMatch) Then
+      Err.Raise 1, , "Could not find estaf: (" & wednr & ", " & prInf.prognr & ", " & estVer & ", " & estNr & ")"
+    End If
+    
+    tpCatIdx = Nz(skEst("EST_ProgCatIdx"), -1)
+  End If 'if prInf.isEstaf
+    
+  If (tpCatIdx >= 0) Then
+    If Trim(catInfo(tpCatIdx).lim) <> "" Then
+      'individual agegroups limit override prog limits
+      appLimS = Trim(catInfo(tpCatIdx).lim)
+      appResLimS = Trim(catInfo(tpCatIdx).resLim)
+    End If
+      
+  End If
+      
+End If 'if prInf.isMcat and tpProgIdx >= 0
+  
+  
+'need to see if qlfTime matches the limit
+Dim is25Of50 As Boolean, lim25 As Double, lim50 As Double, limMin As Double, limMax As Double, limMid As Double, hasMid As Boolean
+Dim blLimIsValid As Boolean
+
+blLimIsValid = analyzeLimiet(appLimS, is25Of50, lim25, lim50, limMin, limMax, hasMid, limMid)
+
+
+
+valLimResCode = VAL_LIM_SATISFIED
+
+If (Not blLimIsValid And appLimS <> "") Then
+  valLimResCode = VAL_LIM_UNRECOGNIZED_LIM
+ElseIf (blLimIsValid) Then
+  
+  Dim resIs25Of50 As Boolean, resLim25 As Double, resLim50 As Double, resLim As Double, isDefResLim As Boolean
+  If (Not findResLimiet(appResLimS, "", resLim25, resLim50, resLim, isDefResLim)) Then
+    Exit Function
+  End If
+  If (isDefResLim) Then
+    resLim25 = 0
+    resLim50 = 0
+    resLim = 0
+  End If
+  
+  Dim tpTd25 As Double, tpTd50 As Double
+  If (qlfBn = 50) Then
+    tpTd50 = qlfTime
+  Else
+    tpTd25 = qlfTime
+  End If
+  
+  Dim actOK As Boolean, actRes As Boolean, actBn As Integer, actIsLeftOfMid As Boolean
+  limAnalyzeTime tpTd25, tpTd50, is25Of50, lim25, lim50, limMin, limMax, hasMid, limMid, resLim25, resLim50, resLim, wedQlfConvMode, "", "", "", actOK, actRes, actBn, actIsLeftOfMid
+  
+  
+  If (Not actOK) Then
+    valLimResCode = VAL_LIM_NOT_SATISFIED
+  ElseIf (actRes) Then
+    valLimResCode = VAL_LIM_SATISFIED_AS_RES
+  Else
+    valLimResCode = VAL_LIM_SATISFIED
+  End If
+  
+  
+End If 'if blLimIsValid
+
+  
+valTestLimit = True
+
+Exit Function
+
+fout:
+
+MsgBox Err & " valTestLimit" & vbCrLf & Error$, 16
+Exit Function
+  
+
+'debug
+On Error GoTo 0
+Resume
+  
+End Function
+
+
+
+Private Function valCreateTable(ByVal tbName As String) As Boolean
+On Error GoTo fout
+valCreateTable = False
+
+DoCmd.DeleteObject acTable, tbName
+
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("VAL_Wedstrijdnummer", dbLong)
+tb.Fields.Append tb.CreateField("VAL_Programmanummer", dbText, 50)
+tb.Fields.Append tb.CreateField("VAL_Vereniging", dbText, 100)
+tb.Fields.Append tb.CreateField("VAL_IsEstaf", dbBoolean)
+tb.Fields.Append tb.CreateField("VAL_Estafettenummer", dbInteger)
+tb.Fields.Append tb.CreateField("VAL_Startnummer", dbText, 50)
+tb.Fields.Append tb.CreateField("VAL_Naam", dbText, 255)
+tb.Fields.Append tb.CreateField("VAL_ValErrorLevel", dbInteger)
+tb.Fields.Append tb.CreateField("VAL_ValErrorType", dbInteger)
+tb.Fields.Append tb.CreateField("VAL_ValDescription", dbText, 255)
+tb.Fields.Append tb.CreateField("VAL_CanRepair", dbBoolean)
+tb.Fields.Append tb.CreateField("VAL_RepairDescription", dbText, 255)
+
+
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+Set db = Nothing
+
+
+valCreateTable = True
+Exit Function
+fout:
+
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function valTestEsts(ByRef wedInf As WED_BASIC_INFO, ByVal blEntireMeet As Boolean, ByRef valOutp As Recordset) As Boolean
+On Error GoTo fout
+valTestEsts = False
+
+Dim est As Recordset
+Set est = CurrentDb().OpenRecordset("~AN_Estafs_val")
+
+
+est.MoveFirst
+
+Do Until est.EOF
+  Dim tpWed As Long
+  Dim tpProg As String
+  
+  Dim tpFullCnt As Long
+  Dim tpActCnt As Long
+  
+  Dim tpVer As String
+  Dim tpEstNr As Long
+  
+  tpVer = Nz(est("EST_Vereniging"))
+  tpEstNr = Nz(est("EST_Estafettenummer"))
+  
+  
+  tpWed = Nz(est("EST_Wedstrijdnummer"))
+  tpProg = Nz(est("EST_Programmanummer"))
+  
+  'tpFullCnt = Nz(est("EST_FullPloegCnt"))
+  'tpActCnt = Nz(est("EST_ActPloegCnt"))
+  
+  Dim tpIsValid As Boolean
+  tpIsValid = Nz(est("EST_Valid"))
+  
+  
+  If Not tpIsValid Then
+  
+    Dim tpInvalidReason As String
+    tpInvalidReason = Nz(est("EST_InvalidReason"))
+    
+    If Not valAddError(valOutp, tpWed, tpProg, tpVer, True, "", "", tpEstNr, VAL_LEVEL_CRITICAL, VAL_TYPE_EST, tpInvalidReason) Then
+      Exit Function
+    End If
+  
+  End If
+
+  est.MoveNext
+Loop
+
+appCleanRS est
+
+
+
+
+valTestEsts = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " valTestEsts" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function valTestGlbData(ByRef wedInf As WED_BASIC_INFO, ByVal blEntireMeet As Boolean, ByRef valOutp As Recordset) As Boolean
+On Error GoTo fout
+valTestGlbData = False
+
+
+If Not lenDateIsValid(wedInf.date) Then
+  If Not valAddError(valOutp, wedInf.wednr, "", "", False, "", "", -1, VAL_LEVEL_CRITICAL, VAL_TYPE_CFG, "Datum wedstrijd is ongeldig") Then
+    Exit Function
+  End If
+End If
+
+
+If wedInf.Plaats = "" Then
+  If Not valAddError(valOutp, wedInf.wednr, "", "", False, "", "", -1, VAL_LEVEL_CRITICAL, VAL_TYPE_CFG, "Plaats waar de wedstrijd wordt gezwommen is niet ingevuld.") Then
+    Exit Function
+  End If
+End If
+
+If wedInf.avst = #12:00:00 AM# Then
+  If Not valAddError(valOutp, wedInf.wednr, "", "", False, "", "", -1, VAL_LEVEL_CRITICAL, VAL_TYPE_CFG, "Aanvangstijdstip is ongeldig.") Then
+    Exit Function
+  End If
+End If
+
+
+  
+
+
+valTestGlbData = True
+Exit Function
+
+fout:
+MsgBox Err & " valTestGlbData" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function valTestPersDlnCats(ByRef wedInf As WED_BASIC_INFO, ByVal blEntireMeet As Boolean, ByRef valOutp As Recordset) As Boolean
+On Error GoTo fout
+valTestPersDlnCats = False
+
+
+Dim prs As Recordset
+Dim prsSQL As String
+
+prsSQL = wedGetProgsSQL(False, blEntireMeet, "", wedInf.wednr, wedInf.meetMainNr, False, False)
+
+
+Set prs = CurrentDb().OpenRecordset(prsSQL)
+
+
+
+
+
+
+Dim dln As Recordset
+
+
+prs.MoveFirst
+Do Until prs.EOF
+  Dim prIsEstaf As Boolean
+  Dim prWedNr As Long
+  Dim prProgNr As String
+  Dim prCat As String
+  
+  prIsEstaf = Nz(prs(FNM_PR_AF)) Like "*x*"
+  prWedNr = Nz(prs(FNM_PR_WED))
+  prProgNr = Nz(prs(FNM_PR_PROG))
+  prCat = Nz(prs(FNM_PR_CAT))
+  
+  
+  Dim prUseMCats As Boolean
+  Dim prCatInfo(0 To MAX_N_VAR_CATS_PER_PROG_NON_DISPLAY) As CAT_INFO
+  Dim prNCats As Integer
+    
+  prUseMCats = False
+  prNCats = 0
+
+  If (catIsMCat(prCat)) Then
+    Dim sDummy As String
+    If Not catInfoGetListForProg(prWedNr, prProgNr, 0, prNCats, sDummy, prCatInfo) Then
+      Exit Function
+    End If
+    prUseMCats = True
+  End If
+  
+  
+  
+  Dim sql As String
+  
+  If Not prIsEstaf Then
+    sql = dlnGetDeelnemersPersSQL(True, False, prProgNr, prWedNr, -1, False)
+    Set dln = CurrentDb().OpenRecordset(sql)
+ 
+  
+    
+    dln.MoveFirst
+    Do Until dln.EOF
+      Dim tpGebDat As Date
+      Dim tpGes As String
+      Dim tpNm As String
+      Dim tpStart As String
+      Dim tpVer As String
+      
+      
+      tpGebDat = Nz(dln(FNM_NA_GEBDAT))
+      tpGes = Nz(dln(FNM_NA_GES))
+      tpNm = Nz(dln(FNM_DE_PERS_NAAM))
+      tpStart = Nz(dln(FNM_DE_PERS_STARTNR))
+      tpVer = Nz(dln(FNM_DE_PERS_VER))
+      
+      Dim blCatOK As Boolean
+      blCatOK = True
+      Dim sCatErrMsg As String
+      sCatErrMsg = ""
+      Dim tpCatIdx As Integer
+      
+
+      
+        'Check category of pers swimmer
+      Dim tpCatErrCode As Integer
+        
+      If (prUseMCats) Then
+        tpCatIdx = catInfoGetSatisfiedCatIdxFromList(wedInf.ageDate, wedInf.lftBep, tpStart, tpGes, tpGebDat, 0, prNCats, prCatInfo)
+        If (tpCatIdx < 0) Then
+          blCatOK = False
+          sCatErrMsg = "Zwemmer voldoet niet aan 1 van de leeftijdsgroepen in de lijst."
+        End If
+      Else
+        tpCatErrCode = cat_voldoet_bare(tpStart, prCat, tpGes, tpGebDat, wedInf.lftBep, True, wedInf.ageDate)
+        If (tpCatErrCode <> CAT_OK) Then
+          blCatOK = False
+          sCatErrMsg = catGetErrMsg(tpCatErrCode)
+        End If
+      End If
+      
+    
+
+      
+      If (Not blCatOK) Then
+      
+        If Not valAddError(valOutp, prWedNr, prProgNr, tpVer, False, tpStart, tpNm, 0, VAL_LEVEL_CRITICAL, VAL_TYPE_LFT, sCatErrMsg) Then
+          Exit Function
+        End If
+      
+        
+      End If
+      
+      
+      
+     
+    
+      dln.MoveNext
+    Loop
+  End If 'if not prIsEstaf
+
+
+  prs.MoveNext
+Loop
+
+
+appCleanRS dln
+appCleanRS prs
+
+
+
+
+valTestPersDlnCats = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " valTestPersDlnCats" & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function valTestDlnQlfData(ByRef wedInf As WED_BASIC_INFO, ByVal blEntireMeet As Boolean, ByVal blIsPersOnlyMode As Boolean, ByRef valOutp As Recordset) As Boolean
+On Error GoTo fout
+valTestDlnQlfData = False
+
+
+Dim skEst As Recordset
+
+If Not blIsPersOnlyMode Then
+  Set skEst = CurrentDb().OpenRecordset("~AN_Estafs_val")
+  skEst.Index = "P"
+End If
+
+
+
+Dim rs As Recordset
+
+Dim sql As String
+
+
+If (blIsPersOnlyMode) Then
+  sql = dlnGetDeelnemersPersSQL(False, blEntireMeet, "", wedInf.wednr, wedInf.meetMainNr, False)
+  sql = sql & " ORDER BY " & FNM_DE_PERS_WEDNR_TO_ORDER & " , [" & FNM_DE_PERS_PROG & "]"
+Else
+  sql = dlnGetDeelnemersEstSQL(False, blEntireMeet, "", wedInf.wednr, wedInf.meetMainNr, False, "_val")
+  sql = sql & " ORDER BY [" & FNM_DE_EST_WEDNR & "] , [" & FNM_DE_EST_PROG & "]"
+End If
+
+
+Dim curWed As Long
+Dim curProg As String
+Dim curProgInfo As PROG_BASIC_INFO
+
+curWed = -1
+curProg = ""
+
+Dim nMCatProgs As Integer
+Dim mCatProgNames(0 To MAX_N_PROGS) As String
+Dim mCatProgOffs(0 To MAX_N_PROGS) As Integer
+Dim mCatProgCatCnt(0 To MAX_N_PROGS) As Integer
+Dim catInfo(0 To MAX_N_VAR_CATS) As CAT_INFO
+
+
+Dim blWedQlfMinValid As Boolean, blWedQlfMaxValid As Boolean
+blWedQlfMinValid = lenDateIsValid(wedInf.qlfMinDate)
+blWedQlfMaxValid = lenDateIsValid(wedInf.qlfMaxDate)
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+
+Do Until rs.EOF
+ 
+  Dim tpWed As Long, tpProg As String
+  
+  If blIsPersOnlyMode Then
+    tpWed = Nz(rs(FNM_DE_PERS_WEDNR))
+    tpProg = Nz(rs(FNM_DE_PERS_PROG))
+  Else
+    tpWed = Nz(rs(FNM_DE_EST_WEDNR))
+    tpProg = Nz(rs(FNM_DE_EST_PROG))
+  End If
+  
+  If (tpWed <> curWed) Then
+  
+    Dim dummy(0 To 0) As String
+    
+    'Reload data for new wedstrijd
+    If (Not catInfoGetListForWed(tpWed, nMCatProgs, mCatProgNames, dummy, mCatProgOffs, mCatProgCatCnt, catInfo, False)) Then
+      nMCatProgs = 0
+      Exit Function
+    End If
+    
+  
+    curWed = tpWed
+    curProg = ""
+  End If
+  
+  If (tpProg <> curProg) Then
+       
+    Dim isFnd As Boolean
+    If Not prLookup(tpWed, tpProg, isFnd, curProgInfo) Then
+      Exit Function
+    End If
+    If Not isFnd Then
+      Err.Raise 1, , "Could not find prog: ( " & tpWed & ", " & tpProg & ")"
+    End If
+  
+    curProg = tpProg
+  End If
+  
+  
+  Dim tpVer As String, tpStart As String, tpEstNr As Integer, tpNm As String, tpIsRes As Boolean, tpIsBM As Boolean
+  If (blIsPersOnlyMode) Then
+    tpVer = Nz(rs(FNM_DE_PERS_VER))
+    tpStart = Nz(rs(FNM_DE_PERS_STARTNR))
+    tpNm = Nz(rs(FNM_DE_PERS_NAAM))
+    tpIsRes = (Nz(rs(FNM_DE_PERS_RES)) = "J")
+    tpIsBM = (Nz(rs(FNM_DE_PERS_BM)) = "J")
+    tpEstNr = 0
+  Else
+    tpVer = Nz(rs(FNM_DE_EST_VER))
+    tpEstNr = Nz(rs(FNM_DE_EST_ESTNR))
+    tpStart = ""
+    tpNm = ""
+    tpIsRes = (Nz(rs(FNM_DE_EST_RES)) = "J")
+    tpIsBM = (Nz(rs(FNM_DE_PERS_BM)) = "J")
+  End If
+    
+  
+  
+
+  Dim qlfTime As Double, qlfDate As Date, qlfBn As Integer
+  If (blIsPersOnlyMode) Then
+    qlfTime = Nz(rs(FNM_DE_PERS_INSTD))
+    qlfDate = Nz(rs(FNM_DE_PERS_QLF_DAT))
+    qlfBn = Nz(rs(FNM_DE_PERS_QLF_BAAN))
+  Else
+    qlfTime = Nz(rs(FNM_DE_EST_INSTD))
+    qlfDate = Nz(rs(FNM_DE_EST_QLF_DAT))
+    qlfBn = Nz(rs(FNM_DE_EST_QLF_BAAN))
+  End If
+  
+  Dim blHasValidQlfTime As Boolean, blHasValidQlfData As Boolean
+  
+  blHasValidQlfTime = swtIsValid(qlfTime)
+  
+  blHasValidQlfData = False
+  If (blHasValidQlfTime And lenDateIsValid(qlfDate) And ((qlfBn = 25) Or (qlfBn = 50))) Then
+    blHasValidQlfData = True
+  End If
+  
+  If (blIsPersOnlyMode) Then
+    If (blHasValidQlfTime) And (Not blHasValidQlfData) Then
+      If Not valAddError(valOutp, tpWed, tpProg, tpVer, False, tpStart, tpNm, 0, VAL_LEVEL_QLF_MISSING_INFO, VAL_TYPE_QLF, "Geen datum / plaats / baan voor inschrijftijd gevonden") Then
+        Exit Function
+      End If
+    End If
+  Else
+    If (blHasValidQlfTime) And (Not blHasValidQlfData) And (wedInf.qlfRelayMode = RELAY_MODE_TEAM) Then
+      'error, since we need a valid team time.
+      If Not valAddError(valOutp, tpWed, tpProg, tpVer, True, "", "", tpEstNr, VAL_LEVEL_QLF_MISSING_INFO, VAL_TYPE_QLF, "Geen datum / plaats / baan voor estafette ploeg tijd gevonden") Then
+        Exit Function
+      End If
+    End If
+  End If
+  
+    
+  'Need to check whether the qlfDate & qlfBn are OK.
+  
+  If (blHasValidQlfData) Then
+    'check the qualification data
+    
+   
+    If (blWedQlfMaxValid) And (qlfDate > wedInf.qlfMaxDate) Then
+      'error
+      If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_ERROR, VAL_TYPE_QLF, "Inschrijftijd te recent") Then
+        Exit Function
+      End If
+    End If
+    If (blWedQlfMinValid) And (qlfDate < wedInf.qlfMinDate) Then
+      'error
+      If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_ERROR, VAL_TYPE_QLF, "Inschrijftijd te oud") Then
+        Exit Function
+      End If
+    End If
+    
+    If (wedInf.qlfConvMode = QLF_CONV_SAME_LN_ONLY) Then
+      If (qlfBn <> wedInf.baan) Then
+        If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_ERROR, VAL_TYPE_QLF, "Inschrijftijd heeft verkeerde baanlengte") Then
+          Exit Function
+        End If
+      End If
+    End If
+    
+  
+  End If 'if blHasValidQlfData
+  
+  
+  
+  Dim tpGebDat As Date
+  Dim tpGes As String
+      
+  If (blIsPersOnlyMode) Then
+    tpGebDat = Nz(rs(FNM_NA_GEBDAT))
+    tpGes = Nz(rs(FNM_NA_GES))
+  End If
+  
+  Dim tpLimS As String, tpResLimS As String
+  Dim valLimResCode As Integer
+  
+  'Notice that tpWed may be different from wedInf.wednr here!
+  
+  If Not valTestLimit(tpWed, wedInf.lftBep, wedInf.ageDate, wedInf.qlfConvMode, curProgInfo, skEst, tpStart, tpGes, tpGebDat, tpVer, tpEstNr, nMCatProgs, mCatProgNames, _
+    mCatProgOffs, mCatProgCatCnt, catInfo, qlfTime, qlfBn, tpLimS, tpResLimS, valLimResCode) Then
+    Exit Function
+  End If
+  
+  Select Case valLimResCode
+    Case VAL_LIM_SATISFIED
+      'everything is OK
+    Case VAL_LIM_SATISFIED_AS_RES
+      If (Not tpIsRes) Then
+        If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_CRITICAL, VAL_TYPE_QLF, "Inschrijftijd " & fmtSwimTime(qlfTime) & " voldoet aan de reserve limiet " & tpLimS & " + " & tpResLimS & ", maar zwemmer is geen reserve") Then
+          Exit Function
+        End If
+      End If
+    Case VAL_LIM_NOT_SATISFIED
+      If Not tpIsBM Then
+        If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_CRITICAL, VAL_TYPE_QLF, "Inschrijftijd " & fmtSwimTime(qlfTime) & " voldoet niet aan de limiet " & tpLimS) Then
+          Exit Function
+        End If
+      Else
+        If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_WARNING, VAL_TYPE_QLF, "Inschrijftijd " & fmtSwimTime(qlfTime) & " voldoet niet aan de limiet " & tpLimS & " (maar zwemmer is BM) ") Then
+          Exit Function
+        End If
+      End If
+      
+    Case VAL_LIM_UNRECOGNIZED_LIM
+      If Not valAddError(valOutp, tpWed, tpProg, "", blIsPersOnlyMode, "", "", 0, VAL_LEVEL_CRITICAL, VAL_TYPE_PROG, "Kon de limiet: " & tpLimS & " niet herkennen") Then
+        Exit Function
+      End If
+  End Select
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS skEst
+
+
+
+valTestDlnQlfData = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " valTestDlnQlfData" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
+Private Function valAddError(ByRef rsOut As Recordset, ByVal wednr As Long, ByVal prog As String, ByVal ver As String, ByVal isEstaf As Boolean, ByVal start As String, ByVal nm As String, ByVal estNr As Long, ByVal errLevel As Integer, ByVal errType As Integer, ByVal errS As String) As Boolean
+On Error GoTo fout
+valAddError = False
+
+rsOut.AddNew
+  rsOut("VAL_Wedstrijdnummer") = wednr
+  rsOut("VAL_Programmanummer") = hzn(prog)
+  rsOut("VAL_Vereniging") = hzn(ver)
+    
+  rsOut("VAL_IsEstaf") = isEstaf
+  
+  If (isEstaf) Then
+    rsOut("VAL_Estafettenummer") = estNr
+  Else
+    rsOut("VAL_Startnummer") = hzn(start)
+    rsOut("VAL_Naam") = hzn(nm)
+  End If
+
+  
+  rsOut("VAL_ValErrorLevel") = errLevel
+  rsOut("VAL_ValErrorType") = errType
+  rsOut("VAL_ValDescription") = hzn(errS)
+  
+  rsOut("VAL_CanRepair") = False
+  rsOut("VAL_RepairDescription") = Null
+  
+rsOut.Update
+
+
+valAddError = True
+Exit Function
+fout:
+MsgBox Err & " valAddError" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function valTestResults(ByRef wedInf As WED_BASIC_INFO, ByVal blEntireMeet As Boolean, ByVal blIsPersOnlyMode As Boolean, ByRef valOutp As Recordset) As Boolean
+On Error GoTo fout
+valTestResults = False
+
+Dim sql As String
+
+If (blIsPersOnlyMode) Then
+  sql = tyGetResultsPersSQL(False, blEntireMeet, "", wedInf.wednr, wedInf.meetMainNr)
+Else
+  sql = tyGetResultsEstSQL(False, blEntireMeet, "", wedInf.wednr, wedInf.meetMainNr)
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpWed As Long, tpProg As String
+  
+  tpWed = Nz(rs(FNM_TY_WED))
+  tpProg = Nz(rs(FNM_TY_PROG))
+  
+  Dim tpVer As String, tpStart As String, tpNm As String, tpEstNr As Integer
+  
+  If (blIsPersOnlyMode) Then
+    tpVer = Nz(rs(FNM_TY_PERS_VER))
+    tpStart = Nz(rs(FNM_TY_PERS_START))
+    tpNm = Nz(rs(FNM_TY_PERS_NAAM))
+    tpEstNr = 0
+  Else
+    tpVer = Nz(rs(FNM_TY_EST_VER))
+    tpEstNr = Nz(rs(FNM_TY_EST_ESTNR))
+    tpStart = ""
+    tpNm = ""
+  End If
+  
+  Dim tpEindTijd As Double
+  Dim tpEindAf As String
+  
+  
+  If (blIsPersOnlyMode) Then
+    tpEindAf = Nz(rs(FNM_TY_PERS_EINDAF))
+    tpEindTijd = Nz(rs(FNM_TY_PERS_EINDTIJD))
+  Else
+    tpEindAf = Nz(rs(FNM_TY_EST_EINDAF))
+    tpEindTijd = Nz(rs(FNM_TY_EST_EINDTIJD))
+  End If
+  
+  
+  
+  If (swtIsValid(tpEindTijd)) Then
+  
+    Dim tstAf(0 To MAX_N_TUSSENTIJDEN) As Integer
+    Dim tstTd(0 To MAX_N_TUSSENTIJDEN) As Double
+    Dim tstCnt As Integer
+     
+    tstCnt = 0
+    If Not (tstExtractTussenTijden(Nz(rs(FNM_TY_TST_EXT)), tstCnt, tstAf, tstTd)) Then
+       Exit Function
+    End If
+    
+    'have to add main tussentijden.
+    Dim tpTstI As Integer
+    For tpTstI = 1 To 4
+      Dim tpTstAf As Integer
+      Dim tpTstTd As Double
+      tpTstAf = CInt(val(Nz(rs(FNM_TY_TST_AF_MAIN_ROOT & tpTstI))))
+      tpTstTd = Nz(rs(FNM_TY_TST_TD_MAIN_ROOT & tpTstI))
+      If (swtIsValid(tpTstTd)) Then
+        If (tpTstAf > 0) Then
+          If Not tstSetTussenTijd(tpTstAf, tpTstTd, tstCnt, tstAf, tstTd) Then
+            Exit Function
+          End If
+        End If
+      End If
+    Next tpTstI
+    
+    Dim i As Integer
+    For i = 0 To tstCnt - 1
+      If swtIsValid(tstTd(i)) Then
+        Dim tpStrength As Double
+        tpStrength = wasMatchStrength(tpEindAf, tpEindTijd, tstAf(i), tstTd(i))
+        
+        If (tpStrength < 40) Then
+          'give a major error
+          If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_TM_MAJOR, VAL_TYPE_TIME, "De " & tstAf(i) & "m tussentijd: " & fmtSwimTime(tstTd(i)) & " komt niet goed overeen met de eindtijd: " & fmtSwimTime(tpEindTijd)) Then
+            Exit Function
+          End If
+        ElseIf (tpStrength < 55) Then
+          'give a minor error
+          If Not valAddError(valOutp, tpWed, tpProg, tpVer, Not blIsPersOnlyMode, tpStart, tpNm, tpEstNr, VAL_LEVEL_TM_MINOR, VAL_TYPE_TIME, "De " & tstAf(i) & "m tussentijd: " & fmtSwimTime(tstTd(i)) & " komt niet goed overeen met de eindtijd: " & fmtSwimTime(tpEindTijd)) Then
+            Exit Function
+          End If
+        End If
+      End If
+    Next i
+  
+  End If 'if swtIsValid(tpEindTijd)
+  
+
+
+  rs.MoveNext
+Loop
+
+
+
+
+valTestResults = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " valTestResults" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function valValidateWedstrijd(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+On Error GoTo fout
+valValidateWedstrijd = False
+
+Dim wedInf As WED_BASIC_INFO
+
+Dim isFnd As Boolean
+If Not wedLookup(wednr, isFnd, wedInf) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Could not find wednr: " & wednr
+End If
+
+If Not valCreateTable("~Validatie") Then
+  Exit Function
+End If
+
+If Not analyzeEstafs(Not blEntireMeet, wedInf.wednr, wedInf.meetMainNr, "~AN_Estafs_val") Then
+  Exit Function
+End If
+
+Dim valOutp As Recordset
+Set valOutp = CurrentDb().OpenRecordset("~Validatie", dbOpenDynaset)
+
+If Not valTestGlbData(wedInf, blEntireMeet, valOutp) Then
+  Exit Function
+End If
+
+
+
+
+If Not valTestPersDlnCats(wedInf, blEntireMeet, valOutp) Then
+  Exit Function
+End If
+
+If Not valTestEsts(wedInf, blEntireMeet, valOutp) Then
+  Exit Function
+End If
+
+'persoonlijke starts
+If Not valTestDlnQlfData(wedInf, blEntireMeet, True, valOutp) Then
+  Exit Function
+End If
+
+'estafette starts
+If Not valTestDlnQlfData(wedInf, blEntireMeet, False, valOutp) Then
+  Exit Function
+End If
+
+'persoonlijke tijden
+If Not valTestResults(wedInf, blEntireMeet, True, valOutp) Then
+  Exit Function
+End If
+
+'estafette tijden
+If Not valTestResults(wedInf, blEntireMeet, False, valOutp) Then
+  Exit Function
+End If
+
+
+
+
+DoCmd.DeleteObject acTable, "~AN_Estafs_val"
+
+
+valValidateWedstrijd = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next ' could not find object to delete
+MsgBox Err & " valValidateWedstrijd" & vbCrLf & Error$, 16
+Exit Function
+End Function

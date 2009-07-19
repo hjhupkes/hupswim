@@ -1,0 +1,180 @@
+Version =20
+VersionRequired =20
+Checksum =251049391
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    ScrollBars =2
+    ViewsAllowed =1
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =20
+    Width =11907
+    DatasheetFontHeight =10
+    ItemSuffix =28
+    Left =3780
+    Top =165
+    Right =15480
+    Bottom =6270
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x69f3129e7f5fe340
+    End
+    RecordSource ="SELECT [dtWedstrijden(wImp)].*, [dtWedstrijden].Datum AS odat, [dtWedstrijden].P"
+        "laats AS opl, [dtWedstrijden].Beschrijving AS obes, [dtWedstrijden].Baanlengte A"
+        "S obn FROM [dtWedstrijden(wImp)] LEFT JOIN [dtWedstrijden] ON [dtWedstrijden(wIm"
+        "p)].MATCH_Wedstrijdnummer = [dtWedstrijden].[Wedstrijd nummer] ORDER BY [dtWedst"
+        "rijden(wImp)].Datum DESC , [dtWedstrijden(wImp)].[Wedstrijd nummer] DESC;"
+    Caption ="Wedstrijden"
+    OnCurrent ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =300
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =56
+                    Top =85
+                    Width =1605
+                    Height =210
+                    Name ="Label25"
+                    Caption ="In te lezen wedstrijd   "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =5898
+                    Top =90
+                    Width =4155
+                    Height =210
+                    Name ="Label26"
+                    Caption ="Koppelen met bestaande wedstrijd: (leeg = toevoegen)     "
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =7206
+                    Width =4701
+                    Name ="Text20"
+                    ControlSource ="=IIf(IsNull([odat]),\"\",Format([odat],\"dd-mm-yyyy\") & \" / \" & [opl] & \" / "
+                        "\" & [obn] & \" / \" & [obes])"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =93
+                    Left =56
+                    Width =5676
+                    TabIndex =1
+                    Name ="Text17"
+                    ControlSource ="=Format([datum],\"dd-mm-yyyy\") & \" / \" & [plaats] & \" / \" & [baanlengte] & "
+                        "\" / \" & [beschrijving]"
+                End
+                Begin ComboBox
+                    LimitToList = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =5
+                    ListWidth =5040
+                    Left =5896
+                    Width =1131
+                    TabIndex =2
+                    ColumnInfo ="\"\";\"\";\"\";\"dd/mm/yyyy\";\"\";\"\";\"\";\"\";\"\";\"\";\"4\";\"4\""
+                    Name ="wedcmb"
+                    ControlSource ="MATCH_Wedstrijdnummer"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [dtWedstrijden].[Wedstrijd nummer], [dtWedstrijden].Datum, [d"
+                        "tWedstrijden].Beschrijving, [dtWedstrijden].Plaats, [dtWedstrijden].Baanlengte F"
+                        "ROM [dtWedstrijden] WHERE ((([dtWedstrijden].Datum)=[forms]![WIZ_WB_MASTER]![sub"
+                        "frm]![datum]));"
+                    ColumnWidths ="960;1005;1290;1290;495"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =247
+                    Left =907
+                    Width =906
+                    Height =195
+                    TabIndex =3
+                    Name ="Datum"
+                    ControlSource ="Datum"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =-2147483633
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+
+Private Sub Form_Current()
+On Error Resume Next
+wedcmb.Requery
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+'DoCmd.Maximize
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

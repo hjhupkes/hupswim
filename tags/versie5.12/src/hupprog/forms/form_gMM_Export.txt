@@ -1,0 +1,296 @@
+Version =20
+VersionRequired =20
+Checksum =1434055008
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    GridX =5
+    GridY =5
+    Width =9735
+    ItemSuffix =100
+    Left =4485
+    Top =165
+    Right =14220
+    Bottom =4455
+    RecSrcDt = Begin
+        0xde3e7053b05ae340
+    End
+    Caption ="mail merge"
+    OnOpen ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            Width =1701
+            Height =1701
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ListBox
+            SpecialEffect =2
+            Width =1701
+            Height =1417
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =16776960
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =4305
+            BackColor =65280
+            Name ="Detail0"
+            Begin
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =540
+                    Top =2070
+                    Name ="blSemicolon"
+                    DefaultValue ="False"
+                    GUID = Begin
+                        0x4db072e0ff9af84ea31ee61d5d0250c3
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =765
+                            Top =2040
+                            Width =3330
+                            Height =240
+                            Name ="Label95"
+                            Caption ="Velden scheiden met punt-komma ipv komma "
+                            GUID = Begin
+                                0x2df58ed2e725f841a5cb067163f411de
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =540
+                    Top =1710
+                    TabIndex =1
+                    Name ="blQuotation"
+                    DefaultValue ="True"
+                    GUID = Begin
+                        0xe07786d02a7fcd4dbdbfc707d4479b2a
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =765
+                            Top =1680
+                            Width =3540
+                            Height =240
+                            Name ="Label97"
+                            Caption ="Aanhalingstekens gebruiken om gegevens heen "
+                            GUID = Begin
+                                0x1a4da0f05b97bd468f7f32b6699a97c5
+                            End
+                        End
+                    End
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =215
+                    BackStyle =0
+                    Left =555
+                    Top =513
+                    Width =8331
+                    Height =435
+                    FontWeight =700
+                    TabIndex =2
+                    Name ="fName"
+                    GUID = Begin
+                        0x02388dcdf9800f489ad9b16fe88e74db
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =93
+                            Left =557
+                            Top =285
+                            Width =1215
+                            Height =240
+                            Name ="Label39"
+                            Caption ="Bestandsnaam: "
+                            GUID = Begin
+                                0xd85c9d553fad094db3ac1adda0656c5e
+                            End
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =87
+                    TextFontFamily =34
+                    Left =555
+                    Top =994
+                    Width =1260
+                    Height =360
+                    FontSize =8
+                    TabIndex =3
+                    ForeColor =-2147483630
+                    Name ="btnWijzig"
+                    Caption ="&Wijzig..."
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0x0c916bcebb53d944968bb1ce8a618d23
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =4485
+                    Top =1830
+                    Width =4455
+                    Height =210
+                    Name ="Label98"
+                    Caption ="(De standaard opties zijn geschikt voor gebruik met MS Word)"
+                    GUID = Begin
+                        0x043f573a2dfd5147b94c9f7848980548
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =585
+                    Top =3210
+                    Width =2880
+                    Height =420
+                    TabIndex =4
+                    Name ="btnCreate"
+                    Caption ="Maak mailmerge bestand"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xd29d3cd72e33bc45afe8a7cd25578c5c
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =65280
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+
+
+Private Sub btnCreate_Click()
+On Error GoTo fout
+
+Dim fName As String
+fName = Nz(Me.fName)
+
+Dim optQuotation As Boolean, optSemicolon As Boolean
+optQuotation = Nz(Me.blQuotation)
+optSemicolon = Nz(Me.blSemicolon)
+
+If FileExists(fName) Then
+  If MsgBox("Het bestand: " & vbCrLf & fName & vbCrLf & "bestaat al. Wilt u het overschrijven? ", vbOKCancel + vbQuestion) = vbCancel Then
+    Exit Sub
+  End If
+End If
+
+
+Dim sDummy(0 To 0) As String
+If Not mmExport(False, False, fName, optSemicolon, optQuotation, True, False, 0, sDummy) Then
+  Exit Sub
+End If
+
+MsgBox "Het bestand: " & vbCrLf & fName & vbCrLf & "is met succes aangemaakt." & vbCrLf & vbCrLf & "U kunt hiermee een mail-merge operatie uitvoeren in bv Word", vbInformation
+
+
+Exit Sub
+fout:
+MsgBox Err & " btnCreate_click" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+Private Sub btnWijzig_Click()
+On Error GoTo fout
+
+
+Dim expFName As String
+
+expFName = Nz(Me.fName)
+
+Dim suggestFName As String
+suggestFName = "mailmerge.txt"
+
+
+If Not DirectoryExists(extractFilePath(expFName)) Then
+  If Not DirectoryExists(dbdir_op()) Then
+    expFName = "c:\" & suggestFName
+  Else
+    expFName = directory_goedmaak(dbdir()) & "\" & suggestFName
+  End If
+End If
+  
+If Not fileNamePromptUser(FILE_DLG_SAVE, "Mailmerge bestand aanmaken ", "Text bestanden (*.txt)|*.txt", expFName, True, True) Then
+  Exit Sub
+End If
+
+If (expFName <> "") Then
+  If (Right(expFName, 4) <> ".txt") Then
+    expFName = expFName & ".txt"
+  End If
+  Me.fName = expFName
+End If
+
+
+Exit Sub
+fout:
+MsgBox Err & " btnWijzig_click" & vbCrLf & Error$, 16
+
+
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.fName = directory_goedmaak(dbdir()) & "\mailmerge.txt"
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
