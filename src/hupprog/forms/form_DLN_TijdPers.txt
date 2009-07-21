@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-543872080
+Checksum =832604381
 Begin Form
     MaxButton = NotDefault
     MinButton = NotDefault
@@ -186,7 +186,7 @@ Begin Form
                     Top =56
                     Width =645
                     Height =240
-                    Name ="Label73"
+                    Name ="lbExtraTst"
                     Caption ="Ext. Tst. "
                 End
                 Begin Label
@@ -350,6 +350,7 @@ Begin Form
                     ColumnHidden = NotDefault
                     OldBorderStyle =0
                     OverlapFlags =85
+                    BackStyle =0
                     Left =10960
                     Width =351
                     ColumnOrder =19
@@ -557,6 +558,23 @@ Begin Form
             BackColor =65280
             Name ="FormFooter2"
             Begin
+                Begin CommandButton
+                    Visible = NotDefault
+                    OverlapFlags =93
+                    AccessKey =67
+                    Left =9977
+                    Top =56
+                    Width =1281
+                    Height =347
+                    TabIndex =9
+                    Name ="btnViaCap"
+                    Caption ="Via &capnr..."
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xb630a9fc4b8ef94d8ff33b46ca9d06e3
+                    End
+                    UnicodeAccessKey =99
+                End
                 Begin TextBox
                     Visible = NotDefault
                     Enabled = NotDefault
@@ -639,7 +657,7 @@ Begin Form
                     End
                 End
                 Begin CheckBox
-                    OverlapFlags =85
+                    OverlapFlags =215
                     AccessKey =69
                     Left =9779
                     Top =144
@@ -654,7 +672,7 @@ Begin Form
                             Top =113
                             Width =1230
                             Height =240
-                            Name ="Label69"
+                            Name ="lbBlExtraTst"
                             Caption ="&Extra Tst. Gebr."
                         End
                     End
@@ -878,6 +896,12 @@ Exit Sub
 
 End Sub
 
+Private Sub btnViaCap_Click()
+On Error Resume Next
+DoCmd.OpenForm "DLN_DLG_CapnrTijdInvoer", , , , , acDialog
+Me.Requery
+End Sub
+
 Private Sub Form_BeforeUpdate(Cancel As Integer)
 On Error Resume Next
 If IsNull(Me![TY_Eindafstand]) Then
@@ -1034,6 +1058,16 @@ If (blIsOW) Then
  Me.lbt2.Visible = False
  Me.lbt3.Visible = False
  Me.lbt4.Visible = False
+ 
+ 
+ Me.btnExtraTst.Visible = False
+ Me.extraTst.Visible = False
+ Me.lbExtraTst.Visible = False
+ Me.blExtraTst.Visible = False
+ Me.lbBlExtraTst.Visible = False
+ 
+ Me.btnViaCap.Visible = True
+ 
 End If
 
 
