@@ -466,7 +466,7 @@ ElseIf (sFirstProg <> "") Then
   sqlExtra = " and val([de_programmanummer]) >= " & val(sFirstProg) _
   & " and [de_programmanummer] >= """ & sFirstProg & """ "
 ElseIf (sLastProg <> "") Then
-  sqlExtra = " and val([de_programmanummer]) <= " & val(sFirstProg) _
+  sqlExtra = " and val([de_programmanummer]) <= " & val(sLastProg) _
   & " and [de_programmanummer] <= """ & sLastProg & """ "
 End If
 
@@ -542,11 +542,11 @@ If (lFirstIdx >= 0) And (lLastIdx >= 0) Then
     [CI_Naam] = rsDlns("DE_Naam")
     [CI_Programmanummer] = rsDlns("DE_Programmanummer")
     
-    [ci_eindafstand] = Null
+    [CI_Eindafstand] = Null
     
     skProg.Seek "=", waarde(), Nz(rsDlns("DE_Programmanummer"))
     If Not skProg.NoMatch Then
-      [ci_eindafstand] = skProg("PR_Afstand")
+      [CI_Eindafstand] = skProg("PR_Afstand")
     End If
   End If
 End If
