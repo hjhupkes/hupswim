@@ -1,0 +1,256 @@
+Version =20
+VersionRequired =20
+Checksum =827081192
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DividingLines = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =5669
+    DatasheetFontHeight =10
+    ItemSuffix =8
+    Left =4800
+    Top =2745
+    Right =11085
+    Bottom =6570
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0xe7bc14cbb0ade140
+    End
+    Caption ="Finale indeling"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =793
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =1700
+                    Top =170
+                    Width =2700
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =65280
+                    Name ="Label4"
+                    Caption ="Finale indeling maken"
+                End
+            End
+        End
+        Begin Section
+            Height =396
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    AccessKey =83
+                    TextAlign =1
+                    Left =786
+                    Top =60
+                    Width =456
+                    Name ="aantal"
+                    DefaultValue ="=[Forms]![wed_master]![we_aantal_banen]"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =60
+                            Top =60
+                            Width =690
+                            Height =240
+                            Name ="Label1"
+                            Caption ="&Snelste"
+                        End
+                    End
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    AccessKey =80
+                    ColumnCount =4
+                    ListWidth =3780
+                    Left =4589
+                    Top =60
+                    Width =846
+                    TabIndex =1
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"10\";\"100\""
+                    Name ="prog"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW PR_Programmanummer, PR_Afstand, PR_Slag, PR_Categorie FROM dt"
+                        "Programma WHERE pr_wedstrijdnummer = waarde() order by Val([pr_programmanummer])"
+                        ", PR_Programmanummer;"
+                    ColumnWidths ="780;795;1080;1125"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =1290
+                            Top =60
+                            Width =3180
+                            Height =240
+                            Name ="uit programmanummer_Label"
+                            Caption ="deelnemers ophalen uit &programmanummer"
+                            EventProcPrefix ="uit_programmanummer_Label"
+                        End
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =1142
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =56
+                    Top =56
+                    Width =5280
+                    Height =510
+                    Name ="Label5"
+                    Caption ="Deze functie haalt de snelste x deelnemers uit het programmanummer dat \015\012u"
+                        " opgeeft en voegt ze aan het huidig programmanummer toe."
+                End
+                Begin CommandButton
+                    Default = NotDefault
+                    OverlapFlags =85
+                    Left =4081
+                    Top =680
+                    Width =1425
+                    Height =405
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnOK"
+                    Caption ="OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =56
+                    Top =680
+                    Width =1425
+                    Height =405
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnCancel"
+                    Caption ="Annuleren"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub btnOK_Click()
+On Error GoTo foutafhandel
+Dim geg As Recordset, uit As Recordset, sql As String, h_prognr As String
+Dim i As Integer
+h_prognr = waarde_prog()
+
+If IsNull(Me.prog) Or Me.prog = "" Then
+    MsgBox "Kies een programmanumemr.", 16
+    prog.SetFocus
+    Exit Sub
+End If
+
+
+sql = "SELECT dtTijden.* FROM [dtTijden] WHERE (((dtTijden.TY_Programmanummer) = """ & Me.prog & """) And ((dtTijden.TY_Eindtijd) <> 0) And ((dtTijden.TY_Wedstrijdnummer) = waarde()) And " & _
+    " ((dtTijden.ty_dis) Is Null Or (dtTijden.ty_dis) = """")) ORDER BY dtTijden.TY_Eindtijd, dtTijden.ty_ab;"
+
+Set geg = CurrentDb().OpenRecordset(sql)
+Set uit = CurrentDb().OpenRecordset("dtDeelnemers", dbOpenDynaset)
+geg.MoveFirst
+For i = 1 To Me.aantal
+    If Not IsNull(geg("TY_Startnummer")) Then
+        uit.AddNew
+        uit("De_programmanummer") = h_prognr
+        uit("DE_Wedstrijdnummer") = waarde()
+        uit("DE_Vereniging") = geg("TY_Vereniging")
+        uit("DE_Startnummer") = geg("TY_Startnummer")
+        uit("DE_Naam") = DLookup("NA_naam", "dtNamen", "NA_Vereniging=""" & geg("TY_Vereniging") & """ and NA_Startnummer = """ & geg("TY_Startnummer") & """")
+        uit("DE_inschrijftijd") = geg("TY_Eindtijd")
+        uit.Update
+    End If
+    geg.MoveNext
+Next i
+
+DoCmd.Close acForm, "DLN_DLG_Finale"
+Forms![dln_deelnPers].SetFocus
+Forms![dln_deelnPers].Requery
+
+Exit Sub
+foutafhandel:
+If Err = 3022 Then
+    Resume Next
+End If
+If Err = 3021 Then 'no current record
+    DoCmd.Close acForm, "DLN_DLG_Finale"
+    Forms![dln_deelnPers].SetFocus
+    Forms![dln_deelnPers].Requery
+    Exit Sub
+End If
+    
+
+MsgBox Error$, 16
+Forms![dln_deelnPers].Requery
+Exit Sub
+
+End Sub
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+
+DoCmd.Close
+
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

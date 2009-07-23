@@ -1,0 +1,2351 @@
+Option Compare Database
+Option Explicit
+
+
+Global Const SPL_MM_VALID = -1
+Global Const SPL_MM_UNKNOWN_FILE = 0
+Global Const SPL_MM_UZIP_FAILURE = 1
+Global Const SPL_MM_INVALID_ZIP_CNT = 2
+Global Const SPL_MM_PARADOX_FAILURE = 3
+Global Const SPL_MM_NOT_ZIP_FILE = 5
+Global Const SPL_MM_UNKNOWN_FAILURE = 6
+Global Const SPL_MM_INVALID_MDB_CNT = 7
+Global Const SPL_MM_MDB_OPEN_FAILURE = 8
+
+Const IMP_STATUS_IS_PX = 0
+Const IMP_STATUS_IS_PROP = 1
+Const IMP_STATUS_IS_AUX = 2
+
+
+'public because need in query.
+Public Function splReadBoolean(ByVal s As String) As Boolean
+On Error Resume Next
+If (s = "T") Then
+  splReadBoolean = True
+Else
+  splReadBoolean = False
+End If
+End Function
+
+
+Private Function splReadSettingsFromString(ByVal s As String, ByVal blCreateTable As Boolean, tbName As String) As Boolean
+On Error GoTo fout
+splReadSettingsFromString = False
+
+'first create a table.
+
+
+If (blCreateTable) Then
+
+DoCmd.DeleteObject acTable, tbName
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("PRP_Name", dbText, 255)
+tb.Fields.Append tb.CreateField("PRP_Value", dbText, 255)
+tb.Fields.Append tb.CreateField("PRP_Type", dbText, 1)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+
+idx.Fields.Append idx.CreateField("PRP_Name", dbText, 255)
+idx.Primary = True
+
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+
+End If
+
+'Table created.
+
+'Now import data
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset(tbName)
+
+While s <> ""
+  Dim lineS As String
+  lineS = extractToken(s, vbCrLf)
+  If InStr(1, lineS, "=") > 0 Then
+    Dim prpName As String
+    Dim prpVal As String
+    Dim prpType As String
+    prpName = Trim(extractToken(lineS, "="))
+    prpType = Trim(extractToken(lineS, ";"))
+    prpVal = Trim(lineS)
+    
+    If prpName <> "" Then
+      rsOut.AddNew
+        rsOut("PRP_Name") = hzn(prpName)
+        rsOut("PRP_Type") = hzn(prpType)
+        rsOut("PRP_Value") = hzn(prpVal)
+      rsOut.Update
+    End If
+  End If
+  
+
+Wend
+
+
+appCleanRS rsOut
+
+
+splReadSettingsFromString = True
+Exit Function
+fout:
+If (Err = 3022) Then
+  rsOut.CancelUpdate
+  Resume Next 'duplicate primary key
+End If
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+MsgBox Err & " splReadSettingsFromString" & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function splGetMonthStr(mn As Integer) As String
+On Error Resume Next
+Dim tpS As String
+tpS = ""
+Select Case mn
+  Case 1
+    tpS = Format(DateAdd("m", 0, #1/1/2000#), "mmmm")
+  Case 2
+    tpS = Format(DateAdd("m", 1, #1/1/2000#), "mmmm")
+  Case 3
+    tpS = Format(DateAdd("m", 2, #1/1/2000#), "mmmm")
+  Case 4
+    tpS = Format(DateAdd("m", 3, #1/1/2000#), "mmmm")
+  Case 5
+    tpS = Format(DateAdd("m", 4, #1/1/2000#), "mmmm")
+  Case 6
+    tpS = Format(DateAdd("m", 5, #1/1/2000#), "mmmm")
+  Case 7
+    tpS = Format(DateAdd("m", 6, #1/1/2000#), "mmmm")
+  Case 8
+    tpS = Format(DateAdd("m", 7, #1/1/2000#), "mmmm")
+  Case 9
+    tpS = Format(DateAdd("m", 8, #1/1/2000#), "mmmm")
+  Case 10
+    tpS = Format(DateAdd("m", 9, #1/1/2000#), "mmmm")
+  Case 11
+    tpS = Format(DateAdd("m", 10, #1/1/2000#), "mmmm")
+  Case 12
+    tpS = Format(DateAdd("m", 11, #1/1/2000#), "mmmm")
+End Select
+splGetMonthStr = tpS
+    
+End Function
+
+Private Function splParseSettingsDate(ds As String) As Date
+On Error Resume Next
+If (ds = "") Then
+  splParseSettingsDate = #1/1/1900#
+  Exit Function
+End If
+Dim yr As Integer
+Dim mn As Integer
+Dim dy As Integer
+yr = CInt(val(Left(ds, 4)))
+mn = CInt(val(Mid(ds, 5, 2)))
+dy = CInt(val(Mid(ds, 7, 2)))
+If (yr <= 0) Or (dy <= 0) Or (mn <= 0) Then
+  splParseSettingsDate = #1/1/1900#
+Else
+  splParseSettingsDate = CDate(dy & " " & splGetMonthStr(mn) & " " & yr)
+End If
+
+End Function
+
+
+Public Sub splKillTemp(dirName As String, fName As String, Optional deleteDir As Boolean = True)
+On Error Resume Next
+FileSystem.Kill fName
+If (deleteDir) Then
+  FileSystem.RmDir dirName
+End If
+End Sub
+
+
+Public Function splGenerateLimS(limMin As Double, limMax As Double) As String
+On Error GoTo fout
+splGenerateLimS = ""
+Dim limS As String, resLimS As String
+If Not splGenerateLimitStrings(limMin, limMax, limS, resLimS) Then
+  Exit Function
+End If
+splGenerateLimS = limS
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function splGenerateResLimS(limMin As Double, limMax As Double) As String
+On Error GoTo fout
+splGenerateResLimS = ""
+Dim limS As String, resLimS As String
+If Not splGenerateLimitStrings(limMin, limMax, limS, resLimS) Then
+  Exit Function
+End If
+splGenerateResLimS = resLimS
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Private Function splGenerateLimitStrings(limMin As Double, limMax As Double, ByRef limS As String, ByRef resLimS As String) As Boolean
+On Error GoTo fout
+splGenerateLimitStrings = False
+
+limS = ""
+resLimS = ""
+
+Dim blLimMinValid As Boolean
+Dim blLimMaxValid As Boolean
+blLimMinValid = (limMin > LIMEPS)
+blLimMaxValid = (limMax > LIMEPS)
+
+If (blLimMinValid Or blLimMaxValid) Then
+  If (blLimMinValid And blLimMaxValid) Then
+    If (limMax < limMin) Then
+      limS = limBuild(False, 0, 0, 0, limMax, 0, 0)
+      resLimS = lenFormatResLim(limMin - limMax)
+      splGenerateLimitStrings = True
+      Exit Function
+    End If
+  End If
+  limS = limBuild(False, 0, 0, limMin, limMax, 0, False)
+End If
+
+splGenerateLimitStrings = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+'Public because needed by query
+Public Function splReadAgeGroup_MM2006(ges As Integer, ageDate As Date, minAge As Integer, maxAge As Integer, nSubCats As Integer) As String
+On Error GoTo fout
+Dim lxGes As String
+lxGes = splReadSexAsLenex_MM2006(ges)
+If (minAge < 3) Then
+  minAge = -1
+End If
+If (maxAge >= 99) Then
+  maxAge = -1
+End If
+Dim isMV As Boolean
+isMV = (nSubCats > 1)
+splReadAgeGroup_MM2006 = lenParseAgeGroup(LFT_MODE_SZYR, ageDate, lxGes, minAge, maxAge, False, isMV)
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+'Public because needed by query
+Public Function splReadAgeGroup_MM2007(ges As Integer, ageDate As Date, minAge As Integer, maxAge As Integer, nSubCats As Integer, isTotAge As Boolean) As String
+On Error GoTo fout
+Dim lxGes As String
+lxGes = splReadSexAsLenex_MM2007(ges)
+If (minAge < 3) Then
+  minAge = -1
+End If
+If (maxAge >= 99) Then
+  maxAge = -1
+End If
+Dim isMV As Boolean
+isMV = (nSubCats > 1)
+splReadAgeGroup_MM2007 = lenParseAgeGroup(LFT_MODE_SZYR, ageDate, lxGes, minAge, maxAge, isTotAge, isMV)
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Private Function splReadProperty(ByRef rs As Recordset, ByVal prpName As String) As String
+On Error GoTo fout
+splReadProperty = False
+rs.Seek "=", prpName
+If Not rs.NoMatch Then
+  splReadProperty = Nz(rs("PRP_VALUE"))
+End If
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function splSettingsImport(fName As String, tbName As String) As Boolean
+On Error GoTo fout
+splSettingsImport = False
+
+'first create a table.
+
+DoCmd.DeleteObject acTable, tbName
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("PRP_Name", dbText, 255)
+tb.Fields.Append tb.CreateField("PRP_Value", dbText, 255)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+
+idx.Fields.Append idx.CreateField("PRP_Name", dbText, 255)
+idx.Primary = True
+
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+
+'Table created.
+
+'Now import data
+
+Dim fNr As Integer
+fNr = FreeFile
+
+
+Dim blIsOpen As Boolean
+blIsOpen = False
+
+Open fName For Input As #fNr
+
+blIsOpen = True
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset(tbName)
+
+While Not EOF(fNr)
+  Dim lineS As String
+  Line Input #fNr, lineS
+  If InStr(1, lineS, "=") > 0 Then
+    Dim prpName As String
+    Dim prpVal As String
+    prpName = Trim(extractToken(lineS, "="))
+    prpVal = Trim(lineS)
+    
+    If prpName <> "" Then
+      rsOut.AddNew
+        rsOut("PRP_Name") = hzn(prpName)
+        rsOut("PRP_Value") = hzn(prpVal)
+      rsOut.Update
+    End If
+  End If
+  
+
+Wend
+
+
+Close #fNr
+blIsOpen = False
+
+appCleanRS rsOut
+
+splSettingsImport = True
+Exit Function
+fout:
+If (Err = 3022) Then
+  rsOut.CancelUpdate
+  Resume Next 'duplicate primary key
+End If
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+If (blIsOpen) Then
+  Close #fNr
+End If
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function splParadoxImport(fName As String, tbName As String, Optional blHandleError As Boolean = True) As Boolean
+On Error GoTo fout
+splParadoxImport = False
+
+
+'Have to use tricks.
+Dim uPath As String, path As String
+path = extractFilePath(fName)
+uPath = extractFilePath(path)
+
+Dim fNameBare As String
+fNameBare = extractFileName(fName)
+fNameBare = Left(fNameBare, Len(fNameBare) - 3)
+
+
+Dim impFName As String
+impFName = uPath & "\__hupswim__paradox__" & fNameBare & ".db"
+
+FileCopy fName, impFName
+
+Dim fNameMB As String
+fNameMB = path & "\" & fNameBare & ".MB"
+
+Dim impFNameMB As String
+impFNameMB = ""
+
+If (FileExists(fNameMB)) Then
+  impFNameMB = uPath & "\__hupswim__paradox__" & fNameBare & ".Mb"
+  FileCopy fNameMB, impFNameMB
+End If
+  
+
+DoCmd.TransferDatabase acImport, "Paradox 7.x", uPath, acTable, extractFileName(impFName), tbName
+
+On Error Resume Next
+FileSystem.Kill impFName
+If (impFNameMB <> "") Then
+   FileSystem.Kill impFNameMB
+End If
+
+
+'Need to ensure deletion of directory on termination
+FileSystem.dir
+
+splParadoxImport = True
+Exit Function
+fout:
+Dim emsg As String
+If (Err = 2507) Then
+  emsg = Err & " Deze operatie wordt alleen ondersteund in MSAccess 2000 of hoger. Download the office2003 versie van hupswim."
+ElseIf (Err = 3219) Then
+  emsg = Err & " U heeft waarschijnlijk geen BDE (Borland Database Engine) op uw systeem geinstalleerd. Ga naar" & vbCrLf & "http://home.kpn.nl/wimhupke/hupsoft en volg het kopje <Problemen met inlezen van backups uit Splash Meet-Manager>."
+Else
+  emsg = Err & " " & Error$
+End If
+
+If (blHandleError) Then
+  MsgBox emsg, 16
+  Exit Function
+Else
+  On Error GoTo 0
+  Err.Raise 1, , emsg
+End If
+Exit Function
+End Function
+
+
+Public Function splReadSexAsWas(sex As Integer) As String
+On Error Resume Next
+If (sex = 0) Then
+  splReadSexAsWas = "j"
+Else
+  splReadSexAsWas = "m"
+End If
+End Function
+
+Public Function splReadSex(sex As Integer) As String
+On Error Resume Next
+If (sex = 0) Then
+  splReadSex = "M"
+ElseIf (sex = 1) Then
+  splReadSex = "V"
+Else
+  splReadSex = "*"
+End If
+End Function
+Public Function splReadSex_TM2009(sex As Integer) As String
+On Error Resume Next
+If (sex = 1) Then
+  splReadSex_TM2009 = "M"
+ElseIf (sex = 2) Then
+  splReadSex_TM2009 = "V"
+Else
+  splReadSex_TM2009 = "*"
+End If
+End Function
+
+Private Function splReadSexAsLenex_MM2006(sex As Integer) As String
+On Error Resume Next
+If (sex = 0) Then
+  splReadSexAsLenex_MM2006 = "M"
+ElseIf (sex = 1) Then
+  splReadSexAsLenex_MM2006 = "F"
+Else
+  splReadSexAsLenex_MM2006 = "X"
+End If
+End Function
+Private Function splReadSexAsLenex_MM2007(sex As Integer) As String
+On Error Resume Next
+If (sex = 0) Then
+  splReadSexAsLenex_MM2007 = "X"
+ElseIf (sex = 1) Then
+  splReadSexAsLenex_MM2007 = "M"
+Else
+  splReadSexAsLenex_MM2007 = "F"
+End If
+End Function
+Public Function splReadStartAsWas(startnr As String) As String
+On Error Resume Next
+splReadStartAsWas = Left(startnr, 2) & Right(startnr, 5)
+End Function
+Public Function splReadStart(startnr As String) As String
+On Error Resume Next
+splReadStart = ""
+If (Left(startnr, 2) Like "[0-9][0-9]") Then
+  If (Len(startnr) = 7) Then
+    splReadStart = Left(startnr, 2) & "-" & Right(startnr, 5)
+  ElseIf (Len(startnr) = 8) Then
+    If (Mid(startnr, 3, 1) = "-") Then
+      splReadStart = Left(startnr, 2) & "-" & Right(startnr, 5)
+    End If
+  End If
+End If
+  
+End Function
+
+Public Function splReadStrokeAsSlag(stroke As Integer) As String
+On Error Resume Next
+splReadStrokeAsSlag = "ONB"
+Select Case stroke
+  Case 1
+    splReadStrokeAsSlag = "VRIJ"
+  Case 2
+    splReadStrokeAsSlag = "RUG"
+  Case 3
+    splReadStrokeAsSlag = "SCHOOL"
+  Case 4
+    splReadStrokeAsSlag = "VLINDER"
+  Case 5
+    splReadStrokeAsSlag = "WISSEL"
+End Select
+End Function
+
+Public Function splReadStrokeAsSlag_TM2007(stroke As Integer) As String
+On Error Resume Next
+splReadStrokeAsSlag_TM2007 = "ONB"
+Select Case stroke
+  Case 0
+    splReadStrokeAsSlag_TM2007 = "VRIJ"
+  Case 2
+    splReadStrokeAsSlag_TM2007 = "RUG"
+  Case 3
+    splReadStrokeAsSlag_TM2007 = "SCHOOL"
+  Case 1
+    splReadStrokeAsSlag_TM2007 = "VLINDER"
+  Case 4
+    splReadStrokeAsSlag_TM2007 = "WISSEL"
+End Select
+End Function
+
+
+Public Function splReadDistance(iDistance As Integer) As String
+On Error Resume Next
+splReadDistance = ""
+If (iDistance > 20) Then
+  splReadDistance = CStr(iDistance)
+Else
+  Select Case iDistance
+    Case 0
+      splReadDistance = "25"
+    Case 1
+      splReadDistance = "50"
+    Case 2
+      splReadDistance = "100"
+    Case 3
+      splReadDistance = "200"
+    Case 4
+      splReadDistance = "300"
+    Case 5
+      splReadDistance = "400"
+    Case 6
+      splReadDistance = "800"
+    Case 8
+      splReadDistance = "1500"
+  End Select
+  
+End If
+  
+  
+End Function
+
+
+Public Function splReadTime(splTd As Long) As Double
+On Error GoTo fout
+splReadTime = 0
+
+Dim nHun As Integer
+nHun = (splTd Mod 100) \ 10
+splTd = splTd \ 100
+
+Dim nTen As Integer
+nTen = (splTd Mod 100) \ 10
+splTd = splTd \ 100
+
+Dim nSec As Long
+nSec = splTd
+
+Dim nMin As Long
+nMin = nSec \ 60
+nSec = nSec Mod 60
+
+splReadTime = nMin * 100 + nSec + nTen * 0.1 + nHun * 0.01
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+Public Function splReadTime_TM2009(splTd As Long) As Double
+On Error GoTo fout
+splReadTime_TM2009 = 0
+
+Dim nHun As Integer
+nHun = (splTd Mod 100) \ 10
+splTd = splTd \ 100
+
+Dim nTen As Integer
+nTen = (splTd Mod 10)
+splTd = splTd \ 10
+
+Dim nSec As Long
+nSec = splTd
+
+Dim nMin As Long
+nMin = nSec \ 60
+nSec = nSec Mod 60
+
+splReadTime_TM2009 = nMin * 100 + nSec + nTen * 0.1 + nHun * 0.01
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+
+Private Function splMMImpCleanup_Perform_MM2006(ByRef impFNames() As String, ByRef impTNames() As String, ByRef impStatus() As Integer, ByRef nImpFiles, ByVal upckDir As String, ByVal delTempFiles As Boolean, ByVal delTables As Boolean) As Boolean
+On Error GoTo fout
+splMMImpCleanup_Perform_MM2006 = False
+
+Dim i As Integer
+
+If (delTables) Then
+  For i = 0 To nImpFiles - 1
+    If (impStatus(i) = IMP_STATUS_IS_PROP) Or (impStatus(i) = IMP_STATUS_IS_PX) Then
+       DoCmd.DeleteObject acTable, impTNames(i)
+    End If
+  Next i
+End If
+
+If (delTempFiles) Then
+  For i = 0 To nImpFiles - 1
+    Dim fNameDel As String
+    fNameDel = upckDir & "\" & impFNames(i)
+    splKillTemp upckDir, fNameDel, (i = (nImpFiles - 1))
+  Next i
+End If
+
+
+splMMImpCleanup_Perform_MM2006 = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Private Function splMMImpCleanup_Perform_MM2007(ByVal delTables As Boolean) As Boolean
+On Error GoTo fout
+splMMImpCleanup_Perform_MM2007 = False
+
+Dim i As Integer
+
+If (delTables) Then
+ DoCmd.DeleteObject acTable, "splSettings"
+ DoCmd.DeleteObject acTable, "splSession"
+ DoCmd.DeleteObject acTable, "splEvent"
+ DoCmd.DeleteObject acTable, "splAgegroup"
+ DoCmd.DeleteObject acTable, "splStyle"
+End If
+
+
+splMMImpCleanup_Perform_MM2007 = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+'Clean up the mess.
+Public Function splMMImpCleanup() As Boolean
+On Error GoTo fout
+splMMImpCleanup = False
+
+
+Dim impFNames(0 To 10) As String
+Dim impTNames(0 To 10) As String
+Dim impStatus(0 To 10) As Integer
+Dim nImpFiles As Integer
+
+If Not splMMImpGetReqFiles(impFNames, impTNames, impStatus, nImpFiles, True) Then
+  Exit Function
+End If
+
+If Not splMMImpCleanup_Perform_MM2007(True) Then
+  Exit Function
+End If
+
+If Not splMMImpCleanup_Perform_MM2006(impFNames, impTNames, impStatus, nImpFiles, "", False, True) Then
+  Exit Function
+End If
+
+
+splMMImpCleanup = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Private Function splMMImpGetReqFiles(ByRef impFNames() As String, ByRef impTNames() As String, ByRef impStatus() As Integer, ByRef nImpFiles As Integer, ByVal blImpTables) As Boolean
+On Error GoTo fout
+splMMImpGetReqFiles = False
+
+If (blImpTables) Then
+  impFNames(0) = "rennen.db"
+  impTNames(0) = "splRennen"
+  impStatus(0) = IMP_STATUS_IS_PX
+  
+  impFNames(1) = "abschnitte.db"
+  impTNames(1) = "splAbschnitte"
+  impStatus(1) = IMP_STATUS_IS_PX
+  
+  
+  impFNames(2) = "kategorie.mb"
+  impTNames(2) = ""
+  impStatus(2) = IMP_STATUS_IS_AUX
+    
+  impFNames(3) = "kategorie.db"
+  impTNames(3) = "splKategorie"
+  impStatus(3) = IMP_STATUS_IS_PX
+  
+  
+  
+  impFNames(4) = "meeting.ini"
+  impTNames(4) = "splSettings"
+  impStatus(4) = IMP_STATUS_IS_PROP
+  
+  nImpFiles = 5
+  
+Else
+  impFNames(0) = "abschnitte.px"
+  impTNames(0) = ""
+  impStatus(0) = IMP_STATUS_IS_AUX
+  
+  impFNames(1) = "abschnitte.val"
+  impTNames(1) = ""
+  impStatus(1) = IMP_STATUS_IS_AUX
+
+
+  impFNames(2) = "abschnitte.db"
+  impTNames(2) = "splAbschnitte"
+  impStatus(2) = IMP_STATUS_IS_PX
+  
+  
+  impFNames(3) = "meeting.ini"
+  impTNames(3) = "splSettings"
+  impStatus(3) = IMP_STATUS_IS_PROP
+  
+  
+  nImpFiles = 4
+
+End If
+
+splMMImpGetReqFiles = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+'Read the external files and extract some statistics
+Public Function splMMImpAnalyzeFile(ByVal fName As String, ByRef blValid As Boolean, ByRef splInvalidReason As Integer, ByRef sInvalidString As String, ByRef splWedDate As Date, ByRef splPlaats As String, ByRef splDescription As String) As Boolean
+On Error GoTo fout
+splMMImpAnalyzeFile = False
+
+'Delegate to perform function with default arguments.
+Dim blIsMM2007 As Boolean
+
+If Not splMMImpAnalyzeFile_Perform(fName, False, False, blValid, splInvalidReason, sInvalidString, splWedDate, splPlaats, splDescription, blIsMM2007) Then
+  Exit Function
+End If
+
+splMMImpAnalyzeFile = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+'Read the external files.
+Private Function splMMImpAnalyzeFile_Perform(ByVal fName As String, ByVal blImpTables As Boolean, ByVal blDisplayErrDlg As Boolean, ByRef splValid As Boolean, ByRef splInvalidReason As Integer, ByRef splInvalidString As String, ByRef splWedDate As Date, ByRef splWedPlaats As String, ByRef splWedDescription As String, ByRef splIsMM2007 As Boolean) As Boolean
+On Error GoTo fout
+splMMImpAnalyzeFile_Perform = False
+
+
+splValid = False
+splInvalidString = ""
+splInvalidReason = SPL_MM_VALID
+
+
+
+If fName = "" Or Not FileExists(fName) Then
+  splInvalidReason = SPL_MM_UNKNOWN_FILE
+  splInvalidString = "Het bestand: " & vbCrLf & fName & vbCrLf & "kon niet worden gevonden."
+  Err.Raise 1, , splInvalidString
+End If
+
+
+If Not Right(fName, 3) = "zip" Then
+  splInvalidReason = SPL_MM_NOT_ZIP_FILE
+  splInvalidString = "Expected zip file. Found: " & vbCrLf & fName
+  
+  Err.Raise 1, , splInvalidString
+End If
+
+
+Dim cnt As Long
+cnt = countZip(fName)
+  
+  
+splIsMM2007 = False
+  
+'Check file count in archive.
+  
+If (cnt = 1) Then
+  splIsMM2007 = True
+Else
+  If cnt <= 3 Then
+    If (cnt > 0) Then
+      splInvalidReason = SPL_MM_INVALID_ZIP_CNT
+      splInvalidString = "Invalid Splash backup file. Archive was expected to contain multiple files. Found: " & cnt & " file(s)."
+    Else
+      splInvalidReason = SPL_MM_UZIP_FAILURE
+      splInvalidString = "Error accessing zip file: " + fName
+    End If
+    Err.Raise 1, , splInvalidString
+  End If
+End If
+
+
+If (splIsMM2007) Then
+  If Not splMMImpAnalyzeFile_Perform_MM2007(fName, blImpTables, blDisplayErrDlg, splValid, splInvalidReason, splInvalidString, splWedDate, splWedPlaats, splWedDescription) Then
+    Exit Function
+  End If
+Else
+  If Not splMMImpAnalyzeFile_Perform_MM2006(fName, blImpTables, blDisplayErrDlg, splValid, splInvalidReason, splInvalidString, splWedDate, splWedPlaats, splWedDescription) Then
+    Exit Function
+  End If
+End If
+  
+
+
+splMMImpAnalyzeFile_Perform = True
+Exit Function
+
+fout:
+
+
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " " & Error$
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splMMImpAnalyzeFile_Perform = True
+Else
+  'Dit is een critical failure.
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+
+End Function
+
+
+Private Function splMMImpAnalyzeFile_Perform_MM2006(ByVal fName As String, ByVal blImpTables As Boolean, ByVal blDisplayErrDlg As Boolean, ByRef splValid As Boolean, ByRef splInvalidReason As Integer, ByRef splInvalidString As String, ByRef splWedDate As Date, ByRef splWedPlaats As String, ByRef splWedDescription As String) As Boolean
+On Error GoTo fout
+splMMImpAnalyzeFile_Perform_MM2006 = False
+
+
+
+splWedDate = #1/1/1900#
+splWedPlaats = ""
+splWedDescription = ""
+
+
+'First clear any possible remnants of previous sessions.
+If Not splMMImpCleanup() Then
+  Exit Function
+End If
+
+
+
+
+
+
+  
+  Dim upackDir As String
+  upackDir = directory_goedmaak(extractFilePath(fName)) & "\__hupswim__unzip__volatile"
+  'Now need to unpack file.
+  
+  On Error Resume Next
+  If (Not DirectoryExists(upackDir)) Then
+    FileSystem.MkDir (upackDir)
+  End If
+  
+  If (Not DirectoryExists(upackDir)) Then
+    splInvalidReason = SPL_MM_UZIP_FAILURE
+    splInvalidString = "Error creating temporary unpack directory: " & upackDir
+    
+    Err.Raise 1, , splInvalidString
+  End If
+ 
+ 
+ 
+  Dim impFNames(0 To 10) As String
+  Dim impTNames(0 To 10) As String
+  Dim impStatus(0 To 10) As Integer
+  Dim nImpFiles As Integer
+  
+ 
+   'get file names which need to be imported.
+  If Not splMMImpGetReqFiles(impFNames, impTNames, impStatus, nImpFiles, blImpTables) Then
+    Exit Function
+  End If
+  
+ 
+ 
+  Dim fToUnzip As String
+  'fToUnzip = "team.mdb"
+  
+  Dim fToUnzipFull As String
+ 
+  Dim i As Integer
+  For i = 0 To nImpFiles - 1
+    
+     fToUnzip = impFNames(i)
+     
+     fToUnzipFull = upackDir & "\" & fToUnzip
+         
+     If (FileExists(fToUnzipFull)) Then
+       FileSystem.Kill (fToUnzipFull)
+     End If
+     
+     If (FileExists(fToUnzipFull)) Then
+       splInvalidReason = SPL_MM_UZIP_FAILURE
+       splInvalidString = "Error deleting existing file: " & fToUnzipFull
+       
+       Err.Raise 1, , splInvalidString
+     End If
+  
+  Next i
+  
+  
+  'From this moment on, we need to cleanup any mess on a possible error.
+  On Error GoTo fout_cleanup
+  
+  Dim okk As Boolean
+  
+  For i = 0 To nImpFiles - 1
+  
+    fToUnzip = impFNames(i)
+  
+    okk = unzipFile(fName, upackDir, fToUnzip)
+    'This weird construction is necessary due to a bug in dll boolean extraction.
+    Dim okkk As Boolean
+    okkk = False
+    If okk Then
+      okkk = True
+    End If
+    'End if.
+     
+    If Not okkk Then
+      splInvalidReason = SPL_MM_UZIP_FAILURE
+      splInvalidString = "There was an error extracting the file: " & fToUnzip & " from the archive: " & vbCrLf & fName
+      Err.Raise 1, , splInvalidString
+    End If
+  
+  Next i
+  
+  
+  'bckDateS = FileDateStr(splMDBFileName)
+  'bckTimeS = FileTimeStr(splMDBFileName)
+  
+  
+  For i = 0 To nImpFiles - 1
+  
+    Dim fImpFName As String
+    fImpFName = upackDir & "\" & impFNames(i)
+    
+    
+    Dim parErrCode As Integer
+    Dim parErrMsg As String
+    parErrCode = -1
+    parErrMsg = ""
+    
+    
+    On Error GoTo parFout
+    Dim impOK As Boolean
+    
+    impOK = False
+    If (impStatus(i) = IMP_STATUS_IS_PX) Then
+      impOK = splParadoxImport(fImpFName, impTNames(i), False)
+    ElseIf (impStatus(i) = IMP_STATUS_IS_PROP) Then
+      impOK = splSettingsImport(fImpFName, impTNames(i))
+    Else
+      'need not do anything.
+      impOK = True
+    End If
+    On Error GoTo fout_cleanup
+    
+    
+    
+    
+    If (parErrCode >= 0) Then
+      If (parErrCode = 1) Then
+        'Non critical failure.
+        splInvalidReason = SPL_MM_PARADOX_FAILURE
+        splInvalidString = parErrMsg
+        Err.Raise 1, , splInvalidString
+      Else
+        'Critical, unexpected failure.
+        'We do not deal with it here, so simply reraise it.
+        Err.Raise parErrCode, , parErrMsg
+      End If
+    End If
+    
+    If Not impOK Then
+      splInvalidReason = SPL_MM_UNKNOWN_FAILURE
+      splInvalidString = "There was an unexpected error importing the file: " & fImpFName
+      Err.Raise 1, , splInvalidString
+    End If
+    
+    
+  Next i
+  
+  'All the tables have been succesfully imported.
+    
+  
+  'try to open the Abschnitte table and extract some properties.
+  
+    
+    Dim rs As Recordset
+    Set rs = CurrentDb().OpenRecordset("select * from splAbschnitte order by nummer;")
+    
+    If (rs Is Nothing) Then
+      splInvalidReason = SPL_MM_INVALID_ZIP_CNT
+      splInvalidString = "De Meet Manager backup bevat niet de juiste gegevens." & vbCrLf & _
+      "De tabel: <Abschnitte> kon niet worden gevonden."
+      
+      Err.Raise 1, , splInvalidString
+    End If
+    
+    rs.MoveFirst
+    splWedDate = Nz(rs("Datum"), #1/1/1900#)
+    splWedDescription = Nz(rs("Titel"))
+    splWedPlaats = ""
+    
+    appCleanRS rs
+        
+    Dim rsSett As Recordset
+    Set rsSett = CurrentDb().OpenRecordset("splSettings")
+    rsSett.Index = "PrimaryKey"
+    
+    splWedPlaats = splReadProperty(rsSett, "edtOrt")
+ 
+    
+    appCleanRS rsSett
+    
+  
+  
+  'Clean up the temporary files we extracted, together with the temporary directory.
+  'Only if blimpTables = false, do we also clean up the tables we imported.
+  
+  If Not splMMImpCleanup_Perform_MM2006(impFNames, impTNames, impStatus, nImpFiles, upackDir, True, Not blImpTables) Then
+    Exit Function
+  End If
+  
+  On Error GoTo fout
+
+
+  splValid = True
+  splInvalidReason = SPL_MM_VALID
+
+
+  splMMImpAnalyzeFile_Perform_MM2006 = True
+  Exit Function
+
+fout:
+
+If (Err = 3078) Then Resume Next ' RESULTS niet gevonden.
+If (Err = 3343) Then Resume Next ' unrecognized database format
+If (Err = 3021) Then Resume Next ' no current record.
+
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " " & Error$
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splMMImpAnalyzeFile_Perform_MM2006 = True
+'ElseIf (errCode = 3343) Then
+'  msg = "Splash werkt met het file-formaat van Office2000. " & Chr(13) & _
+'  "U krijgt deze foutmelding waarschijnlijk te zien omdat u Office97 gebruikt." & _
+'  "Upgrade naar de Office2000 of Office2003 versie van Hupswim " & _
+'  "of stuur de splash backup naar hjhupkes AT gmail.com voor omzetting naar " & _
+'  "Office97 formaat." & Chr(13) & "De fout die dit bericht veroorzaakte staat hieronder weergegeven: " & Chr(13) & msg
+'  MsgBox msg, 16
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+
+fout_cleanup:
+
+If (Err = 3078) Then Resume Next ' RESULTS niet gevonden.
+If (Err = 3343) Then Resume Next ' unrecognized database format
+If (Err = 3021) Then Resume Next ' no current record.
+
+errCode = Err
+
+msg = errCode & " " & Error$
+
+
+'clean up ALL the mess we made, including tables & temporary files.
+splMMImpCleanup_Perform_MM2006 impFNames, impTNames, impStatus, nImpFiles, upackDir, True, True
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splMMImpAnalyzeFile_Perform_MM2006 = True
+'ElseIf (errCode = 3343) Then
+'  msg = "Splash werkt met het file-formaat van Office2000. " & Chr(13) & _
+'  "U krijgt deze foutmelding waarschijnlijk te zien omdat u Office97 gebruikt." & _
+'  "Upgrade naar de Office2000 of Office2003 versie van Hupswim " & _
+'  "of stuur de splash backup naar hjhupkes AT gmail.com voor omzetting naar " & _
+'  "Office97 formaat." & Chr(13) & "De fout die dit bericht veroorzaakte staat hieronder weergegeven: " & Chr(13) & msg
+'  MsgBox msg, 16
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+
+Exit Function
+
+parFout:
+parErrCode = Err
+parErrMsg = Error$
+Resume Next
+
+
+
+
+
+End Function
+
+
+Private Function splMMImpAnalyzeFile_Perform_MM2007_ExtractData(ByVal splMDBFileName As String, ByVal blImpTables As Boolean, ByVal blDisplayErrDlg As Boolean, ByRef splValid As Boolean, ByRef splInvalidReason As Integer, ByRef splInvalidString As String, ByRef splWedDate As Date, ByRef splWedPlaats As String, ByRef splWedDescription As String) As Boolean
+On Error GoTo fout
+splMMImpAnalyzeFile_Perform_MM2007_ExtractData = False
+
+
+  
+    
+    'try to open the MDB file and extract some properties.
+  Dim splDB As Database
+  Set splDB = DBEngine.Workspaces(0).OpenDatabase(splMDBFileName)
+  
+  If (splDB Is Nothing) Then
+     splInvalidReason = SPL_MM_MDB_OPEN_FAILURE
+     splInvalidString = "Splash werkt met het file-formaat van Office2000. " & vbCrLf & _
+     "U krijgt deze foutmelding waarschijnlijk te zien omdat u Office97 gebruikt." & _
+     "Upgrade naar de Office2000 of Office2003 versie van Hupswim " & _
+     "of stuur de splash backup naar hjhupkes AT gmail.com voor omzetting naar " & _
+     "Office97 formaat."
+     
+     Err.Raise 1, , splInvalidString
+  End If
+  
+
+    
+    Dim rs As Recordset
+    
+    Set rs = splDB.OpenRecordset("select * from [SWIMSESSION] order by [sessionNumber]")
+    
+    If (rs Is Nothing) Then
+      splInvalidReason = SPL_MM_INVALID_MDB_CNT
+      splInvalidString = "De Splash backup bevat niet de juiste gegevens." & vbCrLf & _
+      "De tabel: <SWIMSESSION> kon niet worden gevonden."
+      
+      splDB.Close
+      Set splDB = Nothing
+      
+      Err.Raise 1, , splInvalidString
+    End If
+    
+    rs.MoveFirst
+    
+    splWedDate = Nz(rs("StartDate"), #1/1/1900#)
+    splWedDescription = Nz(rs("Name"))
+    splWedPlaats = ""
+        
+    appCleanRS rs
+    
+    
+    Set rs = splDB.OpenRecordset("BSGLOBAL", dbOpenDynaset)
+    
+    If (rs Is Nothing) Then
+      splInvalidReason = SPL_MM_INVALID_MDB_CNT
+      splInvalidString = "De Splash backup bevat niet de juiste gegevens." & vbCrLf & _
+      "De tabel: <BSGLOBAL> kon niet worden gevonden."
+      
+      splDB.Close
+      Set splDB = Nothing
+      
+      Err.Raise 1, , splInvalidString
+    End If
+    
+    rs.FindFirst "[NAME]=""MEETVALUES"""
+    If rs.NoMatch Then
+      splInvalidReason = SPL_MM_INVALID_MDB_CNT
+      splInvalidString = "De Splash backup bevat niet de juiste gegevens." & vbCrLf & _
+      "De tabel: <BSGLOBAL> bevat geen record MEETVALUES."
+      
+      splDB.Close
+      Set splDB = Nothing
+      
+      Err.Raise 1, , splInvalidString
+    End If
+    
+    Dim tpS As String
+    tpS = Nz(rs("DATA"))
+    
+    If Not splReadSettingsFromString(tpS, True, "splSettings") Then
+      Exit Function
+    End If
+    
+            
+    appCleanRS rs
+    
+    
+    Dim rsSett As Recordset
+    Set rsSett = CurrentDb().OpenRecordset("splSettings")
+    rsSett.Index = "PrimaryKey"
+    
+    splWedPlaats = splReadProperty(rsSett, "City")
+ 
+    
+    
+    appCleanRS rsSett
+    
+    
+    splDB.Close
+    Set splDB = Nothing
+    
+    
+    If (blImpTables) Then
+      'Import all the tables we need.
+      
+      
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMEVENT", "splEvent"
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMSESSION", "splSession"
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "AGEGROUP", "splAgegroup"
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMSTYLE", "splStyle"
+      
+      
+    End If
+      
+  
+  
+  
+  'Only if blimpTables = false, do we also clean up the tables we imported.
+  
+  If Not splMMImpCleanup_Perform_MM2007(Not blImpTables) Then
+    Exit Function
+  End If
+  
+  
+  splValid = True
+  splInvalidReason = SPL_MM_VALID
+
+
+
+
+
+splMMImpAnalyzeFile_Perform_MM2007_ExtractData = True
+Exit Function
+
+
+
+fout:
+
+If (Err = 3078) Then Resume Next ' TABEL niet gevonden.
+If (Err = 3343) Then Resume Next ' unrecognized database format
+If (Err = 3021) Then Resume Next ' no current record.
+
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " " & Error$
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splMMImpAnalyzeFile_Perform_MM2007_ExtractData = True
+
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+
+
+'debug
+On Error GoTo 0
+Resume
+
+
+
+End Function
+
+Private Function splMMImpAnalyzeFile_Perform_MM2007(ByVal fName As String, ByVal blImpTables As Boolean, ByVal blDisplayErrDlg As Boolean, ByRef splValid As Boolean, ByRef splInvalidReason As Integer, ByRef splInvalidString As String, ByRef splWedDate As Date, ByRef splWedPlaats As String, ByRef splWedDescription As String) As Boolean
+On Error GoTo fout
+splMMImpAnalyzeFile_Perform_MM2007 = False
+
+splValid = False
+splInvalidString = ""
+splInvalidReason = SPL_MM_NOT_ZIP_FILE
+
+
+splWedDate = #1/1/1900#
+splWedPlaats = ""
+splWedDescription = ""
+
+
+'First clear any possible remnants of previous sessions.
+'todo: adjust to 2007.
+
+If Not splMMImpCleanup_Perform_MM2007(True) Then
+  Exit Function
+End If
+
+
+Dim splMDBFileName As String
+
+Dim blExtracted As Boolean, zipInvalidReason As Integer, zipInvalidString As String
+Dim zipData As ZIP_INTERNAL
+
+'Do not display an error message. We will do so ourselves here if necessary.
+If Not zipRead(fName, "mdb", "zip", blExtracted, False, zipInvalidReason, zipInvalidString, splMDBFileName, zipData) Then
+  Exit Function
+End If
+
+
+If (Not blExtracted) Then
+  splInvalidString = zipInvalidString
+  Select Case zipInvalidReason
+    Case ZIP_INVALID_CNT
+      splInvalidReason = SPL_MM_INVALID_ZIP_CNT
+    Case ZIP_INVALID_FILE_NAME
+      splInvalidReason = SPL_MM_NOT_ZIP_FILE
+    Case ZIP_UNKNOWN_FILE
+      splInvalidReason = SPL_MM_UNKNOWN_FILE
+    Case ZIP_UZIP_FAILURE
+      splInvalidReason = SPL_MM_UZIP_FAILURE
+  End Select
+  Err.Raise 1, , splInvalidString
+End If
+
+On Error GoTo fout_cleanup
+
+
+
+
+  
+Dim ok As Boolean
+ok = splMMImpAnalyzeFile_Perform_MM2007_ExtractData(splMDBFileName, blImpTables, blDisplayErrDlg, splValid, splInvalidReason, splInvalidString, splWedDate, splWedPlaats, splWedDescription)
+  
+zipRead_finish zipData
+  
+On Error GoTo fout
+
+If Not ok Then
+  Exit Function
+End If
+
+
+splMMImpAnalyzeFile_Perform_MM2007 = True
+
+
+Exit Function
+
+
+fout:
+
+Dim errCode As Integer, msg As String
+
+errCode = Err
+msg = errCode & " splMMImpAnalyzeFile_Perform_MM2007" & vbCrLf & Error$
+
+
+
+If (errCode = 1) Then
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splMMImpAnalyzeFile_Perform_MM2007 = True
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+Exit Function
+
+
+
+Exit Function
+
+fout_cleanup:
+
+errCode = Err
+msg = errCode & " " & Error$
+
+
+zipRead_finish zipData
+
+
+If (errCode = 1) Then
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splMMImpAnalyzeFile_Perform_MM2007 = True
+Else
+  MsgBox "An unexpected error has occurred. " & Chr(13) & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  Chr(13) & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & Chr(13) & "The error that prompted this message is described below: " & Chr(13) & msg, 16
+End If
+
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+'Public Function splMMImpDEBUG()
+'On Error Resume Next
+'DoCmd.DeleteObject acTable, "splRennen"
+'DoCmd.DeleteObject acTable, "splKategorie"
+'DoCmd.DeleteObject acTable, "splAbschnitte"
+'Docmd.DeleteObject acTable, "splSettings"
+
+'DoCmd.TransferDatabase acImport, "Microsoft Access", "d:\temp\bug\lenex\nkbDrachten\nkb97.mdb", acTable, "rennen", "splRennen"
+'DoCmd.TransferDatabase acImport, "Microsoft Access", "d:\temp\bug\lenex\nkbDrachten\nkb97.mdb", acTable, "abschnitte", "splAbschnitte"
+'DoCmd.TransferDatabase acImport, "Microsoft Access", "d:\temp\bug\lenex\nkbDrachten\nkb97.mdb", acTable, "kategorie", "splKategorie"
+'DoCmd.TransferDatabase acImport, "Microsoft Access", "d:\temp\bug\lenex\nkbDrachten\nkb97.mdb", acTable, "splSettings", "splSettings"
+
+'End Function
+
+
+Public Function splMMImpFillLenTransTables(ByVal fName As String) As Boolean
+On Error GoTo fout
+splMMImpFillLenTransTables = False
+
+
+Dim splWedDat As Date, splWedDes As String, splWedPlaats As String
+Dim splValid As Boolean, splInvalidReason As Integer, splInvalidString As String
+
+
+
+Dim blIsMM2007 As Boolean
+
+'debug
+'splMMImpDEBUG
+If Not splMMImpAnalyzeFile_Perform(fName, True, True, splValid, splInvalidReason, splInvalidString, splWedDat, splWedPlaats, splWedDes, blIsMM2007) Then
+  Exit Function
+End If
+
+If Not (splValid) Then
+  'error dialog has already been displayed.
+  Exit Function
+End If
+
+If (blIsMM2007) Then
+  If Not splMMImpFillLenTransTables_Perform_MM2007(splWedDat, splWedDes, splWedPlaats) Then
+    Exit Function
+  End If
+Else
+  If Not splMMImpFillLenTransTables_Perform_MM2006(splWedDat, splWedDes, splWedPlaats) Then
+    Exit Function
+  End If
+End If
+
+
+
+splMMImpFillLenTransTables = True
+Exit Function
+fout:
+
+MsgBox Err & " splMMImpFillLenTransTables" & Error$, 16
+Exit Function
+
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+Public Function splMMImpFillLenTransTables_Perform_MM2006(ByVal splWedDat As Date, splWedDes As String, splWedPlaats As String) As Boolean
+On Error GoTo fout
+splMMImpFillLenTransTables_Perform_MM2006 = False
+
+
+
+
+
+
+
+Dim tbDef As TableDef
+Dim db As Database
+Set db = CurrentDb()
+Set tbDef = db.TableDefs("splRennen")
+
+tbDef.Fields.Append tbDef.CreateField("INT_AFSTAND", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_SLAG", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_IS_MVAR", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("INT_CATEGORIE", dbText, 30)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MIN", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MAX", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_RESLIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_N_CATS", dbInteger)
+
+
+Set tbDef = Nothing
+
+
+Set tbDef = db.TableDefs("splKategorie")
+tbDef.Fields.Append tbDef.CreateField("INT_AGEDATE", dbDate)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MIN", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MAX", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_RESLIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_CATEGORIE", dbText, 30)
+
+Set tbDef = Nothing
+
+
+Set tbDef = db.TableDefs("splAbschnitte")
+tbDef.Fields.Append tbDef.CreateField("INT_Baan", dbInteger)
+
+'sql statements to update splKategorie
+Dim sql As String
+DoCmd.SetWarnings False
+
+
+sql = "update splKategorie set int_agedate = #" & Format(splWedDat, "mm\-dd\-yyyy") & "#;"
+DoCmd.RunSQL sql
+
+sql = "update splKategorie set int_lim_max = splReadTime(nz([limite1],0)) where nz([limite1],0) > 0.001;"
+DoCmd.RunSQL sql
+
+sql = "update splKategorie set int_lim_min = splReadTime(nz([limiteTop],0)) where nz([limiteTop],0) > 0.001;"
+DoCmd.RunSQL sql
+
+sql = "update splKategorie set int_lim_string = hzn(splGenerateLimS(nz([int_lim_min]), nz([int_lim_max])));"
+DoCmd.RunSQL sql
+
+
+sql = "update splKategorie set int_reslim_string = hzn(splGenerateResLimS(nz([int_lim_min]), nz([int_lim_max])));"
+DoCmd.RunSQL sql
+
+sql = "update splKategorie set int_categorie = splReadAgeGroup_MM2006(nz([geschlecht]),nz([int_agedate],#01-01-1900#), nz([minJahr]), nz([maxJahr]), 1);"
+DoCmd.RunSQL sql
+'geslecht, minJahr, maxJahr
+
+
+
+
+'Build a temporary table, splCatStats, to hold the number of subcategories per programmanummer.
+DoCmd.DeleteObject acTable, "splCatStats"
+
+Set tbDef = CurrentDb().CreateTableDef("splCatStats")
+tbDef.Fields.Append tbDef.CreateField("RN-ID", dbLong)
+tbDef.Fields.Append tbDef.CreateField("NCATS", dbLong)
+tbDef.Fields.Append tbDef.CreateField("LIM_MIN", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("LIM_MAX", dbDouble)
+Dim idx As Index
+Set idx = tbDef.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("RN-ID")
+idx.Primary = True
+tbDef.Indexes.Append idx
+CurrentDb().TableDefs.Append tbDef
+
+
+sql = "INSERT INTO splCatStats ( [RN-ID], NCats, LIM_MAX,LIM_MIN ) SELECT splKategorie.[RN-ID], Count(splKategorie.Code) AS NCats, max(splReadTime(nz(splKategorie.LIMITE1))) as LIM_MAX, min(splReadTime(nz(splKategorie.LIMITETOP))) as LIM_MIN " & _
+      "FROM splKategorie GROUP BY splKategorie.[RN-ID];"
+DoCmd.RunSQL sql
+
+
+sql = "UPDATE splRennen INNER JOIN splCatStats ON splRennen.[RN-ID] = splCatStats.[RN-ID] " & _
+"SET splRennen.INT_N_Cats = [NCats];"
+
+DoCmd.RunSQL sql
+
+
+sql = "UPDATE splRennen INNER JOIN splCatStats ON splRennen.[RN-ID] = splCatStats.[RN-ID] " & _
+"SET splRennen.INT_LIM_MIN = [LIM_MIN] where (NCATS <= 1);"
+DoCmd.RunSQL sql
+
+sql = "UPDATE splRennen INNER JOIN splCatStats ON splRennen.[RN-ID] = splCatStats.[RN-ID] " & _
+"SET splRennen.INT_LIM_MAX = [LIM_MAX] where (NCATS <= 1);"
+DoCmd.RunSQL sql
+
+
+DoCmd.DeleteObject acTable, "splCatStats"
+
+'update categories
+sql = "update splRennen set int_categorie = splReadAgeGroup_MM2006(nz([geschlecht]), nz([datum],#01-01-1900#), nz([minAlter]), nz([maxAlter]), nz([int_n_cats]));"
+DoCmd.RunSQL sql
+
+'update afstand & slag
+sql = "UPDATE (splRennen  INNER JOIN fdtgSplashStyleConversion ON splRennen.DiszipID = fdtgSplashStyleConversion.FSNID) SET splRennen.INT_SLAG = [slag], splRennen.INT_AFSTAND = [afstand];"
+DoCmd.RunSQL sql
+
+
+sql = "update splRennen set int_lim_string = hzn(splGenerateLimS(nz([int_lim_min]), nz([int_lim_max])));"
+DoCmd.RunSQL sql
+
+
+sql = "update splRennen set int_reslim_string = hzn(splGenerateResLimS(nz([int_lim_min]), nz([int_lim_max])));"
+DoCmd.RunSQL sql
+
+
+
+'now need to update abSchnitte, in particular the courses.
+sql = "Update splAbschnitte set [int_baan] = iif(nz([course]) = 1,50,25);"
+DoCmd.RunSQL sql
+
+'Everything is now prepared for the transfer.
+
+Dim rsSett As Recordset
+Set rsSett = CurrentDb().OpenRecordset("splSettings")
+rsSett.Index = "PrimaryKey"
+
+
+Dim rs As Recordset
+Dim rsOut As Recordset
+
+
+'Write wedstrijden
+Set rs = CurrentDb().OpenRecordset("splAbschnitte")
+Set rsOut = CurrentDb().OpenRecordset("gIMP_LEN_wedstrijden")
+
+rs.MoveFirst
+Do Until rs.EOF
+  rsOut.AddNew
+    rsOut("WE_ID") = rs("Nummer")
+    rsOut("WE_datum") = rs("datum")
+    rsOut("WE_Aanvang") = rs("Zeit")
+    rsOut("WE_Beschrijving") = rs("Titel")
+    rsOut("WE_Beschrijving_Extra") = rs("Titel")
+    rsOut("WE_Baanlengte") = rs("INT_Baan")
+    rsOut("WE_Plaats") = hzn(splReadProperty(rsSett, "edtOrt"))
+    rsOut("WE_Zwembad") = hzn(splReadProperty(rsSett, "EPoolName"))
+    
+    Dim qlfFromDat As Date, qlfUntilDat As Date
+    qlfFromDat = splParseSettingsDate(splReadProperty(rsSett, "EQualifyFrom"))
+    qlfUntilDat = splParseSettingsDate(splReadProperty(rsSett, "EQualifyUntil"))
+    
+    
+    If (lenDateIsValid(qlfFromDat)) Then
+      rsOut("WE_QLF_FROM") = qlfFromDat
+    End If
+    
+    If (lenDateIsValid(qlfUntilDat)) Then
+      rsOut("WE_QLF_Until") = qlfUntilDat
+    End If
+    
+    rsOut("WE_PartOfTimeArchive") = False
+      
+    
+  rsOut.Update
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS rsOut
+
+
+
+'Write programma's
+sql = "INSERT INTO gIMP_LEN_programma ( PR_ID, PR_Programmanummer, INT_LEN_NR_ID, INT_LEN_ID, PR_WED_ID, PR_Aanvang, " & _
+"PR_Afstand, PR_Slag, PR_Categorie, PR_BeschrijvingCategorie, PR_Limiet, PR_ResMarge ) " & _
+"SELECT splRennen.Nummer, splRennen.Nummer, splRennen.Nummer, [nummer]*100 AS LENID, splRennen.ANummer, " & _
+"splRennen.Zeit, splRennen.INT_AFSTAND, splRennen.INT_SLAG, splRennen.INT_CATEGORIE, " & _
+"catBeschrijving(nz([int_categorie])) AS BESCAT, splRennen.INT_LIM_STRING, splRennen.INT_RESLIM_STRING FROM splRennen;"
+DoCmd.RunSQL sql
+
+'write leeftijdsgroepen
+
+sql = "SELECT splKategorie.*, splRennen.Nummer FROM splKategorie INNER JOIN splRennen ON splKategorie.[RN-ID] = splRennen.[RN-ID];"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Set rsOut = CurrentDb().OpenRecordset("gIMP_LEN_LEEFTIJDSGROEPEN")
+
+Dim lftID As Long
+lftID = 0
+rs.MoveFirst
+Do Until rs.EOF
+  lftID = lftID + 1
+  rsOut.AddNew
+    rsOut("LF_ID") = lftID
+    rsOut("LF_PR_ID") = rs("nummer")
+    rsOut("LF_Categorie") = rs("INT_CATEGORIE")
+    rsOut("LF_BeschrijvingCategorie") = hzn(catBeschrijving(Nz(rs("INT_CATEGORIE"))))
+    rsOut("LF_Limiet") = rs("INT_LIM_STRING")
+    rsOut("LF_ResMarge") = rs("INT_RESLIM_STRING")
+  rsOut.Update
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS rsOut
+
+appCleanRS rsSett
+
+
+DoCmd.SetWarnings True
+
+'Now cleanup the mess, deleting any tables.
+If Not splMMImpCleanup() Then
+  Exit Function
+End If
+
+
+splMMImpFillLenTransTables_Perform_MM2006 = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function splMMImpFillLenTransTables_perform_mm2007_updateAfSl() As Boolean
+On Error GoTo fout
+splMMImpFillLenTransTables_perform_mm2007_updateAfSl = False
+
+Dim sql As String
+sql = "update (splEvent INNER JOIN splStyle ON splEvent.SWIMSTYLEID = splStyle.SWIMSTYLEID) INNER JOIN fdtgSplashStyleConversion ON splStyle.UNIQUEID = fdtgSplashStyleConversion.FSNID set splEvent.INT_SLAG = [slag], splEvent.INT_AFSTAND = [afstand];"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from splEvent where nz([int_afstand]) = """";")
+
+Dim sk As Recordset
+Set sk = CurrentDb().OpenRecordset("splStyle")
+sk.Index = "PK_SWIMSTYLE"
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpStyleID As Long
+  tpStyleID = Nz(rs("SwimStyleID"))
+  
+  sk.Seek "=", tpStyleID
+  
+  If Not sk.NoMatch Then
+  
+    Dim tpAfPart As Integer, tpRelayCnt As Integer
+    
+    tpAfPart = Nz(sk("distance"))
+    tpRelayCnt = Nz(sk("relaycount"))
+    
+    Dim tpAf As String
+    Dim tpSl As String
+    Dim tpDesAfw As String
+    
+    If (tpRelayCnt = 1) Then
+      tpAf = tpAfPart
+    Else
+      tpAf = tpRelayCnt & "x" & tpAfPart
+    End If
+    
+    Dim tpSlCode As Integer
+    tpSlCode = Nz(sk("stroke"))
+    tpSl = splReadStrokeAsSlag(tpSlCode)
+    
+    Dim tpName As String
+    tpName = Nz(sk("name"))
+    
+    If (tpAf = "") Then
+      tpAf = "100"
+    End If
+    If (tpSl = "") Then
+      tpSl = "ONB"
+    End If
+    
+    rs.Edit
+      rs("INT_Afstand") = hzn(tpAf)
+      rs("INT_Slag") = hzn(tpSl)
+      rs("INT_BeschrijvingAfwijkend") = hzn(tpName)
+    rs.Update
+  
+  End If
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS sk
+
+
+
+splMMImpFillLenTransTables_perform_mm2007_updateAfSl = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " splMMImpFillLenTransTables_perform_mm2007_updateAfSl" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+
+End Function
+
+
+Private Function splMMImpFillLenTransTables_Perform_MM2007(ByVal splWedDat As Date, splWedDes As String, splWedPlaats As String) As Boolean
+On Error GoTo fout
+splMMImpFillLenTransTables_Perform_MM2007 = False
+
+
+
+Dim splValid As Boolean, splInvalidReason As Integer, splInvalidString As String
+
+
+
+Dim tbDef As TableDef
+Dim db As Database
+Set db = CurrentDb()
+Set tbDef = db.TableDefs("splEvent")
+
+tbDef.Fields.Append tbDef.CreateField("INT_AFSTAND", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_SLAG", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_BeschrijvingAfwijkend", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_IS_MVAR", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("INT_CATEGORIE", dbText, 30)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MIN", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MAX", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_RESLIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_N_CATS", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("INT_AGE_MIN", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("INT_AGE_MAX", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("INT_AGE_DATE", dbDate)
+tbDef.Fields.Append tbDef.CreateField("INT_AGE_BY_TOTAL", dbBoolean)
+
+
+Set tbDef = Nothing
+
+
+Set tbDef = db.TableDefs("splAgegroup")
+tbDef.Fields.Append tbDef.CreateField("INT_AGEDATE", dbDate)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MIN", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_MAX", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("INT_LIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_RESLIM_STRING", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("INT_CATEGORIE", dbText, 30)
+
+Set tbDef = Nothing
+
+
+Set tbDef = db.TableDefs("splSession")
+tbDef.Fields.Append tbDef.CreateField("INT_Baan", dbInteger)
+
+'sql statements to update splKategorie
+Dim sql As String
+DoCmd.SetWarnings False
+
+
+sql = "update splAgegroup set int_agedate = #" & Format(splWedDat, "mm\-dd\-yyyy") & "#;"
+DoCmd.RunSQL sql
+
+'sql = "update splAgegroup set int_lim_max = splReadTime(nz([limite1],0)) where nz([limite1],0) > 0.001;"
+'DoCmd.RunSQL sql
+
+'sql = "update splAgegroup set int_lim_min = splReadTime(nz([limiteTop],0)) where nz([limiteTop],0) > 0.001;"
+'DoCmd.RunSQL sql
+
+'sql = "update splAgegroup set int_lim_string = hzn(splGenerateLimS(nz([int_lim_min]), nz([int_lim_max])));"
+'DoCmd.RunSQL sql
+
+
+'sql = "update splAgegroup set int_reslim_string = hzn(splGenerateResLimS(nz([int_lim_min]), nz([int_lim_max])));"
+'DoCmd.RunSQL sql
+
+sql = "update splAgegroup set int_categorie = splReadAgeGroup_MM2007(nz([gender]),nz([int_agedate],#01-01-1900#), nz([ageMin]), nz([ageMax]), 1, splReadBoolean(nz([ageByTotal])) );"
+DoCmd.RunSQL sql
+'geslecht, minJahr, maxJahr
+
+
+
+
+'Build a temporary table, splCatStats, to hold the number of subcategories per programmanummer.
+DoCmd.DeleteObject acTable, "splCatStats"
+
+Set tbDef = CurrentDb().CreateTableDef("splCatStats")
+tbDef.Fields.Append tbDef.CreateField("SWIMEVENTID", dbLong)
+tbDef.Fields.Append tbDef.CreateField("NCATS", dbLong)
+tbDef.Fields.Append tbDef.CreateField("LIM_MIN", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("LIM_MAX", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("AGE_MIN", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("AGE_MAX", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("BL_AGE_BY_TOTAL", dbBoolean)
+Dim idx As Index
+Set idx = tbDef.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("SWIMEVENTID")
+idx.Primary = True
+tbDef.Indexes.Append idx
+CurrentDb().TableDefs.Append tbDef
+
+
+'Need to include maximum and minimum age, since these are no longer present in SwimEvent table.
+'Note that if there is more than one cat, these quantities are in fact irrelevant since it will become MVAR or JVAR anyway.
+sql = "INSERT INTO splCatStats ( [SWIMEVENTID], NCats, LIM_MAX,LIM_MIN, AGE_MAX, AGE_MIN, BL_AGE_BY_TOTAL ) SELECT splAgegroup.[SWIMEVENTID], Count(splAgegroup.AgeGroupID) AS NCats, max(nz(splAgegroup.INT_LIM_MAX)) as LIM_MAX, min(nz(splAgegroup.INT_LIM_MIN)) as LIM_MIN, max(nz(splAgeGroup.AGEMAX)) as AGE_MAX, min(nz(splAgeGroup.AGEMIN)) as AGE_MIN, first(splReadBoolean(nz(splAgeGroup.AGEBYTOTAL))) as BL_AGE_BY_TOTAL " & _
+      "FROM splAgegroup GROUP BY splAgegroup.[SWIMEVENTID];"
+DoCmd.RunSQL sql
+
+
+sql = "UPDATE splEvent INNER JOIN splCatStats ON splEvent.[SWIMEVENTID] = splCatStats.[SWIMEVENTID] " & _
+"SET splEvent.INT_N_Cats = [NCats];"
+
+DoCmd.RunSQL sql
+
+
+sql = "UPDATE splEvent INNER JOIN splCatStats ON splEvent.[SWIMEVENTID] = splCatStats.[SWIMEVENTID] " & _
+"SET splEvent.INT_LIM_MIN = [LIM_MIN] where (NCATS <= 1);"
+DoCmd.RunSQL sql
+
+sql = "UPDATE splEvent INNER JOIN splCatStats ON splEvent.[SWIMEVENTID] = splCatStats.[SWIMEVENTID] " & _
+"SET splEvent.INT_LIM_MAX = [LIM_MAX] where (NCATS <= 1);"
+DoCmd.RunSQL sql
+
+
+sql = "UPDATE splEvent INNER JOIN splCatStats ON splEvent.[SWIMEVENTID] = splCatStats.[SWIMEVENTID] " & _
+"SET splEvent.INT_AGE_MIN = [AGE_MIN] where (NCATS <= 1);"
+DoCmd.RunSQL sql
+
+sql = "UPDATE splEvent INNER JOIN splCatStats ON splEvent.[SWIMEVENTID] = splCatStats.[SWIMEVENTID] " & _
+"SET splEvent.INT_AGE_MAX = [AGE_MAX] where (NCATS <= 1);"
+DoCmd.RunSQL sql
+
+sql = "UPDATE splEvent INNER JOIN splCatStats ON splEvent.[SWIMEVENTID] = splCatStats.[SWIMEVENTID] " & _
+"SET splEvent.INT_AGE_BY_TOTAL = [BL_AGE_BY_TOTAL] where (NCATS <= 1);"
+DoCmd.RunSQL sql
+
+
+
+
+'Now handle splEvent
+
+sql = "update splEvent set int_age_date = #" & Format(splWedDat, "mm\-dd\-yyyy") & "#;"
+DoCmd.RunSQL sql
+
+
+'update categories
+sql = "update splEvent set int_categorie = splReadAgeGroup_MM2007(nz([GENDER]), nz([int_age_date],#01-01-1900#), nz([INT_AGE_MIN]), nz([INT_AGE_MAX]), nz([int_n_cats]), nz([INT_AGE_BY_TOTAL], false) );"
+DoCmd.RunSQL sql
+
+'update afstand & slag
+
+DoCmd.SetWarnings True
+
+If Not splMMImpFillLenTransTables_perform_mm2007_updateAfSl() Then
+  Exit Function
+End If
+
+DoCmd.SetWarnings False
+
+
+
+'update limit and reserve limit
+sql = "update splEvent set int_lim_string = hzn(splGenerateLimS(nz([int_lim_min]), nz([int_lim_max])));"
+DoCmd.RunSQL sql
+
+
+sql = "update splEvent set int_reslim_string = hzn(splGenerateResLimS(nz([int_lim_min]), nz([int_lim_max])));"
+DoCmd.RunSQL sql
+
+
+
+'now need to update abSchnitte, in particular the courses.
+sql = "Update splSession set [int_baan] = iif(nz([course]) = 1,50,25);"
+DoCmd.RunSQL sql
+
+'Everything is now prepared for the transfer.
+
+Dim rsSett As Recordset
+Set rsSett = CurrentDb().OpenRecordset("splSettings")
+rsSett.Index = "PrimaryKey"
+
+
+Dim rs As Recordset
+Dim rsOut As Recordset
+
+
+'Write wedstrijden
+Set rs = CurrentDb().OpenRecordset("splSession")
+Set rsOut = CurrentDb().OpenRecordset("gIMP_LEN_wedstrijden")
+
+rs.MoveFirst
+Do Until rs.EOF
+  rsOut.AddNew
+    rsOut("WE_ID") = rs("SWIMSESSIONID")
+    rsOut("WE_datum") = rs("STARTDATE")
+    rsOut("WE_Aanvang") = rs("DAYTIME")
+    rsOut("WE_Beschrijving") = rs("NAME")
+    rsOut("WE_Beschrijving_Extra") = rs("NAME")
+    rsOut("WE_Baanlengte") = rs("INT_Baan")
+    rsOut("WE_Plaats") = hzn(splReadProperty(rsSett, "City"))
+    rsOut("WE_Zwembad") = hzn(splReadProperty(rsSett, "PoolName"))
+    
+    Dim qlfFromDat As Date, qlfUntilDat As Date
+    qlfFromDat = splParseSettingsDate(splReadProperty(rsSett, "QualifyFrom"))
+    qlfUntilDat = splParseSettingsDate(splReadProperty(rsSett, "QualifyUntil"))
+    
+    
+    If (lenDateIsValid(qlfFromDat)) Then
+      rsOut("WE_QLF_FROM") = qlfFromDat
+    End If
+    
+    If (lenDateIsValid(qlfUntilDat)) Then
+      rsOut("WE_QLF_Until") = qlfUntilDat
+    End If
+      
+      
+    rsOut("WE_Leeftijdsbepaling") = hzn(LFT_MODE_SZYR)
+    
+    rsOut("WE_PartOfTimeArchive") = False
+    
+  rsOut.Update
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS rsOut
+
+
+
+'Write programma's
+sql = "INSERT INTO gIMP_LEN_programma ( PR_ID, PR_Programmanummer, INT_LEN_NR_ID, INT_LEN_ID, PR_WED_ID, PR_Aanvang, " & _
+"PR_Afstand, PR_Slag,PR_BeschrijvingAfwijkend, PR_Categorie, PR_BeschrijvingCategorie, PR_Limiet, PR_ResMarge ) " & _
+"SELECT splEvent.SwimEventID, splEvent.EventNumber, splEvent.EventNumber, splEvent.Eventnumber*100 AS LENID, splEvent.SWIMSESSIONID, " & _
+"splEvent.DAYTIME, splEvent.INT_AFSTAND, splEvent.INT_SLAG, splEvent.INT_BeschrijvingAfwijkend, splEvent.INT_CATEGORIE, " & _
+"catBeschrijving(nz([int_categorie])) AS BESCAT, splEvent.INT_LIM_STRING, splEvent.INT_RESLIM_STRING FROM splEvent;"
+DoCmd.RunSQL sql
+
+'write leeftijdsgroepen
+
+'update aug 2008: first delete all single agegroups.
+'only keep multiple agegroups
+sql = "DELETE splAgegroup.* FROM splAgegroup INNER JOIN splCatStats " & _
+"ON splAgegroup.SWIMEVENTID = splCatStats.SWIMEVENTID WHERE splCatStats.NCATS <= 1;"
+DoCmd.RunSQL sql
+
+
+'We have no further need for splCatStats
+DoCmd.DeleteObject acTable, "splCatStats"
+
+
+
+sql = "SELECT splAgegroup.*, splEvent.SWIMEVENTID FROM splAgegroup INNER JOIN splEvent ON splAgegroup.[SWIMEVENTID] = splEvent.[SWIMEVENTID];"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Set rsOut = CurrentDb().OpenRecordset("gIMP_LEN_LEEFTIJDSGROEPEN")
+
+Dim lftID As Long
+lftID = 0
+rs.MoveFirst
+Do Until rs.EOF
+  lftID = lftID + 1
+  rsOut.AddNew
+    rsOut("LF_ID") = lftID
+    rsOut("LF_PR_ID") = rs("splAgeGroup.swimeventid")
+    rsOut("LF_Categorie") = rs("INT_CATEGORIE")
+    rsOut("LF_BeschrijvingCategorie") = hzn(catBeschrijving(Nz(rs("INT_CATEGORIE"))))
+    rsOut("LF_Limiet") = rs("INT_LIM_STRING")
+    rsOut("LF_ResMarge") = rs("INT_RESLIM_STRING")
+  rsOut.Update
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsOut
+
+appCleanRS rsSett
+
+
+DoCmd.SetWarnings True
+
+'Now cleanup the mess, deleting any tables.
+If Not splMMImpCleanup() Then
+  Exit Function
+End If
+
+
+splMMImpFillLenTransTables_Perform_MM2007 = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+DoCmd.SetWarnings True
+MsgBox Err & " splMMImpFillLenTransTables_Perform_MM2007" & vbCrLf & Error$, 16
+Exit Function
+
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function splMeetList_BuildTable(tbName As String) As Boolean
+On Error GoTo fout
+splMeetList_BuildTable = False
+
+DoCmd.DeleteObject acTable, tbName
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("WL_ModificationDate", dbDate)
+tb.Fields.Append tb.CreateField("WL_FileURL", dbText, 255)
+tb.Fields.Append tb.CreateField("WL_Nation", dbText, 50)
+tb.Fields.Append tb.CreateField("WL_Description", dbText, 255)
+
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+Set db = Nothing
+
+
+
+
+
+splMeetList_BuildTable = True
+Exit Function
+
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+MsgBox Err & " splMeetList_BuildTable" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function splMeetList_Acquire() As Boolean
+On Error GoTo fout
+splMeetList_Acquire = False
+
+
+If Not splMeetList_BuildTable("splMeetList") Then
+  Exit Function
+End If
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("splMeetList")
+
+
+Dim listURL As String
+listURL = "http://www.splash-software.ch/meet-templates/index.php?task=list"
+
+
+Dim listFName As String
+
+  listFName = downloadFile(listURL)
+  If (listFName = "") Then
+    Err.Raise 1, , "Error downloading file: " & listURL
+    Exit Function
+  End If
+
+Dim fNr As Integer
+fNr = FreeFile
+
+
+Open listFName For Input As #fNr
+
+Dim tpS As String
+
+
+'Have to take care that the file is not windows formatted. It can thus be entirely read
+'by a single Line Input statement.
+
+Dim isHeaderRead As Boolean
+isHeaderRead = False
+'Read first line containing headers.
+While Not EOF(1)
+  Line Input #fNr, tpS
+  'Read this line until it is finished'
+  While (tpS <> "")
+    Dim tpLine As String
+    tpLine = extractToken(tpS, Chr(10))
+    
+    Dim sID As String
+    Dim sName As String
+    Dim sNation As String
+    Dim sLastChanged As String
+    Dim sURL As String
+  
+    sID = extractToken(tpLine, ";")
+    sName = extractToken(tpLine, ";")
+    sNation = extractToken(tpLine, ";")
+    sLastChanged = extractToken(tpLine, ";")
+    sURL = extractToken(tpLine, ";")
+    
+    If (isHeaderRead) Then
+  
+      Dim modYYYY As Long
+      Dim modMM As Long
+      Dim modDD As Long
+    
+      modYYYY = CInt(Left(sLastChanged, 4))
+      modMM = CInt(Mid(sLastChanged, 5, 2))
+      modDD = CInt(Mid(sLastChanged, 7, 2))
+    
+      rsOut.AddNew
+        rsOut("WL_ModificationDate") = CDate(modMM & "-" & modDD & "-" & modYYYY)
+        rsOut("WL_Description") = hzn(sName)
+        rsOut("WL_Nation") = hzn(sNation)
+        rsOut("WL_FileURL") = hzn(sURL)
+      rsOut.Update
+    ElseIf (sID = "ID" And sName = "NAME") Then
+      isHeaderRead = True
+    End If
+  Wend 'while tpS <> ""
+  
+  
+Wend
+
+
+Close
+
+appCleanRS rsOut
+
+
+splMeetList_Acquire = True
+Exit Function
+
+fout:
+'close all open filestreams.
+Close
+MsgBox Err & " splMeetList_Acquire" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function splMeetList_Cleanup() As Boolean
+On Error GoTo fout
+splMeetList_Cleanup = False
+
+
+DoCmd.DeleteObject acTable, "splMeetList"
+
+
+splMeetList_Cleanup = True
+Exit Function
+
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+MsgBox Err & " splMeetList_Cleanup" & vbCrLf & Error$, 16
+Exit Function
+
+End Function

@@ -1,0 +1,283 @@
+Version =20
+VersionRequired =20
+Checksum =1123473242
+Begin Form
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =6690
+    DatasheetFontHeight =10
+    ItemSuffix =17
+    Left =1890
+    Top =1035
+    Right =10785
+    Bottom =8355
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0xfbffe9847d4de340
+    End
+    RecordSource ="SELECT [gSelProgs].* FROM [gSelProgs] ORDER BY [gSelProgs].TP_Wedstrijdnummer, V"
+        "al(nz([TP_Programmanummer]));"
+    Caption ="Meetellende programmanummers"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =890
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =1247
+                    Top =680
+                    Width =540
+                    Height =210
+                    Name ="Label6"
+                    Caption ="Prognr"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =5839
+                    Top =680
+                    Width =690
+                    Height =210
+                    Name ="Label7"
+                    Caption ="Telt mee"
+                End
+                Begin Label
+                    OverlapFlags =93
+                    TextAlign =2
+                    Top =56
+                    Width =6690
+                    Height =345
+                    FontSize =10
+                    FontWeight =700
+                    BackColor =65280
+                    Name ="Label8"
+                    Caption ="Meetellende Programmanummers"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =113
+                    Top =680
+                    Width =645
+                    Height =210
+                    Name ="Label13"
+                    Caption ="Wednr: "
+                End
+                Begin CommandButton
+                    OverlapFlags =215
+                    AccessKey =84
+                    Left =5442
+                    Top =56
+                    Width =1134
+                    Height =400
+                    FontSize =10
+                    FontWeight =700
+                    ForeColor =255
+                    Name ="btnClose"
+                    Caption ="&Terug"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1247
+                    Width =795
+                    Name ="TP_Programmanummer"
+                    ControlSource ="TP_Programmanummer"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =6066
+                    TabIndex =1
+                    Name ="TP_Teltmee"
+                    ControlSource ="TP_Teltmee"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =2211
+                    Width =3621
+                    TabIndex =2
+                    Name ="des"
+                    ControlSource ="TP_Description"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =113
+                    Width =1026
+                    TabIndex =3
+                    Name ="TP_Wedstrijdnummer"
+                    ControlSource ="TP_Wedstrijdnummer"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =566
+            BackColor =12632256
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    Left =113
+                    Top =113
+                    Width =1476
+                    Height =403
+                    Name ="btnSelAll"
+                    Caption ="Alles &selecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    Left =1700
+                    Top =113
+                    Width =1521
+                    Height =403
+                    TabIndex =1
+                    Name ="btnDeselAll"
+                    Caption ="Alles &deselecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =67
+                    Left =4988
+                    Top =113
+                    Width =1581
+                    Height =403
+                    TabIndex =2
+                    Name ="btnCrit"
+                    Caption ="&Criteria toepassen..."
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+
+Private Function alles(selecteren As Boolean, estafOnly As Boolean)
+
+On Error Resume Next
+Dim geg As Recordset
+Set geg = Me.RecordsetClone
+
+geg.MoveFirst
+Do Until geg.EOF
+  Dim blIsEstaf As Boolean
+  blIsEstaf = Nz(geg("TP_IsEstaf"))
+  Dim blSelStatus As Boolean
+  blSelStatus = selecteren
+  
+  If (estafOnly And Not blIsEstaf) Then
+    blSelStatus = Not blSelStatus
+  End If
+  
+    geg.Edit
+    geg("TP_Teltmee") = blSelStatus
+    geg.Update
+    geg.MoveNext
+Loop
+
+End Function
+
+Private Sub btnDeselAll_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+alles False, False
+
+End Sub
+
+Private Sub btnClose_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+Private Sub btnSelAll_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+alles True, False
+End Sub
+
+
+Private Sub btnCrit_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+DoCmd.OpenForm "gPROG_Criteria", , , , , acDialog
+Me.Requery
+End Sub
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+
+If Me.openArgs = "EntireMeet" Then
+  Me.FilterOn = False
+  Me.filter = ""
+Else
+  Me.FilterOn = True
+  Me.filter = "[TP_Wedstrijdnummer] = " & waarde() & ";"
+End If
+
+
+End Sub

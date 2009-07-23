@@ -1,0 +1,256 @@
+Version =20
+VersionRequired =20
+Checksum =811393278
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DividingLines = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =4380
+    DatasheetFontHeight =10
+    ItemSuffix =11
+    Left =7365
+    Top =2490
+    Right =11745
+    Bottom =6105
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x9b2fba7defc3e140
+    End
+    Caption ="Mail merge"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+            Width =1701
+            Height =1701
+        End
+        Begin FormHeader
+            Height =623
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =1247
+                    Top =113
+                    Width =1830
+                    Height =405
+                    FontSize =14
+                    FontWeight =700
+                    BackColor =65280
+                    Name ="Label7"
+                    Caption ="Mail Merge"
+                End
+            End
+        End
+        Begin Section
+            Height =2267
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin OptionGroup
+                    SpecialEffect =0
+                    OverlapFlags =93
+                    Left =226
+                    Top =340
+                    Width =4154
+                    Height =1858
+                    Name ="contact"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="1"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =215
+                            Left =226
+                            Top =113
+                            Width =3750
+                            Height =240
+                            Name ="Label1"
+                            Caption ="Kies een contactpersonen bestand voor het mergen"
+                        End
+                        Begin OptionButton
+                            SpecialEffect =0
+                            OverlapFlags =87
+                            Left =340
+                            Top =481
+                            OptionValue =1
+                            Name ="Option3"
+                            Begin
+                                Begin Label
+                                    BackStyle =1
+                                    OverlapFlags =247
+                                    Left =570
+                                    Top =450
+                                    Width =3570
+                                    Height =495
+                                    Name ="Label4"
+                                    Caption ="Alle contactpersonen van deelnemende verenigingen "
+                                End
+                            End
+                        End
+                        Begin OptionButton
+                            SpecialEffect =0
+                            OverlapFlags =87
+                            Left =340
+                            Top =1218
+                            OptionValue =2
+                            Name ="Option5"
+                            Begin
+                                Begin Label
+                                    BackStyle =1
+                                    OverlapFlags =247
+                                    Left =570
+                                    Top =1185
+                                    Width =3555
+                                    Height =465
+                                    Name ="Label6"
+                                    Caption ="Alle Contactpersonen die voldoen aan hieronder gekozen groepen"
+                                End
+                            End
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =215
+                    AccessKey =71
+                    Left =737
+                    Top =1757
+                    Width =1296
+                    Height =358
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnGroepen"
+                    Caption ="&Groepen..."
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =737
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    Default = NotDefault
+                    OverlapFlags =85
+                    Left =3118
+                    Top =226
+                    Width =1026
+                    Height =403
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnOK"
+                    Caption ="OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =226
+                    Top =226
+                    Width =1026
+                    Height =403
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnCancel"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private lsCode As Long
+
+Private Sub updateView()
+On Error Resume Next
+Me.btnGroepen.Enabled = (Nz(Me.contact) = 2)
+End Sub
+
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+Private Sub btnGroepen_Click()
+On Error Resume Next
+
+Dim isOK As Boolean, lkpCode As Long
+
+If Not lsPromptUser_Simple(lsCode, isOK, lkpCode) Then
+  Exit Sub
+End If
+
+If (isOK) Then
+  lsCode = lkpCode
+End If
+    
+End Sub
+
+Private Sub btnOK_Click()
+On Error Resume Next
+Forms("wed_master").MailMergeOptie = Nz(Me.contact)
+Forms("wed_master").MailMergeNummer = lsCode
+DoCmd.Close
+
+If Not RTFEditor(ExpWedstrijdGegevens(waarde()), ExpProgrammaGegevens(), ExpJuryGegevens(), ExpContactGegevens(), ExpVerGegevens()) Then
+  Exit Sub
+End If
+
+End Sub
+
+Private Sub contact_AfterUpdate()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

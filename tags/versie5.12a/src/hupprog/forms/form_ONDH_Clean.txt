@@ -1,0 +1,214 @@
+Version =20
+VersionRequired =20
+Checksum =1828966419
+Begin Form
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =0
+    BorderStyle =1
+    GridX =15
+    GridY =15
+    Width =9646
+    ItemSuffix =14
+    Left =2775
+    Top =1245
+    Right =15285
+    Bottom =6870
+    RecSrcDt = Begin
+        0x555f5cd5f873e140
+    End
+    Caption ="Onderhoud"
+    OnOpen ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Rectangle
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =65280
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =4157
+            BackColor =65280
+            Name ="Detail0"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =135
+                    Top =570
+                    Width =2340
+                    Height =225
+                    Name ="Text8"
+                    Caption ="Wedstrijdgegevens verwijderen:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =2624
+                    Top =570
+                    Width =1320
+                    Height =240
+                    Name ="Text9"
+                    Caption ="Wedstrijden voor:"
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =4217
+                    Top =570
+                    Width =901
+                    Name ="Datumw2"
+                    Format ="dd-mm-yyyy"
+                    OnLostFocus ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =86
+                    Left =5351
+                    Top =570
+                    Width =1512
+                    Height =354
+                    TabIndex =1
+                    Name ="btnVerwijder"
+                    Caption ="&Verwijderen"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =5351
+                    Top =1184
+                    Width =1512
+                    Height =354
+                    TabIndex =2
+                    Name ="btnImpKNZB"
+                    Caption ="Inlezen..."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =157
+                    Top =1188
+                    Width =2595
+                    Height =315
+                    Name ="Label13"
+                    Caption ="KNZB gegevens importeren:"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =65280
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+Private Sub btnVerwijder_Click()
+On Error GoTo fout
+Dim msg As String
+
+
+msg = "Weet u zeker dat u door wilt gaan?" & Chr$(13) & "Er zullen waarschijnlijk gegevens verloren gaan."
+
+If (MsgBox(msg, vbOKCancel + vbQuestion) = vbCancel) Then
+  Exit Sub
+End If
+
+If Not lenDateIsValid(Nz(Me.Datumw2, #1/1/1900#)) Then
+  Err.Raise 1, , "Vul een geldige datum in."
+End If
+
+Dim sql As String
+sql = "DELETE * FROM dtWedstrijdGegevens " & _
+  "WHERE ((dtWedstrijdGegevens.WE_Datum)< #" & Format(Nz(Me.Datumw2, #1/1/1900#), "mm\-dd\-yyyy") & "#);"
+
+
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Exit Sub
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " btnVerwijder_click" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+
+
+Private Sub btnImpKNZB_Click()
+On Error Resume Next
+qsImpKNZB
+End Sub
+
+
+Private Sub Datumw2_LostFocus()
+On Error Resume Next
+
+
+If Not lenDateIsValid(Nz([Datumw2], #1/1/1900#)) Then
+   Dim msg As String
+   msg = "Er is geen geldige datum ingevuld"
+   MsgBox msg, 16
+   Me.btnVerwijder.SetFocus
+   Me.Datumw2.SetFocus
+   Exit Sub
+End If
+
+
+
+If DateDiff("y", Maand_Geleden(), [Datumw2]) > 0 Then
+  msg = "Deze wedstrijden zijn te recent om uit te wissen." & Chr$(13) & "Kies een datum voor " & rxpFormatDateNL(Maand_Geleden()) & "."
+  MsgBox msg, 16
+
+  Me.btnVerwijder.SetFocus
+  Me.Datumw2.SetFocus
+  
+End If
+
+
+Exit Sub
+ef:
+Exit Sub
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.Datumw2 = Maand_Geleden()
+End Sub
+
+Private Function Maand_Geleden() As Date
+On Error Resume Next
+Maand_Geleden = DateAdd("m", -3, Now())
+End Function
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

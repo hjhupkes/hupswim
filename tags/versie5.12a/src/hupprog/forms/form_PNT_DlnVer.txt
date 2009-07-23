@@ -1,0 +1,298 @@
+Version =20
+VersionRequired =20
+Checksum =1745745832
+Begin Form
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =8666
+    DatasheetFontHeight =10
+    ItemSuffix =28
+    Left =2985
+    Top =750
+    Right =21885
+    Bottom =9210
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    AfterInsert ="[Event Procedure]"
+    RecSrcDt = Begin
+        0xbad4b9703e5fe340
+    End
+    RecordSource ="SELECT V_DEPOT, dtgPuntentellingDlnVers.* FROM dtgPuntentellingDlnVers LEFT JOIN"
+        " dtVerenigingen ON dtgPuntentellingDlnVers.PTV_Vereniging = dtVerenigingen.V_NAA"
+        "M WHERE (((dtgPuntentellingDlnVers.PTV_Wedstrijdnummer)=waarde()) AND ((dtgPunte"
+        "ntellingDlnVers.PTV_OrderID)=waarde_pnt())) ORDER BY dtgPuntentellingDlnVers.PTV"
+        "_Vereniging;"
+    Caption ="Categoriën"
+    OnOpen ="[Event Procedure]"
+    OnClose ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =353
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =825
+                    Height =240
+                    Name ="Combo21_Label"
+                    Caption ="Vereniging"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4422
+                    Top =113
+                    Width =675
+                    Height =240
+                    Name ="lbGroup"
+                    Caption ="Groep"
+                    GUID = Begin
+                        0x057b34289b70cc48a2ed51a72b11e000
+                    End
+                End
+            End
+        End
+        Begin Section
+            Height =255
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =7823
+                    Width =456
+                    Height =255
+                    Name ="PTV_Wedstrijdnummer"
+                    ControlSource ="PTV_Wedstrijdnummer"
+                    DefaultValue ="=waarde()"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =8390
+                    Width =276
+                    Height =255
+                    TabIndex =1
+                    Name ="PTV_OrderID"
+                    ControlSource ="PTV_OrderID"
+                    DefaultValue ="=waarde_pnt()"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =2
+                    ListWidth =3255
+                    Left =113
+                    Width =2721
+                    Height =255
+                    TabIndex =2
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"10\";\"100\""
+                    Name ="PTV_Vereniging"
+                    ControlSource ="PTV_Vereniging"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW dv_naam, dv_plaats  FROM dtDeelnemendeVerenigingen WHERE dv_w"
+                        "edstrijdnummer=waarde() order by dv_naam;"
+                    ColumnWidths ="1365;1890"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    ListWidth =2685
+                    Left =4422
+                    Width =2721
+                    Height =255
+                    TabIndex =3
+                    ColumnInfo ="\"\";\"\";\"10\";\"100\""
+                    GUID = Begin
+                        0xe1232c50b388bd47bfc11efc85ec8e06
+                    End
+                    Name ="fldGroup"
+                    ControlSource ="PTV_GroupName"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT dtgPuntentellingVerGroups.PTVG_GroupName FROM dtgPuntentellingVerGroups W"
+                        "HERE (((dtgPuntentellingVerGroups.PTVG_Wedstrijdnummer)=waarde()) AND ((dtgPunte"
+                        "ntellingVerGroups.PTVG_OrderID)=waarde_pnt())) ORDER BY dtgPuntentellingVerGroup"
+                        "s.PTVG_GroupName;"
+                    ColumnWidths ="2685"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    BackStyle =0
+                    IMESentenceMode =3
+                    Left =2948
+                    Width =1311
+                    Height =255
+                    TabIndex =4
+                    Name ="V_DEPOT"
+                    ControlSource ="V_DEPOT"
+                    Format ="00-000;; "
+                    GUID = Begin
+                        0xd6d2ff361501a9488aa64153cf147336
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =566
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =170
+                    Top =113
+                    Width =1926
+                    Height =343
+                    Name ="btnAll"
+                    Caption ="Alle dln ver toevoegen"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+
+
+
+Private Sub btnAll_Click()
+On Error GoTo fout
+
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+If MsgBox("Alle deelnemende verenigingen toevoegen?", vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Sub
+End If
+
+Dim sql As String
+sql = "INSERT INTO dtgPuntentellingDlnVers ( PTV_Vereniging, PTV_Wedstrijdnummer, PTV_OrderID ) " & _
+     "SELECT [dtDeelnemendeVerenigingen].DV_Naam, waarde() AS nr, waarde_pnt() AS pntOrder FROM [dtDeelnemendeVerenigingen] " & _
+     "WHERE ((([dtDeelnemendeVerenigingen].DV_Wedstrijdnummer)=waarde()));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+     
+
+Me.Requery
+
+Exit Sub
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " btnAll_Click" & Error$, 16
+Exit Sub
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+End Sub
+
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+
+lbGroup.Visible = False
+fldGroup.Visible = False
+
+Dim pntInfo As PNT_GLOBAL_BASIC_INFO
+Dim isFnd As Boolean
+If Not pntGlobalLookup(waarde(), waarde_pnt(), isFnd, pntInfo) Then
+  Exit Sub
+End If
+
+If Not isFnd Then
+  Exit Sub
+End If
+
+If (pntInfo.type = PNT_TYPE_VER_PNT) Then
+  Dim pntVPOpts As PNT_VER_PNT_OPTIONS
+  If Not pntVerPntLookup(waarde(), waarde_pnt(), isFnd, pntVPOpts) Then
+    Exit Sub
+  End If
+  If Not isFnd Then
+    Exit Sub
+  End If
+  If pntVPOpts.blGroupVers Then
+    lbGroup.Visible = True
+    fldGroup.Visible = True
+  End If
+ElseIf pntInfo.type = PNT_TYPE_VER_SEC Then
+  Dim pntVSOpts As PNT_VER_SEC_OPTIONS
+  If Not pntVerSecLookup(waarde(), waarde_pnt(), isFnd, pntVSOpts) Then
+    Exit Sub
+  End If
+  If Not isFnd Then
+    Exit Sub
+  End If
+  If pntVSOpts.blGroupVers Then
+    lbGroup.Visible = True
+    fldGroup.Visible = True
+  End If
+ElseIf pntInfo.type = PNT_TYPE_VER_MED Then
+  Dim pntVMOpts As PNT_VER_MED_OPTIONS
+  If Not pntVerMedLookup(waarde(), waarde_pnt(), isFnd, pntVMOpts) Then
+    Exit Sub
+  End If
+  If Not isFnd Then
+    Exit Sub
+  End If
+  If pntVMOpts.blGroupVers Then
+    lbGroup.Visible = True
+    fldGroup.Visible = True
+  End If
+End If
+  
+
+
+End Sub

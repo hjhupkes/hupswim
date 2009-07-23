@@ -1,0 +1,205 @@
+Version =20
+VersionRequired =20
+Checksum =1504343739
+Begin Form
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =9135
+    DatasheetFontHeight =10
+    ItemSuffix =26
+    Left =2760
+    Top =675
+    Right =13470
+    Bottom =8835
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x6e67c1583e5fe340
+    End
+    RecordSource ="SELECT dtProgramma.*, * FROM dtProgramma INNER JOIN dtgPuntentellingProgs ON (dt"
+        "Programma.PR_Programmanummer = dtgPuntentellingProgs.PTPR_ProgProgrammanummer) A"
+        "ND (dtProgramma.PR_Wedstrijdnummer = dtgPuntentellingProgs.PTPR_ProgWedstrijdnum"
+        "mer) WHERE (((dtgPuntentellingProgs.PTPR_Wedstrijdnummer)=waarde()) AND ((dtgPun"
+        "tentellingProgs.PTPR_OrderID)=waarde_pnt())) ORDER BY dtgPuntentellingProgs.PTPR"
+        "_ProgWedstrijdnummer, Val([ptpr_progProgrammanummer]), dtgPuntentellingProgs.PTP"
+        "R_ProgProgrammanummer;"
+    Caption ="Programma"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =356
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =116
+                    Width =630
+                    Height =240
+                    Name ="Label18"
+                    Caption ="Prognr: "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4308
+                    Top =113
+                    Width =975
+                    Height =240
+                    Name ="Label21"
+                    Caption ="Straftijd dis:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5499
+                    Top =113
+                    Width =2085
+                    Height =240
+                    Name ="Label25"
+                    Caption ="Aantal Meetellende deeln."
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =113
+                    Width =801
+                    Name ="PR_Programmanummer"
+                    ControlSource ="PR_Programmanummer"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =4315
+                    Width =456
+                    TabIndex =4
+                    Name ="PTPR_ToevoegenDis"
+                    ControlSource ="PTPR_ToevoegenDis"
+                    Format ="0"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =1020
+                    Width =711
+                    TabIndex =1
+                    Name ="PR_Afstand"
+                    ControlSource ="PR_Afstand"
+                    InputMask ="#CC###;;\" \""
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =1813
+                    Width =846
+                    TabIndex =2
+                    Name ="PR_Slag"
+                    ControlSource ="PR_Slag"
+                    InputMask =">CCCCCCC;;\" \""
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =2721
+                    Width =1476
+                    TabIndex =3
+                    Name ="PR_Beschrijving categorie"
+                    ControlSource ="PR_Beschrijving categorie"
+                    EventProcPrefix ="PR_Beschrijving_categorie"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =5499
+                    Width =456
+                    TabIndex =5
+                    Name ="PTPR_NMeetellendeDeelnemers"
+                    ControlSource ="PTPR_NMeetellendeDeelnemers"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =450
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =120
+                    Top =120
+                    Width =6270
+                    Height =330
+                    Name ="Label23"
+                    Caption ="Bij <Toevoegen Dis> geeft u op hoeveel strafseconden een diswkalificatie oplever"
+                        "t.\015\012"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

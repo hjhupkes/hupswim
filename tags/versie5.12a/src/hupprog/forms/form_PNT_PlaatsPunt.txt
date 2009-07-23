@@ -1,0 +1,208 @@
+Version =20
+VersionRequired =20
+Checksum =855268571
+Begin Form
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =7605
+    DatasheetFontHeight =10
+    ItemSuffix =34
+    Left =3105
+    Top =150
+    Right =12285
+    Bottom =7065
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    AfterInsert ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x3ac6ed603e5fe340
+    End
+    RecordSource ="SELECT * from dtgPuntentellingPlaatsPunt where ptp_wedstrijdnummer = waarde() an"
+        "d ptp_orderID = waarde_pnt() order by ptp_plaats"
+    Caption ="Verenigingspuntentelling"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =405
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =56
+                    Top =165
+                    Width =600
+                    Height =240
+                    Name ="Label3"
+                    Caption ="Plaats: "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =795
+                    Top =165
+                    Width =1110
+                    Height =240
+                    Name ="Label17"
+                    Caption ="Punten (pers):."
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2097
+                    Top =165
+                    Width =1080
+                    Height =240
+                    Name ="Label33"
+                    Caption ="Punten (est):"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =56
+                    Width =396
+                    Name ="PTP_Plaats"
+                    ControlSource ="PTP_Plaats"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="=1"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =793
+                    Width =516
+                    TabIndex =1
+                    Name ="PTP_Punten"
+                    ControlSource ="PTP_Punten"
+                    DefaultValue ="0"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =3288
+                    Width =456
+                    TabIndex =2
+                    Name ="PTP_Wedstrijdnummer"
+                    ControlSource ="PTP_Wedstrijdnummer"
+                    DefaultValue ="=waarde()"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =4025
+                    Width =276
+                    TabIndex =3
+                    Name ="PTP_OrderID"
+                    ControlSource ="PTP_OrderID"
+                    DefaultValue ="=waarde_pnt()"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =2097
+                    Width =561
+                    TabIndex =4
+                    Name ="PTP_PuntenEstaf"
+                    ControlSource ="PTP_PuntenEstaf"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =1133
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =60
+                    Top =60
+                    Width =7470
+                    Height =990
+                    Name ="Label10"
+                    Caption ="Hierboven geeft u per plaats op hoeveel punten die plaats oplevert. \015\012\015"
+                        "\012Als bijvoorbeeld iedere eerste plaats zes punten oplevert, vult u bij plaats"
+                        " een 1 in en bij punten 6.\015\012\015\012U kunt steeds onderscheid maken tussen"
+                        " estafette nummers en persoonlijke nummers"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub Form_AfterInsert()
+On Error Resume Next
+PTP_Plaats_AfterUpdate
+End Sub
+
+
+
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+End Sub
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
+
+Private Sub PTP_Plaats_AfterUpdate()
+On Error Resume Next
+PTP_Plaats.DefaultValue = PTP_Plaats.value + 1
+
+End Sub

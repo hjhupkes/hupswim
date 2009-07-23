@@ -1,0 +1,87 @@
+Option Compare Database
+Option Explicit
+
+Public Function appGetName() As String
+appGetName = APP_NAME_HUPPROG
+End Function
+
+Public Function licentie_naam() As String
+On Error Resume Next
+licentie_naam = ""
+End Function
+
+Public Function licentie_soort() As String
+On Error Resume Next
+licentie_soort = "Volledige licentie"
+End Function
+
+Public Function licentie_versie() As String
+On Error Resume Next
+licentie_versie = APP_VERSION_CODE
+End Function
+Public Function htmlHelpRoot() As String
+On Error Resume Next
+'htmlHelpRoot = "d:\zwemdevelopment\webhelp\hupprog\"
+'htmlHelpRoot = "http://www.math.leidenuniv.nl/~hhupkes/hupsoft/webhelp/hupprog/"
+htmlHelpRoot = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/webhelp/hupprog/"
+End Function
+
+
+Public Function licentie_appName() As String
+On Error Resume Next
+licentie_appName = "Hupprog"
+End Function
+
+
+
+Public Function firstUseScanSetupBackups(ByRef fnd As Boolean, ByRef fndFName As String, ByRef fndFDateStr As String, ByRef fndFTimeStr As String, ByVal blSilent As Boolean, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+firstUseScanSetupBackups = False
+
+Dim appDir As String
+appDir = extractFilePath(CurrentDb.name)
+
+
+Dim setBckDir As String
+setBckDir = appDir & "\setupbackups"
+
+Dim done As Boolean
+done = False
+
+Dim curNr As Integer
+curNr = 0
+Dim lastExistFName As String
+lastExistFName = ""
+
+
+While Not done
+  Dim fName As String
+  fName = setBckDir & "\wedstr97.mde.backup" & CStr(curNr) & ".mde"
+  Dim dirS As String
+  dirS = dir(fName)
+  If (dirS <> "") Then
+    lastExistFName = fName
+    curNr = curNr + 1
+  Else
+    done = True
+  End If
+Wend
+
+fnd = False
+If (lastExistFName <> "") Then
+  fndFName = lastExistFName
+  fndFDateStr = FileDateStr(fndFName)
+  fndFTimeStr = FileTimeStr(fndFName)
+  fnd = True
+End If
+
+
+firstUseScanSetupBackups = True
+Exit Function
+fout:
+sErrMsg = Err & " firstUseScanSetupBackups" & vbCrLf & Error$
+If Not blSilent Then
+  MsgBox sErrMsg, 16
+End If
+Exit Function
+End Function

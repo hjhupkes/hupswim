@@ -1,0 +1,361 @@
+Version =20
+VersionRequired =20
+Checksum =-1022955790
+Begin Form
+    AllowFilters = NotDefault
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridX =24
+    GridY =24
+    Width =7322
+    DatasheetFontHeight =10
+    ItemSuffix =16
+    Left =6450
+    Top =2040
+    Right =15600
+    Bottom =8250
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x5a1fd5ab2015e340
+    End
+    Caption ="Backup aanmaken"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+        End
+        Begin FormHeader
+            Height =519
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =2645
+                    Top =118
+                    Width =2130
+                    Height =285
+                    FontSize =10
+                    FontWeight =700
+                    Name ="Label3"
+                    Caption ="Backup aanmaken  "
+                End
+            End
+        End
+        Begin Section
+            Height =3874
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =87
+                    Left =90
+                    Top =960
+                    Width =1260
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =2
+                    Name ="btnWijzig"
+                    Caption ="&Wijzig..."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =90
+                    Top =590
+                    Width =7110
+                    Height =210
+                    Name ="bckFName"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =90
+                    Top =165
+                    Width =3480
+                    Height =240
+                    Name ="Label1"
+                    Caption ="Kies een bestandsnaam voor de backup:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =70
+                    Top =1771
+                    Width =6990
+                    Height =1185
+                    Name ="Label5"
+                    Caption ="Hieronder kunt u - optioneel - extra gegevens invullen die samen met de backup w"
+                        "orden opgeslagen. \015\012\015\012Deze gegevens worden vertoond bij het teruglez"
+                        "en van de backup om u in staat te stellen om later makkelijker de juiste backup "
+                        "terug te lezen. "
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    AccessKey =78
+                    Left =1444
+                    Top =3099
+                    Width =3090
+                    Name ="bckCreator"
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =70
+                            Top =3121
+                            Width =930
+                            Height =240
+                            Name ="Label7"
+                            Caption ="Uw &naam: "
+                        End
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    AccessKey =77
+                    Left =1444
+                    Top =3508
+                    Width =4650
+                    TabIndex =1
+                    Name ="bckDescription"
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =70
+                            Top =3496
+                            Width =1200
+                            Height =240
+                            Name ="Label11"
+                            Caption ="Op&merkingen: "
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =94
+                    Top =1417
+                    TabIndex =3
+                    Name ="blUseZip"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="True"
+                    GUID = Begin
+                        0x81a1a8f26478da4ba4c366467469f5cc
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =330
+                            Top =1380
+                            Width =3615
+                            Height =240
+                            Name ="Label15"
+                            Caption ="Zip-compressie gebruiken op backup file"
+                            GUID = Begin
+                                0x4dbd18b5a6827343a152043aa75681cb
+                            End
+                        End
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =596
+            BackColor =-2147483633
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =79
+                    Left =5740
+                    Top =141
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnOK"
+                    Caption ="&OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =141
+                    Top =141
+                    Width =1230
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnCancel"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub blUseZip_AfterUpdate()
+On Error Resume Next
+
+Dim fName As String
+
+fName = Me.bckFName.Caption
+
+
+Dim fExt As String
+If Nz(Me.blUseZip) Then
+  fExt = "zip"
+Else
+  fExt = "hup"
+End If
+
+If (fName <> "") Then
+  If (Right(fName, 4) <> ".zip") And (Right(fName, 4) <> ".hup") Then
+    fName = fName & "." & fExt
+  ElseIf (Right(fName, 4) = ".hup") And Nz(Me.blUseZip) Then
+    fName = Left(fName, Len(fName) - 4) & ".zip"
+  ElseIf (Right(fName, 4) = ".zip") And Not Nz(Me.blUseZip) Then
+    fName = Left(fName, Len(fName) - 4) & ".hup"
+  End If
+  
+  Me.bckFName.Caption = fName
+End If
+
+
+
+End Sub
+
+Private Sub btnOK_Click()
+On Error Resume Next
+
+Dim sNameCreator As String
+Dim sDescription As String
+
+Dim fName As String
+
+
+fName = Me.bckFName.Caption
+
+sNameCreator = Nz(Me.bckCreator)
+sDescription = Nz(Me.bckDescription)
+
+If Not backup_perform(fName, sNameCreator, sDescription) Then
+  Exit Sub
+End If
+
+DoCmd.Close
+
+End Sub
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+
+
+Private Sub btnWijzig_Click()
+On Error Resume Next
+
+Dim fName As String
+
+fName = Me.bckFName.Caption
+
+
+Dim fExt As String
+If Nz(Me.blUseZip) Then
+  fExt = "zip"
+Else
+  fExt = "hup"
+End If
+
+If Not DirectoryExists(extractFilePath(fName)) Then
+  fName = directory_goedmaak(dbdir_backup()) & "\backswim" & Format(Now(), "yyyy\-mm\-dd") & "." & fExt
+End If
+  
+
+  
+If Not fileNamePromptUser(FILE_DLG_SAVE, "Hupswim backup aanmaken ", "Hupswim backup (*.zip, *.hup)|*.??p", fName, True, True) Then
+  Exit Sub
+End If
+
+If (fName <> "") Then
+  If (Right(fName, 4) <> ".zip") And (Right(fName, 4) <> ".hup") Then
+    fName = fName & "." & fExt
+  ElseIf (Right(fName, 4) = ".hup") And Nz(Me.blUseZip) Then
+    fName = Left(fName, Len(fName) - 4) & ".zip"
+  ElseIf (Right(fName, 4) = ".zip") And Not Nz(Me.blUseZip) Then
+    fName = Left(fName, Len(fName) - 4) & ".hup"
+  End If
+  
+  Me.bckFName.Caption = fName
+End If
+
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+
+Dim fName As String
+
+Dim fExt As String
+If Nz(Me.blUseZip) Then
+  fExt = "zip"
+Else
+  fExt = "hup"
+End If
+
+fName = ""
+If DirectoryExists(dbdir_backup()) Then
+  fName = directory_goedmaak(dbdir_backup()) & "\backswim" & Format(Now(), "yyyy\-mm\-dd") & "." & fExt
+Else
+  fName = "<Uw backup directory is ongeldig. Wijzig deze in het Instellingen scherm>"
+End If
+
+Me.bckFName.Caption = fName
+
+
+End Sub

@@ -1,0 +1,828 @@
+Option Compare Database
+Option Explicit
+
+Public Function catGetListForProg(ByVal wednr As Long, ByVal prognr As String) As String
+On Error GoTo fout
+Dim s As String
+s = ""
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [dtProgrammaLeeftijdsgroepen] where [PRL_wedstrijdnummer] = " & wednr & " and [PRL_programmanummer] = """ & prognr & """ order by (catGetMaxAllowedAge(nz([PRL_categorie])));")
+rs.MoveFirst
+
+Do Until rs.EOF
+  If (Len(s) > 0) Then
+    s = s & ";" & Nz(rs("PRL_categorie"))
+  Else
+    s = Nz(rs("PRL_categorie"))
+  End If
+  rs.MoveNext
+Loop
+catGetListForProg = s
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & Error$, 16
+
+End Function
+Public Function catInfoGetListForProg(ByVal wednr As Long, ByVal prognr As String, ByVal offCatInfo As Integer, ByRef nCats As Integer, ByRef catList As String, ByRef catInfo() As CAT_INFO) As Boolean
+On Error GoTo fout
+catInfoGetListForProg = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [dtProgrammaLeeftijdsgroepen] where [PRL_wedstrijdnummer] = " & wednr & " and [PRL_programmanummer] = """ & prognr & """ order by (catGetMaxAllowedAge(nz([prl_categorie]))), (m_of_v(nz([prl_categorie])));")
+
+catList = ""
+
+nCats = 0
+rs.MoveFirst
+Do Until rs.EOF
+  If (Len(catList) > 0) Then
+    catList = catList & ";" & Nz(rs("PRL_categorie"))
+  Else
+    catList = Nz(rs("PRL_categorie"))
+  End If
+
+
+  
+  catInfo(offCatInfo + nCats).cat = Nz(rs("PRL_categorie"))
+  catInfo(offCatInfo + nCats).bescat = Nz(rs("PRL_beschrijving categorie"))
+  catInfo(offCatInfo + nCats).vvt = Nz(rs("PRL_vervangende_tijd"))
+  catInfo(offCatInfo + nCats).lim = Nz(rs("PRL_limiet"))
+  catInfo(offCatInfo + nCats).resLim = Nz(rs("PRL_res_marge"))
+  
+  catInfo(offCatInfo + nCats).Code = Nz(rs("PRL_Code"))
+  
+
+  
+  catInfo(offCatInfo + nCats).rec.datum = Nz(rs("PRL_record_datum"))
+  catInfo(offCatInfo + nCats).rec.naam = Nz(rs("PRL_record_naam"))
+  catInfo(offCatInfo + nCats).rec.Plaats = Nz(rs("PRL_record_plaats"))
+  catInfo(offCatInfo + nCats).rec.recType = Nz(rs("PRL_record_omschrijving"))
+  catInfo(offCatInfo + nCats).rec.tijd = Nz(rs("PRL_record_tijd"))
+  catInfo(offCatInfo + nCats).rec.tussentijden = Nz(rs("PRL_record_tussentijden"))
+  
+  
+  nCats = nCats + 1
+  
+  
+  If (nCats > MAX_N_VAR_CATS_PER_PROG_NON_DISPLAY) Then
+    Err.Raise 1, , "Te veel leeftijdsgroepen ingevuld voor programmanr: ( " & wednr & " , " & prognr & " )"
+  End If
+  
+  rs.MoveNext
+Loop
+
+catInfoGetListForProg = True
+
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+Public Function catInfoGetListForWed(ByVal wednr As Long, ByRef nMCatProgs As Integer, ByRef mCatProgNames() As String, ByRef mCatProgCatLists() As String, ByRef mCatProgOffs() As Integer, ByRef mCatProgCatCnt() As Integer, ByRef catInfo() As CAT_INFO, Optional expCatLists As Boolean = False) As Boolean
+On Error GoTo fout
+catInfoGetListForWed = False
+
+nMCatProgs = 0
+
+Dim curOff As Integer
+curOff = 0
+
+Dim curProg As String
+curProg = ""
+Dim tpProg As String
+tpProg = ""
+
+Dim curProgCnt As Integer
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [dtProgrammaLeeftijdsgroepen] where [PRL_wedstrijdnummer] = " & wednr & " order by ucase([PRL_programmanummer]), (catGetMaxAllowedAge([PRL_categorie])),  (m_of_v(nz([prl_categorie]))) ;")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  tpProg = Nz(rs("PRL_programmanummer"))
+  If (tpProg <> curProg) Then
+    
+    'wrap up statistics for previous prog.
+    If (nMCatProgs > 0) Then
+      mCatProgCatCnt(nMCatProgs - 1) = curProgCnt
+    End If
+  
+    'start statistics for new prog.
+    mCatProgNames(nMCatProgs) = tpProg
+    mCatProgOffs(nMCatProgs) = curOff
+    
+    If (expCatLists) Then
+      mCatProgCatLists(nMCatProgs) = ""
+    End If
+    
+    
+    
+    nMCatProgs = nMCatProgs + 1
+    
+    
+    curProg = tpProg
+    curProgCnt = 0
+  End If
+  
+  
+  If (expCatLists) Then
+    If (Len(mCatProgCatLists(nMCatProgs - 1)) = 0) Then
+      mCatProgCatLists(nMCatProgs - 1) = Nz(rs("PRL_categorie"))
+    Else
+      mCatProgCatLists(nMCatProgs - 1) = mCatProgCatLists(nMCatProgs - 1) & ";" & Nz(rs("PRL_categorie"))
+    End If
+  End If
+  
+  
+
+
+  Dim curCatInf As CAT_INFO
+  
+  
+  catInfo(curOff).cat = Nz(rs("PRL_categorie"))
+  catInfo(curOff).bescat = Nz(rs("PRL_beschrijving categorie"))
+  catInfo(curOff).vvt = Nz(rs("PRL_vervangende_tijd"))
+  catInfo(curOff).lim = Nz(rs("PRL_limiet"))
+  catInfo(curOff).resLim = Nz(rs("PRL_Res_marge"))
+  catInfo(curOff).Code = Nz(rs("PRL_code"))
+  
+  
+  catInfo(curOff).rec.datum = Nz(rs("PRL_record_datum"))
+  catInfo(curOff).rec.naam = Nz(rs("PRL_record_naam"))
+  catInfo(curOff).rec.Plaats = Nz(rs("PRL_record_plaats"))
+  catInfo(curOff).rec.recType = Nz(rs("PRL_record_omschrijving"))
+  catInfo(curOff).rec.tijd = Nz(rs("PRL_record_tijd"))
+  catInfo(curOff).rec.tussentijden = Nz(rs("PRL_record_tussentijden"))
+  
+  
+  curOff = curOff + 1
+  curProgCnt = curProgCnt + 1
+
+
+  rs.MoveNext
+Loop
+
+'wrap up the last prog.
+If (nMCatProgs > 0) Then
+  mCatProgCatCnt(nMCatProgs - 1) = curProgCnt
+End If
+ 
+
+
+
+catInfoGetListForWed = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+'debug
+On Error GoTo 0
+Resume
+Exit Function
+End Function
+
+
+
+Public Function recReadFromProg(ByRef rec As RECORD_INFO, ByRef progs As Recordset) As Boolean
+On Error GoTo fout
+recReadFromProg = False
+
+rec.datum = Nz(progs("PR_Record_Datum"), #1/1/1900#)
+rec.naam = Nz(progs("PR_Record_Naam"))
+rec.Plaats = Nz(progs("PR_Record_Plaats"))
+rec.recType = Nz(progs("PR_Record_Omschrijving"))
+rec.tijd = Nz(progs("PR_Record_Tijd"))
+rec.tussentijden = Nz(progs("PR_Record_Tussentijden"))
+
+
+recReadFromProg = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function analyzeEstafsCreateTable(tbName As String) As Boolean
+On Error GoTo fout
+analyzeEstafsCreateTable = False
+
+Dim tbDef As TableDef
+Dim mydb As Database
+Set mydb = CurrentDb()
+
+DoCmd.DeleteObject acTable, tbName
+
+Set tbDef = mydb.CreateTableDef
+tbDef.Fields.Append tbDef.CreateField("EST_Wedstrijdnummer", dbLong)
+tbDef.Fields.Append tbDef.CreateField("EST_Programmanummer", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("EST_Estafettenummer", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("EST_Vereniging", dbText, 50)
+'tbDef.Fields.Append tbDef.CreateField("EST_Inschrijftijd", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("EST_Valid", dbBoolean)
+'tbDef.Fields.Append tbDef.CreateField("EST_Startzwemmer", dbText, 12)
+'tbDef.Fields.Append tbDef.CreateField("EST_IsReserve", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("EST_InvalidReason", dbText, 255)
+'tbDef.Fields.Append tbDef.CreateField("EST_Categorie", dbText, 20)
+
+tbDef.Fields.Append tbDef.CreateField("EST_ProgCategorie", dbText, 25)
+tbDef.Fields.Append tbDef.CreateField("EST_ProgCatIdx", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("EST_ProgCatCode", dbText, 10)
+
+tbDef.Fields.Append tbDef.CreateField("EST_Geslacht", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("EST_MinYOB", dbLong)
+tbDef.Fields.Append tbDef.CreateField("EST_MaxYOB", dbLong)
+tbDef.Fields.Append tbDef.CreateField("EST_SumYOB", dbLong)
+
+
+
+tbDef.Fields.Append tbDef.CreateField("EST_FullPloegCnt", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("EST_ActPloegCnt", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("EST_Startzwemmer_Geslacht", dbText, 1)
+'tbDef.Fields.Append tbDef.CreateField("EST_Startzwemmer_Geboortedatum", dbDate)
+tbDef.Fields.Append tbDef.CreateField("EST_NReserves", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("EST_Startnummer_Res_1", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("EST_Naam_Res_1", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("EST_Startnummer_Res_2", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("EST_Naam_Res_2", dbText, 100)
+
+Dim idx As Index
+Set idx = tbDef.CreateIndex("P")
+idx.Fields.Append idx.CreateField("EST_Wedstrijdnummer", dbLong)
+idx.Fields.Append idx.CreateField("EST_Programmanummer", dbText, 12)
+idx.Fields.Append idx.CreateField("EST_Estafettenummer", dbInteger)
+idx.Fields.Append idx.CreateField("EST_Vereniging", dbText, 50)
+idx.Primary = True
+tbDef.Indexes.Append idx
+
+Dim i As Integer
+For i = 1 To MAX_ESTAF_CNT
+  tbDef.Fields.Append tbDef.CreateField("EST_Startnummer_" & i, dbText, 12)
+  tbDef.Fields.Append tbDef.CreateField("EST_Naam_" & i, dbText, 100)
+Next i
+
+For i = 1 To MAX_ESTAF_LIST_CNT
+  tbDef.Fields.Append tbDef.CreateField("EST_LIST_Opm_" & i, dbText, 10)
+  tbDef.Fields.Append tbDef.CreateField("EST_LIST_Startnummer_" & i, dbText, 12)
+  tbDef.Fields.Append tbDef.CreateField("EST_LIST_Naam_" & i, dbText, 100)
+  tbDef.Fields.Append tbDef.CreateField("EST_LIST_Prefix_" & i, dbText, 10)
+Next i
+
+
+tbDef.name = tbName
+
+mydb.TableDefs.Append tbDef
+
+
+
+analyzeEstafsCreateTable = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next
+
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function analyzeEstafs(singleWedOnly As Boolean, wednr As Long, wedMeetNr As Long, tbName As String, Optional addToExistingTable As Boolean = False) As Boolean
+On Error GoTo fout
+analyzeEstafs = False
+
+If Not addToExistingTable Then
+  If Not analyzeEstafsCreateTable(tbName) Then Exit Function
+End If
+
+Dim rs As Recordset
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset(tbName, dbOpenDynaset)
+Dim sql As String
+If (singleWedOnly) Then
+  sql = "SELECT [dtProgramma].PR_Afstand as PROGAF, [dtProgramma].pr_categorie as PROGCAT, [dtPloegen].pl_naam as NAAM,[dtNamen].na_Geslacht, [dtNamen].na_geboortedatum,  [dtPloegen].[pl_wedstrijdnummer] as WEDNR, " & _
+      "[dtPloegen].* FROM [dtProgramma] INNER JOIN " & _
+      "([dtNamen] INNER JOIN [dtPloegen] ON " & _
+      "[dtNamen].na_Startnummer = [dtPloegen].pl_Startnummer and [dtNamen].na_vereniging = [dtPloegen].pl_vereniging ) " & _
+      "ON ([dtProgramma].Pr_Programmanummer = [dtPloegen].pl_Programmanummer) " & _
+      "AND ([dtProgramma].pr_Wedstrijdnummer = [dtPloegen].pl_Wedstrijdnummer) " & _
+      "Where [dtPloegen].pl_wedstrijdnummer = " & wednr & " " & _
+      "Order by [pr_programmanummer], [pl_vereniging], [pl_estafettenummer], [pl_volgorde]"
+Else
+  sql = "SELECT dtProgramma.PR_Afstand AS PROGAF, dtProgramma.PR_Categorie AS PROGCAT, dtPloegen.PL_Naam AS NAAM, dtNamen.NA_Geslacht, " & _
+  "dtNamen.NA_Geboortedatum, dtPloegen.PL_Wedstrijdnummer AS WEDNR, dtPloegen.* " & _
+  "FROM dtWedstrijdGegevens INNER JOIN (dtProgramma INNER JOIN (dtNamen INNER JOIN dtPloegen ON (dtNamen.NA_Vereniging = " & _
+  "dtPloegen.PL_Vereniging) AND (dtNamen.NA_Startnummer = dtPloegen.PL_Startnummer)) ON (dtProgramma.PR_Wedstrijdnummer = " & _
+  "dtPloegen.PL_Wedstrijdnummer) AND (dtProgramma.PR_Programmanummer = dtPloegen.PL_Programmanummer)) ON " & _
+  "dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer " & _
+  "WHERE (((dtPloegen.PL_Wedstrijdnummer) = " & wedMeetNr & ")) Or (((dtWedstrijdGegevens.WE_MainWedstrijdnummer) = " & wedMeetNr & ")) " & _
+  "ORDER BY dtProgramma.PR_Programmanummer, dtPloegen.PL_Vereniging, dtPloegen.PL_Estafettenummer, dtPloegen.PL_Volgorde;"
+End If
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim curProg As String
+Dim curEstNr As Integer
+Dim curWedNr As Long
+Dim curVer As String
+
+Dim curWedInf As WED_BASIC_INFO
+
+Dim curProgCat As String
+Dim curProgAf As String
+Dim curProgEstZwCnt As Integer
+
+Dim tpProg As String
+Dim tpEstNr As Integer
+Dim tpWedNr As Long
+Dim tpVer As String
+
+Dim curEstSZStart As String
+Dim curEstSZGes As String
+'Dim curEstSZGeb As Date
+Dim curEstIsValid As Boolean
+Dim curEstInvalidReason As String
+'Dim curEstTimeValid As Boolean
+'Dim curEstTimeTotSecs As Double
+Dim curEstGes As String
+Dim curEstGesDefined As Boolean
+'Dim curEstMaxClubAge As Integer
+Dim curEstLastValidVolg As Integer
+
+Dim curEstMinYOB As Long
+Dim curEstMaxYOB As Long
+Dim curEstSumYOB As Long
+
+
+Dim curEstNRes As Integer
+'Dim curEstIsCompleteRes As Boolean
+'Dim curEstResIsValid As Boolean
+'Dim curEstResInvalidReason As String
+'Dim curEstResTimeValid As Boolean
+'Dim curEstResTimeTotSecs As Double
+'Dim curEstResGes As String
+'Dim curEstResGesDefined As Boolean
+'Dim curEstResMaxClubAge As Integer
+'Dim curEstResLastValidVolg As Integer
+Dim curEstResStart1 As String
+Dim curEstResNaam1 As String
+Dim curEstResStart2 As String
+Dim curEstResNaam2 As String
+
+Dim curEstDeelns(0 To MAX_ESTAF_CNT - 1) As String
+Dim curEstDeelnNames(0 To MAX_ESTAF_CNT - 1) As String
+Dim curEstDeelnOpm(0 To MAX_ESTAF_CNT - 1) As String
+Dim curEstResDeelns(0 To MAX_ESTAF_CNT - 1) As String
+Dim curEstResDeelnNames(0 To MAX_ESTAF_CNT - 1) As String
+
+
+
+Dim nVarProgs As Integer
+Dim varProgNames(0 To MAX_N_PROGS) As String
+Dim varProgOffs(0 To MAX_N_PROGS) As Integer
+Dim varProgCatCnts(0 To MAX_N_PROGS) As Integer
+'Dim varProgCatLists(0 To MAX_N_PROGS) As String
+Dim varCatInfo(0 To MAX_N_VAR_CATS) As CAT_INFO
+Dim dummy(0 To 0) As String
+
+
+
+tpWedNr = -1
+curProg = ""
+curEstNr = -1
+curWedNr = -1
+curVer = ""
+
+rs.MoveFirst
+Dim fin As Boolean
+fin = False
+Do Until fin
+  If (rs.EOF) Then
+    tpProg = ""
+    tpEstNr = -1
+    tpWedNr = -1
+    tpVer = ""
+    fin = True
+  Else
+    tpProg = Nz(rs("pl_programmanummer"))
+    tpEstNr = Nz(rs("pl_estafettenummer"))
+    tpWedNr = Nz(rs("WEDNR"))
+    tpVer = Nz(rs("pl_vereniging"))
+  End If
+  
+  If (tpProg <> curProg Or tpEstNr <> curEstNr Or tpWedNr <> curWedNr Or tpVer <> curVer) Then
+    'finish old estaf
+    If (curEstNr <> -1 And curWedNr <> -1 And curVer <> "") Then
+        
+        outp.AddNew
+        outp("EST_Wedstrijdnummer") = curWedNr
+        outp("EST_Programmanummer") = curProg
+        outp("EST_Estafettenummer") = curEstNr
+        outp("EST_Vereniging") = curVer
+        outp("EST_FullPloegCnt") = curProgEstZwCnt
+        
+        outp("Est_Startzwemmer_Geslacht") = hzn(curEstSZGes)
+        'outp("Est_Startzwemmer_Geboortedatum") = curEstSZGeb
+        
+        
+        Dim cat As String
+        Dim i As Integer
+        
+        Dim blEstafCatOK As Boolean
+        Dim iEstafSatCatIdx As Integer
+        
+        
+    'Check validity of total estafette.
+        If (curEstIsValid) Then
+          blEstafCatOK = False
+          iEstafSatCatIdx = -1
+          
+          If (catIsMCat(curProgCat)) Then
+            iEstafSatCatIdx = catInfoGetEstSatisfiedCatIdx_bare(curWedInf.lftBep, curProg, curEstMinYOB, curEstMaxYOB, curEstSumYOB, curEstLastValidVolg, curEstGes, nVarProgs, varProgNames, varProgOffs, varProgCatCnts, varCatInfo, curWedInf.ageDate)
+            If (iEstafSatCatIdx >= 0) Then
+              blEstafCatOK = True
+              outp("EST_ProgCategorie") = hzn(Trim(varCatInfo(iEstafSatCatIdx).cat))
+              outp("EST_ProgCatIdx") = iEstafSatCatIdx
+              outp("EST_ProgCatCode") = hzn(Trim(varCatInfo(iEstafSatCatIdx).Code))
+            End If
+          Else
+            blEstafCatOK = (cat_voldoet_est_bare(curEstMinYOB, curEstMaxYOB, curEstSumYOB, curEstLastValidVolg, curEstGes, curProgCat, curWedInf.lftBep, curWedInf.ageDate, True) = CAT_OK)
+          End If
+          
+          If Not blEstafCatOK Then
+            curEstIsValid = False
+            curEstInvalidReason = "Estafette voldoet niet aan leeftijdscategorie."
+          End If
+          
+          
+          
+        End If
+        
+        
+        
+        
+        
+          'If (curEstMaxClubAge <= 0 Or Not curEstGesDefined) Then
+          '  cat = "MIX"
+          'Else
+          '  cat = clubrecCatForLeeftijd(curEstMaxClubAge, curEstGes)
+          'End If
+          'cat = clubrecCatForLeeftijd(curEstMaxClubAge, curEstGes)
+          'If (curEstTimeValid) Then
+          '  outp("EST_Inschrijftijd") = tijdt(curEstTimeTotSecs)
+          'Else
+          '  outp("EST_Inschrijftijd") = 0
+          'End If
+          outp("EST_VALID") = curEstIsValid
+          outp("EST_InvalidReason") = hzn(curEstInvalidReason)
+        'outp("EST_Startzwemmer") = hzn(curEstStartZwemmer)
+          'outp("EST_IsReserve") = False
+          'outp("EST_Categorie") = hzn(cat)
+        
+           
+          outp("EST_ActPloegCnt") = curEstLastValidVolg
+          outp("Est_NReserves") = curEstNRes
+          outp("Est_Startnummer_Res_1") = hzn(curEstResStart1)
+          outp("EST_Naam_Res_1") = hzn(curEstResNaam1)
+          outp("EST_Startnummer_Res_2") = hzn(curEstResStart2)
+          outp("EST_Naam_Res_2") = hzn(curEstResNaam2)
+          For i = 1 To curEstLastValidVolg
+            outp("EST_Startnummer_" & i) = hzn(curEstDeelns(i - 1))
+            outp("EST_Naam_" & i) = hzn(curEstDeelnNames(i - 1))
+            'outp("EST_Opm_" & i) = hzn(curEstDeelnOpm(i - 1))
+          Next i
+          
+          
+          
+          outp("EST_MinYOB") = curEstMinYOB
+          outp("EST_MaxYOB") = curEstMaxYOB
+          outp("EST_SumYOB") = curEstSumYOB
+          
+          If (curEstGesDefined) Then
+            outp("EST_Geslacht") = curEstGes
+          Else
+            outp("EST_Geslacht") = "*"
+          End If
+          
+          'now fill up the list.
+          Dim nPerCol As Long
+          nPerCol = (curProgEstZwCnt + 1) \ 2
+          
+          For i = 1 To curEstLastValidVolg
+            Dim iRow As Long
+            Dim iCol As Long
+            iCol = (i - 1) \ nPerCol
+            iRow = (i - 1) Mod nPerCol
+            Dim iIdx As Long
+            iIdx = iRow * 2 + iCol
+            outp("EST_LIST_Startnummer_" & (iIdx + 1)) = hzn(curEstDeelns(i - 1))
+            outp("EST_LIST_Naam_" & (iIdx + 1)) = hzn(curEstDeelnNames(i - 1))
+            outp("EST_LIST_Opm_" & (iIdx + 1)) = hzn(curEstDeelnOpm(i - 1))
+            outp("EST_LIST_Prefix_" & (iIdx + 1)) = CStr(i) & "."
+          Next i
+          If (curProgEstZwCnt Mod 2) = 0 Then
+            If (curEstNRes = 2) Then
+              'Bottom row, two reserves.
+              outp("EST_LIST_Startnummer_" & (curProgEstZwCnt + 1)) = hzn(curEstResStart1)
+              outp("EST_LIST_Naam_" & (curProgEstZwCnt + 1)) = hzn(curEstResNaam1)
+              outp("EST_LIST_Prefix_" & (curProgEstZwCnt + 1)) = "Rs"
+              
+              outp("EST_LIST_Startnummer_" & (curProgEstZwCnt + 2)) = hzn(curEstResStart2)
+              outp("EST_LIST_Naam_" & (curProgEstZwCnt + 2)) = hzn(curEstResNaam2)
+              outp("EST_LIST_Prefix_" & (curProgEstZwCnt + 2)) = "Rs"
+            ElseIf (curEstNRes = 1) Then
+              'Bottom row right, one reserve. First column left empty
+              outp("EST_LIST_Startnummer_" & (curProgEstZwCnt + 2)) = hzn(curEstResStart1)
+              outp("EST_LIST_Naam_" & (curProgEstZwCnt + 2)) = hzn(curEstResNaam1)
+              outp("EST_LIST_Prefix_" & (curProgEstZwCnt + 2)) = "Rs"
+            End If
+              
+          
+          Else
+            If (curEstNRes = 2) Then
+              'Last row right + new extra row, right.
+              outp("EST_LIST_Startnummer_" & (curProgEstZwCnt + 1)) = hzn(curEstResStart1)
+              outp("EST_LIST_Naam_" & (curProgEstZwCnt + 1)) = hzn(curEstResNaam1)
+              outp("EST_LIST_Prefix_" & (curProgEstZwCnt + 1)) = "Rs"
+              
+              outp("EST_LIST_Startnummer_" & (curProgEstZwCnt + 3)) = hzn(curEstResStart2)
+              outp("EST_LIST_Naam_" & (curProgEstZwCnt + 3)) = hzn(curEstResNaam2)
+              outp("EST_LIST_Prefix_" & (curProgEstZwCnt + 3)) = "Rs"
+            ElseIf (curEstNRes = 1) Then
+              'Last row right.
+              outp("EST_LIST_Startnummer_" & (curProgEstZwCnt + 1)) = hzn(curEstResStart1)
+              outp("EST_LIST_Naam_" & (curProgEstZwCnt + 1)) = hzn(curEstResNaam1)
+              outp("EST_LIST_Prefix_" & (curProgEstZwCnt + 1)) = "Rs"
+            End If
+          End If
+          
+        
+        
+        outp.Update
+        
+    End If
+    
+    
+    
+ 
+    
+    If (curWedNr <> tpWedNr) Then
+      If (tpWedNr <> -1) Then
+      
+      
+        'Reinitialize category list
+        snel_cat_voldoet_reset
+      
+        'Read new VarProgs.
+        If Not catInfoGetListForWed(tpWedNr, nVarProgs, varProgNames, dummy, varProgOffs, varProgCatCnts, varCatInfo, False) Then
+          Exit Function
+        End If
+      
+      
+      
+        Dim blWedFnd As Boolean
+        If Not wedLookup(tpWedNr, blWedFnd, curWedInf) Then
+          Exit Function
+        End If
+        If Not blWedFnd Then
+          Err.Raise 1, , "Could not find wedstrijd: " & tpWedNr
+        End If
+         
+    
+      End If
+    End If
+    
+    'init new estafette
+    curProg = tpProg
+    curWedNr = tpWedNr
+    curEstNr = tpEstNr
+    curVer = tpVer
+    
+    curEstIsValid = True
+    curEstInvalidReason = ""
+    'curEstTimeTotSecs = 0
+    'curEstTimeValid = True
+    curEstGesDefined = False
+    'curEstMaxClubAge = -1
+    curEstLastValidVolg = 0
+    curEstNRes = 0
+    curEstResStart1 = ""
+    curEstResNaam1 = ""
+    curEstResStart2 = ""
+    curEstResNaam2 = ""
+    curEstSZGes = "*"
+    'curEstSZGeb = #1/1/1900#
+    curEstSZStart = ""
+    
+    'curEstIsCompleteRes = True
+    'curEstResIsValid = True
+    'curEstResInvalidReason = ""
+    'curEstResTimeTotSecs = 0
+    'curEstResTimeValid = True
+    'curEstResGesDefined = False
+    'curEstResMaxClubAge = -1
+    'curEstResLastValidVolg = 0
+    
+    curEstMinYOB = -1
+    curEstMaxYOB = -1
+    curEstSumYOB = -1
+    
+    
+    
+    If (Not rs.EOF) Then
+      curProgCat = Nz(rs("PROGCAT"))
+      curProgAf = Nz(rs("PROGAF"))
+      curProgEstZwCnt = afstand_n_zwemmers(curProgAf)
+    End If
+    
+  End If
+  
+  
+  
+  If rs.EOF Then Exit Do
+  
+  Dim vg As Integer
+  Dim st As String
+  Dim nm As String
+  Dim gs As String
+  Dim gb As Date
+  
+  vg = Nz(rs("pl_Volgorde"))
+  st = Nz(rs("pl_startnummer"))
+  nm = Nz(rs("pl_Naam"))
+  gs = Nz(rs("na_geslacht"))
+  gb = Nz(rs("Na_geboortedatum"), #1/1/1900#)
+
+    
+    'Test individual swimmer against category.
+  If (Not snel_cat_voldoet_bare(st, curProgCat, gs, Nz(rs("na_geboortedatum"), #1/1/1900#), -1, curWedInf.lftBep, True, curWedInf.ageDate, False, True)) Then
+    If (curEstIsValid) Then
+       curEstIsValid = False
+       curEstInvalidReason = "Zwemmer: " & st & " voldoet niet aan categorie."
+    End If
+  End If
+    
+
+  
+  
+  Dim isRes As Boolean
+  isRes = Nz(rs("pl_Reserve")) = "J"
+  
+  
+  If (vg = 1) Then
+    If ((Not isRes) Or (isRes And curEstSZStart = "")) Then
+      curEstSZStart = st
+      curEstSZGes = gs
+      'curEstSZGeb = Nz(rs("Geboortedatum"), #1/1/1900#)
+    End If
+  End If
+  
+  
+  'Dim tpAge As Integer
+  'tpAge = clubrecLeeftijdForDate(st, curWedDate)
+  
+  Dim curYOB As Long
+  curYOB = stnrExtractYOB(st, curWedInf.ageDate, gb)
+  
+  If (isRes) Then
+    If (curEstNRes < MAX_ESTAF_RES) Then
+      If (curEstNRes = 0) Then
+        curEstResStart1 = st
+        curEstResNaam1 = nm
+      ElseIf (curEstNRes = 1) Then
+        curEstResStart2 = st
+        curEstResNaam2 = st
+      End If
+      curEstNRes = curEstNRes + 1
+    End If
+    If (curEstNRes >= MAX_ESTAF_RES) Then
+      If curEstIsValid Then
+        curEstIsValid = False
+        curEstInvalidReason = "Teveel reserves."
+      End If
+    End If
+  Else ' niet reserve.
+    'curEstIsCompleteRes = False
+    
+    'If (tpAge > curEstMaxClubAge) Then
+    '  curEstMaxClubAge = tpAge
+    'End If
+    
+    
+    
+    
+    If (Not curEstGesDefined) Then
+      curEstGes = gs
+      curEstGesDefined = True
+    ElseIf gs <> curEstGes Then
+      curEstGes = "*"
+    End If
+    
+    
+    If (curEstMinYOB = -1) Or (curYOB < curEstMinYOB) Then
+      curEstMinYOB = curYOB
+    End If
+    
+    If (curEstMaxYOB = -1) Or (curYOB > curEstMaxYOB) Then
+      curEstMaxYOB = curYOB
+    End If
+    
+    If (curEstSumYOB = -1) Then
+      curEstSumYOB = 0
+    End If
+    
+    curEstSumYOB = curEstSumYOB + curYOB
+    
+    
+  
+    'First check if the swimmer is valid, that is, if
+    'volgnr is unique.
+    If (Not (vg = curEstLastValidVolg + 1)) Then
+      If (curEstIsValid) Then
+        curEstIsValid = False
+        curEstInvalidReason = "Volgnummer " & vg & " sluit niet aan."
+      End If
+    Else
+      curEstDeelns(curEstLastValidVolg) = st
+      curEstDeelnNames(curEstLastValidVolg) = nm
+      curEstDeelnOpm(curEstLastValidVolg) = Nz(rs("PL_OPM"))
+      curEstLastValidVolg = vg
+      'tijd mee tellen.
+      'If (curEstTimeValid) Then
+        'If (td > 1 And td < 8888) Then
+          'curEstTimeTotSecs = curEstTimeTotSecs + tijd(td)
+        'Else
+          'curEstTimeValid = False
+        'End If
+      'End If
+    End If
+  End If ' if reserve
+    
+    
+  
+  
+  
+    
+    
+
+  rs.MoveNext
+Loop
+
+
+
+
+analyzeEstafs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+
+
+Public Function tstRestoreAllStoredTimes() As Boolean
+On Error GoTo fout
+tstRestoreAllStoredTimes = False
+
+
+
+Dim sql As String
+sql = "SELECT dtTijden.*, dtProgramma.PR_Afstand, dtProgramma.PR_Slag FROM dtTijden INNER JOIN dtProgramma ON " & _
+"(dtTijden.TY_Programmanummer = dtProgramma.PR_Programmanummer) AND (dtTijden.TY_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) " & _
+"ORDER BY dtProgramma.PR_Afstand, dtProgramma.PR_Slag, dtTijden.TY_Wedstrijdnummer;"
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijdGegevens")
+skWed.Index = "PrimaryKey"
+
+
+If Not tstRestoreAllStoredTimes_handleOrderedSet(rs, skWed, "PR_Afstand", "PR_Slag", "WE_Baanlengte", False) Then
+  Exit Function
+End If
+
+
+tstRestoreAllStoredTimes = True
+Exit Function
+
+fout:
+MsgBox Err & " tstRestoreAllStoredTimes" & vbCrLf & Error$, 16
+Exit Function
+End Function
