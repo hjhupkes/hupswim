@@ -1,0 +1,726 @@
+Version =20
+VersionRequired =20
+Checksum =2098521446
+Begin Form
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DividingLines = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    ViewsAllowed =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridX =24
+    GridY =24
+    Width =11905
+    DatasheetFontHeight =10
+    ItemSuffix =20
+    Left =2235
+    Right =14580
+    Bottom =8370
+    DatasheetGridlinesColor =12632256
+    Toolbar ="gFrmToolbar"
+    RecSrcDt = Begin
+        0x24c8cc2e9110e340
+    End
+    Caption ="Wedstrijd backup inlezen"
+    OnOpen ="[Event Procedure]"
+    MenuBar ="gMnBasic"
+    DatasheetFontName ="Arial"
+    OnResize ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+        End
+        Begin Subform
+            SpecialEffect =2
+        End
+        Begin FormHeader
+            Height =600
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =-15
+                    Top =120
+                    Width =11865
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    Name ="Label0"
+                    Caption ="Hupswim - Wedstrijd backup inlezen"
+                End
+            End
+        End
+        Begin Section
+            CanGrow = NotDefault
+            Height =5166
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin Subform
+                    OverlapFlags =85
+                    OldBorderStyle =0
+                    SpecialEffect =0
+                    Width =11858
+                    Height =5166
+                    BorderColor =4210752
+                    Name ="subfrm"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =480
+            BackColor =-2147483633
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =78
+                    Left =9359
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnNxt"
+                    Caption ="&Next"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =80
+                    Left =8055
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnPrev"
+                    Caption ="&Previous"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =67
+                    Left =120
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =2
+                    Name ="btnCancel"
+                    Caption ="&Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =70
+                    Left =10606
+                    Top =60
+                    Width =1206
+                    Height =343
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =3
+                    Name ="btnFin"
+                    Caption ="&Finish"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private curPage As Integer
+
+Private blCanSkipZwmPhase As Boolean
+
+
+
+Private Const PAGE_CHOOSEFILE = 0
+Private Const PAGE_WED_MATCH = 1
+Private Const PAGE_ACTION = 2
+Private Const PAGE_ZWM = 3
+
+Private Const PAGE_MIN = PAGE_CHOOSEFILE
+Private Const PAGE_MAX = PAGE_ZWM
+
+
+'Wizard code version 15-dec-2007
+
+
+
+Private Sub setWedBckFName(fName As String)
+On Error Resume Next
+DoCmd.SetWarnings False
+If (fName = "") Then
+  DoCmd.RunSQL "update hsoWedBackup set wb_wedBckFName = null"
+Else
+  DoCmd.RunSQL "update hsoWedBackup set wb_wedBckFName = """ & fName & """"
+End If
+DoCmd.SetWarnings True
+End Sub
+Private Function getWedBckFName() As String
+On Error Resume Next
+getWedBckFName = Nz(DLookup("wb_WedBckFName", "hsoWedBackup"))
+End Function
+Private Function getWedBckValid() As Boolean
+On Error Resume Next
+getWedBckValid = Nz(DLookup("wb_WedBckValid", "hsoWedBackup"))
+End Function
+
+
+Private Sub setWedBckRestrictDate(ByVal blRestrict As Boolean, ByVal minDate As Date)
+On Error Resume Next
+DoCmd.SetWarnings False
+If (blRestrict) Then
+  DoCmd.RunSQL "update hsoWedBackup set wb_WedBckRestrictDate = true, wb_WedBckMinDate = #" & Format(minDate, "mm\-dd\-yyyy") & "#"
+Else
+  DoCmd.RunSQL "update hsoWedBackup set wb_WedBckRestrictDate = false, wb_WedBckMinDate = null"
+End If
+DoCmd.SetWarnings True
+End Sub
+Private Function getWedBckRestrictDate() As Boolean
+On Error Resume Next
+getWedBckRestrictDate = Nz(DLookup("WB_WedBckRestrictDate", "hsoWedBackup"))
+End Function
+Private Function getWedBckMinDate() As Date
+On Error Resume Next
+getWedBckMinDate = Nz(DLookup("WB_WedBckMinDate", "hsoWedBackup"), #1/1/1900#)
+End Function
+
+
+Private Function wzcPostPageUnload(ByVal page As Integer)
+On Error Resume Next
+
+
+End Function
+Private Sub wzcPostFinish()
+On Error Resume Next
+
+'Just clean up everything.
+bckImportWedstrijden_cleanPhase
+
+End Sub
+
+
+
+Private Function wzcAllowCancel(curPage As Integer) As Boolean
+On Error Resume Next
+wzcAllowCancel = True
+End Function
+
+Private Sub wzcPerformCancel(lstPage As Integer)
+On Error Resume Next
+'Just clean up everything.
+bckImportWedstrijden_cleanPhase
+End Sub
+
+
+
+Private Function wzcMinPage() As Integer
+On Error Resume Next
+wzcMinPage = PAGE_MIN
+End Function
+
+Private Function wzcMaxPage() As Integer
+On Error Resume Next
+wzcMaxPage = PAGE_MAX
+End Function
+
+
+Private Sub wzcFormatButtons(curPage As Integer)
+On Error GoTo fout
+
+
+
+If (curPage = PAGE_CHOOSEFILE) Then
+  Me.btnNxt.Enabled = (getWedBckValid())
+  Me.btnFin.Enabled = (getWedBckValid())
+End If
+
+
+Exit Sub
+fout:
+If (Err = 2164) Then ' cannot disable a control when it has focus.
+  Me.btnCancel.SetFocus
+  Resume
+End If
+
+MsgBox Err & " " & Error$, 16
+
+End Sub
+
+
+
+Private Sub wzcInit(ByRef initPage As Integer)
+On Error Resume Next
+
+
+appDelAll "hsoWedBackup"
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoWedBackup")
+rs.AddNew
+rs.Update
+
+blCanSkipZwmPhase = False
+
+
+setWedBckFName ("")
+
+setWedBckRestrictDate False, #1/1/1900#
+
+End Sub
+
+
+Private Sub wzcHandleMove(ByVal prvPage As Integer, ByRef nxtPage As Integer)
+On Error GoTo fout
+
+If (prvPage = PAGE_CHOOSEFILE) And (nxtPage = PAGE_WED_MATCH) Then
+  Dim fName As String
+  Dim blRestrictDate As Boolean
+  Dim minDate As Date
+  
+  fName = getWedBckFName()
+  blRestrictDate = getWedBckRestrictDate()
+  If (blRestrictDate) Then
+    minDate = getWedBckMinDate()
+  End If
+  
+  If Not bckImportWedstrijden_readPhase(fName) Then
+    nxtPage = prvPage
+    Exit Sub
+  End If
+  
+  If Not bckImportWedstrijden_initPhase(blRestrictDate, minDate) Then
+    nxtPage = prvPage
+    Exit Sub
+  End If
+  
+End If
+
+If (prvPage = PAGE_WED_MATCH) And (nxtPage = PAGE_ACTION) Then
+  If Not bckImportWedstrijden_postMatchPhase() Then
+    nxtPage = prvPage
+    Exit Sub
+  End If
+End If
+
+If (prvPage = PAGE_ACTION) And (nxtPage = PAGE_ZWM) Then
+  If Not bckImportWedstrijden_postActionPhase(blCanSkipZwmPhase) Then
+    nxtPage = prvPage
+    Exit Sub
+  End If
+End If
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+End Sub
+
+
+Private Sub wzcPrePageLoad(ByVal curPage As Integer)
+On Error Resume Next
+End Sub
+Private Sub wzcPostPageLoad(ByVal curPage As Integer)
+On Error Resume Next
+If (curPage = PAGE_CHOOSEFILE) Then
+  Dim wedBF As Form_WIZ_WB_ChooseFile
+  Set wedBF = Me.subfrm.Form
+  wedBF.initialize
+End If
+End Sub
+
+Private Function wzcGetPageName(ByVal curPage As Integer) As String
+On Error Resume Next
+
+
+Select Case curPage
+  Case PAGE_CHOOSEFILE
+    If getWedBckFName() = "" Then
+      setWedBckFName (dbdir_backup() & "\*.*")
+    End If
+    wzcGetPageName = "WIZ_WB_ChooseFile"
+  Case PAGE_WED_MATCH
+    wzcGetPageName = "WIZ_WB_Match"
+  Case PAGE_ACTION
+    wzcGetPageName = "WIZ_WB_Action"
+  Case PAGE_ZWM
+    If (blCanSkipZwmPhase) Then
+      wzcGetPageName = "WIZ_WB_Zwemmers_OK"
+    Else
+      wzcGetPageName = "WIZ_WB_Zwemmers_Unknown"
+    End If
+End Select
+
+End Function
+
+
+
+
+
+
+
+Private Function wzcExitPage(pageNr As Integer, direction As Integer) As Boolean
+On Error Resume Next
+wzcExitPage = False
+
+If (pageNr = PAGE_CHOOSEFILE) And (direction > 0) Then
+  If Not getWedBckValid() Then
+    Exit Function
+  End If
+End If
+
+
+
+wzcExitPage = True
+End Function
+
+
+
+Private Function wzcFinish(curPage As Integer) As Boolean
+On Error Resume Next
+
+
+
+If (curPage <= PAGE_CHOOSEFILE) Then
+  Dim fName As String
+  Dim blRestrictDate As Boolean
+  Dim minDate As Date
+  
+  fName = getWedBckFName()
+  blRestrictDate = getWedBckRestrictDate()
+  If (blRestrictDate) Then
+    minDate = getWedBckMinDate()
+  End If
+  
+  If Not (bckImportWedstrijden_readPhase(fName)) Then
+    Exit Function
+  End If
+  If Not (bckImportWedstrijden_initPhase(blRestrictDate, minDate)) Then
+    Exit Function
+  End If
+End If
+If (curPage <= PAGE_WED_MATCH) Then
+  If Not bckImportWedstrijden_postMatchPhase() Then
+    Exit Function
+  End If
+End If
+
+If (curPage <= PAGE_ACTION) Then
+  If Not bckImportWedstrijden_postActionPhase(blCanSkipZwmPhase) Then
+    Exit Function
+  End If
+End If
+
+If Not bckImportWedstrijden_postZwemmerPhase() Then
+  Exit Function
+End If
+      
+
+wzcFinish = True
+
+End Function
+
+
+'standard wizard stuff
+'Standard wizard stuff.
+
+Private Function wzbCancel() As Boolean
+On Error GoTo fout
+
+wzbCancel = False
+
+Dim lstPage As Integer
+lstPage = curPage
+
+If Not wzcAllowCancel(curPage) Then
+  Exit Function
+End If
+
+Dim closedPage As Integer
+closedPage = curPage
+
+'close the current page.
+Me.subfrm.SourceObject = "WIZ_UNBOUND"
+curPage = -1
+
+wzcPostPageUnload closedPage
+
+wzcPerformCancel lstPage
+ 
+ wzbCancel = True
+ 
+ Exit Function
+fout:
+ MsgBox Err & " " & Error$, 16
+ Exit Function
+
+
+End Function
+
+
+'Below is just standard wizard stuff.
+
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+
+If (wzbCancel()) Then
+  DoCmd.Close
+End If
+
+End Sub
+
+Private Sub btnFin_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+If (wzbFinish()) Then
+  DoCmd.Close
+End If
+End Sub
+
+Private Sub btnNxt_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+wzbAdvance
+End Sub
+
+Private Sub btnPrev_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+wzbRetreat
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+wzbInit
+End Sub
+
+
+
+Public Sub wzbNotifyChange()
+On Error Resume Next
+wzbFormatButtons
+End Sub
+
+Private Sub wzbFormatButtons()
+On Error GoTo fout
+
+Me.btnFin.Enabled = True
+
+If curPage = wzcMinPage() Then
+  Me.btnPrev.Enabled = False
+Else
+  Me.btnPrev.Enabled = True
+End If
+If curPage = wzcMaxPage() Then
+  Me.btnNxt.Enabled = False
+Else
+  Me.btnNxt.Enabled = True
+End If
+
+wzcFormatButtons curPage
+
+Exit Sub
+fout:
+If (Err = 2164) Then ' cannot disable a control when it has focus.
+  Me.btnCancel.SetFocus
+  Resume
+End If
+
+MsgBox Err & " " & Error$, 16
+End Sub
+Private Sub wzbInit()
+On Error Resume Next
+curPage = wzcMinPage()
+
+wzcInit curPage
+
+wzbDisplayCurPage
+End Sub
+
+
+
+
+
+Private Sub wzbAdvance()
+On Error GoTo fout
+If (curPage < wzcMaxPage()) Then
+  If wzbExitPage(curPage, 1) Then
+    Dim prvPage As Integer
+    prvPage = curPage
+    curPage = curPage + 1
+    
+    'Unload current page.
+    Me.subfrm.SourceObject = "WIZ_UNBOUND"
+    
+    wzcPostPageUnload prvPage
+    
+    wzcHandleMove prvPage, curPage
+    
+    wzbDisplayCurPage
+  End If
+End If
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+End Sub
+Private Sub wzbRetreat()
+On Error GoTo fout
+If (curPage > wzcMinPage()) Then
+  If (wzbExitPage(curPage, -1)) Then
+    Dim prvPage As Integer
+    prvPage = curPage
+    curPage = curPage - 1
+    
+    'Unload current page.
+    Me.subfrm.SourceObject = "WIZ_UNBOUND"
+    
+    wzcPostPageUnload (prvPage)
+    
+    wzcHandleMove prvPage, curPage
+    
+    wzbDisplayCurPage
+  End If
+End If
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+  
+End Sub
+
+Private Sub wzbDisplayCurPage()
+On Error GoTo fout
+
+wzcPrePageLoad (curPage)
+
+Dim pageName As String
+pageName = wzcGetPageName(curPage)
+
+Me.subfrm.SourceObject = pageName
+
+wzbFormatButtons
+
+If curPage = wzcMinPage() Then
+ If (Me.btnNxt.Enabled) Then
+   Me.btnNxt.SetFocus
+ ElseIf (Me.btnFin.Enabled) Then
+   Me.btnFin.SetFocus
+ End If
+End If
+
+If curPage = wzcMaxPage() Then
+  If (Me.btnPrev.Enabled) Then
+    Me.btnPrev.SetFocus
+  ElseIf (Me.btnFin.Enabled) Then
+    Me.btnFin.SetFocus
+  End If
+End If
+
+wzcPostPageLoad (curPage)
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+
+End Sub
+
+
+Private Function wzbExitPage(pageNr As Integer, direction As Integer) As Boolean
+On Error Resume Next
+
+wzbExitPage = wzcExitPage(pageNr, direction)
+
+End Function
+
+Private Function wzbFinish() As Boolean
+On Error Resume Next
+wzbFinish = False
+
+If Not wzbExitPage(curPage, 1) Then Exit Function
+
+If Not wzcFinish(curPage) Then Exit Function
+
+Dim closedPage As Integer
+closedPage = curPage
+
+ 'Unload current page.
+Me.subfrm.SourceObject = "WIZ_UNBOUND"
+curPage = -1
+    
+wzcPostPageUnload closedPage
+
+'Notify that wizard is finished.
+wzcPostFinish
+
+wzbFinish = True
+
+
+
+End Function
+
+
+Private Sub Form_Resize()
+On Error GoTo fout
+
+Dim newDetlHeight As Long
+
+newDetlHeight = Me.Form.InsideHeight - Me.FormFooter.Height - Me.FormHeader.Height
+If (newDetlHeight > Me.Detail.Height) Then
+  Me.Detail.Height = newDetlHeight
+  Me.subfrm.Height = Me.Detail.Height
+Else
+'  Me.subfrm.Height = 0
+  Me.subfrm.Height = newDetlHeight
+  Me.Detail.Height = newDetlHeight
+End If
+
+Dim newDetlWidth As Long
+newDetlWidth = Me.Form.InsideWidth
+Me.subfrm.Width = newDetlWidth
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Sub
+
+End Sub

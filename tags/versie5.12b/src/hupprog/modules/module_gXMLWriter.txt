@@ -1,0 +1,1134 @@
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Explicit
+
+Private fFileName As String
+Private fFileNr As Integer
+Private fDepth As Integer
+Private Const TAB_SIZE = 2
+Private Const MAX_DEPTH = 100
+Private curNodeNames(0 To MAX_DEPTH) As String
+
+Const fltString = 0
+Const fltNum = 1
+Const fltLog = 2
+Const fltDate = 3
+Const fltDecimal = 4
+Const maxNFields = 200
+
+
+Private fOpenNodeBuffered As Boolean
+Private fBufOpenNodeName As String
+Private fBufOpenNodeAttribs As String
+
+Private fUseExtUTF As Boolean
+
+
+
+Public Function convertToUTF(ByVal inp As String, Optional blForHTML As Boolean = False) As String
+Dim tpS As String
+tpS = ""
+Dim i As Integer
+Dim ascCode As Integer
+
+Dim tpChar As String
+For i = 1 To Len(inp)
+ 'need to watch out for unicode characters
+ tpChar = Mid(inp, i, 1)
+ ascCode = AscW(tpChar)
+ If (ascCode < 128) Then
+   If (ascCode = Asc("&")) Then
+     tpS = tpS & "&amp;"
+   ElseIf (ascCode = Asc("'")) Then
+     If (blForHTML) Then
+       'ie does not recognize &apos;
+       tpS = tpS & "&#39;"
+     Else
+       tpS = tpS & "&apos;"
+     End If
+   ElseIf (ascCode = Asc("""")) Then
+     tpS = tpS & "&quot;"
+   ElseIf (ascCode = Asc("<")) Then
+     tpS = tpS & "&lt;"
+   ElseIf (ascCode = Asc(">")) Then
+     tpS = tpS & "&gt;"
+   Else
+      tpS = tpS & Chr(ascCode)
+   End If
+ ElseIf fUseExtUTF Then
+    If (ascCode = 233) Then ' é
+     tpS = tpS & Chr(ascCode)
+    ElseIf (ascCode = 232) Then ' è
+      tpS = tpS & Chr(ascCode)
+    ElseIf (ascCode = 235) Then ' ë
+      tpS = tpS & Chr(ascCode)
+    ElseIf (ascCode = 246) Then ' ö
+      tpS = tpS & Chr(ascCode)
+    ElseIf (ascCode = 228) Then ' ä
+      tpS = tpS & Chr(ascCode)
+    ElseIf (ascCode = 239) Then ' ï
+      tpS = tpS & Chr(ascCode)
+    ElseIf (ascCode = 225) Then ' á
+      tpS = tpS & Chr(ascCode)
+    ElseIf (ascCode = 224) Then ' à
+      tpS = tpS & Chr(ascCode)
+    Else
+      tpS = tpS & "&#" & ascCode & ";"
+    End If
+ Else
+   tpS = tpS & "&#" & ascCode & ";"
+ End If
+Next i
+convertToUTF = tpS
+End Function
+
+
+Public Function openXMLFile(fileName As String, blUseExtUTF As Boolean) As Boolean
+On Error GoTo fout
+openXMLFile = False
+fFileName = fileName
+fFileNr = FreeFile
+
+fUseExtUTF = blUseExtUTF
+
+
+fOpenNodeBuffered = False
+
+
+fDepth = 0
+
+Open fFileName For Output As #fFileNr
+Print #fFileNr, "<?xml version = ""1.0"" encoding=""Windows-1252"" standalone=""yes""?>"
+
+openXMLFile = True
+Exit Function
+fout:
+MsgBox Error$
+Exit Function
+End Function
+
+  Private Sub bufferOpenNdoe(nodeName As String, nodeAttribs As String)
+    fOpenNodeBuffered = True
+    fBufOpenNodeName = nodeName
+    fBufOpenNodeAttribs = nodeAttribs
+  End Sub
+
+  Private Sub flushOpenNodeBuffer()
+    If (fOpenNodeBuffered) Then
+      curNodeNames(fDepth) = fBufOpenNodeName
+    
+      indent
+      If (Len(fBufOpenNodeAttribs) > 0) Then
+        Print #fFileNr, "<" & fBufOpenNodeName & " " & fBufOpenNodeAttribs & " >"
+      Else
+        Print #fFileNr, "<" & fBufOpenNodeName & ">"
+      End If
+      fDepth = fDepth + 1
+      fOpenNodeBuffered = False
+    End If
+  End Sub
+
+  
+  
+  Private Sub setCurrentDepth(depth As Integer)
+
+    fDepth = depth
+  End Sub
+
+  '//indents depth*2 times.
+  Private Sub indent()
+    Dim tpS As String
+    tpS = ""
+    Dim i As Integer
+    For i = 1 To TAB_SIZE * fDepth
+      tpS = tpS & " "
+    Next i
+    Print #fFileNr, tpS;
+  End Sub
+
+  Public Sub closeNode()
+    If (fOpenNodeBuffered) Then
+      fOpenNodeBuffered = False
+      openCloseNodeAttributes fBufOpenNodeName, fBufOpenNodeAttribs
+    Else
+  
+        fDepth = fDepth - 1
+        indent
+        Dim curNodeName As String
+        curNodeName = curNodeNames(fDepth)
+        Print #fFileNr, "</" + curNodeName + ">"
+    End If
+  End Sub
+  
+  Public Sub openNodeData(nodeName As String, data As String)
+    flushOpenNodeBuffer
+    indent
+    If (Len(data) = 0) Then
+      Print #fFileNr, "<" & nodeName & "/>"
+    Else
+      Print #fFileNr, "<" & nodeName & ">" & convertToUTF(data) & "</" & nodeName & ">"
+    End If
+  End Sub
+    
+  Public Sub openNode(name As String)
+    flushOpenNodeBuffer
+    
+    fBufOpenNodeAttribs = ""
+    fBufOpenNodeName = name
+    fOpenNodeBuffered = True
+    
+  End Sub
+  Public Sub openNodeAttributes(name As String, attribs As String)
+    If (Len(attribs) = 0) Then
+      openNode (name)
+      Exit Sub
+    End If
+    
+    flushOpenNodeBuffer
+    
+    fBufOpenNodeAttribs = attribs
+    fBufOpenNodeName = name
+    fOpenNodeBuffered = True
+   
+  End Sub
+    Public Sub openCloseNodeAttributes(name As String, attribs As String)
+    
+    flushOpenNodeBuffer
+    
+    If (Len(attribs) = 0) Then
+      openNodeData name, ""
+      Exit Sub
+    End If
+      
+      
+    curNodeNames(fDepth) = name
+    
+    indent
+   
+    Print #fFileNr, "<" & name & " " & attribs & " />"
+    'fDepth = fDepth + 1
+  End Sub
+
+  Public Sub writeData(data As String)
+    flushOpenNodeBuffer
+    indent
+    Print #fFileNr, convertToUTF(data)
+  End Sub
+
+  Public Sub openDocument()
+
+  End Sub
+
+  
+  Public Sub closeDocument()
+    flushOpenNodeBuffer
+    Close #fFileNr
+  End Sub
+
+
+  
+
+
+
+
+Private Sub Class_Initialize()
+  fDepth = 0
+End Sub
+
+
+
+
+Public Function exportTableToXML(tableName As String, fileName As String, xmlRecID As String, ByVal blAddFirstRecPrfx As Boolean, Optional extraSQLClause As String = "") As Boolean
+On Error GoTo fout
+exportTableToXML = False
+
+
+Dim FieldData(0 To maxNFields, 1 To 4) As Variant
+Dim nFields As Integer
+
+Dim tpFieldName As String
+Dim tpFieldType As Integer
+Dim tpFieldStartStr As String
+
+
+'Allowed
+Dim mydb As Database, tpTable As TableDef
+Set mydb = CurrentDb()
+
+Set tpTable = mydb.TableDefs(tableName)
+
+nFields = tpTable.Fields.Count
+
+Dim i As Integer
+
+For i = 0 To nFields - 1
+  FieldData(i, 1) = tpTable.Fields(i).name
+  If (blAddFirstRecPrfx) Then
+    FieldData(i, 2) = Nz(tpTable.Fields(i).ValidationText, "")
+  Else
+    FieldData(i, 2) = ""
+  End If
+  Select Case tpTable.Fields(i).type
+    Case dbText
+      FieldData(i, 3) = fltString
+    Case dbInteger
+      FieldData(i, 3) = fltNum
+    Case dbLong
+      FieldData(i, 3) = fltNum
+    Case dbDouble
+      FieldData(i, 3) = fltDecimal
+    Case dbCurrency
+      FieldData(i, 3) = fltDecimal
+    Case dbSingle
+      FieldData(i, 3) = fltDecimal
+    Case dbFloat
+      FieldData(i, 3) = fltDecimal
+    Case dbBoolean
+      FieldData(i, 3) = fltLog
+    Case dbDate
+      FieldData(i, 3) = fltDate
+    Case Else
+      FieldData(i, 3) = fltString
+  End Select
+Next i
+
+
+
+If Not openXMLFile(fileName, False) Then
+  Exit Function
+End If
+
+
+openNode "VFPData"
+Dim xmlData As String
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("select * from [" & tableName & "] " & extraSQLClause & ";", dbOpenDynaset)
+geg.MoveFirst
+
+
+Dim blFirstRecord As Boolean
+blFirstRecord = True
+Do Until geg.EOF
+
+  openNode xmlRecID
+  
+
+  For i = 0 To nFields - 1
+     tpFieldName = FieldData(i, 1)
+     tpFieldType = FieldData(i, 3)
+     tpFieldStartStr = Nz(FieldData(i, 2), "")
+     
+     
+    Select Case tpFieldType
+      Case fltString
+        xmlData = Nz(geg(tpFieldName), "")
+      Case fltNum
+        If (IsNull(geg(tpFieldName))) Then
+          xmlData = ""
+        Else
+          xmlData = CStr(geg(tpFieldName))
+        End If
+      Case fltDecimal
+        If (IsNull(geg(tpFieldName))) Then
+          xmlData = ""
+        Else
+          xmlData = CStr(geg(tpFieldName))
+          Dim tpDecPos As Integer
+          tpDecPos = InStr(1, xmlData, ",")
+          If (tpDecPos > 0) Then
+            xmlData = Left(xmlData, tpDecPos - 1) & "." & Right(xmlData, Len(xmlData) - tpDecPos)
+          End If
+        End If
+      Case fltLog
+        If (IsNull(geg(tpFieldName))) Then
+          xmlData = ""
+        Else
+          xmlData = IIf(Nz(geg(tpFieldName), False), "true", "false")
+        End If
+      Case fltDate
+        If IsNull(geg(tpFieldName)) Then
+          xmlData = ""
+        Else
+          xmlData = Format(geg(tpFieldName), "yyyy\-mm\-dd")
+        End If
+      Case Else
+        xmlData = Nz(geg(tpFieldName), "")
+    End Select
+     
+     If (blFirstRecord) Then
+       xmlData = tpFieldStartStr & xmlData
+     End If
+     
+     openNodeData tpFieldName, xmlData
+    
+  Next i
+  
+  closeNode 'xmlRecId
+  
+  blFirstRecord = False
+  geg.MoveNext
+Loop
+
+closeNode
+
+
+
+closeDocument
+
+appCleanRS geg
+
+
+Close
+
+exportTableToXML = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+
+
+MsgBox Err & " " & Error$, 16
+
+
+'debug
+'On Error GoTo 0
+'Resume Next
+
+
+
+Close
+
+
+appCleanRS geg
+
+Exit Function
+
+End Function
+
+
+Public Function prepareXMLStructureTables(xmlObjectsTable As String, xmlObjectRelationsTable As String, glbTablePrefix As String, Optional useObjectTables As Boolean = True) As Boolean
+On Error GoTo fout
+prepareXMLStructureTables = False
+
+Dim xmlObjs As Recordset, xmlObjRels As Recordset
+
+Dim sql As String
+
+Set xmlObjs = CurrentDb().OpenRecordset("Select * from [" & xmlObjectsTable & "] order by [XML_OBJECT_NAME];", dbOpenDynaset)
+Set xmlObjRels = CurrentDb().OpenRecordset("Select * from [" & xmlObjectRelationsTable & "] order by [XML_PAR_OBJ_TYPE_NAME], [XML_CHILD_NAME];", dbOpenDynaset)
+
+'First build the object structure.
+Const maxPropsPerObj As Integer = 100
+Const maxObjTypes As Integer = 100
+Dim dsNObjs As Integer
+Dim dsMaxNPropsPerObj As Integer
+Dim dsObjTypeNames(1 To maxObjTypes) As String
+Dim dsObjTableNames(1 To maxObjTypes) As String
+Dim dsObjTablePrefix(1 To maxObjTypes) As String
+Dim dsObjUsedAsCollection(1 To maxObjTypes) As Boolean
+Dim dsObjNProps(1 To maxObjTypes) As Integer
+Dim dsPropNames(1 To maxObjTypes, 1 To maxPropsPerObj) As String
+Dim dsPropIsObject(1 To maxObjTypes, 1 To maxPropsPerObj) As Boolean
+Dim dsPropObjectTypeIdx(1 To maxObjTypes, 1 To maxPropsPerObj) As Integer
+Dim dsPropIsCollection(1 To maxObjTypes, 1 To maxPropsPerObj) As Boolean
+
+dsNObjs = 0
+dsMaxNPropsPerObj = 0
+
+xmlObjs.MoveFirst
+Do Until xmlObjs.EOF
+   
+  dsNObjs = dsNObjs + 1
+  dsObjTypeNames(dsNObjs) = Nz(xmlObjs("XML_OBJECT_NAME"))
+  dsObjTableNames(dsNObjs) = Nz(xmlObjs("XML_TABLE_NAME"))
+  dsObjTablePrefix(dsNObjs) = Nz(xmlObjs("XML_TABLE_FIELD_PREFIX"))
+    
+  dsObjNProps(dsNObjs) = 0
+  
+  
+  dsObjUsedAsCollection(dsNObjs) = False
+  
+    
+  xmlObjs.MoveNext
+Loop
+
+Dim objTypeIdx As Integer
+Dim nProps As Integer
+
+xmlObjRels.MoveFirst
+Do Until xmlObjRels.EOF
+  
+    
+  
+  objTypeIdx = findStringInOrdList(dsObjTypeNames, Nz(xmlObjRels("XML_PAR_OBJ_TYPE_NAME")), dsNObjs)
+  If (objTypeIdx = -1) Then
+    Err.Raise 1, , "Error in structure table. Unknown object type: " & Nz(xmlObjRels("XML_PAR_OBJ_TYPE_NAME"))
+  End If
+  nProps = dsObjNProps(objTypeIdx) + 1
+  dsObjNProps(objTypeIdx) = nProps
+  If (nProps > dsMaxNPropsPerObj) Then
+    dsMaxNPropsPerObj = nProps
+  End If
+  
+  Dim chPropIsObject As Boolean
+  Dim chPropName As String
+  
+  chPropName = Nz(xmlObjRels("XML_CHILD_NAME"))
+  chPropIsObject = Nz(xmlObjRels("XML_CHILD_IS_OBJECT"))
+  dsPropNames(objTypeIdx, nProps) = Nz(xmlObjRels("XML_CHILD_NAME"))
+  dsPropIsObject(objTypeIdx, nProps) = chPropIsObject
+  If (chPropIsObject) Then
+    Dim chPropObjTypeIdx  As Integer
+    chPropObjTypeIdx = findStringInOrdList(dsObjTypeNames, chPropName, dsNObjs)
+    dsPropObjectTypeIdx(objTypeIdx, nProps) = chPropObjTypeIdx
+    Dim chPropIsCollection As Boolean
+    chPropIsCollection = Nz(xmlObjRels("XML_IS_COLLECTION"))
+    dsPropIsCollection(objTypeIdx, nProps) = chPropIsCollection
+    If (chPropIsCollection) Then
+      dsObjUsedAsCollection(chPropObjTypeIdx) = True
+    End If
+  End If
+  xmlObjRels.MoveNext
+Loop
+
+appCleanRS xmlObjs
+appCleanRS xmlObjRels
+
+
+Dim blDeletingTables As Boolean
+blDeletingTables = True
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT"
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT_COLL"
+blDeletingTables = False
+
+'Build system tables.
+'Allowed
+Dim mydb As Database
+Set mydb = CurrentDb()
+Dim fld As Field
+
+Dim fldIdx As Integer
+Dim sobjIdx As Integer
+
+
+If (Not useObjectTables) Then
+  blDeletingTables = True
+  DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT"
+  DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT_COLL"
+  blDeletingTables = False
+  
+  
+  Dim glbXMLExportTable As TableDef
+    Dim glbXMLExportCollTable As TableDef
+    
+    
+    Set glbXMLExportTable = mydb.CreateTableDef(glbTablePrefix & "__SYS__XML_EXPORT")
+    Set fld = glbXMLExportTable.CreateField("XML_OBJECT_TYPE", dbText, 255)
+    glbXMLExportTable.Fields.Append fld
+    Set fld = glbXMLExportTable.CreateField("XML_OBJECT_ID", dbLong)
+    glbXMLExportTable.Fields.Append fld
+    For fldIdx = 1 To dsMaxNPropsPerObj
+      Set fld = glbXMLExportTable.CreateField("XML_PROP_" & CStr(fldIdx), dbText, 255)
+      glbXMLExportTable.Fields.Append fld
+    Next fldIdx
+    mydb.TableDefs.Append glbXMLExportTable
+    
+    Set glbXMLExportCollTable = mydb.CreateTableDef(glbTablePrefix & "__SYS__XML_EXPORT_COLL")
+    Set fld = glbXMLExportCollTable.CreateField("XML_OBJECT_TYPE", dbText, 255)
+    glbXMLExportCollTable.Fields.Append fld
+    Set fld = glbXMLExportCollTable.CreateField("XML_COLLECTION_ID", dbLong)
+    glbXMLExportCollTable.Fields.Append fld
+    Set fld = glbXMLExportCollTable.CreateField("XML_CHILD_ID", dbLong)
+    glbXMLExportCollTable.Fields.Append fld
+    mydb.TableDefs.Append glbXMLExportCollTable
+End If
+
+
+
+
+
+
+
+'Build tables to hold the results.
+If (useObjectTables) Then
+    For sobjIdx = 1 To dsNObjs
+      blDeletingTables = True
+      DoCmd.DeleteObject acTable, glbTablePrefix & dsObjTableNames(sobjIdx)
+      'If (dsObjUsedAsCollection) Then
+      'Just delete...
+        DoCmd.DeleteObject acTable, glbTablePrefix & dsObjTableNames(sobjIdx) & "_COLL"
+      'End If
+      blDeletingTables = False
+      
+      'Now build the tables.
+      Dim xmlResTableDef As TableDef
+      Set xmlResTableDef = mydb.CreateTableDef(glbTablePrefix & dsObjTableNames(sobjIdx))
+      Set fld = xmlResTableDef.CreateField("ID_" & dsObjTypeNames(sobjIdx), dbLong)
+      xmlResTableDef.Fields.Append fld
+      For fldIdx = 1 To dsObjNProps(sobjIdx)
+        If (dsPropIsObject(sobjIdx, fldIdx)) Then
+          If (dsPropIsCollection(sobjIdx, fldIdx)) Then
+            Set fld = xmlResTableDef.CreateField("SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)) & "_COLL", dbLong)
+            xmlResTableDef.Fields.Append fld
+          Else
+            Set fld = xmlResTableDef.CreateField("SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)), dbLong)
+            xmlResTableDef.Fields.Append fld
+          End If
+        Else
+          Set fld = xmlResTableDef.CreateField(dsObjTablePrefix(sobjIdx) & dsPropNames(sobjIdx, fldIdx), dbText, 255)
+          xmlResTableDef.Fields.Append fld
+        End If
+      Next fldIdx
+      Dim idx As Index
+      Set idx = xmlResTableDef.CreateIndex("P")
+      idx.Primary = True
+      idx.Fields.Append idx.CreateField("ID_" & dsObjTypeNames(sobjIdx), dbLong)
+      xmlResTableDef.Indexes.Append idx
+      mydb.TableDefs.Append xmlResTableDef
+      
+      If (dsObjUsedAsCollection(sobjIdx)) Then
+        Set xmlResTableDef = mydb.CreateTableDef(glbTablePrefix & dsObjTableNames(sobjIdx) & "_COLL")
+        Set fld = xmlResTableDef.CreateField("ID_" & dsObjTypeNames(sobjIdx) & "_COLL", dbLong)
+        xmlResTableDef.Fields.Append fld
+        Set fld = xmlResTableDef.CreateField("SYS_REF_CH_" & dsObjTypeNames(sobjIdx), dbLong)
+        xmlResTableDef.Fields.Append fld
+        Set idx = xmlResTableDef.CreateIndex("P")
+        idx.Primary = True
+        idx.Fields.Append idx.CreateField("ID_" & dsObjTypeNames(sobjIdx) & "_COLL", dbLong)
+        idx.Fields.Append idx.CreateField("SYS_REF_CH_" & dsObjTypeNames(sobjIdx), dbLong)
+        xmlResTableDef.Indexes.Append idx
+        mydb.TableDefs.Append xmlResTableDef
+      End If
+    Next sobjIdx
+End If
+
+
+
+
+
+prepareXMLStructureTables = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+If (blDeletingTables And (Err = 3011 Or Err = 7874)) Then
+  Resume Next
+End If
+MsgBox "Errorcode: " & Err & Chr(13) & Error$, 16
+
+appCleanRS xmlObjs
+appCleanRS xmlObjRels
+
+
+Exit Function
+
+
+
+End Function
+
+
+
+Public Function exportStructureToXML(xmlFileName As String, xmlObjectsTable As String, xmlObjectRelationsTable As String, glbTablePrefix As String, ByVal lVersion As Long, Optional useResultTables As Boolean = True, Optional cleanOnTerminate As Boolean = True, Optional applyRestriction As Boolean = False) As Boolean
+On Error GoTo fout
+
+exportStructureToXML = False
+
+Dim blDeletingTables As Boolean
+blDeletingTables = False
+
+Dim inpValid As Boolean
+inpValid = False
+Dim inp As Recordset
+
+Dim inpCollValid As Boolean
+inpCollValid = False
+Dim inpColl As Recordset
+
+'First read in structure.
+Dim xmlObjs As Recordset, xmlObjRels As Recordset
+
+Dim sql As String
+
+If (applyRestriction) Then
+  Set xmlObjs = CurrentDb().OpenRecordset("Select * from [" & xmlObjectsTable & "] where nz([Xml_is_extended]) = false order by [XML_OBJECT_NAME] ;", dbOpenDynaset)
+  Set xmlObjRels = CurrentDb().OpenRecordset("Select * from [" & xmlObjectRelationsTable & "] where nz([Xml_is_extended]) = false order by [XML_PAR_OBJ_TYPE_NAME], [XML_CHILD_NAME];", dbOpenDynaset)
+Else
+  Set xmlObjs = CurrentDb().OpenRecordset("Select * from [" & xmlObjectsTable & "] order by [XML_OBJECT_NAME];", dbOpenDynaset)
+  Set xmlObjRels = CurrentDb().OpenRecordset("Select * from [" & xmlObjectRelationsTable & "] order by [XML_PAR_OBJ_TYPE_NAME], [XML_CHILD_NAME];", dbOpenDynaset)
+End If
+
+'First build the object structure.
+Const maxPropsPerObj As Integer = 100
+Const maxObjTypes As Integer = 100
+Dim dsNObjs As Integer
+Dim dsMaxNPropsPerObj As Integer
+Dim dsRootObjTypeIdx As Integer
+Dim dsObjTypeNames(1 To maxObjTypes) As String
+Dim dsObjTableNames(1 To maxObjTypes) As String
+Dim dsObjTablePrefix(1 To maxObjTypes) As String
+Dim dsObjIsRoot(1 To maxObjTypes) As Boolean
+Dim dsObjImpPriority(1 To maxObjTypes) As Integer
+Dim dsObjLastUsedID(1 To maxObjTypes) As Long
+Dim dsObjUsedAsCollection(1 To maxObjTypes) As Boolean
+Dim dsObjLastUsedCollID(1 To maxObjTypes) As Long
+Dim dsObjNProps(1 To maxObjTypes) As Integer
+Dim dsPropNames(1 To maxObjTypes, 1 To maxPropsPerObj) As String
+Dim dsPropIsObject(1 To maxObjTypes, 1 To maxPropsPerObj) As Boolean
+Dim dsPropObjectTypeIdx(1 To maxObjTypes, 1 To maxPropsPerObj) As Integer
+Dim dsPropIsCollection(1 To maxObjTypes, 1 To maxPropsPerObj) As Boolean
+Dim dsObjNSubObjs(1 To maxObjTypes) As Integer
+Dim dsObjSubObjPropIdx(1 To maxObjTypes, 1 To maxPropsPerObj) As Integer
+
+dsNObjs = 0
+dsMaxNPropsPerObj = 0
+
+xmlObjs.MoveFirst
+Do Until xmlObjs.EOF
+   
+  dsNObjs = dsNObjs + 1
+  dsObjTypeNames(dsNObjs) = Nz(xmlObjs("XML_OBJECT_NAME"))
+  dsObjTableNames(dsNObjs) = Nz(xmlObjs("XML_TABLE_NAME"))
+  dsObjTablePrefix(dsNObjs) = Nz(xmlObjs("XML_TABLE_FIELD_PREFIX"))
+  dsObjIsRoot(dsNObjs) = Nz(xmlObjs("XML_IS_ROOT"))
+  If (dsObjIsRoot(dsNObjs)) Then
+    dsRootObjTypeIdx = dsNObjs
+  End If
+  
+  dsObjImpPriority(dsNObjs) = Nz(xmlObjs("XML_IMPORT_PRIORITY"))
+  
+  dsObjNProps(dsNObjs) = 0
+  dsObjLastUsedID(dsNObjs) = 0
+  dsObjNSubObjs(dsNObjs) = 0
+  
+  dsObjUsedAsCollection(dsNObjs) = False
+  dsObjLastUsedCollID(dsNObjs) = 0
+    
+  xmlObjs.MoveNext
+Loop
+
+Dim objTypeIdx As Integer
+Dim nProps As Integer
+
+xmlObjRels.MoveFirst
+Do Until xmlObjRels.EOF
+  
+  
+  Dim tpObjVersionMin As Long, tpObjVersionMax As Long
+  tpObjVersionMin = Nz(xmlObjRels("XML_Version_Min"))
+  tpObjVersionMax = Nz(xmlObjRels("XML_Version_Max"))
+  
+  Dim blPropValid As Boolean
+  blPropValid = True
+  
+  If (lVersion > 0) Then
+   If (tpObjVersionMin > 0) Then
+     If (lVersion < tpObjVersionMin) Then
+       blPropValid = False
+      End If
+    End If
+    If (tpObjVersionMax > 0) Then
+      If (lVersion > tpObjVersionMax) Then
+        blPropValid = False
+      End If
+    End If
+  End If
+  
+  
+  If (blPropValid) Then
+  
+    
+    objTypeIdx = findStringInOrdList(dsObjTypeNames, Nz(xmlObjRels("XML_PAR_OBJ_TYPE_NAME")), dsNObjs)
+    If (objTypeIdx = -1) Then
+      Err.Raise 1, , "Error in structure table. Unknown object type: " & Nz(xmlObjRels("XML_PAR_OBJ_TYPE_NAME"))
+    End If
+    nProps = dsObjNProps(objTypeIdx) + 1
+    dsObjNProps(objTypeIdx) = nProps
+    If (nProps > dsMaxNPropsPerObj) Then
+      dsMaxNPropsPerObj = nProps
+    End If
+    
+    Dim chPropIsObject As Boolean
+    Dim chPropName As String
+    
+    chPropName = Nz(xmlObjRels("XML_CHILD_NAME"))
+    chPropIsObject = Nz(xmlObjRels("XML_CHILD_IS_OBJECT"))
+    dsPropNames(objTypeIdx, nProps) = Nz(xmlObjRels("XML_CHILD_NAME"))
+    dsPropIsObject(objTypeIdx, nProps) = chPropIsObject
+    If (chPropIsObject) Then
+      Dim chPropObjTypeIdx  As Integer
+      chPropObjTypeIdx = findStringInOrdList(dsObjTypeNames, chPropName, dsNObjs)
+      dsPropObjectTypeIdx(objTypeIdx, nProps) = chPropObjTypeIdx
+      Dim chPropIsCollection As Boolean
+      chPropIsCollection = Nz(xmlObjRels("XML_IS_COLLECTION"))
+      dsPropIsCollection(objTypeIdx, nProps) = chPropIsCollection
+      If (chPropIsCollection) Then
+        dsObjUsedAsCollection(chPropObjTypeIdx) = True
+      End If
+      
+      Dim nSubObjsProps As Integer
+      nSubObjsProps = dsObjNSubObjs(objTypeIdx) + 1
+      dsObjNSubObjs(objTypeIdx) = nSubObjsProps
+      dsObjSubObjPropIdx(objTypeIdx, nSubObjsProps) = nProps
+    End If
+    
+  End If
+    
+    
+  xmlObjRels.MoveNext
+Loop
+
+appCleanRS xmlObjs
+appCleanRS xmlObjRels
+
+
+
+'Need to build structure tables.
+If (useResultTables) Then
+  blDeletingTables = True
+  DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT"
+  DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT_COLL"
+  blDeletingTables = False
+  
+  'Allowed
+  Dim mydb As Database
+    Set mydb = CurrentDb()
+    Dim glbXMLExportTable As TableDef
+    Dim glbXMLExportCollTable As TableDef
+    Dim fld As Field
+    Dim idx As Index
+    
+    Dim fldIdx As Integer
+    Dim sobjIdx As Integer
+    
+    
+    Set glbXMLExportTable = mydb.CreateTableDef(glbTablePrefix & "__SYS__XML_EXPORT")
+    Set fld = glbXMLExportTable.CreateField("XML_OBJECT_TYPE", dbText, 255)
+    glbXMLExportTable.Fields.Append fld
+    Set fld = glbXMLExportTable.CreateField("XML_OBJECT_ID", dbLong)
+    glbXMLExportTable.Fields.Append fld
+    For fldIdx = 1 To dsMaxNPropsPerObj
+      Set fld = glbXMLExportTable.CreateField("XML_PROP_" & CStr(fldIdx), dbText, 255)
+      glbXMLExportTable.Fields.Append fld
+    Next fldIdx
+    Set idx = glbXMLExportTable.CreateIndex
+    Set fld = idx.CreateField("XML_OBJECT_TYPE")
+    idx.Fields.Append fld
+    Set fld = idx.CreateField("XML_OBJECT_ID")
+    idx.Fields.Append fld
+    idx.Primary = True
+    idx.name = "P"
+    glbXMLExportTable.Indexes.Append idx
+    
+    
+    mydb.TableDefs.Append glbXMLExportTable
+    
+    Set glbXMLExportTable = Nothing
+    
+    Set glbXMLExportCollTable = mydb.CreateTableDef(glbTablePrefix & "__SYS__XML_EXPORT_COLL")
+    Set fld = glbXMLExportCollTable.CreateField("XML_OBJECT_TYPE", dbText, 255)
+    glbXMLExportCollTable.Fields.Append fld
+    Set fld = glbXMLExportCollTable.CreateField("XML_COLLECTION_ID", dbLong)
+    glbXMLExportCollTable.Fields.Append fld
+    Set fld = glbXMLExportCollTable.CreateField("XML_CHILD_ID", dbLong)
+    glbXMLExportCollTable.Fields.Append fld
+    
+    Set idx = glbXMLExportCollTable.CreateIndex
+    Set fld = idx.CreateField("XML_OBJECT_TYPE")
+    idx.Fields.Append fld
+    Set fld = idx.CreateField("XML_COLLECTION_ID")
+    idx.Fields.Append fld
+    'Set fld = idx.CreateField("XML_CHILD_ID")
+    'idx.Fields.Append fld
+    'idx.Primary = True
+    idx.Unique = False
+    idx.name = "N"
+    glbXMLExportCollTable.Indexes.Append idx
+    mydb.TableDefs.Append glbXMLExportCollTable
+    
+    Set glbXMLExportCollTable = Nothing
+End If
+
+If (useResultTables) Then
+  'copy over the data from Object tables into __SYS__XML_EXPORT tables
+      For sobjIdx = 1 To dsNObjs
+      'build the sql statement.
+      sql = "INSERT INTO [" & glbTablePrefix & "__SYS__XML_EXPORT" & "] ([XML_OBJECT_TYPE], [XML_OBJECT_ID]"
+      
+      
+      For fldIdx = 1 To dsObjNProps(sobjIdx)
+        sql = sql & ", [XML_PROP_" & CStr(fldIdx) & "]"
+      Next fldIdx
+      sql = sql & ") SELECT """ & dsObjTypeNames(sobjIdx) & """ AS Expr1, [ID_" & dsObjTypeNames(sobjIdx) & "]"
+      For fldIdx = 1 To dsObjNProps(sobjIdx)
+        If (dsPropIsObject(sobjIdx, fldIdx)) Then
+          If (dsPropIsCollection(sobjIdx, fldIdx)) Then
+            sql = sql & ", [SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)) & "_COLL]"
+          Else
+            sql = sql & ", [SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)) & "]"
+          End If
+        Else
+          sql = sql & ", [" & dsObjTablePrefix(sobjIdx) & dsPropNames(sobjIdx, fldIdx) & "]"
+        End If
+      Next fldIdx
+      sql = sql & " FROM [" & glbTablePrefix & dsObjTableNames(sobjIdx) & "];"
+       
+      
+      DoCmd.SetWarnings False
+      DoCmd.RunSQL sql
+      DoCmd.SetWarnings True
+      
+      If (dsObjUsedAsCollection(sobjIdx)) Then
+        sql = "INSERT INTO [" & glbTablePrefix & "__SYS__XML_EXPORT_COLL] ([XML_OBJECT_TYPE],[XML_COLLECTION_ID], [XML_CHILD_ID]) Select " & _
+              """" & dsObjTypeNames(sobjIdx) & """ AS EXPR1, [ID_" & dsObjTypeNames(sobjIdx) & "_COLL], [SYS_REF_CH_" & dsObjTypeNames(sobjIdx) & "] FROM " & _
+              "[" & glbTablePrefix & dsObjTableNames(sobjIdx) & "_COLL];"
+      
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL sql
+        DoCmd.SetWarnings True
+      End If
+    Next sobjIdx
+End If
+
+'Now perform the actual export to xml.
+Const maxDepth = 100
+Dim opCurObjType(0 To maxDepth) As Integer
+Dim opCurVals(0 To maxDepth, 1 To maxPropsPerObj) As String
+Dim opCurSubObjPosition(0 To maxDepth) As Integer
+Dim opCurSubObjPropPosition(0 To maxDepth) As Integer
+Dim opCurSubObjIsCollection(0 To maxDepth) As Boolean
+Dim opCurSubObjIsCollValid(0 To maxDepth) As Boolean
+Dim opCurSubObjType(0 To maxDepth) As Integer
+Dim opCollBookmarks(0 To maxDepth) As String
+
+'Set inp = CurrentDb().OpenRecordset("Select * from [" & glbTablePrefix & "__SYS__XML_EXPORT] order by [XML_OBJECT_TYPE],[XML_OBJECT_ID];")
+'Set inpColl = CurrentDb().OpenRecordset("Select * from [" & glbTablePrefix & "__SYS__XML_EXPORT_COLL] order by [XML_OBJECT_TYPE], [XML_COLLECTION_ID], [XML_CHILD_ID];")
+Set inp = CurrentDb().OpenRecordset(glbTablePrefix & "__SYS__XML_EXPORT", dbOpenTable)
+Set inpColl = CurrentDb().OpenRecordset(glbTablePrefix & "__SYS__XML_EXPORT_COLL", dbOpenTable)
+inp.Index = "P"
+inpColl.Index = "N"
+
+inpValid = True
+inpCollValid = True
+
+'inp.FindFirst "[XML_OBJECT_TYPE] = """ & dsObjTypeNames(dsRootObjTypeIdx) & """ "
+inp.Seek "=", dsObjTypeNames(dsRootObjTypeIdx), 1
+
+If (inp.NoMatch) Then
+  Err.Raise 1, , "Could not find root. Must have ID equal to 1"
+End If
+
+Dim level As Integer
+level = 0
+opCurObjType(level) = dsRootObjTypeIdx
+
+'now output.
+If Not openXMLFile(xmlFileName, True) Then
+  Exit Function
+End If
+
+While (level >= 0)
+  'read details of the record.
+  Dim curObjTypeIdx As Integer
+  curObjTypeIdx = opCurObjType(level)
+  For fldIdx = 1 To dsObjNProps(curObjTypeIdx)
+    opCurVals(level, fldIdx) = Nz(inp("XML_PROP_" & fldIdx))
+  Next fldIdx
+  
+    
+  'Now output.
+  Dim attribString As String
+  attribString = ""
+  
+  
+  
+  For fldIdx = 1 To dsObjNProps(curObjTypeIdx)
+    If (opCurVals(level, fldIdx) <> "") Then
+        If (Not dsPropIsObject(curObjTypeIdx, fldIdx)) Then
+          'add to the attribute list.
+          If (Len(attribString) > 0) Then
+            attribString = attribString & " "
+          End If
+          attribString = attribString & convertToUTF(dsPropNames(curObjTypeIdx, fldIdx)) & "=""" & convertToUTF(opCurVals(level, fldIdx)) & """"
+        End If
+    End If
+  Next fldIdx
+  
+  Dim needMoveDown As Boolean
+  needMoveDown = False
+  
+  If (dsObjNSubObjs(curObjTypeIdx) = 0) Then
+    openCloseNodeAttributes dsObjTypeNames(curObjTypeIdx), attribString
+    level = level - 1
+  Else
+    openNodeAttributes dsObjTypeNames(curObjTypeIdx), attribString
+    opCurSubObjPosition(level) = 0
+  End If
+  
+     
+    Dim blFoundValidSubObject As Boolean
+    blFoundValidSubObject = False
+    Dim validSubObjID As Long
+    
+    
+    While (level >= 0 And Not blFoundValidSubObject)
+      curObjTypeIdx = opCurObjType(level)
+    
+      If (opCurSubObjPosition(level) > 0) Then
+        If (opCurSubObjIsCollection(level) And opCurSubObjIsCollValid(level)) Then
+          'Check to see if there is another one left.
+          inpColl.Bookmark = opCollBookmarks(level)
+          Dim curCollID As Long
+          Dim curObjectTypeName As String
+          curCollID = Nz(inpColl("XML_COLLECTION_ID"))
+          curObjectTypeName = Nz(inpColl("XML_OBJECT_TYPE"))
+          inpColl.MoveNext
+          If (Not inpColl.EOF) Then
+            If (Nz(inpColl("XML_OBJECT_TYPE")) = curObjectTypeName) And (Nz(inpColl("XML_COLLECTION_ID")) = curCollID) Then
+              validSubObjID = Nz(inpColl("XML_CHILD_ID"))
+              blFoundValidSubObject = True
+              opCollBookmarks(level) = inpColl.Bookmark
+            End If
+          End If
+        End If
+     End If
+     
+     If (Not blFoundValidSubObject) Then
+       'move to next sub object position
+       opCurSubObjPosition(level) = opCurSubObjPosition(level) + 1
+       If ((opCurSubObjPosition(level) <= dsObjNSubObjs(curObjTypeIdx))) Then
+          opCurSubObjPropPosition(level) = dsObjSubObjPropIdx(curObjTypeIdx, opCurSubObjPosition(level))
+          opCurSubObjIsCollection(level) = dsPropIsCollection(curObjTypeIdx, opCurSubObjPropPosition(level))
+          opCurSubObjType(level) = dsPropObjectTypeIdx(curObjTypeIdx, opCurSubObjPropPosition(level))
+          opCurSubObjIsCollValid(level) = False
+        
+          Dim curVal As String
+          curVal = opCurVals(level, opCurSubObjPropPosition(level))
+          If (curVal <> "" And curVal <> "0") Then
+             If (opCurSubObjIsCollection(level)) Then
+               'Have to find the collection and bookmark it.
+               Dim subObjTypeName As String
+               subObjTypeName = dsObjTypeNames(opCurSubObjType(level))
+               Dim subObjCollID As Long
+               subObjCollID = CLng(curVal)
+               'inpColl.FindFirst "[XML_OBJECT_TYPE]=""" & subObjTypeName & """ and [XML_COLLECTION_ID] = " & subObjCollID
+               inpColl.Seek "=", subObjTypeName, subObjCollID
+               If (Not inpColl.NoMatch) Then
+                 opCollBookmarks(level) = inpColl.Bookmark
+                 validSubObjID = Nz(inpColl("XML_CHILD_ID"))
+                 blFoundValidSubObject = True
+                 opCurSubObjIsCollValid(level) = True
+               Else
+                 'Err.Raise 1, , "Could not find collection."
+               End If
+             Else
+               validSubObjID = CLng(curVal)
+               blFoundValidSubObject = True
+             End If
+          End If
+       Else
+         closeNode
+         level = level - 1
+       End If
+     End If
+    
+        
+     If (blFoundValidSubObject) Then
+       If (validSubObjID <= 0) Then
+         Err.Raise 1, , "Invalid child id: " & validSubObjID
+       End If
+       subObjTypeName = dsObjTypeNames(opCurSubObjType(level))
+       'Now find the subobject.
+       'inp.FindFirst "[XML_OBJECT_TYPE]=""" & subObjTypeName & """ and [XML_OBJECT_ID] = " & validSubObjID
+       inp.Seek "=", subObjTypeName, validSubObjID
+       If (inp.NoMatch) Then
+         Err.Raise 1, , "Could not find object with type: " & subObjTypeName & " and id: " & validSubObjID
+       End If
+       level = level + 1
+       opCurObjType(level) = opCurSubObjType(level - 1)
+     End If
+  Wend 'While level >=0 and not blFoundValidSubObject.
+  
+  
+  
+
+Wend
+
+
+
+
+closeDocument
+
+
+
+Close
+
+'Debug
+'exportStructureToXML = True
+'Exit Function
+'End debug.
+
+
+
+inp.Close
+inpColl.Close
+
+inpValid = False
+inpCollValid = False
+
+If (useResultTables And cleanOnTerminate) Then
+  cleanupXMLStructureTables xmlObjectsTable, glbTablePrefix, useResultTables
+ElseIf (useResultTables Or (cleanOnTerminate)) Then
+  'merely delete the __SYS__EXPORT tables.
+  cleanupXMLStructureTables xmlObjectsTable, glbTablePrefix, False
+End If
+
+
+exportStructureToXML = True
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+If blDeletingTables And (Err = 3011 Or Err = 7874) Then
+  Resume Next
+End If
+
+
+
+
+Dim emsg As String
+emsg = "Error during generation of xml file: " & xmlFileName & Chr(13) & "Errorcode: " & Err & Chr(13) & Error$
+
+'debug
+'On Error GoTo 0
+'Resume Next
+
+
+On Error Resume Next
+If (inpValid) Then
+  inp.Close
+End If
+If (inpCollValid) Then
+  inpColl.Close
+End If
+
+If (useResultTables And cleanOnTerminate) Then
+  cleanupXMLStructureTables xmlObjectsTable, glbTablePrefix, useResultTables
+ElseIf (useResultTables Or (cleanOnTerminate)) Then
+  'merely delete the __SYS__EXPORT tables.
+  cleanupXMLStructureTables xmlObjectsTable, glbTablePrefix, False
+End If
+
+
+
+MsgBox emsg, 16
+
+Close
+
+
+
+
+Exit Function
+End Function

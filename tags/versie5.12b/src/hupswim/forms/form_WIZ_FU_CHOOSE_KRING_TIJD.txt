@@ -1,0 +1,198 @@
+Version =20
+VersionRequired =20
+Checksum =-1733302924
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridX =24
+    GridY =24
+    Width =8640
+    DatasheetFontHeight =10
+    ItemSuffix =1
+    Left =1980
+    Right =11280
+    Bottom =5265
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0xdd362bab7f5fe340
+    End
+    RecordSource ="hsoFirstUse"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin Section
+            Height =4260
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =118
+                    Top =188
+                    Width =6540
+                    Height =480
+                    Name ="Label1"
+                    Caption ="Gebruik dit scherm om verenigingstijden in te lezen."
+                End
+                Begin OptionGroup
+                    OverlapFlags =85
+                    Left =120
+                    Top =1080
+                    Width =8280
+                    Height =1200
+                    Name ="optInlezen"
+                    ControlSource ="FU_Choice"
+                    AfterUpdate ="[Event Procedure]"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =120
+                            Top =780
+                            Width =1320
+                            Height =240
+                            BackColor =-2147483633
+                            Name ="Label3"
+                            Caption ="Wat wilt u doen? "
+                        End
+                        Begin OptionButton
+                            SpecialEffect =0
+                            OverlapFlags =87
+                            Left =354
+                            Top =1258
+                            OptionValue =3
+                            Name ="optSplash"
+                            Begin
+                                Begin Label
+                                    OverlapFlags =87
+                                    Left =1005
+                                    Top =1230
+                                    Width =4185
+                                    Height =240
+                                    Name ="Label7"
+                                    Caption ="Gegevens inlezen uit Splash Team-Manager (*.mdb, *.zip) "
+                                End
+                            End
+                        End
+                        Begin OptionButton
+                            SpecialEffect =0
+                            OverlapFlags =87
+                            Left =354
+                            Top =1618
+                            OptionValue =4
+                            Name ="optWas"
+                            Begin
+                                Begin Label
+                                    OverlapFlags =87
+                                    Left =1005
+                                    Top =1590
+                                    Width =2805
+                                    Height =240
+                                    Name ="Label9"
+                                    Caption ="Gegevens inlezen uit Was2005 (*.xml) "
+                                End
+                            End
+                        End
+                        Begin OptionButton
+                            SpecialEffect =0
+                            OverlapFlags =87
+                            Left =354
+                            Top =1968
+                            OptionValue =5
+                            Name ="optLxfTMA"
+                            GUID = Begin
+                                0x41457a335769bb44812ff286fb01b329
+                            End
+                            Begin
+                                Begin Label
+                                    OverlapFlags =87
+                                    Left =1005
+                                    Top =1935
+                                    Width =3405
+                                    Height =240
+                                    Name ="Label2"
+                                    Caption ="Gegevens inlezen uit lenex tijden archief (*.lxf)  "
+                                    GUID = Begin
+                                        0x421da3a2670254439f36343cafe2f7bc
+                                    End
+                                End
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =360
+                    Top =2546
+                    TabIndex =1
+                    Name ="FU_PromptAgain"
+                    ControlSource ="FU_PromptAgain"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =1011
+                            Top =2520
+                            Width =5760
+                            Height =240
+                            Name ="Label0"
+                            Caption ="Meerdere bestanden inlezen. Deze procedure wordt voor elk bestand herhaald. "
+                        End
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+Private Sub optInlezen_AfterUpdate()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim mstFrm As Form_WIZ_FU_Master
+
+Set mstFrm = Forms("WIZ_FU_MASTER")
+
+mstFrm.wzbNotifyChange
+
+End Sub

@@ -1,0 +1,202 @@
+Version =20
+VersionRequired =20
+Checksum =-1735677280
+Begin Form
+    NavigationButtons = NotDefault
+    ScrollBars =2
+    GridX =5
+    GridY =5
+    Width =9516
+    ItemSuffix =19
+    Left =5220
+    Top =1080
+    Right =15015
+    Bottom =3825
+    BeforeDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x4f10277b3e5fe340
+    End
+    RecordSource ="SELECT * FROM dtVerenigingen ORDER BY v_naam;"
+    OnOpen ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+            FontName ="Tahoma"
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =360
+            BackColor =65280
+            Name ="FormHeader1"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =585
+                    Height =240
+                    Name ="Text4"
+                    Caption ="Naam."
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =2415
+                    Top =120
+                    Width =600
+                    Height =240
+                    Name ="Text5"
+                    Caption ="Plaats: "
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =4320
+                    Top =120
+                    Width =1860
+                    Height =240
+                    Name ="Text6"
+                    Caption ="Startgemeenschap (J/N)"
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =6375
+                    Top =120
+                    Width =1155
+                    Height =240
+                    Name ="Label12"
+                    Caption ="Depotnummer: "
+                    FontName ="MS Sans Serif"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =65280
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    AllowAutoCorrect = NotDefault
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =113
+                    Width =2151
+                    Name ="V_NAAM"
+                    ControlSource ="V_NAAM"
+                    GUID = Begin
+                        0x0ab7846ff394e34fb074dc90a7e7e4fc
+                    End
+                End
+                Begin TextBox
+                    AllowAutoCorrect = NotDefault
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =2415
+                    TabIndex =1
+                    Name ="V_PLAATS"
+                    ControlSource ="V_PLAATS"
+                    GUID = Begin
+                        0xb730cc774a97c04ab187024e53b5bcbf
+                    End
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =4320
+                    Width =306
+                    TabIndex =2
+                    Name ="V_STARTGEM"
+                    ControlSource ="V_STARTGEM"
+                    Format =">"
+                    InputMask =">C;;\" \""
+                    GUID = Begin
+                        0x9c2159edf345b8448cfa89b27a471c51
+                    End
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =6375
+                    Width =936
+                    TabIndex =3
+                    Name ="V_DEPOT"
+                    ControlSource ="V_DEPOT"
+                    Format ="00-000"
+                    InputMask ="00\\-CCC;0;\" \""
+                    GUID = Begin
+                        0x059391c4d99b214cbdbc2709218ace96
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =480
+            BackColor =65280
+            Name ="FormFooter2"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =82
+                    Left =135
+                    Top =75
+                    Width =1311
+                    Height =330
+                    Name ="btnPrinten"
+                    Caption ="-> P&rinten"
+                    StatusBarText ="Rapporten printen"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xcf3533dda9b49d43a5d6d23f3d37661e
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+
+Private Sub btnPrinten_Click()
+On Error Resume Next
+DoCmd.OpenForm "PRN_DAT_Master"
+End Sub
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
+On Error Resume Next
+
+response = acDataErrContinue ' Suppress default delete confirm dialog box.
+
+If MsgBox("Vereniging Verwijderen", vbOKCancel + vbQuestion) = vbCancel Then
+  Cancel = True
+End If
+
+Exit Sub
+End Sub
+
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

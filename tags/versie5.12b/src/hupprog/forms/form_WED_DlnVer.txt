@@ -1,0 +1,548 @@
+Version =20
+VersionRequired =20
+Checksum =829836906
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =2
+    BorderStyle =3
+    GridX =20
+    GridY =20
+    Width =9614
+    ItemSuffix =27
+    Left =3210
+    Top =3945
+    Right =14640
+    Bottom =8670
+    BeforeDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x4e8f80e43d5fe340
+    End
+    RecordSource ="SELECT DISTINCTROW dtDeelnemendeVerenigingen.DV_Naam, dtDeelnemendeVerenigingen."
+        "DV_Wedstrijdnummer, dtDeelnemendeVerenigingen.DV_Plaats, dtVerenigingen.V_NAAM, "
+        "dtVerenigingen.V_PLAATS, dtDeelnemendeVerenigingen.DV_BM, dtDeelnemendeVerenigin"
+        "gen.DV_Label, dtDeelnemendeVerenigingen.DV_Tussenstand, dtVerenigingen.V_DEPOT, "
+        "dtDeelnemendeVerenigingen.DV_Cont_Naam FROM dtVerenigingen INNER JOIN dtDeelneme"
+        "ndeVerenigingen ON dtVerenigingen.V_NAAM = dtDeelnemendeVerenigingen.DV_Naam WHE"
+        "RE (((dtDeelnemendeVerenigingen.DV_Wedstrijdnummer)=waarde()));"
+    Caption ="Deelnemende verenigingen"
+    OnCurrent ="[Event Procedure]"
+    BeforeUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    OnActivate ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    OnError ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+            FontName ="Tahoma"
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =327
+            BackColor =16776960
+            Name ="FormHeader1"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =85
+                    Width =540
+                    Height =240
+                    Name ="Text4"
+                    Caption ="Naam:"
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2040
+                    Top =85
+                    Width =555
+                    Height =240
+                    Name ="Text5"
+                    Caption ="Plaats:"
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5215
+                    Top =85
+                    Width =360
+                    Height =240
+                    Name ="lbBM"
+                    Caption ="BM:"
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4308
+                    Top =85
+                    Width =600
+                    Height =240
+                    Name ="Label18"
+                    Caption ="Depot: "
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5700
+                    Top =87
+                    Width =1365
+                    Height =240
+                    Name ="lbTst"
+                    Caption ="Pnt. Tussenstand:"
+                    FontName ="MS Sans Serif"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =7171
+                    Top =85
+                    Width =1275
+                    Height =240
+                    Name ="lbCnt"
+                    Caption ="Contactpersoon:"
+                    FontName ="MS Sans Serif"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    OverlapFlags =93
+                    Left =2040
+                    Width =2166
+                    TabIndex =1
+                    Name ="DV_Plaats"
+                    ControlSource ="DV_Plaats"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =255
+                    Left =3628
+                    Width =561
+                    TabIndex =3
+                    Name ="DV_Wedstrijdnummer"
+                    ControlSource ="DV_Wedstrijdnummer"
+                    DefaultValue ="=[Forms]![wed_master]![we_wedstrijdnummer]"
+                End
+                Begin ComboBox
+                    OverlapFlags =85
+                    ColumnCount =2
+                    ListWidth =3865
+                    Left =113
+                    Width =1855
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"10\";\"64\""
+                    Name ="dv_naam"
+                    ControlSource ="DV_Naam"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT v_naam, V_PLAATS FROM dtVerenigingen order by v_naam;"
+                    ColumnWidths ="1605;2010"
+                    BeforeUpdate ="[Event Procedure]"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =247
+                    Left =3316
+                    Width =561
+                    TabIndex =2
+                    Name ="V_PLAATS"
+                    ControlSource ="V_PLAATS"
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    Left =5221
+                    Width =336
+                    TabIndex =5
+                    Name ="DV_BM"
+                    ControlSource ="DV_BM"
+                    Format =">"
+                    ValidationRule ="In (\"J\",\"n\")"
+                    ValidationText ="Keuze uit J, N."
+                    DefaultValue ="\"N\""
+                    InputMask =">C;;\" \"\015\012"
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    Left =4308
+                    Width =786
+                    TabIndex =4
+                    Name ="depot"
+                    ControlSource ="V_DEPOT"
+                    InputMask ="00/AAA;0;\" \""
+                End
+                Begin TextBox
+                    DecimalPlaces =2
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =5697
+                    Width =1176
+                    TabIndex =6
+                    Name ="DV_Tussenstand"
+                    ControlSource ="DV_Tussenstand"
+                    Format ="Fixed"
+                End
+                Begin ComboBox
+                    OverlapFlags =85
+                    ListWidth =2190
+                    Left =7171
+                    Width =2046
+                    TabIndex =7
+                    ColumnInfo ="\"\";\"\";\"10\";\"100\""
+                    Name ="dv_cont_naam"
+                    ControlSource ="DV_Cont_Naam"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW cont_naam FROM dtContactPersonen where v_naam =waarde_dlv_ver"
+                        "();"
+                    ColumnWidths ="2190"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =1417
+            BackColor =16776960
+            Name ="frmFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    TextFontFamily =34
+                    Left =1710
+                    Top =945
+                    Width =1320
+                    Height =330
+                    FontSize =8
+                    FontWeight =400
+                    Name ="btnNStarts"
+                    Caption ="-> Aantal Starts"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =113
+                    Top =589
+                    TabIndex =1
+                    Name ="blMeet"
+                    DefaultValue ="True"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =247
+                            Left =345
+                            Top =570
+                            Width =6075
+                            Height =240
+                            Name ="Label20"
+                            Caption ="Starts / facturen / mailmerge combineren voor alle delen van meerdaagse wedstrij"
+                                "d.  "
+                            FontName ="MS Sans Serif"
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =86
+                    TextFontFamily =34
+                    Left =7738
+                    Top =945
+                    Height =330
+                    FontSize =8
+                    FontWeight =400
+                    TabIndex =2
+                    Name ="btnVerGeg"
+                    Caption ="-> &Ver Gegevens"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                    UnicodeAccessKey =86
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    TextFontFamily =34
+                    Left =120
+                    Top =945
+                    Width =1446
+                    Height =330
+                    FontSize =8
+                    FontWeight =400
+                    TabIndex =3
+                    Name ="btnMailMerge"
+                    Caption ="-> Mail Merge"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0xa89e7ec50a60394ab512323c572e5644
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+Private Sub initView()
+On Error Resume Next
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+Me.DV_BM.Visible = Not blIsSimplified
+Me.lbBM.Visible = Not blIsSimplified
+
+Me.DV_Tussenstand.Visible = Not blIsSimplified
+Me.lbTst.Visible = Not blIsSimplified
+
+Me.blMeet.Visible = Not blIsSimplified
+Me.btnMailMerge.Visible = Not blIsSimplified
+Me.btnNStarts.Visible = Not blIsSimplified
+Me.btnVerGeg.Visible = Not blIsSimplified
+
+Me.dv_cont_naam.Visible = Not blIsSimplified
+Me.lbCnt.Visible = Not blIsSimplified
+
+Me.frmFooter.Visible = Not blIsSimplified
+End Sub
+
+Private Sub btnMailMerge_Click()
+On Error Resume Next
+
+Dim blEntireMeet As Boolean
+blEntireMeet = Nz(Me.blMeet)
+
+Dim blNotAllVerMatched As Boolean
+
+If Not cntBuildListForWed(waarde(), blEntireMeet, blNotAllVerMatched) Then
+  Exit Sub
+End If
+
+If blNotAllVerMatched Then
+  MsgBox "Waarschuwing: " & vbCrLf & "Voor niet alle verenigingen is een contactpersoon ingevuld.", vbExclamation + vbOKOnly
+End If
+
+If Not cntListToMailMerge() Then
+  Exit Sub
+End If
+
+
+DoCmd.OpenForm "gMM_Master"
+End Sub
+
+Private Sub btnNStarts_Click()
+On Error Resume Next
+    
+If (wed_IsMeet() And Nz(Me.blMeet)) Then
+  If Not facCalcFees(wed_MeetMainNr, True) Then
+    Exit Sub
+  End If
+Else
+  If Not facCalcFees(CLng(waarde()), False) Then
+    Exit Sub
+  End If
+End If
+    
+DoCmd.OpenForm "WED_DIV_starts"
+    
+End Sub
+
+
+
+
+
+
+Private Sub btnVerGeg_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim verName As String
+verName = Nz([V_NAAM])
+
+If verName <> "" Then
+  DoCmd.OpenForm "VER_MASTER", , , , , , verName
+End If
+
+End Sub
+
+Private Sub DV_Naam_AfterUpdate()
+On Error Resume Next
+
+Me.dv_cont_naam.Requery
+
+If IsNull([V_NAAM]) Then
+  Dim tpVName As String, blisAdded As Boolean
+  tpVName = Nz([DV_Naam])
+  
+  If (tpVName <> "") Then
+    'attempt to add new ver
+    If Not verAddNew(tpVName, blisAdded) Then
+      GoTo UndoAndExit
+    End If
+    If (Not blisAdded) Then
+      GoTo UndoAndExit
+    End If
+    
+    'reEnter the verName, to force an update
+    [DV_Naam] = Null
+    [DV_Naam] = hzn(tpVName)
+  End If
+End If
+  
+'update
+[DV_Naam] = capitalizefirst([DV_Naam])
+[DV_Plaats] = [V_PLAATS]
+
+Exit Sub
+
+UndoAndExit:
+On Error Resume Next
+'undo any changes & exit
+DV_Plaats.SetFocus
+DoCmd.DoMenuItem acFormBar, acEditMenu, acUndo, , acMenuVer70
+DV_Naam.SetFocus
+Exit Sub
+
+fout:
+MsgBox Err & " dv_naam_afterUpdate" & vbCrLf & Error$, 16
+Exit Sub
+
+End Sub
+
+Private Sub dv_naam_BeforeUpdate(Cancel As Integer)
+On Error GoTo fout
+
+Cancel = True
+
+If (Nz([DV_Naam].OldValue) <> "") Then
+  If (DV_Naam <> DV_Naam.OldValue) Then
+    Err.Raise 1, , "U kunt de vereniging niet wijzigen."
+  End If
+End If
+
+Cancel = False
+Exit Sub
+
+fout:
+MsgBox Err & "dv_naam_BeforeUpdate" & vbCrLf & Error$, 16
+Exit Sub
+
+End Sub
+
+Private Sub DV_Plaats_AfterUpdate()
+On Error Resume Next
+[DV_Plaats] = capitalizefirst([DV_Plaats])
+End Sub
+
+
+Private Sub Form_Activate()
+On Error Resume Next
+Me.OrderBy = ""
+End Sub
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
+On Error Resume Next
+
+response = acDataErrContinue
+If MsgBox("Deze vereniging, inclusief deelnemers, verwijderen?", vbOKCancel + vbQuestion) = vbCancel Then
+  Cancel = True
+  Exit Sub
+End If
+
+End Sub
+
+Private Sub Form_BeforeUpdate(Cancel As Integer)
+On Error GoTo fout
+
+Cancel = True
+
+'Check to see if ver exists
+If (Nz([V_NAAM]) = "") Then
+  Err.Raise 1, , "De gekozen vereniging bestaat niet"
+End If
+
+
+'Check to see if ver has been changed
+If (Nz([DV_Naam].OldValue) <> "") Then
+  If (DV_Naam <> DV_Naam.OldValue) Then
+    Err.Raise 1, , "U kunt de vereniging niet wijzigen."
+  End If
+End If
+
+Cancel = False
+
+Exit Sub
+
+fout:
+MsgBox Err & " form_BeforeUpdate" & vbCrLf & Error$, 16
+Exit Sub
+
+
+End Sub
+
+Private Sub Form_Current()
+On Error Resume Next
+Me.dv_cont_naam.Requery
+End Sub
+
+Private Sub Form_Error(dataerr As Integer, response As Integer)
+On Error Resume Next
+If dataerr = 3022 Then
+    MsgBox "Deze vereniging is al geregistreerd. " & Chr$(13) & "Druk op <esc>.", 16, "Hupprog"
+    response = acDataErrContinue
+    Exit Sub
+End If
+If dataerr = 3101 Then
+    MsgBox "Dit is geen geldige verenigingsnaam. " & Chr$(13) & "Druk op <esc>.", 16, "Hupprog"
+    response = acDataErrContinue
+    [DV_Naam].SetFocus
+    Exit Sub
+End If
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+initView
+End Sub
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+Me.blMeet.Enabled = wed_IsMeet()
+setBackground Me
+'Me.htmlhulp.HyperlinkAddress = htmlHelpRoot & "deelnemende_verenigingen.htm"
+End Sub

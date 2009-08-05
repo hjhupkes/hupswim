@@ -1,0 +1,331 @@
+Version =20
+VersionRequired =20
+Checksum =1692520669
+Begin Form
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =7485
+    DatasheetFontHeight =10
+    ItemSuffix =28
+    Left =5730
+    Top =405
+    Right =14235
+    Bottom =5595
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x9ff7c5f8d21ae340
+    End
+    Caption ="Externe records standen inlezen"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+            Width =1701
+            Height =1701
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =453
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =-45
+                    Top =60
+                    Width =7530
+                    Height =285
+                    FontSize =10
+                    FontWeight =700
+                    Name ="Label0"
+                    Caption ="Externe record standen inlezen"
+                End
+            End
+        End
+        Begin Section
+            Height =2014
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =170
+                    Top =1155
+                    Name ="blDeleteAll"
+                    DefaultValue ="True"
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =247
+                            Left =405
+                            Top =1133
+                            Width =4965
+                            Height =225
+                            Name ="Label8"
+                            Caption ="Voor het inlezen de huidige stand van de externe records verwijderen"
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =75
+                    Left =1644
+                    Top =454
+                    Width =966
+                    Height =343
+                    TabIndex =1
+                    Name ="btnZoekLenex"
+                    Caption ="Zoe&k..."
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x5bf2d118d8c9e34e9073d1b037deab6b
+                    End
+                    UnicodeAccessKey =107
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1474
+                    Top =170
+                    Width =5436
+                    TabIndex =2
+                    Name ="fldLenName"
+                    GUID = Begin
+                        0x50f58f0c614ae54a884e0c2628c2f13c
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =170
+                            Top =170
+                            Width =1215
+                            Height =240
+                            Name ="Label25"
+                            Caption ="Dataset naam: "
+                            GUID = Begin
+                                0xe2383830a9a2a6499c1b50cf1f92afe3
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =170
+                    Top =1542
+                    TabIndex =3
+                    Name ="blImpSettings"
+                    DefaultValue ="True"
+                    GUID = Begin
+                        0x6a131c45ddb0f7408982f995f05095f1
+                    End
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =247
+                            Left =405
+                            Top =1515
+                            Width =6915
+                            Height =240
+                            Name ="Label27"
+                            Caption ="Leeftijdsgroepen en basis instellingen voor dit record type overnemen uit het in"
+                                " te lezen bestand "
+                            GUID = Begin
+                                0xec89e6df83659944834c7295919239d6
+                            End
+                        End
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =510
+            BackColor =-2147483633
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =56
+                    Top =56
+                    Width =1020
+                    Height =390
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnCancel"
+                    Caption ="Cancel"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =79
+                    Left =6349
+                    Top =56
+                    Width =1020
+                    Height =390
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnOK"
+                    Caption ="&OK"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub updateView()
+On Error GoTo fout
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+End Sub
+
+Private Sub cleanup()
+On Error Resume Next
+If Not recAcquireRecs_cleanup() Then
+  Exit Sub
+End If
+End Sub
+
+Private Function perform() As Boolean
+On Error GoTo fout
+perform = False
+
+
+
+
+Dim optDeleteAll As Boolean, optImpSettings As Boolean
+
+optDeleteAll = Nz(Me.blDeleteAll)
+optImpSettings = Nz(Me.blImpSettings)
+
+
+Dim msgTxt As String
+  msgTxt = "Externe records inlezen? "
+
+If MsgBox(msgTxt, vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Function
+End If
+
+
+
+If Not recExtReadFromLenex(waarde_rcs(), optDeleteAll, optImpSettings) Then
+  Exit Function
+End If
+
+
+
+MsgBox "Externe records met succes ingelezen!", vbInformation
+
+
+perform = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Sub btnZoekLenex_Click()
+On Error Resume Next
+
+Dim isFnd25 As Boolean, dsName25 As String
+Dim isFnd50 As Boolean, dsName50 As String
+
+If Not recAcquireRecs(isFnd25, isFnd50, dsName25, dsName50) Then
+  Exit Sub
+End If
+
+If (Not isFnd25) And (Not isFnd50) Then
+  Me.fldLenName = ""
+ElseIf (isFnd25 And isFnd50) Then
+  Me.fldLenName = dsName25 & "; " & dsName50
+ElseIf (isFnd25) Then
+  Me.fldLenName = dsName25
+Else
+  Me.fldLenName = dsName50
+End If
+
+
+End Sub
+
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+cleanup
+
+DoCmd.Close
+
+End Sub
+
+Private Sub btnOK_Click()
+On Error Resume Next
+
+
+If (perform()) Then
+  cleanup
+  DoCmd.Close
+End If
+
+End Sub
+
+
+Private Sub Form_Load()
+On Error Resume Next
+updateView
+End Sub

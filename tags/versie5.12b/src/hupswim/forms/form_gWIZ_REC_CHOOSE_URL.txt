@@ -1,0 +1,163 @@
+Version =20
+VersionRequired =20
+Checksum =1095604455
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridX =24
+    GridY =24
+    Width =8645
+    DatasheetFontHeight =10
+    ItemSuffix =28
+    Left =2220
+    Top =405
+    Right =13605
+    Bottom =7080
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x8e57d1b56f41e340
+    End
+    RecordSource ="gREC_IMP_Options"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ListBox
+            SpecialEffect =2
+            Width =1701
+            Height =1417
+            LabelX =-1701
+        End
+        Begin Section
+            Height =5267
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =4913
+                    Top =4913
+                    Name ="IRO_AppendRecURL"
+                    ControlSource ="IRO_AppendRecURL"
+                End
+                Begin ListBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =3
+                    Left =165
+                    Top =307
+                    Width =8235
+                    Height =4495
+                    TabIndex =1
+                    Name ="recList"
+                    RowSourceType ="Table/Query"
+                    ColumnWidths ="1134;4536;0"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =165
+                    Top =47
+                    Width =540
+                    Height =210
+                    Name ="Label25"
+                    Caption ="Type: "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =1370
+                    Top =47
+                    Width =540
+                    Height =210
+                    Name ="Label27"
+                    Caption ="Naam "
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub updateView()
+On Error GoTo fout
+
+Dim sql As String
+
+
+  sql = "SELECT DISTINCTROW splRecList.RL_TYPE, splRecList.RL_Description, splRecList.RL_FileURL FROM splRecList"
+
+
+Me.recList.RowSource = sql
+
+Exit Sub
+fout:
+MsgBox Err & " updateView" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+
+Private Sub blOnlyDutch_AfterUpdate()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub recList_AfterUpdate()
+On Error Resume Next
+If Nz(Me.recList.value) <> "" Then
+  Me.IRO_AppendRecURL = Me.recList.Column(2)
+Else
+  Me.IRO_AppendRecURL = Null
+End If
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim mstFrm As Form_gWIZ_REC_MASTER
+
+Set mstFrm = Forms("gWIZ_REC_MASTER")
+
+mstFrm.wzbNotifyChange
+
+
+End Sub

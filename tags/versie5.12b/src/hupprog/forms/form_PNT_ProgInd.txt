@@ -1,0 +1,232 @@
+Version =20
+VersionRequired =20
+Checksum =595653980
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =8617
+    DatasheetFontHeight =10
+    ItemSuffix =26
+    Left =3465
+    Top =360
+    Right =15390
+    Bottom =8520
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x2de6bfd00087e340
+    End
+    RecordSource ="SELECT dtProgramma.*, dtgPuntentellingProgs.*, dtgPuntentellingOnderdelen.PTO_Be"
+        "schrijving, * FROM dtProgramma INNER JOIN (dtgPuntentellingProgs LEFT JOIN dtgPu"
+        "ntentellingOnderdelen ON (dtgPuntentellingProgs.PTPR_Wedstrijdnummer = dtgPunten"
+        "tellingOnderdelen.PTO_Wedstrijdnummer) AND (dtgPuntentellingProgs.PTPR_OrderID ="
+        " dtgPuntentellingOnderdelen.PTO_OrderID) AND (dtgPuntentellingProgs.PTPR_Onderde"
+        "elCode = dtgPuntentellingOnderdelen.PTO_Code)) ON (dtProgramma.PR_Programmanumme"
+        "r = dtgPuntentellingProgs.PTPR_ProgProgrammanummer) AND (dtProgramma.PR_Wedstrij"
+        "dnummer = dtgPuntentellingProgs.PTPR_ProgWedstrijdnummer) WHERE (((dtgPuntentell"
+        "ingProgs.PTPR_Wedstrijdnummer)=waarde()) AND ((dtgPuntentellingProgs.PTPR_OrderI"
+        "D)=waarde_pnt()) AND ((nz([PR_Type]))<>\"RNK\" And (nz([PR_Type]))<>\"PNT\")) OR"
+        "DER BY dtgPuntentellingProgs.PTPR_ProgWedstrijdnummer, Val([ptpr_progProgrammanu"
+        "mmer]), dtgPuntentellingProgs.PTPR_ProgProgrammanummer;"
+    Caption ="Programma"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =356
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =116
+                    Width =630
+                    Height =240
+                    Name ="Label18"
+                    Caption ="Prognr: "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5500
+                    Top =113
+                    Width =900
+                    Height =240
+                    Name ="Label19"
+                    Caption ="Onderdeel: "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4422
+                    Top =113
+                    Width =960
+                    Height =240
+                    Name ="Label21"
+                    Caption ="Straftijd dis:"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =113
+                    Width =801
+                    Name ="PR_Programmanummer"
+                    ControlSource ="PR_Programmanummer"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =4429
+                    Width =456
+                    TabIndex =4
+                    Name ="PTPR_ToevoegenDis"
+                    ControlSource ="PTPR_ToevoegenDis"
+                    Format ="0"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =1020
+                    Width =711
+                    TabIndex =1
+                    Name ="PR_Afstand"
+                    ControlSource ="PR_Afstand"
+                    InputMask ="#CC###;;\" \""
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =1813
+                    Width =846
+                    TabIndex =2
+                    Name ="PR_Slag"
+                    ControlSource ="PR_Slag"
+                    InputMask =">CCCCCCC;;\" \""
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =2777
+                    Width =1476
+                    TabIndex =3
+                    Name ="PR_Beschrijving categorie"
+                    ControlSource ="PR_Beschrijving categorie"
+                    EventProcPrefix ="PR_Beschrijving_categorie"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    ColumnCount =2
+                    ListWidth =2640
+                    Left =5500
+                    Width =951
+                    TabIndex =5
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"10\";\"2\""
+                    Name ="PTPR_OnderdeelCode"
+                    ControlSource ="PTPR_OnderdeelCode"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW dtgPuntentellingOnderdelen.PTO_Code, dtgPuntentellingOnderdel"
+                        "en.PTO_Beschrijving FROM dtgPuntentellingOnderdelen WHERE (((dtgPuntentellingOnd"
+                        "erdelen.PTO_Wedstrijdnummer)=waarde()) AND ((dtgPuntentellingOnderdelen.PTO_Orde"
+                        "rID)=waarde_pnt()));"
+                    ColumnWidths ="420;2220"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    BackStyle =0
+                    Left =6633
+                    Width =1851
+                    TabIndex =6
+                    Name ="PTO_Beschrijving"
+                    ControlSource ="PTO_Beschrijving"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =566
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =120
+                    Top =120
+                    Width =6450
+                    Height =405
+                    Name ="Label23"
+                    Caption ="Bij <Straftijd Dis> geeft u op hoeveel strafseconden een diskwalificatie oplever"
+                        "t.\015\012"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

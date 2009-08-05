@@ -1,0 +1,221 @@
+Version =20
+VersionRequired =20
+Checksum =858614431
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    ViewsAllowed =1
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =4195
+    DatasheetFontHeight =10
+    ItemSuffix =14
+    Left =3615
+    Top =690
+    Right =11280
+    Bottom =5610
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x9ef2fc11375fe340
+    End
+    RecordSource ="SELECT [gregioncodes].* FROM [gregioncodes] ORDER BY [gregioncodes].RG_Region;"
+    Caption ="Kringen selecteren"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =1035
+            BackColor =-2147483633
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =60
+                    Top =795
+                    Width =735
+                    Height =240
+                    Name ="Label5"
+                    Caption ="Kring nr:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =963
+                    Top =793
+                    Width =1125
+                    Height =240
+                    Name ="Label6"
+                    Caption ="Kring naam:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =453
+                    Top =170
+                    Width =2865
+                    Height =285
+                    FontSize =10
+                    FontWeight =700
+                    Name ="Label9"
+                    Caption ="Welke kringen importeren?"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =2895
+                    Top =795
+                    Width =825
+                    Height =240
+                    Name ="Label13"
+                    Caption ="Importeren"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =56
+                    Width =681
+                    Name ="RG_Region"
+                    ControlSource ="RG_Region"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =963
+                    TabIndex =1
+                    Name ="RG_RegionName"
+                    ControlSource ="RG_RegionName"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =2948
+                    Top =30
+                    Height =195
+                    TabIndex =2
+                    Name ="RG_Import"
+                    ControlSource ="RG_Import"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =1247
+            BackColor =-2147483633
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =79
+                    Left =3118
+                    Top =680
+                    Width =975
+                    Height =450
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnOK"
+                    Caption ="&OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    Left =56
+                    Top =56
+                    Height =358
+                    TabIndex =1
+                    Name ="btnDeselAll"
+                    Caption ="Alles &deselecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    Left =2381
+                    Top =56
+                    Height =358
+                    TabIndex =2
+                    Name ="btnSelAll"
+                    Caption ="Alles &selecteren"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub btnOK_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+DoCmd.Close
+End Sub
+
+Private Sub btnDeselAll_Click()
+On Error Resume Next
+selectAll (False)
+End Sub
+
+Private Sub btnSelAll_Click()
+On Error Resume Next
+selectAll (True)
+End Sub
+Private Sub selectAll(sel As Boolean)
+On Error Resume Next
+Dim rs As Recordset
+Set rs = Me.RecordsetClone
+
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+rs.MoveFirst
+Do Until rs.EOF
+  rs.Edit
+  rs("RG_Import") = sel
+  rs.Update
+  rs.MoveNext
+Loop
+
+Me.Requery
+
+End Sub

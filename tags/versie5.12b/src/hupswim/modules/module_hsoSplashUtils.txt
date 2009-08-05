@@ -1,0 +1,1513 @@
+Option Compare Database
+Option Explicit
+
+
+Global Const SPL_VALID = -1
+Global Const SPL_UNKNOWN_FILE = 0
+Global Const SPL_UZIP_FAILURE = 1
+Global Const SPL_INVALID_ZIP_CNT = 2
+Global Const SPL_MDB_OPEN_FAILURE = 3
+Global Const SPL_INVALID_MDB_CONTENT = 4
+Global Const SPL_NOT_ZIP_FILE = 5
+
+Private Const SPL_TM_VER_2007 = 1
+Private Const SPL_TM_VER_2009 = 2
+
+
+
+
+
+Public Function splAnalyzeBackup(ByVal fName As String, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckClub As String, ByRef bckNTimes As Long) As Boolean
+On Error GoTo fout
+splAnalyzeBackup = False
+
+Dim iDummy As Integer
+
+If Not splAnalyzeBackup_Perform(fName, False, False, False, bckValid, bckInvalidReason, bckInvalidString, bckDateS, bckTimeS, bckClub, bckNTimes, iDummy) Then
+  Exit Function
+End If
+
+splAnalyzeBackup = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+Private Function splAnalyzeBackup_extractInfo(splMDBFileName As String, ByVal blExtractTables As Boolean, ByVal blAlleenZwms As Boolean, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckClub As String, ByRef bckNTimes As Long, ByRef iSplTMVersion As Integer) As Boolean
+On Error GoTo fout
+splAnalyzeBackup_extractInfo = False
+
+bckValid = False
+bckInvalidString = "Bestand niet gevonden"
+bckInvalidReason = SPL_UNKNOWN_FILE
+
+
+If FileExists(splMDBFileName) Then
+
+
+  
+  bckDateS = FileDateStr(splMDBFileName)
+  bckTimeS = FileTimeStr(splMDBFileName)
+  
+  
+  bckInvalidReason = SPL_MDB_OPEN_FAILURE
+  bckInvalidString = "Splash werkt met het file-formaat van Office2000. " & vbCrLf & _
+     "U krijgt deze foutmelding waarschijnlijk te zien omdat u Office97 gebruikt." & _
+     "Upgrade naar de Office2000 of Office2003 versie van Hupswim " & _
+     "of stuur de splash backup naar hjhupkes AT gmail.com voor omzetting naar " & _
+     "Office97 formaat."
+  
+  'try to open the MDB file and extract some properties.
+  Dim splDB As Database
+  Set splDB = DBEngine.Workspaces(0).OpenDatabase(splMDBFileName)
+  
+  
+  
+  If (Not splDB Is Nothing) Then
+  
+    bckValid = True
+    bckInvalidReason = BCK_VALID
+    bckInvalidString = ""
+         
+    Dim rs As Recordset
+    Set rs = splDB.OpenRecordset("RESULTS")
+    
+    If (rs Is Nothing) Then
+    
+      bckValid = False
+      bckInvalidReason = SPL_INVALID_MDB_CONTENT
+      bckInvalidString = "De Splash backup bevat niet de juiste gegevens." & vbCrLf & _
+        "De tabel: <Results> kon niet worden gevonden."
+      
+      splDB.Close
+      Set splDB = Nothing
+      
+      Exit Function
+    End If
+    
+    rs.MoveLast
+    bckNTimes = Nz(rs.RecordCount)
+    
+    appCleanRS rs
+    
+    
+        
+    Set rs = splDB.OpenRecordset("CLUBS")
+    
+    If (rs Is Nothing) Then
+      bckValid = False
+      bckInvalidReason = SPL_INVALID_MDB_CONTENT
+      bckInvalidString = "De Splash backup bevat niet de juiste gegevens." & vbCrLf & _
+        "De tabel: <Clubs> kon niet worden gevonden."
+      
+      splDB.Close
+      Set splDB = Nothing
+      
+      Exit Function
+      
+    End If
+    
+    bckClub = ""
+    rs.MoveFirst
+    If Not rs.EOF Then
+      bckClub = Nz(rs("Name"))
+    End If
+    
+    appCleanRS rs
+    
+    
+    Set rs = splDB.OpenRecordset("STYLES")
+    If (rs Is Nothing) Then
+      iSplTMVersion = SPL_TM_VER_2009
+    End If
+    
+    appCleanRS rs
+      
+    
+    
+    splDB.Close
+    Set splDB = Nothing
+    
+  
+  
+    If (blExtractTables) Then
+      'Transfer the tables.
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "MEMBERS", "splMembers"
+      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "CLUBS", "splClubs"
+      If Not blAlleenZwms Then
+        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "MEETS", "splMeets"
+        If (iSplTMVersion = SPL_TM_VER_2007) Then
+          DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "STYLES", "splStyles"
+        Else
+          DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMSTYLE", "splStyles"
+        End If
+        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "RESULTS", "splResults"
+        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "RELAYS", "splRelays"
+        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "RELAYSPOS", "splRelayPos"
+      End If
+    End If
+
+
+  End If ' if not splDB is nothing
+  
+End If 'if fileExists
+
+
+
+splAnalyzeBackup_extractInfo = True
+Exit Function
+
+fout:
+
+If (Err = 3078) Then Resume Next ' RESULTS niet gevonden.
+If (Err = 3343) Then Resume Next ' unrecognized database format
+If (Err = 3021) Then Resume Next ' no current record.
+
+MsgBox Err & " splAnalyzeBackup_extractInfo" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function splAnalyzeBackup_cleanup(ByRef zipData As ZIP_INTERNAL) As Boolean
+On Error GoTo fout
+splAnalyzeBackup_cleanup = False
+
+
+If Not zipRead_finish(zipData) Then
+  Exit Function
+End If
+
+
+
+splAnalyzeBackup_cleanup = True
+Exit Function
+fout:
+MsgBox Err & " splAnalyzeBackup_cleanup" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function splAnalyzeBackup_Perform(ByVal fName As String, ByVal blExtractTables As Boolean, ByVal blAlleenZwms As Boolean, ByVal blDisplayErrDlg As Boolean, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckClub As String, ByRef bckNTimes As Long, ByRef iSplTMVersion As Integer) As Boolean
+On Error GoTo fout
+splAnalyzeBackup_Perform = False
+
+bckValid = False
+bckInvalidString = ""
+bckTimeS = ""
+bckDateS = ""
+iSplTMVersion = SPL_TM_VER_2007
+
+
+Dim splMDBFileName As String
+
+Dim blExtracted As Boolean, zipInvalidReason As Integer, zipInvalidString As String
+Dim zipData As ZIP_INTERNAL
+
+'Do not display an error message. We will do so ourselves here if necessary.
+If Not zipRead(fName, "mdb", "zip", blExtracted, False, zipInvalidReason, zipInvalidString, splMDBFileName, zipData) Then
+  Exit Function
+End If
+
+
+If (Not blExtracted) Then
+  bckInvalidString = zipInvalidString
+  Select Case zipInvalidReason
+    Case ZIP_INVALID_CNT
+      bckInvalidReason = SPL_INVALID_ZIP_CNT
+    Case ZIP_INVALID_FILE_NAME
+      bckInvalidReason = SPL_NOT_ZIP_FILE
+    Case ZIP_UNKNOWN_FILE
+      bckInvalidReason = SPL_UNKNOWN_FILE
+    Case ZIP_UZIP_FAILURE
+      bckInvalidReason = SPL_UZIP_FAILURE
+  End Select
+  Err.Raise 1, , bckInvalidString
+End If
+
+On Error GoTo fout_cleanup
+
+If Not splAnalyzeBackup_extractInfo(splMDBFileName, blExtractTables, blAlleenZwms, bckValid, bckInvalidReason, bckInvalidString, bckDateS, bckTimeS, bckClub, bckNTimes, iSplTMVersion) Then
+  splAnalyzeBackup_cleanup zipData
+  Exit Function
+End If
+
+'Always cleanup
+splAnalyzeBackup_cleanup zipData
+  
+   
+On Error GoTo fout
+
+If Not bckValid Then
+  Err.Raise 1, , bckInvalidString
+End If
+
+
+
+splAnalyzeBackup_Perform = True
+Exit Function
+
+fout:
+
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " " & Error$
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splAnalyzeBackup_Perform = True
+
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+
+fout_cleanup:
+
+errCode = Err
+
+msg = errCode & " " & Error$
+
+splAnalyzeBackup_cleanup zipData
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  splAnalyzeBackup_Perform = True
+Else
+  'Dit is een critical failure.
+  
+  MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
+  vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
+End If
+
+
+Exit Function
+End Function
+
+Public Function splExtractZipData(fName As String, blAlleenZwms As Boolean, ByRef iSplTMVersion As Integer) As Boolean
+On Error GoTo fout
+splExtractZipData = False
+
+Dim bckValid As Boolean, bckInvalidReason As Integer, bckInvalidString As String
+Dim bckTimeS As String, bckDateS As String, bckClub As String, bckNTimes As Long
+
+
+If Not splAnalyzeBackup_Perform(fName, True, blAlleenZwms, False, bckValid, bckInvalidReason, bckInvalidString, bckDateS, bckTimeS, bckClub, bckNTimes, iSplTMVersion) Then
+  Exit Function
+End If
+
+If Not bckValid Then
+  Err.Raise 1, , "Er waren problemen bij het inlezen van de Splash backup (zie hieronder)." & vbCrLf & vbCrLf & bckInvalidString
+End If
+
+
+splExtractZipData = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+Public Function splFillKringty2005(fName As String) As Boolean
+On Error GoTo fout
+splFillKringty2005 = False
+
+'First empty table.
+DoCmd.SetWarnings False
+Dim sql As String
+sql = "Delete * from [hsoWAS_XML_KRTY_IN];"
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+DoCmd.DeleteObject acTable, "splMeets"
+DoCmd.DeleteObject acTable, "splStyles"
+DoCmd.DeleteObject acTable, "splResults"
+DoCmd.DeleteObject acTable, "splRelays"
+DoCmd.DeleteObject acTable, "splRelayPos"
+
+
+Dim iDummy As Integer
+If Not splExtractZipData(fName, False, iDummy) Then
+  Exit Function
+End If
+
+
+Dim tbDef As TableDef
+
+Dim mydb As Database
+Set mydb = CurrentDb
+
+Set tbDef = mydb.TableDefs("splResults")
+tbDef.Fields.Append tbDef.CreateField("INT_AFSTAND", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_SLAG", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_USE", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_TIME", dbText, 10)
+
+
+Set tbDef = Nothing
+
+Set tbDef = mydb.TableDefs("splMembers")
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_MJ", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Depotnummer", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Vereniging", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voornaam", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voegsel", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Achternaam", dbText, 255)
+
+Set tbDef = Nothing
+
+Set tbDef = mydb.TableDefs("splMeets")
+tbDef.Fields.Append tbDef.CreateField("INT_BAAN", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("INT_WED_NAAM", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WED_PLAATS", dbText, 255)
+
+Set mydb = Nothing
+
+
+sql = "UPDATE splMembers LEFT JOIN splClubs ON splMembers.CLUBSID1 = " & _
+   "splClubs.CLUBSID SET splMembers.INT_WAS_Depotnummer = [code], " & _
+   "[INT_WAS_Vereniging] = [name];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "update splResults set int_use = false;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "UPDATE (splResults INNER JOIN splStyles ON splResults.STYLESID = splStyles.STYLESID) INNER JOIN fdtgSplashStyleConversionInd ON splStyles.FSNID = fdtgSplashStyleConversionInd.FSNID SET splResults.INT_WAS_SLAG = slag_to_was([slag]), splResults.INT_AFSTAND = [afstand], splResults.INT_USE = True;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splResults set [int_was_time] = tijd_uitslag_to_was(splReadTime(nz([totaltime]))) where nz([int_use]);"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_startnummer]=splReadStartAsWas(nz([registrationid]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_mj]=splReadSexAsWas(nz([sex]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_voornaam]=hzn(nz([firstname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_voegsel]=hzn(nz([nameprefix]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_achternaam]=hzn(nz([lastname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMeets set [int_baan] = iif(nz([pool]) = 1,50,25);"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMeets set [int_wed_naam] = hzn(nz([name]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMeets set [int_wed_plaats] = hzn(nz([place]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+
+sql = "INSERT INTO hsoWAS_XML_KRTY_IN ( tijd, slag, afstand, achtern, voorn, tusvoegsel, startno, mj, soort, baan, datum, plaats,depotno,verenig ) " & _
+      "SELECT splResults.INT_WAS_TIME, splResults.INT_WAS_SLAG, splResults.INT_AFSTAND, splMembers.int_was_achternaam, splMembers.int_was_voornaam, splMembers.int_was_voegsel, splMembers.INT_WAS_Startnummer, splMembers.INT_WAS_MJ, splMeets.int_wed_naam AS splMeets, splMeets.INT_BAAN, splResults.EVENTDATE, splMeets.int_wed_plaats, splMembers.INT_WAS_Depotnummer, splMembers.INT_WAS_Vereniging " & _
+      "FROM (splResults INNER JOIN splMembers ON splResults.MEMBERSID = splMembers.MEMBERSID) INNER JOIN splMeets ON splResults.MEETSID = splMeets.MEETSID " & _
+      "WHERE (((splResults.INT_USE)=True));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+'Kill the splash tables.
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+DoCmd.DeleteObject acTable, "splMeets"
+DoCmd.DeleteObject acTable, "splStyles"
+DoCmd.DeleteObject acTable, "splResults"
+DoCmd.DeleteObject acTable, "splRelays"
+DoCmd.DeleteObject acTable, "splRelayPos"
+
+'DoCmd.DeleteObject acTable, "splSplits"
+
+
+
+splFillKringty2005 = True
+Exit Function
+fout:
+
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+Public Function splFillZwemmers(fName As String) As Boolean
+On Error GoTo fout
+splFillZwemmers = False
+
+DoCmd.DeleteObject acTable, "__was2005_zwemmers_inlees"
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+
+Dim iDummy As Integer
+If Not splExtractZipData(fName, True, iDummy) Then
+  Exit Function
+End If
+
+
+Dim tbDef As TableDef
+
+Dim mydb As Database
+Set mydb = CurrentDb
+
+
+Set tbDef = mydb.TableDefs("splMembers")
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Depotnummer", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Vereniging", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_MJ", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_GEBDAT", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voornaam", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Voegsel", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_Achternaam", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_telefoon", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_straat", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_postcode", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_plaats", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_fax", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("INT_WAS_email", dbText, 255)
+
+
+
+Set tbDef = Nothing
+
+'Build the table.
+Set tbDef = mydb.CreateTableDef("__was2005_zwemmers_inlees")
+tbDef.Fields.Append tbDef.CreateField("STARTNO", dbText, 7)
+tbDef.Fields.Append tbDef.CreateField("VOORN", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("TUSVOEGSEL", dbText, 15)
+tbDef.Fields.Append tbDef.CreateField("ACHTERN", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("MJ", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("GEBDAT", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TELEFOON", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("ADRES", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("HUISNO", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("POSTCODE", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("WOONPLAATS", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("FAXNO", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("EMAIL", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("DEPOTNO", dbText, 10)
+mydb.TableDefs.Append tbDef
+
+Set tbDef = Nothing
+
+Dim sql As String
+
+
+sql = "UPDATE splMembers LEFT JOIN splClubs ON splMembers.CLUBSID1 = " & _
+   "splClubs.CLUBSID SET splMembers.INT_WAS_Depotnummer = [code], " & _
+   "[INT_WAS_Vereniging] = [name];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_startnummer]=splReadStartAsWas(nz([registrationid]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_mj]=splReadSexAsWas(nz([sex]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_gebdat]=format(nz([birthdate],#01-01-1900#),""dd\-mm\-yyyy"");"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_voornaam]=hzn(nz([firstname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_voegsel]=hzn(nz([nameprefix]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "Update splMembers set [int_was_achternaam]=hzn(nz([lastname]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_telefoon]=hzn(nz([phonep]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_straat]=hzn(nz([street]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_postcode]=hzn(nz([zip]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_plaats]=hzn(nz([place]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_fax]=hzn(nz([fax]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "Update splMembers set [int_was_email]=hzn(nz([email]));"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+ 
+
+sql = "INSERT INTO __was2005_zwemmers_inlees ( ACHTERN, STARTNO, VOORN, TUSVOEGSEL, MJ, GEBDAT, TELEFOON, ADRES, POSTCODE, WOONPLAATS, FAXNO, EMAIL, DEPOTNO ) " & _
+      "SELECT splMembers.int_was_achternaam, splMembers.INT_WAS_Startnummer, splMembers.int_was_voornaam, splMembers.int_was_voegsel, splMembers.INT_WAS_MJ, splMembers.INT_WAS_GEBDAT, splMembers.int_was_telefoon, splMembers.int_was_straat, splMembers.int_was_postcode, splMembers.int_was_plaats, splMembers.int_was_fax, splMembers.int_was_email, splMembers.INT_WAS_Depotnummer " & _
+      "FROM splMembers;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+
+'Kill the splash tables.
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+
+
+
+splFillZwemmers = True
+Exit Function
+fout:
+
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+
+DoCmd.SetWarnings True
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+
+Private Sub splTMCleanTables()
+On Error Resume Next
+
+DoCmd.DeleteObject acTable, "splMembers"
+DoCmd.DeleteObject acTable, "splClubs"
+DoCmd.DeleteObject acTable, "splMeets"
+DoCmd.DeleteObject acTable, "splStyles"
+DoCmd.DeleteObject acTable, "splResults"
+DoCmd.DeleteObject acTable, "splRelays"
+DoCmd.DeleteObject acTable, "splRelayPos"
+
+End Sub
+
+
+Private Function splTMImpFillLenTransTables_writeClubs() As Boolean
+On Error GoTo fout
+splTMImpFillLenTransTables_writeClubs = False
+
+
+Dim rs As Recordset, rsVer As Recordset
+
+Set rs = CurrentDb().OpenRecordset("select * from splClubs where int_use;")
+Set rsVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+    rsVer.AddNew
+    
+      rsVer("V_ID") = rs("clubsid")
+      rsVer("V_Naam") = hzn(Nz(rs("name")))
+      rsVer("V_LangNaam") = hzn(Nz(rs("name")))
+      
+      Dim sDepot As String
+      sDepot = Nz(rs("code"))
+      rsVer("V_Depot") = hzn(sDepot)
+      rsVer("V_Depot_Fixed") = lenIsValidDepotnr(sDepot)
+      rsVer("V_Contact_ID") = Null
+      rsVer("V_PartOfRecord") = False
+      rsVer("V_PartOfTimeArchive") = True
+      
+    rsVer.Update
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsVer
+
+
+
+splTMImpFillLenTransTables_writeClubs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " splTMImpFillLenTransTables_writeClubs" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function splTMImpFillLenTransTables_writeAthletes(iSplVersion As Integer) As Boolean
+On Error GoTo fout
+splTMImpFillLenTransTables_writeAthletes = False
+
+
+
+Dim rs As Recordset, rsZwm As Recordset, rsCnt As Recordset
+
+Set rs = CurrentDb().OpenRecordset("select * from splMembers")
+Set rsZwm = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+Set rsCnt = CurrentDb().OpenRecordset("gIMP_LEN_CONTACT")
+
+
+Dim muContactID As Long
+muContactID = 0
+
+
+rs.MoveFirst
+Do Until rs.EOF
+
+    rsZwm.AddNew
+    
+      rsZwm("ZW_ID") = rs("membersid")
+      rsZwm("ZW_VER_ID") = rs("clubsid1")
+      rsZwm("ZW_Voornaam") = hzn(Nz(rs("firstname")))
+      rsZwm("ZW_Voegsel") = hzn(Nz(rs("nameprefix")))
+      rsZwm("ZW_Achternaam") = hzn(Nz(rs("lastname")))
+      
+      If (iSplVersion = SPL_TM_VER_2009) Then
+        rsZwm("ZW_Geslacht") = hzn(splReadSex_TM2009(Nz(rs("gender"))))
+      Else
+        rsZwm("ZW_Geslacht") = hzn(splReadSex(Nz(rs("sex"))))
+      End If
+      
+      Dim dDOB As Date
+      dDOB = Nz(rs("birthdate"), #1/1/1900#)
+      
+      
+      
+      Dim sStart As String, sStartCorr As String, sActStart As String
+      sStart = Nz(rs("registrationid"))
+      sStartCorr = splReadStart(sStart)
+      
+      If (sStartCorr = "") Then
+        rsZwm("ZW_Startnummer") = hzn(sStart)
+        rsZwm("ZW_Startnummer_Fixed") = False
+        sActStart = sStart
+      Else
+        rsZwm("ZW_Startnummer") = hzn(sStartCorr)
+        rsZwm("ZW_Startnummer_Fixed") = True
+        sActStart = sStartCorr
+      End If
+      
+      
+      If (lenDateIsValid(dDOB)) Then
+        rsZwm("ZW_Geboortedatum") = dDOB
+        rsZwm("ZW_Jaartal") = val(Format(dDOB, "yyyy"))
+      Else
+        rsZwm("ZW_Jaartal") = stnrExtractYOB(sActStart, #1/1/1900#, #1/1/1900#)
+        rsZwm("ZW_Geboortedatum") = Null
+      End If
+      
+      rsZwm("ZW_PartOfRecord") = False
+      rsZwm("ZW_PartOfTimeArchive") = True
+      
+      
+      Dim blHasAddressInfo As Boolean
+      blHasAddressInfo = False
+      
+      If (Nz(rs("street")) <> "") Or (Nz(rs("place")) <> "") Or (Nz(rs("email")) <> "") Then
+        blHasAddressInfo = True
+      End If
+      
+      If (blHasAddressInfo) Then
+        muContactID = muContactID + 1
+        rsZwm("ZW_CONTACT_ID") = muContactID
+        
+        rsCnt.AddNew
+          rsCnt("CT_ID") = muContactID
+          rsCnt("CT_Adres") = hzn(Nz(rs("street")))
+          rsCnt("CT_Adres2") = hzn(Nz(rs("street2")))
+          rsCnt("CT_Postcode") = hzn(Nz(rs("zip")))
+          rsCnt("CT_Plaats") = hzn(Nz(rs("Place")))
+          rsCnt("CT_Email") = hzn(Nz(rs("Email")))
+          rsCnt("CT_Telefoonnummer") = hzn(Nz(rs("phonep")))
+        rsCnt.Update
+        
+      End If
+      
+      
+      
+      
+      
+    rsZwm.Update
+
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsZwm
+
+
+
+splTMImpFillLenTransTables_writeAthletes = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " splTMImpFillLenTransTables_writeAthletes" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+
+Private Function splTMImpFillLenTransTables_prepareData(fName As String, ByRef iSplTMVersion As Integer, ByVal blUseDateCrit As Boolean, ByVal minDate As Date) As Boolean
+On Error GoTo fout
+splTMImpFillLenTransTables_prepareData = False
+
+
+
+If Not splExtractZipData(fName, False, iSplTMVersion) Then
+  Exit Function
+End If
+
+
+'if a date criterium is enforced, immediately apply this
+If (blUseDateCrit And lenDateIsValid(minDate)) Then
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL "delete * from splResults where eventdate < #" & fmtDateSQL(minDate) & "#;"
+  DoCmd.RunSQL "delete * from splRelays where eventdate < #" & fmtDateSQL(minDate) & "#;"
+  DoCmd.SetWarnings True
+End If
+
+
+Dim tbDef As TableDef
+
+Dim mydb As Database
+Set mydb = CurrentDb()
+
+
+Set tbDef = mydb.TableDefs("splClubs")
+tbDef.Fields.Append tbDef.CreateField("INT_USE", dbBoolean)
+
+Set tbDef = Nothing
+
+Set tbDef = mydb.TableDefs("splMeets")
+tbDef.Fields.Append tbDef.CreateField("INT_BAAN", dbInteger)
+
+Set tbDef = Nothing
+
+
+Set mydb = Nothing
+
+
+
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+
+'update clubs
+
+'use only clubs that have members
+sql = "Update splClubs set int_use = false;"
+DoCmd.RunSQL sql
+
+sql = "update splClubs inner join splMembers on splClubs.CLUBSID = splMembers.CLUBSID1 set splClubs.int_use = true;"
+DoCmd.RunSQL sql
+
+
+'update meets
+
+If (iSplTMVersion = SPL_TM_VER_2007) Then
+  sql = "Update splMeets set [int_baan] = iif(nz([pool]) = 1,50,25);"
+Else
+  sql = "Update splMeets set [int_baan] = iif(nz([course]) = 1,50,25);"
+End If
+DoCmd.RunSQL sql
+
+
+DoCmd.SetWarnings True
+
+
+
+
+splTMImpFillLenTransTables_prepareData = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " splTMImpFillLenTransTables_prepareData" & vbCrLf & Error$
+
+DoCmd.SetWarnings True
+
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Private Function splTMImpFillLenTransTables_handleResultsWeds_writeEstTime(ByRef rsResEst As Recordset, ByRef rsTd As Recordset, ByRef rsRelay As Recordset, ByRef rsPll As Recordset, ByRef skPos As Recordset, ByRef muTdID As Long, ByRef muPllID As Long, ByVal dSwimTime As Double, ByVal lWedID As Long, ByVal sAfstand As String, ByVal sSlag As String, ByVal blIsDis As Boolean) As Boolean
+On Error GoTo fout
+splTMImpFillLenTransTables_handleResultsWeds_writeEstTime = False
+
+
+
+Dim iTeamCnt As Integer
+
+rsTd.AddNew
+
+  muTdID = muTdID + 1
+  rsTd("TD_ID") = muTdID
+  
+  rsTd("TD_WED_ID") = lWedID
+  
+  rsTd("TD_IsEstaf") = True
+  
+  
+  Dim lVerID As Long
+  lVerID = Nz(rsResEst("clubsid"))
+  rsTd("TD_VER_ID") = lVerID
+  
+  Dim lRelayID As Long
+  lRelayID = Nz(rsResEst("relaysId"))
+  
+  rsTd("TD_Ploeg_ID") = lRelayID
+  
+    
+  
+  iTeamCnt = afstand_n_zwemmers(sAfstand)
+  
+  
+  
+  rsTd("TD_Tijd") = dSwimTime
+  rsTd("TD_Afstand") = hzn(sAfstand)
+  rsTd("TD_Slag") = hzn(sSlag)
+  
+  rsTd("TD_Dis") = IIf(blIsDis, "DQ", Null)
+  rsTd("TD_Opm") = Null
+  rsTd("TD_IsTusTijd") = False
+  
+rsTd.Update
+
+
+'Need to add relay team
+rsRelay.AddNew
+  rsRelay("PL_ID") = lRelayID
+  rsRelay("PL_VER_ID") = lVerID
+  
+  rsRelay("PL_PartOfRecord") = False
+  rsRelay("PL_PartOfTimeArchive") = True
+rsRelay.Update
+
+
+Dim i As Integer
+For i = 1 To iTeamCnt
+  skPos.Seek "=", lRelayID, i
+  If Not skPos.NoMatch Then
+    Dim lZwmID As Long
+    lZwmID = Nz(skPos("membersid"), -1)
+    
+    If (lZwmID >= 0) Then
+    
+      muPllID = muPllID + 1
+      
+      rsPll.AddNew
+        rsPll("PLL_ID") = muPllID
+        
+        rsPll("PLL_Tijd_ID") = Null
+        rsPll("PLL_Record_ID") = Null
+        rsPll("PLL_Deelnemer_ID") = Null
+        rsPll("PLL_TMA_Tijd_ID") = muTdID
+        
+        rsPll("PLL_Ploeg_ID") = lRelayID
+        rsPll("PLL_Zwemmer_ID") = lZwmID
+        
+        rsPll("PLL_Volgorde") = i
+        
+      rsPll.Update
+      
+    End If 'if lZwmID >= 0
+    
+  End If 'if not skPos.nomatch
+
+Next i
+  
+    
+
+
+
+splTMImpFillLenTransTables_handleResultsWeds_writeEstTime = True
+Exit Function
+
+fout:
+MsgBox Err & " splTMImpFillLenTransTables_handleResultsWeds_writeEstTime" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function splTMImpFillLenTransTables_handleResultsWeds_writePersTime(ByRef rsResPers As Recordset, ByRef rsTd As Recordset, ByRef skMembers As Recordset, ByRef muTdID As Long, ByVal dSwimTime As Double, ByVal lWedID As Long, ByVal sAfstand As String, ByVal sSlag As String, ByVal blIsDis As Boolean, ByVal blIsTst As Boolean) As Boolean
+On Error GoTo fout
+splTMImpFillLenTransTables_handleResultsWeds_writePersTime = False
+
+
+
+rsTd.AddNew
+
+  muTdID = muTdID + 1
+  rsTd("TD_ID") = muTdID
+  rsTd("TD_WED_ID") = lWedID
+  
+  Dim lZwmID As Long
+  lZwmID = Nz(rsResPers("membersId"), -1)
+  skMembers.Seek "=", lZwmID
+  
+  If skMembers.NoMatch Then
+    Err.Raise 1, , "Geen geldig lid voor tijd nummer: " & Nz(rsResPers("resultsId"))
+  End If
+  
+  Dim lVerID As Long
+  lVerID = Nz(skMembers("clubsid1"), -1)
+  
+  If lVerID = -1 Then
+    Err.Raise 1, , "Geen club gevonden voor zwemmer: " & Nz(skMembers("lastname")) & ", " & Nz(skMembers("firstname"))
+  End If
+  
+  rsTd("TD_Ver_ID") = lVerID
+  rsTd("TD_IsEstaf") = False
+  rsTd("TD_Zwemmer_ID") = lZwmID
+  rsTd("TD_Tijd") = dSwimTime
+  rsTd("TD_Afstand") = hzn(sAfstand)
+  rsTd("TD_Slag") = hzn(sSlag)
+  rsTd("TD_Dis") = IIf(blIsDis, "DQ", Null)
+  rsTd("TD_Opm") = Null
+  rsTd("TD_IsTusTijd") = blIsTst
+
+rsTd.Update
+  
+
+
+
+splTMImpFillLenTransTables_handleResultsWeds_writePersTime = True
+Exit Function
+
+fout:
+MsgBox Err & " splTMImpFillLenTransTables_handleResultsWeds_writePersTime" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+'Todo: in a single pass through the results table, extract matches & results
+Private Function splTMImpFillLenTransTables_handleResultsWeds(ByVal iSplTMVersion As Integer) As Boolean
+On Error GoTo fout
+splTMImpFillLenTransTables_handleResultsWeds = False
+
+
+DAO.DBEngine.setOption dbMaxLocksPerFile, 1000000
+
+
+
+SysCmd acSysCmdSetStatus, "Processing times from splash backup..."
+
+
+
+'Need to merge splResults and splRelays, creating a wedstrijd for each
+'meetid, date pair
+
+Dim rsResPers As Recordset, rsResEst As Recordset
+
+Set rsResPers = CurrentDb().OpenRecordset("select * from splResults  order by meetsid, eventdate")
+Set rsResEst = CurrentDb().OpenRecordset("select * from splRelays  order by meetsid, eventdate")
+
+
+Dim rsWed As Recordset
+Set rsWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+
+Dim rsTd As Recordset
+Set rsTd = CurrentDb().OpenRecordset("gIMP_LEN_ArchiefTijden")
+
+Dim rsRelay As Recordset
+Set rsRelay = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+
+Dim rsPll As Recordset
+Set rsPll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+
+Dim skMeets As Recordset
+Set skMeets = CurrentDb().OpenRecordset("splMeets")
+skMeets.Index = "PrimaryKey"
+
+Dim skMembers As Recordset
+Set skMembers = CurrentDb().OpenRecordset("splMembers")
+skMembers.Index = "PrimaryKey"
+
+Dim skPos As Recordset
+Set skPos = CurrentDb().OpenRecordset("splRelayPos")
+skPos.Index = "PrimaryKey"
+
+Dim skStyles As Recordset
+Set skStyles = CurrentDb().OpenRecordset("splStyles")
+If (iSplTMVersion = SPL_TM_VER_2009) Then
+  skStyles.Index = "PK_SWIMSTYLE"
+Else
+  skStyles.Index = "PrimaryKey"
+End If
+
+
+Dim skFSNStyles As Recordset
+Set skFSNStyles = CurrentDb().OpenRecordset("fdtgSplashStyleConversion")
+skFSNStyles.Index = "PrimaryKey"
+
+
+
+
+
+
+
+
+Dim muWedID As Long
+muWedID = 0
+
+Dim muTdID As Long
+muTdID = 0
+
+Dim muPllID As Long
+muPllID = 0
+
+
+Dim curMeetID As Long, curEventDate As Date
+curMeetID = -1
+curEventDate = #1/1/1900#
+
+rsResPers.MoveFirst
+rsResEst.MoveFirst
+
+Dim blDone As Boolean
+blDone = (rsResPers.EOF And rsResEst.EOF)
+
+Do Until blDone
+  Dim tpProcPers As Boolean
+  Dim tpMeetID As Long, tpEventDate As Date
+  
+  If (rsResPers.EOF) Then
+    tpMeetID = Nz(rsResEst("meetsid"))
+    tpEventDate = Nz(rsResEst("eventdate"), #1/1/1900#)
+    tpProcPers = False
+  ElseIf (rsResEst.EOF) Then
+    tpMeetID = Nz(rsResPers("meetsid"))
+    tpEventDate = Nz(rsResPers("eventdate"), #1/1/1900#)
+    tpProcPers = True
+  Else
+    'need to compare
+    Dim tpMeetIDEst As Long, tpMeetIDPers As Long
+    Dim tpEventDateEst As Date, tpEventDatePers As Date
+    
+    tpMeetIDPers = Nz(rsResPers("meetsid"))
+    tpEventDatePers = Nz(rsResPers("eventdate"), #1/1/1900#)
+    
+    tpMeetIDEst = Nz(rsResEst("meetsid"))
+    tpEventDateEst = Nz(rsResEst("eventdate"), #1/1/1900#)
+    
+    If (tpMeetIDPers < tpMeetIDEst) Then
+      tpProcPers = True
+    ElseIf (tpMeetIDPers = tpMeetID) Then
+      If (tpEventDatePers < tpEventDateEst) Then
+        tpProcPers = True
+      Else
+        tpProcPers = False
+      End If
+    Else
+      tpProcPers = False
+    End If
+    
+    If (tpProcPers) Then
+      tpMeetID = tpMeetIDPers
+      tpEventDate = tpEventDatePers
+    Else
+      tpMeetID = tpMeetIDEst
+      tpEventDate = tpEventDateEst
+    End If
+    
+  End If
+  
+  
+  'Need to check if result is Valid (that is, if it will be used).
+  
+  Dim blValid As Boolean
+  blValid = True
+  
+  Dim tpAf As String, tpSl As String, tpTd As Double
+  
+  Dim tpStyleID As Long
+  If (tpProcPers) Then
+    tpStyleID = Nz(rsResPers("stylesid"), -1)
+  Else
+    tpStyleID = Nz(rsResEst("stylesid"), -1)
+  End If
+  
+  skStyles.Seek "=", tpStyleID
+  
+  If Not skStyles.NoMatch Then
+  
+    If (Not tpProcPers) And (iSplTMVersion = SPL_TM_VER_2007) Then
+    
+      Dim tpFSNId As Long
+      tpFSNId = Nz(skStyles("fsnid"))
+      
+      skFSNStyles.Seek "=", tpFSNId
+      
+      If (skFSNStyles.NoMatch) Then
+        blValid = False
+      Else
+        tpAf = Nz(skFSNStyles("afstand"))
+        tpSl = Nz(skFSNStyles("slag"))
+      End If
+      
+      If (tpAf = "") Or (tpSl = "") Or (tpSl = "ONB") Then
+        blValid = False
+      ElseIf Not (tpAf Like "*x*") Then
+        blValid = False
+      End If
+        
+    Else
+      Dim iDistance As Integer, iStroke As Integer, iRelayCount As Integer
+      iDistance = Nz(skStyles("distance"))
+      iStroke = Nz(skStyles("stroke"))
+      iRelayCount = Nz(skStyles("relaycount"))
+      
+      tpAf = splReadDistance(iDistance)
+      
+      If (iSplTMVersion = SPL_TM_VER_2007) Then
+        tpSl = splReadStrokeAsSlag_TM2007(iStroke)
+      Else
+        tpSl = splReadStrokeAsSlag(iStroke)
+      End If
+    
+    
+      If (tpAf = "") Or (tpSl = "") Or (tpSl = "ONB") Then
+        blValid = False
+      Else
+        If (iRelayCount > 1) Then
+          If (tpProcPers) Then
+            blValid = False
+          Else
+            tpAf = iRelayCount & "x" & tpAf
+          End If
+        Else
+          If (Not tpProcPers) Then
+            blValid = False
+          End If
+        End If
+      End If
+    End If 'if not tpProcPers and TM_VER_2007
+  Else
+    blValid = False
+  End If
+  
+  If (blValid) Then
+    Dim lTotTime As Long
+    If (tpProcPers) Then
+      lTotTime = Nz(rsResPers("totalTime"))
+    Else
+      lTotTime = Nz(rsResEst("totalTime"))
+    End If
+    
+    If (iSplTMVersion = SPL_TM_VER_2009) Then
+      tpTd = splReadTime_TM2009(lTotTime)
+    Else
+      tpTd = splReadTime(lTotTime)
+    End If
+    
+  End If
+  
+   
+  
+  If (blValid) Then
+    
+    'add sanity check on imported time
+    If Not swtIsValid(tpTd) Then
+      blValid = False
+    Else
+    
+      Dim dSwtPer50 As Double
+      Dim dTotDist As Double
+      
+      dTotDist = afstand_tot_distance(tpAf)
+      If (dTotDist < 1) Then
+        blValid = False
+      Else
+        dSwtPer50 = swtToSeconds(tpTd) * 50 / dTotDist
+        If (dSwtPer50 < 16) Or (dSwtPer50 > 150) Then
+          blValid = False
+        End If
+      End If
+    End If 'if swtValid
+    
+  End If 'if blValid
+  
+  
+  Dim tpIsDis As Boolean, tpIsTst As Boolean
+  tpIsDis = False
+  tpIsTst = False
+  
+  If (blValid) Then
+    Dim iResultType As Integer
+    If (tpProcPers) Then
+      iResultType = Nz(rsResPers("resulttyp"), 0)
+    Else
+      iResultType = Nz(rsResEst("resulttyp"), 0)
+    End If
+    
+    If (iResultType = 5) Then
+      tpIsDis = True
+    ElseIf (iResultType = 2) Then
+      tpIsTst = True
+    End If
+  End If
+  
+
+  
+  If (blValid) Then
+    
+    If (tpMeetID <> curMeetID) Or (tpEventDate <> curEventDate) Then
+      'Need to add new (meet, eventDate) pair
+      
+      skMeets.Seek "=", tpMeetID
+      
+      If skMeets.NoMatch Then
+        Err.Raise 1, , "There was an error in the splash backup file. The specified meetid (" & tpMeetID & ") does not exist"
+      End If
+      
+      muWedID = muWedID + 1
+      
+      rsWed.AddNew
+        rsWed("WE_ID") = muWedID
+        rsWed("WE_Datum") = tpEventDate
+        
+        rsWed("WE_Plaats") = hzn(Nz(skMeets("Place")))
+        rsWed("WE_Beschrijving") = hzn(skMeets("Name"))
+        rsWed("WE_Baanlengte") = skMeets("int_baan")
+        rsWed("WE_Zwembad") = hzn(Nz(skMeets("POOLNAME")))
+        
+        rsWed("WE_PartOfTimeArchive") = True
+              
+      rsWed.Update
+      
+      
+      
+      curMeetID = tpMeetID
+      curEventDate = tpEventDate
+    End If
+    
+  End If
+  
+  
+  If (blValid) Then
+  
+    If (tpProcPers) Then
+      If Not splTMImpFillLenTransTables_handleResultsWeds_writePersTime(rsResPers, rsTd, skMembers, muTdID, tpTd, muWedID, tpAf, tpSl, tpIsDis, tpIsTst) Then
+        Exit Function
+      End If
+    Else
+      If Not splTMImpFillLenTransTables_handleResultsWeds_writeEstTime(rsResEst, rsTd, rsRelay, rsPll, skPos, muTdID, muPllID, tpTd, muWedID, tpAf, tpSl, tpIsDis) Then
+        Exit Function
+      End If
+    End If
+    
+    If (muTdID > 0) And ((muTdID Mod 10000) = 0) Then
+      SysCmd acSysCmdSetStatus, "Processing times from splash backup [" & muTdID & " times completed]..."
+    End If
+    
+  End If
+  
+  
+  
+  
+  
+  
+  If (tpProcPers) Then
+    rsResPers.MoveNext
+  Else
+    rsResEst.MoveNext
+  End If
+  
+  
+  blDone = (rsResPers.EOF) And (rsResEst.EOF)
+
+Loop
+
+appCleanRS rsResEst
+appCleanRS rsResPers
+appCleanRS rsWed
+appCleanRS rsTd
+appCleanRS rsRelay
+appCleanRS rsPll
+
+appCleanRS skStyles
+appCleanRS skMeets
+appCleanRS skMembers
+appCleanRS skPos
+appCleanRS skFSNStyles
+
+SysCmd acSysCmdClearStatus
+
+
+
+
+splTMImpFillLenTransTables_handleResultsWeds = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim msg As String
+msg = Err & " splTMImpFillLenTransTables_handleResultsWeds" & vbCrLf & Error$
+
+SysCmd acSysCmdClearStatus
+MsgBox msg, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function splTMImpFillLenTransTables(fName As String, ByVal blUseDateCrit As Boolean, ByVal minDate As Date) As Boolean
+On Error GoTo fout
+splTMImpFillLenTransTables = False
+
+
+splTMCleanTables
+
+
+'get the data and prepare for processing
+Dim iSplTMVersion As Integer
+
+If Not splTMImpFillLenTransTables_prepareData(fName, iSplTMVersion, blUseDateCrit, minDate) Then
+  Exit Function
+End If
+
+'Loop through the results table in a single pass
+If Not splTMImpFillLenTransTables_handleResultsWeds(iSplTMVersion) Then
+  Exit Function
+End If
+
+If Not splTMImpFillLenTransTables_writeClubs() Then
+  Exit Function
+End If
+
+If Not splTMImpFillLenTransTables_writeAthletes(iSplTMVersion) Then
+  Exit Function
+End If
+
+'Kill the splash tables.
+
+splTMCleanTables
+
+
+splTMImpFillLenTransTables = True
+Exit Function
+
+fout:
+MsgBox Err & " splTMImpFillLenTransTables" & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function

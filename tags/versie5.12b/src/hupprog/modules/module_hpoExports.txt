@@ -1,0 +1,162 @@
+Option Compare Database
+Option Explicit
+
+
+
+
+
+Public Function rxpSetVerPntUitslagOptions(ByVal singleProg As String, ByVal startProg As String, ByVal endprog As String, ByVal isEindUitslag As Boolean, ByVal singleVer As String, ByVal blHideEmptySubtotals As Boolean) As Boolean
+On Error GoTo fout
+rxpSetVerPntUitslagOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("__punten_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("PT_OPT_IsEindUitslag") = isEindUitslag
+    rs("PT_OPT_ProgSingle") = hzn(singleProg)
+    rs("PT_OPT_ProgStart") = hzn(startProg)
+    rs("PT_OPT_ProgEnd") = hzn(endprog)
+    rs("PT_OPT_VerSingle") = hzn(singleVer)
+    rs("PT_OPT_HideEmptySubtotals") = blHideEmptySubtotals
+  rs.Update
+End If
+
+
+rxpSetVerPntUitslagOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetVerPntUitslagOptions" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function rxpSetPVOptions(ByVal wednr As Long, ByVal blEntireMeet As Boolean, ByVal sFirstProg As String, ByVal sLastProg As String, ByVal blSingleProg As Boolean, ByVal sSingleProg As String, ByVal blRestrictRnk As Boolean, ByVal lMaxRnk As Long) As Boolean
+On Error GoTo fout
+rxpSetPVOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoPV_Stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+Else
+  rs.AddNew
+End If
+  rs("PV_Wedstrijdnummer") = wednr
+  rs("PV_EntireMeet") = blEntireMeet
+  rs("PV_FirstProgrammanummer") = hzn(sFirstProg)
+  rs("PV_LastProgrammanummer") = hzn(sLastProg)
+  rs("PV_RestrictRank") = blRestrictRnk
+  rs("PV_MaxRank") = lMaxRnk
+  rs("PV_IsSingleProg") = blSingleProg
+  rs("PV_SingleProg") = hzn(sSingleProg)
+rs.Update
+
+
+
+rxpSetPVOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetPVOptions" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function rxpSetCntListOptions(ByVal blIncludeEmail As Boolean, ByVal blIncludeVerName As Boolean) As Boolean
+On Error GoTo fout
+rxpSetCntListOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~CntList_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("CL_IncludeEmail") = blIncludeEmail
+    rs("CL_IncludeVerName") = blIncludeVerName
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetCntListOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetCntListOptions" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function rxpSetOffListOptions(ByVal blIncludeEmail As Boolean, ByVal blIncludeVerName As Boolean) As Boolean
+On Error GoTo fout
+rxpSetOffListOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~OffList_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("OFL_IncludeEmail") = blIncludeEmail
+    rs("OFL_IncludeVerName") = blIncludeVerName
+  rs.Update
+End If
+
+appCleanRS rs
+
+
+rxpSetOffListOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetOffListOptions" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Public Function rxpSetVerListOptions(ByVal blIncludeSwimmers As Boolean) As Boolean
+On Error GoTo fout
+rxpSetVerListOptions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~VerList_stats")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+    rs("VL_IncludeSwimmers") = blIncludeSwimmers
+  rs.Update
+End If
+
+appCleanRS rs
+
+rxpSetVerListOptions = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rxpSetVerListOptions" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
