@@ -1,0 +1,76 @@
+Option Compare Database
+Option Explicit
+
+
+Public Function pntGetStdOpts(ByVal wednr As Long, ByRef blUseTst As Boolean, ByRef blTerugRekenen As Boolean, ByRef blSingleLft As Boolean) As Boolean
+On Error GoTo fout
+pntGetStdOpts = False
+
+blUseTst = False
+
+blTerugRekenen = Nz(DLookup("PNT_Terugrekenen", "dtWedstrijdGegevens", "wedstrijdnummer=" & wednr), False)
+
+blSingleLft = False
+
+If Nz(DLookup("PNT_SingleLft", "dtWedstrijdGegevens", "wedstrijdnummer=" & wednr), False) Then
+  blSingleLft = True
+End If
+
+
+pntGetStdOpts = True
+Exit Function
+fout:
+MsgBox Err & " pntGetStdOpts" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function pntGetWedVVTOpts(ByVal wednr As Long, ByRef vvtOpts As PNT_VVT_CALC_OPTS) As Boolean
+On Error GoTo fout
+pntGetWedVVTOpts = False
+
+Err.Raise 1, , "Unsupported function"
+
+pntGetWedVVTOpts = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " pntGetWedVVTOpts" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function pntSetWedVVTOpts(ByVal wednr As Long, ByRef vvtOpts As PNT_VVT_CALC_OPTS) As Boolean
+On Error GoTo fout
+pntSetWedVVTOpts = False
+
+Err.Raise 1, , "Unsupported option"
+
+pntSetWedVVTOpts = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " pntSetWedVVTOpts" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function pntFindVerStdInitVal(ByRef dlv As Recordset, ByVal actWedNr As Long, ByVal vName As String, ByRef vInitVal As Double, ByRef isFnd As Boolean) As Boolean
+On Error GoTo fout
+pntFindVerStdInitVal = False
+
+isFnd = False
+vInitVal = 0
+
+
+
+
+pntFindVerStdInitVal = True
+Exit Function
+fout:
+MsgBox Err & " pntFindVerStdInitVal" & vbCrLf & Error$, 16
+Exit Function
+End Function

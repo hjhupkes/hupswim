@@ -1,0 +1,144 @@
+Option Compare Database
+Option Explicit
+
+
+Private Function pntDuplicate_handleTable(ByVal sTbName As String, ByVal sFldWedNr As String, ByVal sFldOrderID As String, ByVal lWedNr As Long, ByVal lPntOrderID As Long, ByVal lTgtOrderID As Long) As Boolean
+On Error GoTo fout
+pntDuplicate_handleTable = False
+
+Dim db As Database, tb As TableDef, fld As Field
+
+Set db = CurrentDb()
+Set tb = db.TableDefs(sTbName)
+
+Dim sqlListSrc As String
+sqlListSrc = ""
+
+Dim sqlListTgt As String
+sqlListTgt = ""
+
+
+
+For Each fld In tb.Fields
+  Dim tpName As String
+  tpName = fld.name
+  
+  If (sqlListSrc <> "") Then
+    sqlListSrc = sqlListSrc & ", "
+  End If
+  If (sqlListTgt <> "") Then
+    sqlListTgt = sqlListTgt & ", "
+  End If
+  
+  
+  If (tpName = sFldOrderID) Then
+    sqlListSrc = sqlListSrc & CStr(lTgtOrderID)
+  Else
+    sqlListSrc = sqlListSrc & "[" & tpName & "]"
+  End If
+  
+  
+  sqlListTgt = sqlListTgt & "[" & tpName & "]"
+  
+Next fld
+
+Dim sqlWhere As String
+sqlWhere = "Where [" & sFldWedNr & "] = " & lWedNr & " and [" & sFldOrderID & "] = " & lPntOrderID & " "
+
+Dim sql As String
+sql = "Insert into [" & sTbName & "] (" & sqlListTgt & ") select " & sqlListSrc & " from [" & sTbName & "] " & sqlWhere & ";"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+pntDuplicate_handleTable = True
+Exit Function:
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " pntDuplicate_handleTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Sub pntDuplicate_setupTables(ByRef sTbs() As String, sFldWed() As String, sFldOrd() As String, ByRef nTbs As Integer)
+
+sTbs(0) = "dtgPuntentellingDefs"
+sFldWed(0) = "PTG_Wedstrijdnummer"
+sFldOrd(0) = "PTG_OrderID"
+
+sTbs(1) = "dtgPuntentellingCats"
+sFldWed(1) = "PTC_Wedstrijdnummer"
+sFldOrd(1) = "PTC_OrderID"
+
+sTbs(2) = "dtgPuntentellingOnderdelen"
+sFldWed(2) = "PTO_Wedstrijdnummer"
+sFldOrd(2) = "PTO_OrderID"
+
+sTbs(3) = "dtgPuntentellingOndCatDetails"
+sFldWed(3) = "PTTM_Wedstrijdnummer"
+sFldOrd(3) = "PTTM_OrderID"
+
+sTbs(4) = "dtgPuntentellingDlnVers"
+sFldWed(4) = "PTV_Wedstrijdnummer"
+sFldOrd(4) = "PTV_OrderID"
+
+sTbs(5) = "dtgPuntentellingPlaatsPunt"
+sFldWed(5) = "PTP_Wedstrijdnummer"
+sFldOrd(5) = "PTP_OrderID"
+
+sTbs(6) = "dtgPuntentellingProgs"
+sFldWed(6) = "PTPR_Wedstrijdnummer"
+sFldOrd(6) = "PTPR_OrderID"
+
+
+sTbs(7) = "dtgPuntentellingTussenstandInd"
+sFldWed(7) = "PTT_Wedstrijdnummer"
+sFldOrd(7) = "PTT_OrderID"
+
+
+sTbs(8) = "dtgPuntentellingTussenstandVer"
+sFldWed(8) = "PTT_Wedstrijdnummer"
+sFldOrd(8) = "PTT_OrderID"
+
+
+sTbs(9) = "dtgPuntentellingVerGroups"
+sFldWed(9) = "PTVG_Wedstrijdnummer"
+sFldOrd(9) = "PTVG_OrderID"
+
+nTbs = 10
+
+
+
+End Sub
+
+
+Public Function pntDuplicate(ByVal lWedNr As Long, ByVal lPntOrderID As Long, ByVal lNewPntOrderID As Long) As Boolean
+On Error GoTo fout
+pntDuplicate = False
+
+Dim sTbs(0 To 30) As String
+Dim sFldWed(0 To 30) As String
+Dim sFldOrd(0 To 30) As String
+Dim nTbs As Integer
+
+
+pntDuplicate_setupTables sTbs, sFldWed, sFldOrd, nTbs
+
+
+Dim i As Integer
+
+For i = 0 To nTbs - 1
+  If Not pntDuplicate_handleTable(sTbs(i), sFldWed(i), sFldOrd(i), lWedNr, lPntOrderID, lNewPntOrderID) Then
+    Exit Function
+  End If
+Next i
+
+
+pntDuplicate = True
+Exit Function
+
+fout:
+MsgBox Err & " pntDuplicate" & vbCrLf & Error$, 16
+Exit Function
+End Function

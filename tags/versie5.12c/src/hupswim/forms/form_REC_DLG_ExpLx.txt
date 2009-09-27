@@ -1,0 +1,415 @@
+Version =20
+VersionRequired =20
+Checksum =1637446497
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =20
+    Width =6848
+    DatasheetFontHeight =10
+    ItemSuffix =47
+    Left =6120
+    Top =2385
+    Right =12975
+    Bottom =6315
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x065bb075969ee140
+    End
+    Caption ="Exporteren"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+            Width =1701
+            Height =1701
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =566
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =8
+                    Top =141
+                    Width =6840
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =16776960
+                    Name ="Label0"
+                    Caption ="Records Exporteren"
+                End
+            End
+        End
+        Begin Section
+            Height =2806
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =215
+                    BackStyle =0
+                    Left =170
+                    Top =1787
+                    Width =6576
+                    Height =435
+                    FontWeight =700
+                    TabIndex =2
+                    Name ="fName"
+                    Begin
+                        Begin Label
+                            OverlapFlags =93
+                            Left =172
+                            Top =1559
+                            Width =1215
+                            Height =240
+                            Name ="Label39"
+                            Caption ="Bestandsnaam: "
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =87
+                    Left =170
+                    Top =2268
+                    Width =1260
+                    Height =360
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =3
+                    Name ="btnWijzig"
+                    Caption ="&Wijzig..."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =1984
+                    Top =201
+                    Width =906
+                    Name ="fExpCode"
+                    GUID = Begin
+                        0x0a1e9fbee326f247b4cf9be44bfb6ecb
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            TextAlign =3
+                            Left =793
+                            Top =198
+                            Width =1050
+                            Height =240
+                            Name ="Label43"
+                            Caption ="Record code:"
+                            GUID = Begin
+                                0x37fafccc44e99147b44c51329dbed241
+                            End
+                        End
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =1980
+                    Top =595
+                    Width =4386
+                    TabIndex =1
+                    Name ="fExpName"
+                    GUID = Begin
+                        0x3c9c7ab389d85340adab6601777ab4d9
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            TextAlign =3
+                            Left =283
+                            Top =599
+                            Width =1560
+                            Height =240
+                            Name ="Label45"
+                            Caption ="Record omschrijving:"
+                            GUID = Begin
+                                0x07074b93f4d73f4f8915ed29ed9b4e8f
+                            End
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =3004
+                    Top =198
+                    Width =2010
+                    Height =210
+                    Name ="Label46"
+                    Caption ="(Moet beginnen met NED. )"
+                    GUID = Begin
+                        0xfd38cfcb8abde24299f350d8b38c584b
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =576
+            BackColor =12632256
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    Default = NotDefault
+                    OverlapFlags =85
+                    Left =5442
+                    Top =56
+                    Width =1200
+                    Height =405
+                    FontSize =10
+                    FontWeight =700
+                    Name ="btnOK"
+                    Caption ="OK"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    Cancel = NotDefault
+                    OverlapFlags =85
+                    Left =144
+                    Top =72
+                    Width =1200
+                    Height =405
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="btnCancel"
+                    Caption ="Annuleren"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Function suggestPars(ByRef fName As String, ByRef expCode As String, expName As String) As Boolean
+On Error GoTo fout
+suggestPars = False
+fName = ""
+expCode = ""
+expName = ""
+
+Dim nRecAges As Integer, recAges(0 To MAX_N_REC_AGES) As Long
+Dim rsInfo As RECSET_BASIC_INFO
+Dim isFnd As Boolean
+
+If Not rcsLookup(waarde_rcs(), isFnd, rsInfo, nRecAges, recAges) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Could not find recordtype: " & waarde_rcs()
+End If
+
+
+Dim fnSuggest As String
+fnSuggest = Format(Now(), "yyyy\-mm\-dd") & "=" & GoedTekens(rsInfo.nm) & "_records.lxf"
+
+fName = directory_goedmaak(dbdir_op()) & "\" & fnSuggest
+
+If (Left(rsInfo.Code, 4) = "NED.") Then
+  expCode = rsInfo.Code
+Else
+  expCode = "NED." & rsInfo.Code
+End If
+
+expName = rsInfo.nm
+
+
+ 
+ 
+suggestPars = True
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+Private Sub btnOK_Click()
+On Error GoTo fout
+
+
+Dim expFName As String
+expFName = Me.fName
+
+Dim expCode As String
+Dim expName As String
+
+expCode = Me.fExpCode
+expName = Me.fExpName
+
+
+If (expFName = "") Then
+  MsgBox "Kies een bestandsnaam.", 16
+  Exit Sub
+End If
+
+If (expCode = "") Then
+  MsgBox "Kies een code", vbCritical
+  Me.fExpCode.SetFocus
+  Exit Sub
+End If
+
+If (expName = "") Then
+  MsgBox "Kies een naam", vbCritical
+  Me.fExpName.SetFocus
+  Exit Sub
+End If
+
+If (Left(expCode, 4) <> "NED.") Then
+  MsgBox "Code moet beginnen met ""NED."" ", vbCritical
+  Me.fExpCode.SetFocus
+  Exit Sub
+End If
+
+
+  
+  Dim lxfDir As String, lxfName As String
+  
+  
+  lxfDir = extractFilePath(expFName)
+  lxfName = extractFileName(expFName)
+  
+  
+If Not recOutputLenex(waarde_rcs, expCode, expName, lxfDir, lxfName, #1/1/2099#) Then
+  Exit Sub
+End If
+  
+
+DoCmd.Close
+
+Exit Sub
+
+fout:
+MsgBox Err & " btnOK_Click" & vbCrLf & Error$, 16
+
+
+End Sub
+
+Private Sub btnCancel_Click()
+On Error Resume Next
+    DoCmd.Close
+    
+End Sub
+
+Private Sub btnWijzig_Click()
+On Error GoTo fout
+
+
+Dim expFName As String
+
+expFName = Nz(Me.fName)
+
+Dim sugFName As String
+Dim dummy1 As String, dummy2 As String
+
+If Not suggestPars(sugFName, dummy1, dummy2) Then
+  Exit Sub
+End If
+
+
+
+If Not DirectoryExists(extractFilePath(expFName)) Then
+  If Not DirectoryExists(dbdir_op()) Then
+    expFName = "c:\" & extractFileName(sugFName)
+  Else
+    expFName = directory_goedmaak(dbdir_op()) & extractFileName(sugFName)
+  End If
+End If
+  
+  
+
+  If Not fileNamePromptUser(FILE_DLG_SAVE, "Lenex bestand aanmaken ", "Lenex (*.lxf, *.lef)|*.l?f", expFName, True, True) Then
+    Exit Sub
+  End If
+
+
+If (expFName <> "") Then
+  If (Right(expFName, 4) <> ".lxf") And (Right(expFName, 4) <> ".lef") Then
+    expFName = expFName & ".lxf"
+  End If
+  Me.fName = expFName
+End If
+
+
+Exit Sub
+fout:
+MsgBox Err & " btnWijzig_Click" & vbCrLf & Error$, 16
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Dim sugFName As String, sugCode As String, sugName As String
+If Not suggestPars(sugFName, sugCode, sugName) Then
+  Exit Sub
+End If
+
+Me.fName = sugFName
+Me.fExpCode = sugCode
+Me.fExpName = sugName
+
+End Sub

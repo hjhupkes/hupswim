@@ -1,0 +1,289 @@
+Option Compare Database
+Option Explicit
+
+Public Function catGetListForProg(ByVal wednr As Long, ByVal prognr As String) As String
+On Error GoTo fout
+Dim s As String
+s = ""
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [dtProgrammaLeeftijdsgroepen] where [wedstrijdnr] = " & wednr & " and [programmanummer] = """ & prognr & """ order by (catGetMaxAllowedAge(nz([categorie])));")
+rs.MoveFirst
+
+Do Until rs.EOF
+  If (Len(s) > 0) Then
+    s = s & ";" & Nz(rs("categorie"))
+  Else
+    s = Nz(rs("categorie"))
+  End If
+  rs.MoveNext
+Loop
+catGetListForProg = s
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & Error$, 16
+
+End Function
+Public Function catInfoGetListForProg(ByVal wednr As Long, ByVal prognr As String, ByVal offCatInfo As Integer, ByRef nCats As Integer, ByRef catList As String, ByRef catInfo() As CAT_INFO) As Boolean
+On Error GoTo fout
+catInfoGetListForProg = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [dtProgrammaLeeftijdsgroepen] where [wedstrijdnr] = " & wednr & " and [programmanummer] = """ & prognr & """ order by (catGetMaxAllowedAge(nz([categorie])));")
+
+catList = ""
+
+nCats = 0
+rs.MoveFirst
+Do Until rs.EOF
+  If (Len(catList) > 0) Then
+    catList = catList & ";" & Nz(rs("categorie"))
+  Else
+    catList = Nz(rs("categorie"))
+  End If
+
+  Dim curCatInf As CAT_INFO
+  curCatInf = catInfo(offCatInfo + nCats)
+  
+  catInfo(offCatInfo + nCats).cat = Nz(rs("categorie"))
+  catInfo(offCatInfo + nCats).bescat = Nz(rs("beschrijving categorie"))
+  catInfo(offCatInfo + nCats).vvt = Nz(rs("vervangende_tijd"))
+  catInfo(offCatInfo + nCats).lim = Nz(rs("limiet"))
+  catInfo(offCatInfo + nCats).resLim = Nz(rs("res_marge"))
+  
+  catInfo(offCatInfo + nCats).Code = Nz(rs("code"))
+  
+  Dim curCatRec As RECORD_INFO
+  curCatRec = curCatInf.rec
+  
+  catInfo(offCatInfo + nCats).rec.Datum = Nz(rs("record_datum"))
+  catInfo(offCatInfo + nCats).rec.naam = Nz(rs("record_naam"))
+  catInfo(offCatInfo + nCats).rec.Plaats = Nz(rs("record_plaats"))
+  catInfo(offCatInfo + nCats).rec.recType = Nz(rs("record_omschrijving"))
+  catInfo(offCatInfo + nCats).rec.Tijd = Nz(rs("record_tijd"))
+  catInfo(offCatInfo + nCats).rec.tussentijden = Nz(rs("record_tussentijden"))
+  
+  
+  nCats = nCats + 1
+  
+    
+  If (nCats > MAX_N_VAR_CATS_PER_PROG_NON_DISPLAY) Then
+    Err.Raise 1, , "Te veel leeftijdsgroepen ingevuld voor programmanr: ( " & wednr & " , " & prognr & " )"
+  End If
+  
+  rs.MoveNext
+Loop
+
+catInfoGetListForProg = True
+
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function catInfoGetListForWed(ByVal wednr As Long, ByRef nMCatProgs As Integer, ByRef mCatProgNames() As String, ByRef mCatProgCatLists() As String, ByRef mCatProgOffs() As Integer, ByRef mCatProgCatCnt() As Integer, ByRef catInfo() As CAT_INFO, Optional expCatLists As Boolean = False) As Boolean
+On Error GoTo fout
+catInfoGetListForWed = False
+
+nMCatProgs = 0
+
+Dim curOff As Integer
+curOff = 0
+
+Dim curProg As String
+curProg = ""
+Dim tpProg As String
+tpProg = ""
+
+Dim curProgCnt As Integer
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [dtProgrammaLeeftijdsgroepen] where [wedstrijdnr] = " & wednr & " order by ucase([programmanummer]), (catGetMaxAllowedAge(nz([categorie]))) ;")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  tpProg = Nz(rs("programmanummer"))
+  If (tpProg <> curProg) Then
+    
+    'wrap up statistics for previous prog.
+    If (nMCatProgs > 0) Then
+      mCatProgCatCnt(nMCatProgs - 1) = curProgCnt
+    End If
+  
+    'start statistics for new prog.
+    mCatProgNames(nMCatProgs) = tpProg
+    mCatProgOffs(nMCatProgs) = curOff
+    
+    If (expCatLists) Then
+      mCatProgCatLists(nMCatProgs) = ""
+    End If
+    
+    
+    
+    nMCatProgs = nMCatProgs + 1
+    
+    
+    curProg = tpProg
+    curProgCnt = 0
+  End If
+  
+  
+  If (expCatLists) Then
+    If (Len(mCatProgCatLists(nMCatProgs - 1)) = 0) Then
+      mCatProgCatLists(nMCatProgs - 1) = Nz(rs("categorie"))
+    Else
+      mCatProgCatLists(nMCatProgs - 1) = mCatProgCatLists(nMCatProgs - 1) & ";" & Nz(rs("categorie"))
+    End If
+  End If
+  
+  
+
+
+  Dim curCatInf As CAT_INFO
+  
+  
+  catInfo(curOff).cat = Nz(rs("categorie"))
+  catInfo(curOff).bescat = Nz(rs("beschrijving categorie"))
+  catInfo(curOff).vvt = Nz(rs("vervangende_tijd"))
+  catInfo(curOff).lim = Nz(rs("limiet"))
+  catInfo(curOff).resLim = Nz(rs("Res_marge"))
+  catInfo(curOff).Code = Nz(rs("code"))
+  
+  
+  catInfo(curOff).rec.Datum = Nz(rs("record_datum"))
+  catInfo(curOff).rec.naam = Nz(rs("record_naam"))
+  catInfo(curOff).rec.Plaats = Nz(rs("record_plaats"))
+  catInfo(curOff).rec.recType = Nz(rs("record_omschrijving"))
+  catInfo(curOff).rec.Tijd = Nz(rs("record_tijd"))
+  catInfo(curOff).rec.tussentijden = Nz(rs("record_tussentijden"))
+  
+  
+  curOff = curOff + 1
+  curProgCnt = curProgCnt + 1
+
+
+  rs.MoveNext
+Loop
+
+'wrap up the last prog.
+If (nMCatProgs > 0) Then
+  mCatProgCatCnt(nMCatProgs - 1) = curProgCnt
+End If
+ 
+
+
+
+catInfoGetListForWed = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+'debug
+On Error GoTo 0
+Resume
+Exit Function
+End Function
+
+
+
+
+Public Function analyzeEstafs(singleWedOnly As Boolean, wednr As Long, wednrMeet As Long, tbName As String, Optional addToExistingTable As Boolean = False) As Boolean
+On Error GoTo fout
+analyzeEstafs = False
+
+If Not analyzeEstafs_Perform(singleWedOnly, wednr, wednrMeet, tbName, False, addToExistingTable) Then
+  Exit Function
+End If
+
+analyzeEstafs = True
+Exit Function
+fout:
+MsgBox Err & " analyzeEstafs" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+Public Function recReadFromProg(ByRef rec As RECORD_INFO, ByRef progs As Recordset) As Boolean
+On Error GoTo fout
+recReadFromProg = False
+
+rec.Datum = Nz(progs("Record_Datum"), #1/1/1900#)
+rec.naam = Nz(progs("Record_Naam"))
+rec.Plaats = Nz(progs("Record_Plaats"))
+rec.recType = Nz(progs("Record_Omschrijving"))
+rec.Tijd = Nz(progs("Record_Tijd"))
+rec.tussentijden = Nz(progs("Record_Tussentijden"))
+
+
+recReadFromProg = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function tstRestoreAllStoredTimes() As Boolean
+On Error GoTo fout
+tstRestoreAllStoredTimes = False
+
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+
+Dim rs As Recordset
+Dim sql As String
+
+sql = "SELECT dtUitslagenPers.*, dtProgrammanummers.Afstand AS progaf, dtProgrammanummers.Slag AS progsl " & _
+      "FROM dtUitslagenPers INNER JOIN dtProgrammanummers ON (dtUitslagenPers.TY_Programmanummer = " & _
+      "dtProgrammanummers.Programmanummer) AND (dtUitslagenPers.TY_Wedstrijdnummer = dtProgrammanummers.Wedstrijdnr) " & _
+      "ORDER BY dtProgrammanummers.Afstand, dtProgrammanummers.Slag, dtUitslagenPers.TY_Wedstrijdnummer; "
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+If Not tstRestoreAllStoredTimes_handleOrderedSet(rs, skWed, "progaf", "progsl", "Baanlengte", True) Then
+  Exit Function
+End If
+
+appCleanRS rs
+
+
+
+sql = "SELECT dtUitslagenEst.*, dtProgrammanummers.Afstand AS progaf, dtProgrammanummers.Slag AS progsl " & _
+   "FROM dtProgrammanummers INNER JOIN dtUitslagenEst ON (dtProgrammanummers.Programmanummer = dtUitslagenEst.TY_Programmanummer) " & _
+   "AND (dtProgrammanummers.Wedstrijdnr = dtUitslagenEst.TY_Wedstrijdnummer)  " & _
+   "ORDER BY dtProgrammanummers.Afstand, dtProgrammanummers.Slag, dtUitslagenEst.TY_Wedstrijdnummer; "
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+If Not tstRestoreAllStoredTimes_handleOrderedSet(rs, skWed, "progaf", "progsl", "Baanlengte", True) Then
+  Exit Function
+End If
+
+appCleanRS rs
+
+
+tstRestoreAllStoredTimes = True
+Exit Function
+
+fout:
+MsgBox Err & " tstRestoreAllStoredTimes" & vbCrLf & Error$, 16
+Exit Function
+End Function

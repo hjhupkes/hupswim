@@ -1,0 +1,459 @@
+Option Compare Database
+Option Explicit
+
+Public Function wasiExpTimeArchive(ByVal fName As String) As Boolean
+On Error GoTo fout
+wasiExpTimeArchive = False
+
+'First clean up
+DoCmd.SetWarnings False
+DoCmd.RunSQL "delete * from hsoWas_XML_KRTY_OUT"
+DoCmd.SetWarnings True
+
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("hsoWAS_XML_KRTY_OUT")
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+skZwm.Index = "PrimaryKey"
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+skVer.Index = "PrimaryKey"
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+skWed.Index = "PrimaryKey"
+
+
+Dim curStart As String
+Dim curVoornaam As String
+Dim curVoegsel As String
+Dim curAchternaam As String
+Dim curGes As String
+Dim curVer As String
+Dim curDepot As String
+Dim curYOB As Long
+
+Dim curZwmID As Long
+curZwmID = -1
+
+'Only export personal times
+
+Dim rs As Recordset
+
+Dim sql As String
+sql = "select * from gImp_LEN_ArchiefTijden where (not nz([td_isEstaf],false)) order by [td_zwemmer_id];"
+
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpZwmID As Long
+  tpZwmID = Nz(rs("TD_Zwemmer_ID"))
+  
+  If (tpZwmID <> curZwmID) Then
+    skZwm.Seek "=", tpZwmID
+    If (skZwm.NoMatch) Then
+      Err.Raise 1, , "internal error"
+    End If
+      
+      
+    curStart = Nz(skZwm("ZW_Startnummer"))
+    curVoornaam = Nz(skZwm("zw_voornaam"))
+    curVoegsel = Trim(Nz(skZwm("zw_voegsel")))
+    curAchternaam = Nz(skZwm("zw_achternaam"))
+    curGes = Nz(skZwm("zw_geslacht"))
+    curYOB = Nz(skZwm("zw_jaartal"))
+    
+    Dim tpVerID As Long
+    tpVerID = Nz(skZwm("ZW_VER_ID"))
+    
+    skVer.Seek "=", tpVerID
+    
+    If skVer.NoMatch Then
+      Err.Raise 1, , "Internal error"
+    End If
+    
+    curVer = Nz(skVer("V_Naam"))
+    curDepot = Nz(skVer("V_Depot"))
+    
+    
+    curZwmID = tpZwmID
+    
+  End If
+
+
+
+  Dim tpAf As String, tpSl As String, tpTime As Double, tpDis As String, tpOpm As String
+  Dim tpDat As Date, tpPl As String, tpBn As String, tpDes As String
+    
+  tpAf = Nz(rs("td_afstand"))
+  tpSl = Nz(rs("td_slag"))
+  tpTime = Nz(rs("td_tijd"))
+  tpDis = Nz(rs("td_dis"))
+  tpOpm = Nz(rs("td_opm"))
+  
+  Dim tpWedID As Long
+  tpWedID = Nz(rs("TD_WED_ID"))
+  
+  skWed.Seek "=", tpWedID
+  If skWed.NoMatch Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  
+  tpDat = Nz(skWed("we_datum"), #1/1/1900#)
+  tpPl = Nz(skWed("we_plaats"))
+  tpBn = Nz(skWed("we_Baanlengte"))
+  tpDes = Nz(skWed("we_Beschrijving"))
+    
+  
+      
+  
+  'output the time
+        
+        
+  Dim tpjr As Long, tpStringJaar As String
+  tpjr = catGetAge(curYOB, #1/1/1900#, LFT_MODE_WEDYR_END, tpDat)
+  If (tpjr > 20) Then
+    tpjr = 20
+  End If
+  If (tpjr < 10) Then
+    tpStringJaar = " " & tpjr
+  Else
+    tpStringJaar = tpjr
+  End If
+  
+  Dim tpStartDate As Date
+  tpStartDate = Nz(rs("EXP_WAS_VerbeterDatum"), #1/1/1900#)
+  
+        
+  outp.AddNew
+    outp("verenig") = hzn(curVer)
+    outp("verbdat") = hzn(Format(tpStartDate, "dd\-mm\-yyyy"))
+    outp("mj") = hzn(ges_to_was(curGes))
+    outp("slag") = hzn(slag_to_was(tpSl))
+    outp("afstand") = hzn(tpAf)
+    outp("jr") = hzn(tpStringJaar)
+    outp("startno") = hzn(startnr_to_was(curStart))
+    outp("club") = "xxx"
+    outp("tijd") = hzn(Trim(fmtSwimTime(tpTime)))
+    outp("baan") = IIf(tpBn = 50, 50, 25)
+    outp("voorn") = hzn(curVoornaam)
+    If (Len(curVoegsel) > 10) Then
+      outp("tusvoegsel") = Left(curVoegsel, 10)
+    Else
+      outp("tusvoegsel") = hzn(curVoegsel)
+    End If
+    outp("achtern") = hzn(curAchternaam)
+    outp("datum") = tpDat
+    outp("plaats") = hzn(tpPl)
+    outp("depotno") = hzn(curDepot)
+    outp("soort") = hzn(tpDes)
+    outp("opm") = hzn(Left(tpOpm, 20))
+    outp("dis") = hzn(Left(tpDis, 10))
+    outp("eindplt") = 0
+  outp.Update
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skZwm
+appCleanRS skWed
+appCleanRS skVer
+appCleanRS outp
+
+
+If Not (gXMLWriter.exportTableToXML("hsoWAS_XML_KRTY_OUT", fName, "kringty", True)) Then
+  Exit Function
+End If
+
+
+wasiExpTimeArchive = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+DoCmd.SetWarnings True
+MsgBox Err & " wasiExpTimeArchive" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function wasiImpTimeArchive_clean() As Boolean
+On Error GoTo fout
+wasiImpTimeArchive_clean = False
+
+DoCmd.SetWarnings False
+Dim sql As String
+sql = "Delete * from [hsoWAS_XML_KRTY_IN];"
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+wasiImpTimeArchive_clean = True
+
+Exit Function
+
+fout:
+MsgBox Err & " wasiImpTimeArchive_clean" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function wasiImpTimeArchive(ByVal fName As String, ByVal blUseDateCrit As Boolean, ByVal minDate As Date) As Boolean
+On Error GoTo fout
+
+wasiImpTimeArchive = False
+
+If Not wasiImpTimeArchive_clean() Then
+  Exit Function
+End If
+
+If Not (gXMLReader.importXMLTable(fName, "hsoWAS_XML_KRTY_IN", True)) Then
+  Exit Function
+End If
+
+'if a date criterium is enforced, immediately apply this
+If (blUseDateCrit And lenDateIsValid(minDate)) Then
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL "delete * from hsoWAS_XML_KRTY_IN where datum < #" & fmtDateSQL(minDate) & "#;"
+  DoCmd.SetWarnings True
+End If
+
+
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, True, "__temp__was_imp_timearchive") Then
+  Exit Function
+End If
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from hsoWAS_XML_KRTY_IN order by verenig, startno")
+
+
+
+Dim rsVer As Recordset
+Set rsVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+
+Dim rsZwm As Recordset
+Set rsZwm = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+
+Dim rsWed As Recordset
+Set rsWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+
+Dim rsTMA As Recordset
+Set rsTMA = CurrentDb().OpenRecordset("gIMP_LEN_ArchiefTijden")
+
+
+
+Dim curStart As String
+Dim curVer As String
+
+Dim curZwmID As Long
+Dim curVerID As Long
+
+curStart = ""
+curZwmID = -1
+
+
+Dim muZwmID As Long
+muZwmID = 0
+
+Dim muVerID As Long
+muVerID = 0
+
+Dim muWedID As Long
+muWedID = 0
+
+Dim muTdID As Long
+muTdID = 0
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpStart As String
+  tpStart = startnr_from_was(Nz(rs("startno")))
+  
+  Dim tpVer As String
+  tpVer = Nz(rs("verenig"))
+  
+  Dim tpWedDate As Date
+  tpWedDate = Nz(rs("datum"), #1/1/1900#)
+  
+  
+  
+  If (tpVer <> curVer) Then
+    'Add new vereniging
+    curVerID = muVerID + 1
+    muVerID = curVerID
+    
+    rsVer.AddNew
+    
+      rsVer("V_ID") = curVerID
+      rsVer("V_Naam") = rs("verenig")
+      rsVer("V_LangNaam") = rs("verenig")
+      rsVer("V_Depot") = rs("depotno")
+      rsVer("V_Depot_Fixed") = False
+      rsVer("V_Contact_ID") = Null
+      rsVer("V_PartOfRecord") = False
+      rsVer("V_PartOfTimeArchive") = True
+      
+    rsVer.Update
+    
+    
+    curStart = ""
+    curVer = tpVer
+  End If
+  
+  If (tpStart <> curStart) Then
+    'Add new swimmer
+    curZwmID = muZwmID + 1
+    muZwmID = curZwmID
+    
+    rsZwm.AddNew
+    
+      rsZwm("ZW_ID") = curZwmID
+      rsZwm("ZW_VER_ID") = curVerID
+      rsZwm("ZW_Voornaam") = rs("voorn")
+      rsZwm("ZW_Voegsel") = rs("tusvoegsel")
+      rsZwm("ZW_Achternaam") = rs("achtern")
+      rsZwm("ZW_Geslacht") = hzn(ges_from_was(Nz(rs("mj"))))
+      rsZwm("ZW_Jaartal") = stnrExtractYOB(tpStart, tpWedDate, #1/1/1900#)
+      rsZwm("ZW_Geboortedatum") = Null
+      rsZwm("ZW_Startnummer") = hzn(tpStart)
+      rsZwm("ZW_Startnummer_Fixed") = True
+      rsZwm("ZW_PartOfRecord") = False
+      rsZwm("ZW_PartOfTimeArchive") = True
+      
+    rsZwm.Update
+    
+    
+  
+    curStart = tpStart
+  End If
+  
+  
+  Dim tpWedPl As String, tpWedDes As String, tpWedBn As Integer
+  tpWedPl = Nz(rs("plaats"))
+  tpWedDes = Nz(rs("soort"))
+  tpWedBn = Nz(rs("baan"))
+  
+  If (tpWedBn <> 50) Then
+    tpWedBn = 25
+  End If
+  
+  Dim tpWedKeyS As String
+  tpWedKeyS = fmtDate(tpWedDate) & "\" & tpWedBn & "\" & Left(tpWedPl, 35) & "\" & Left(tpWedDes, 35)
+    
+  Dim curWedID As Long
+  curWedID = dsGetLong(dsData, "WEDS\" & tpWedKeyS)
+  
+  If (curWedID <= 0) Then
+    curWedID = muWedID + 1
+    muWedID = curWedID
+    
+    rsWed.AddNew
+    
+      rsWed("WE_ID") = curWedID
+      If (lenDateIsValid(tpWedDate)) Then
+        rsWed("WE_Datum") = tpWedDate
+      End If
+      rsWed("WE_Plaats") = hzn(tpWedPl)
+      rsWed("WE_Beschrijving") = hzn(tpWedDes)
+      rsWed("WE_Beschrijving_Extra") = hzn(tpWedDes)
+      rsWed("WE_Baanlengte") = tpWedBn
+      rsWed("WE_Contact_ID") = Null
+      rsWed("WE_PartOfTimeArchive") = True
+      
+    rsWed.Update
+    
+    
+    
+    dsSetLong dsData, "WEDS\" & tpWedKeyS, curWedID
+    
+  End If
+  
+  
+  Dim tpTime As Double, tpAf As String, tpSl As String, tpDis As String, tpOpm As String
+  tpTime = tijd_from_was(Nz(rs("Tijd")))
+  tpAf = Nz(rs("afstand"))
+  tpSl = slag_from_was(Nz(rs("slag")))
+  tpDis = Nz(rs("dis"))
+  tpOpm = Nz(rs("opm"))
+  
+  
+  Dim tpTdID As Long
+  tpTdID = muTdID + 1
+  muTdID = tpTdID
+  
+  rsTMA.AddNew
+  
+    rsTMA("TD_ID") = tpTdID
+    rsTMA("TD_WED_ID") = curWedID
+    rsTMA("TD_VER_ID") = curVerID
+    rsTMA("TD_IsEstaf") = False
+    rsTMA("TD_Zwemmer_ID") = curZwmID
+    rsTMA("TD_PLOEG_ID") = Null
+    rsTMA("TD_Tijd") = tpTime
+    rsTMA("TD_Dis") = hzn(tpDis)
+    rsTMA("TD_Opm") = hzn(tpOpm)
+    rsTMA("TD_Slag") = hzn(tpSl)
+    rsTMA("TD_Afstand") = hzn(tpAf)
+    
+  rsTMA.Update
+  
+  
+  
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsZwm
+appCleanRS rsVer
+appCleanRS rsWed
+appCleanRS rsTMA
+
+
+
+
+dsClean dsData
+
+
+
+wasiImpTimeArchive = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim msg As String
+msg = Err & " wasiImpTimeArchive" & vbCrLf & Error$
+
+dsClean dsData
+DoCmd.SetWarnings True
+
+MsgBox msg, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function

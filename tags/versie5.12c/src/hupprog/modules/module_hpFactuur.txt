@@ -1,0 +1,54 @@
+Option Compare Database
+Option Explicit
+
+
+Public Function facGetKostData(ByVal wednr As Long, ByRef sCurrency As String, ByRef bulkkostenver As Double, ByRef bulkKostenZwm As Double, _
+ByRef dKosten1 As Double, ByRef iKosten1Spec As Integer, ByRef dKosten2 As Double, ByRef sKosten2Spec As String, _
+ByRef dKostenEstaf As Double, ByRef blApartKosten As Boolean, ByRef sApartKosten As String, ByRef blKostVoorRes As Boolean) As Boolean
+
+On Error GoTo fout
+facGetKostData = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtWedstrijdGegevens")
+rs.Index = "PrimaryKey"
+
+rs.Seek "=", wednr
+
+If rs.NoMatch Then
+  Err.Raise 1, , "Kon wedstrijd: " & wednr & " niet vinden."
+End If
+
+sCurrency = Nz(rs("WE_Kosten_currency"))
+bulkkostenver = Nz(rs("WE_BulkKostenVer"), 0)
+bulkKostenZwm = Nz(rs("WE_BulkKostenZwemmer"), 0)
+dKosten1 = Nz(rs("WE_Kosten1"), 0)
+iKosten1Spec = Nz(rs("WE_Kosten1_spec"), 1)
+dKosten2 = Nz(rs("WE_Kosten2"), 0)
+sKosten2Spec = Nz(rs("WE_Kosten2_spec"))
+dKostenEstaf = Nz(rs("WE_Kosten_estaf"))
+blApartKosten = Nz(rs("WE_ApartKosten"), False)
+sApartKosten = Nz(rs("WE_ApartKostenString"))
+blKostVoorRes = Nz(rs("WE_KostenTeltVoorReserve"), False)
+
+
+appCleanRS rs
+
+
+facGetKostData = True
+
+Exit Function
+
+fout:
+MsgBox Err & " facGetKostData" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+'Simply delegate
+Public Function facCalcFees_ProcessMatch(ByVal wedMainNr As Long, ByVal blEntireMeet As Boolean, ByRef kstInfo As WED_KOSTEN_INFO, _
+ByRef rsVerOut As Recordset, ByRef rsSwmOut As Recordset, ByRef calcData As FEE_CALC_DATA) As Boolean
+facCalcFees_ProcessMatch = facCalcFees_ProcessMatch_perform(wedMainNr, blEntireMeet, kstInfo, rsVerOut, rsSwmOut, calcData)
+End Function

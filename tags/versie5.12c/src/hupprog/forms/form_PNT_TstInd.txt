@@ -1,0 +1,214 @@
+Version =20
+VersionRequired =20
+Checksum =-829771260
+Begin Form
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =9120
+    DatasheetFontHeight =10
+    ItemSuffix =27
+    Left =495
+    Top =420
+    Right =19395
+    Bottom =8880
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x6ee39e503e5fe340
+    End
+    RecordSource ="SELECT dtNamen.NA_Naam, * FROM dtgPuntentellingTussenstandInd LEFT JOIN dtNamen "
+        "ON (dtgPuntentellingTussenstandInd.PTT_Startnummer = dtNamen.NA_Startnummer) AND"
+        " (dtgPuntentellingTussenstandInd.PTT_Vereniging = dtNamen.NA_Vereniging) WHERE ("
+        "((dtgPuntentellingTussenstandInd.PTT_Wedstrijdnummer)=waarde()) AND ((dtgPuntent"
+        "ellingTussenstandInd.PTT_OrderID)=waarde_pnt())) ORDER BY dtgPuntentellingTussen"
+        "standInd.PTT_Vereniging, dtgPuntentellingTussenstandInd.PTT_Startnummer;"
+    Caption ="Categoriën"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =353
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =825
+                    Height =240
+                    Name ="Combo21_Label"
+                    Caption ="Vereniging"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =6689
+                    Top =113
+                    Width =750
+                    Height =240
+                    Name ="Label23"
+                    Caption ="Punten:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2721
+                    Top =113
+                    Width =1035
+                    Height =240
+                    Name ="Startnummer_Label"
+                    Caption ="Startnummer"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4081
+                    Top =113
+                    Width =630
+                    Height =240
+                    Name ="Label26"
+                    Caption ="Naam"
+                End
+            End
+        End
+        Begin Section
+            Height =255
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =8277
+                    Width =456
+                    Height =255
+                    TabIndex =4
+                    Name ="PTT_Wedstrijdnummer"
+                    ControlSource ="PTT_Wedstrijdnummer"
+                    DefaultValue ="=waarde()"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =8844
+                    Width =276
+                    Height =255
+                    TabIndex =5
+                    Name ="PTT_OrderID"
+                    ControlSource ="PTT_OrderID"
+                    DefaultValue ="=waarde_pnt()"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =2
+                    ListWidth =3255
+                    Left =113
+                    Width =2436
+                    Height =255
+                    ColumnInfo ="\"\";\"\";\"\";\"\";\"10\";\"100\""
+                    Name ="PTT_Vereniging"
+                    ControlSource ="PTT_Vereniging"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW dv_naam, dv_plaats  FROM dtDeelnemendeVerenigingen WHERE dv_w"
+                        "edstrijdnummer=waarde() order by dv_naam;"
+                    ColumnWidths ="1365;1890"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =6689
+                    Width =1251
+                    Height =255
+                    TabIndex =3
+                    Name ="PTT_Punten"
+                    ControlSource ="PTT_Punten"
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =2
+                    ListWidth =3450
+                    Left =2721
+                    Width =1191
+                    Height =255
+                    TabIndex =1
+                    ColumnInfo ="\"\";\"00-@@@@@\";\"\";\"\";\"10\";\"16\""
+                    Name ="PTT_Startnummer"
+                    ControlSource ="PTT_Startnummer"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW dtNamen.NA_Startnummer, dtNamen.NA_Naam, dtNamen.NA_Verenigin"
+                        "g FROM dtNamen WHERE (((dtNamen.NA_Vereniging)=[forms]![pnt_master].[subfrm]![pt"
+                        "t_vereniging]));"
+                    ColumnWidths ="990;2460"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =4089
+                    Width =2436
+                    Height =255
+                    ColumnWidth =2220
+                    TabIndex =2
+                    Name ="NA_Naam"
+                    ControlSource ="NA_Naam"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =16776960
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

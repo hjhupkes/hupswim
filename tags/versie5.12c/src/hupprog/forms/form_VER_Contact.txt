@@ -1,0 +1,316 @@
+Version =20
+VersionRequired =20
+Checksum =-2121779849
+Begin Form
+    NavigationButtons = NotDefault
+    ScrollBars =2
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =10545
+    DatasheetFontHeight =10
+    ItemSuffix =32
+    Left =3015
+    Top =1605
+    Right =15255
+    Bottom =9345
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x3fded2fc3d5fe340
+    End
+    RecordSource ="SELECT * from dtContactPersonen where v_naam = waarde_ver() order by cont_naam;"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            OldBorderStyle =1
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =382
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =0
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =56
+                    Top =172
+                    Width =1665
+                    Height =210
+                    Name ="Label14"
+                    Caption ="Naam Contactpersoon"
+                End
+                Begin Label
+                    BackStyle =0
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =2158
+                    Top =172
+                    Width =630
+                    Height =210
+                    Name ="Label15"
+                    Caption ="Adres"
+                End
+                Begin Label
+                    BackStyle =0
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =3965
+                    Top =172
+                    Width =795
+                    Height =210
+                    Name ="Label16"
+                    Caption ="Postocde"
+                End
+                Begin Label
+                    BackStyle =0
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =4872
+                    Top =172
+                    Width =660
+                    Height =210
+                    Name ="Label17"
+                    Caption ="Plaats"
+                End
+                Begin Label
+                    BackStyle =0
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =6403
+                    Top =172
+                    Width =855
+                    Height =210
+                    Name ="Label18"
+                    Caption ="Telefoon"
+                End
+                Begin Label
+                    BackStyle =0
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =7707
+                    Top =170
+                    Width =855
+                    Height =210
+                    Name ="Label21"
+                    Caption ="Email"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    OverlapFlags =85
+                    Left =56
+                    Width =1986
+                    Name ="cont_naam"
+                    ControlSource ="cont_naam"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    Left =2154
+                    TabIndex =1
+                    Name ="cont_adres"
+                    ControlSource ="cont_adres"
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =3968
+                    Width =741
+                    TabIndex =2
+                    Name ="cont_postcode"
+                    ControlSource ="cont_postcode"
+                    Format ="0000 >@@"
+                    InputMask ="0000\\ >AA;0;\" \""
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    Left =4875
+                    Width =1401
+                    TabIndex =3
+                    Name ="cont_plaats"
+                    ControlSource ="cont_plaats"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin TextBox
+                    OverlapFlags =85
+                    Left =6406
+                    Width =1146
+                    TabIndex =4
+                    Name ="cont_telefoon"
+                    ControlSource ="cont_telefoon"
+                End
+                Begin TextBox
+                    OverlapFlags =93
+                    Left =7653
+                    Width =1191
+                    TabIndex =5
+                    Name ="cont_email"
+                    ControlSource ="cont_email"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =9090
+                    Width =951
+                    TabIndex =6
+                    Name ="cont_Code"
+                    ControlSource ="cont_Code"
+                    DefaultValue ="=db_def_code()"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =247
+                    Left =7993
+                    Width =576
+                    TabIndex =7
+                    Name ="V_NAAM"
+                    ControlSource ="V_NAAM"
+                    DefaultValue ="=waarde_ver()"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =600
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =87
+                    Left =1530
+                    Top =120
+                    Width =1611
+                    Height =343
+                    Name ="btnWijzig"
+                    Caption ="&Wijzig groep"
+                    OnClick ="[Event Procedure]"
+                    UnicodeAccessKey =87
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =71
+                    Left =75
+                    Top =120
+                    Width =1356
+                    Height =343
+                    TabIndex =1
+                    Name ="btnGroepen"
+                    Caption ="-> &Groepen"
+                    OnClick ="[Event Procedure]"
+                    UnicodeAccessKey =71
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+Public huidignr As Long
+
+
+
+
+
+
+Private Sub btnWijzig_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+
+If Nz(Me.cont_naam) = "" Then
+  Exit Sub
+End If
+
+Dim curCode As Long
+Dim isOK As Boolean
+
+curCode = Nz(Me.cont_Code)
+
+Dim lkpCode As Long
+If Not lsPromptUser_Simple(curCode, isOK, lkpCode) Then
+  Exit Sub
+End If
+If (isOK) Then
+  Me.cont_Code = lkpCode
+End If
+
+
+End Sub
+
+Private Sub btnGroepen_Click()
+On Error Resume Next
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim isOK As Boolean, lkpCode As Long
+If Not lsPromptUser(False, -1, isOK, lkpCode) Then
+  Exit Sub
+End If
+End Sub
+
+
+
+
+
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+'DoCmd.Maximize
+Me.OrderBy = ""
+setBackground Me
+End Sub
+
+Private Sub cont_adres_AfterUpdate()
+On Error Resume Next
+cont_adres = capitalizefirst(cont_adres)
+End Sub
+
+Private Sub cont_naam_AfterUpdate()
+On Error Resume Next
+cont_naam = capitalizefirst(cont_naam)
+End Sub
+
+Private Sub cont_plaats_AfterUpdate()
+On Error Resume Next
+cont_plaats = capitalizefirst(cont_plaats)
+End Sub
+
+Private Sub v_naam_AfterUpdate()
+On Error Resume Next
+V_NAAM = capitalizefirst(V_NAAM)
+End Sub

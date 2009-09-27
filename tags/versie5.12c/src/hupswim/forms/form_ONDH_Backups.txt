@@ -1,0 +1,195 @@
+Version =20
+VersionRequired =20
+Checksum =-125381742
+Begin Form
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =0
+    BorderStyle =1
+    GridX =15
+    GridY =15
+    Width =9070
+    ItemSuffix =45
+    Left =4980
+    Top =270
+    Right =14055
+    Bottom =6885
+    RecSrcDt = Begin
+        0x5edd00f51874e140
+    End
+    Caption ="Onderhoud"
+    OnOpen ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin Rectangle
+            Width =850
+            Height =850
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =16776960
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =5103
+            BackColor =16776960
+            Name ="Detail0"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =66
+                    Left =5367
+                    Top =226
+                    Width =1485
+                    Height =347
+                    Name ="btnBackup"
+                    Caption ="&Backup"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =5367
+                    Top =679
+                    Width =1485
+                    Height =347
+                    TabIndex =1
+                    ForeColor =16711680
+                    Name ="btnReadBackup"
+                    Caption ="Teruglezen"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =151
+                    Top =226
+                    Width =1200
+                    Height =345
+                    Name ="Text26"
+                    Caption ="Backup maken:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =151
+                    Top =679
+                    Width =1455
+                    Height =345
+                    Name ="Text27"
+                    Caption ="Backup teruglezen:"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =88
+                    Left =5360
+                    Top =1401
+                    Width =1485
+                    Height =347
+                    TabIndex =2
+                    Name ="btnBackupWed"
+                    Caption ="E&xporteren..."
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =5360
+                    Top =1854
+                    Width =1485
+                    Height =347
+                    TabIndex =3
+                    ForeColor =16711680
+                    Name ="btnReadBackupWed"
+                    Caption ="Teruglezen"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =158
+                    Top =1398
+                    Width =4245
+                    Height =330
+                    Name ="Label37"
+                    Caption ="Wedstrijdgegevens / opstellingen / uitslagen exporteren:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =151
+                    Top =1860
+                    Width =4245
+                    Height =345
+                    Name ="Label38"
+                    Caption ="Wedstrijdgegevens / opstellingen  / uitslagen teruglezen:"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =16776960
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+
+
+
+
+
+Private Sub btnBackup_Click()
+On Error Resume Next
+backup
+End Sub
+
+Private Sub btnReadBackup_Click()
+On Error Resume Next
+'backup_teruglezen
+
+DoCmd.OpenForm "WIZ_FU_Master", , , , , acDialog, "HUP_BCK"
+
+
+End Sub
+
+
+
+
+Private Sub btnBackupWed_Click()
+On Error Resume Next
+DoCmd.OpenForm "BCK_WED_Create", , , , , acDialog
+
+End Sub
+
+Private Sub btnReadBackupWed_Click()
+On Error Resume Next
+DoCmd.OpenForm "WIZ_WB_MASTER", , , , , acDialog
+End Sub
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

@@ -1,0 +1,212 @@
+App Name	Hupswim							
+App Version	2.01.usa							
+Frame Bitmap	"msodeusa.dll, 121, 122"							
+Frame Caption	Hupswim Setup							
+Dialog Caption Base	Hupswim							
+Usage String	"Usage: Setup or Setup /Q\nSetup /Q runs the Setup Program in Batch mode."							
+About Box String	Hupswim							
+Check Modules	OMain,Microsoft Access,msaccess,Microsoft Access  							
+MSAPPS Mode	local							
+Suppress Copy Disincentive Dialogs								
+Suppress Serial Number Dialog								
+Inf File Name	SETUP.INF							
+Maximum Object ID	1860							
+Admin Mode Root Object ID								
+Floppy Mode Root Object ID	15:5 100 105							
+Network Mode Root Object ID	20:5 100 105							
+Maintenance Mode Root Object ID	40:5 100 105							
+Batch Mode Root Object ID	30:5 100 105							
+Setup Version	1.20.0.1305							
+	Maintenance Mode							
+ObjID	Install During Batch Mode	Title	Descr	Type	Data	BMP Id	Vital	Shared	Dir Chang	Dest Dir	Check Dir	Installed By Us								
+5				AppSearch	"C:\zwem<C:\zwem>,SYSTEM.MDW,,128,no,yes,"							
+"=== Install Types ==="
+10		""	""	Group	205 1605 305  705 805 905 80				Yes	%5		
+15				AppMainDlg	40 : 1785  50				Yes	%5		
+20				AppMainDlg	40 45 : 1785  50				Yes	%5		
+25				CustomDlg	200 1600 300 600 700 800 900  50					%5		
+30				AppMainDlg	40 : 1785  50					%5		
+35
+40	yes	"&Install"	"Install Hupswim"	Group	200 1600 300 600 700 800 900	msodeusa.dll, 111						
+45	no	"&Workstation"	"Hupswim will be installed to run from the server."	Group	85	msodeusa.dll, 114						
+"=== Office Bin Key Operations ==="
+50		""	""	Group	55 60 65					%d\Office		
+55				CustomAction	"msacccah.dll,GetPathFromReg,""HKEY_LOCAL_MACHINE,Software\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin"""							
+60				CustomAction	"msacccah.dll,GetPathFromReg,""HKEY_LOCAL_MACHINE,Software\Microsoft\Shared Tools\Access Runtime\8.0,OfficeBin"""							
+65				CustomAction	"msacccah.dll,NeverRemoveGroup,70 500"							
+70				Depend	"55 ?  : 75"							
+75				AddRegData	"""LOCAL"",""Software\Microsoft\Office\8.0\Common\InstallRoot"",""OfficeBin"",""%60"","""""							
+"=== Admin Install Specifics ==="
+80		""	""	Group								
+"=== Workstation Install Specifics ==="
+85		""	""	Group	 95							
+95		""	""	Group	 200 1600 300 600 700 800 900					%s		
+100		Microsoft Access		CustomAction	"msacccah.dll,AddAppSrch,""Not Required,Yes,c:\,msaccess.exe,8.00.0.0,HKEY_LOCAL_MACHINE,Software\Microsoft\Shared Tools\Microsoft Access Runtime,Path,110"""							
+105		Microsoft Access		CustomAction	"msacccah.dll,AddAppSrch,""Not Required,Yes,%100\,msaccess.exe,8.00.0.0,HKEY_CLASSES_ROOT,CLSID\{8CC49940-3146-11CF-97A1-00AA00424A9F}\LocalServer32,,110"""							
+110				SearchReg	"CLASSES,CLSID\{8CC49940-3146-11CF-97A1-00AA00424A9F}\LocalServer32"							
+
+"=== Components Begin Here ==="
+=== Begin Main Setup Component ===
+200	yes	"Setup"	""	Group	210		not vital			%d\setup		
+205		""	""	Group	215 260 250 270					%d\setup		
+210		""	""	Group	215 255 270							
+--- Copy Files for Setup ---
+215		""	""	Group	220 225 230 235 240 245 250 1005 1000 1100 1010							
+220				CopyFile	"Setup Files - Base,acmsetup_hlp"							
+225				CopyFile	"Setup Files - Base,setup_tdf"							
+230				CopyFile	"Setup Files - Base,setup_ini"							
+235				CopyFile	"Setup Files - Base,mssetup_dll"							
+240				CopyFile	"Setup Files - Base,msacccah_dll"							
+245				CopyFile	"Setup Files - Base,msode_dll"							
+250				CopyFile	"Setup Files - Renamed Setup,acmsetup_exe"							
+255				CopyFile	"Setup Files - Setup Inf,setup_inf"							
+260				CopyFile	"Setup Files - Admin Inf,admin_inf"							
+265				CopyFile	"Setup Files - Base,acmsetup_exe"							
+270				WriteTableFile	"setup.stf"							
+=== Begin Runtime Component ===
+300	yes	"Microsoft Access Run-Time Version"	""	Group	310		vital			%55		
+305		""	""	Group	310 515					%55		
+--- Copy Files for Runtime Component ---
+310		""	""	Group	315 365 395 410 425							
+315		""	""	Group	320 325 445 330 335 345 350 355  360 455					%55		
+320				InstallShared	"Access Runtime Files,msaccess_exe,MSACCESS80,Office,1680 "							
+325				CompanionFile	"320 : Access Runtime Files,msacc8_olb"							
+330				CompanionFile	"320 : Access Runtime Files,msacnv30_exe"							
+335				CompanionFile	"320 : Access Runtime Files,msacnv30_dll"							
+340				CompanionFile	"320 : Access Runtime Files,msaexp30_dll"							
+345				CompanionFile	"320 : Access Runtime Files,msain800_dll"							
+350				CompanionFile	"320 : Access Runtime Files,soa800_dll"							
+355				CompanionFile	"320 : Access Runtime Files,utility_mda"							
+360				CompanionFile	"320 : Access Runtime Files,msaccess_srg"							
+365		""	""	Group	370 375 380 385 390 465   485							
+370				InstallSysFile	"Access Runtime Files,msjet35_dll"							
+375				InstallSysFile	"Access Runtime Files,msjter35_dll"							
+380				InstallSysFile	"Access Runtime Files,msjint35_dll"							
+385				InstallSysFile	"Access Runtime Files,msrd2x35_dll"							
+390				InstallSysFile	"Access Runtime Files,mswng300_dll"							
+395		""	""	Group	400 405 1400 475 1500 1330					%h\DAO		
+400				InstallShared	"Access Runtime Files,dao350_dll,DAO,DAO,320 1680 "					%h\DAO		
+405				CompanionFile	"400 : Access Runtime Files,dao2535_tlb"					%h\DAO		
+410		""	""	Group	415 420 1005 1015 505					%h\VBA		
+415				InstallShared	"Access Runtime Files,vba332_dll,VBA332.DLL,VBA,320 1680 "					%h\VBA		
+420				CompanionFile	"415 : Access Runtime Files,vba3en_dll"					%h\VBA		
+425		""	""	Group	435 430 440							
+430		""	""	Group	1300 1305 1350 1310 1315 1360 1320 1325 1370 1335 1340 1380 1345 1390							
+435		""	""	Group	1200 1020 1220 1225 1230 1240 1245 1235 1250							
+440				InstallSysFile	"Access Runtime Files,w95fiber_dll"							
+445				Depend	"320 ? 450"							
+450				CustomAction	"msacccah.dll,RegisterTypeLibrary,Access Runtime Files;msacc8_olb"					%325		
+455				Depend	"320 ? 460 495"							
+460				CustomAction	"msacccah.dll,RegFile,360"							
+465				Depend	"385 ? 470"							
+470		MSRD2x35.DLL		SelfReg	"""Access Runtime Files"",""msrd2x35_dll"","""","""",""20604"","					%385		
+475				Depend	"400 ? 480"							
+480		DAO350.DLL		SelfReg	"""Access Runtime Files"",""dao350_dll"",""DllRegisterServerEx"","""",""20604"",32autole.dll"					%400		
+485				Depend	"370 ? 490"							
+490		MSJET35.DLL		SelfReg	"""Access Runtime Files"",""msjet35_dll"",""DllRegisterServer"","""",""4096"","					%370		
+495				AddRegData	"""CLASSES"",""Licenses\8CC49940-3146-11CF-97A1-00AA00424A9F\Runtime"","""",""okpvasjwmvjfrcatkskctmtjahdnkccdgjds"","""""							
+500				AddRegData	"""CLASSES"",""Licenses\8CC49940-3146-11CF-97A1-00AA00424A9F\Runtime"","""",""okpvasjwmvjfrcatkskctmtjahdnkccdgjds"","""""							
+505				Depend	"415 ? 510"							
+510				CustomAction	"msacccah.dll,RegisterTypeLibrary,Access Runtime Files;vba332_dll"					%415		
+515				CopySection	"Access Runtime Files"					%205		
+=== Begin Workgroup Administrator ===
+600	yes	"Workgroup Administrator"	""	Group	605		not vital			%m		
+605		""	""	Group	610							
+--- Copy Files for Workgroup Administrator ---
+610				InstallShared	"Workgroup Administrator Files,wrkgadm_exe,Wrkgadm80,wrkgadm.exe,1680 "							
+615		""	""	Group	620					%610		
+620				Depend	"610 ? 625"							
+625				CustomAction	"msacccah.dll,SyncEXECalloutCAH,%s\wrkgadm.exe /noerr /sil ""%1680\system.mdw"""							
+=== Begin Text IISam Component ===
+700	yes	"Text & HTML ISAM"	""	Group	710		not vital			%d		
+705		""	""	Group	710 730					%215		
+--- Copy Files for Text IISam Component ---
+710		""	""	Group	715 720							
+715				InstallSysFile	"Text IISam,dll"							
+720				CustomAction	"msacccah.dll,NeverRemoveGroup,725"							
+725		mstext35.dll		SelfReg	"""Text IISam"",""dll"","""","""",""1"","					%715		
+730				CopyFile	"Text IISam,dll"							
+=== Begin Excel IISam Component ===
+800	yes	"Microsoft Excel ISAM"	""	Group	810		not vital			%d		
+805		""	""	Group	810 830					%215		
+--- Copy Files for Excel IISam Component ---
+810		""	""	Group	815 820							
+815				InstallSysFile	"Excel IISam,dll"							
+820				CustomAction	"msacccah.dll,NeverRemoveGroup,825"							
+825		msexcl35.dll		SelfReg	"""Excel IISam"",""dll"","""","""",""1"","					%815		
+830				CopyFile	"Excel IISam,dll"							
+=== Begin XBase IISam Component ===
+900	yes	"Xbase ISAM"	""	Group	910		not vital			%d		
+905		""	""	Group	910 930					%215		
+--- Copy Files for XBase IISam Component ---
+910		""	""	Group	915 920							
+915				InstallSysFile	"XBase IISam,dll"							
+920				CustomAction	"msacccah.dll,NeverRemoveGroup,925"							
+925		msxbse35.dll		SelfReg	"""XBase IISam"",""dll"","""","""",""1"","					%915		
+930				CopyFile	"XBase IISam,dll"							
+1000				CustomAction	"msacccah.dll,BootstrapAdditionalFile,oleaut32 support file;""oleaut32_dll"";32autole.dll;Disk||;Please insert Disk"							
+1005				InstallSysFile	"oleaut32 support file,oleaut32_dll"							
+1010				CopyFile	"oleaut32 support file,32autole_dll"					%200		
+1015				InstallSysFile	"oleaut32 support file,stdole2_tlb"							
+1020				InstallSysFile	"oleaut32 support file,selfreg_dll"							
+1100				InstallSysFile	"msvcrt20 support file,msvcrt20_dll"							
+1200		""	""	Group	1205							
+1205				Depend	"55 ? 1210 : 1215"							
+1210				Depend	"60 ?  : 1215"							
+1215				AddRegData	"""LOCAL"",""Software\Microsoft\Shared Tools\Access Runtime\8.0"",""OfficeBin"",""%55"","""""							
+1220				InstallShared	"Shared Office Files,mso97_dll,MSO97RT,Office,1680 "					%h\VBA		
+1225				Depend	"1220 ? 1260"							
+1230				CompanionFile	"1220 : Shared Office Files,mso7_dll"					%h\VBA		
+1235				InstallSysFile	"Shared Office Files,comcat_dll"							
+1240				InstallTTFFile	"""Shared Office Files"",""tahoma_ttf"",""Tahoma (True Type)"""							
+1245				InstallTTFFile	"""Shared Office Files"",""tahomabd_ttf"",""Tahoma Bold (True Type)"""							
+1250				Depend	"1235 ? 1255"							
+1255		comcat.dll		SelfReg	"""Shared Office Files"",""comcat_dll"","""","""",""20604"","					%1235		
+1260				CustomAction	"msacccah.dll,RegMsoRT,""1033, 1220"""							
+1300				InstallSysFile	"Shared Internet Files,wininet_dll"							
+1305				InstallSysFile	"Shared Internet Files,msoffice_srg"							
+1310				InstallSysFile	"Shared Internet Files,urlmon_dll"							
+1315				InstallSysFile	"Shared Internet Files,misc_srg"							
+1320				InstallSysFile	"Shared Internet Files,winsspi_dll"							
+1325				InstallSysFile	"Shared Internet Files,misc2_srg"							
+1330				InstallSysFile	"Shared Internet Files,mfcans32_dll"							
+1335				InstallSysFile	"Shared Internet Files,hlink_srg"							
+1340				InstallSysFile	"Shared Internet Files,hlink_dll"							
+1345				InstallSysFile	"Shared Internet Files,hlinkprx_dll"							
+1350				Depend	"1300 ? 1355"							
+1355				CustomAction	"msacccah.dll,RegFile,1305"							
+1360				Depend	"1310 ? 1365"							
+1365				CustomAction	"msacccah.dll,RegFile,1315"							
+1370				Depend	"1320 ? 1375"							
+1375				CustomAction	"msacccah.dll,RegFile,1325"							
+1380				Depend	"1340 ? 1385"							
+1385				CustomAction	"msacccah.dll,RegFile,1335"							
+1390				Depend	"1345 ? 1395"							
+1395		HLINKPRX.DLL		SelfReg	"""Shared Internet Files"",""hlinkprx_dll"","""","""","""","					%1345		
+1400				InstallSysFile	"msvcrt40 support file,msvcrt40_dll"							
+1500				InstallSysFile	"ctl3d32 support file,ctl3d32_dll"							
+=== Begin Application ===
+1600	yes	"Application"	""	Group	1610  1780 		not vital					
+1605		""	""	Group	1610 1775							
+"=== Copy Files ==="
+1610		""	""	Group	1615  							
+1615		""	""	Group	1620							
+1620		""	""	Group	1625 1630 1635 1680 1740 							
+1625				CopyFile	"Application,WEDSTR97.MDE"					%d\database		
+1630				CopyFile	"Application,HZZIAN2.ICO"					%d\database		
+1635				CopyFile	"Application,HUPSW97.MDE"					%d\database		
+1680				CopyFile	"Application,SYSTEM.MDW"					%d\database		
+1740				CopyFile	"Application,HUPPAY.MDE"					%d\database		
+1775				CopySection	"Application"					%d\setup		
+"=== Add Registry Entries ==="
+"=== Add Shortcut Items ==="
+1780		""	""	Group	1785							
+1785		""	""	Group	1790 1795 1800 1805 1855 1860 							
+1790				AddProgmanItemQuiet	"Hupswim<Hupswim>,HupprogW<Hupprog (Wedstrijd organisatie)>,""%320\msaccess.exe"",%s,%1630\HZZIAN2.ICO,,""/runtime """"%1625\Wedstr97.mde"""""",,,"					%1625		
+1795				AddProgmanItemQuiet	"Hupswim<Hupswim>,HupswimT<Hupswim (Tijden administratie)>,""%320\msaccess.exe"",%s,%1630\HZZIAN2.ICO,,""/runtime """"%1635\Hupsw97.mde"""""",,,"					%1635		
+1800				AddProgmanItemQuiet	"Hupswim<Hupswim>,Onderhou<Onderhoud Hupprog>,""%320\msaccess.exe"",%s,%1630\HZZIAN2.ICO,,""/repair """"%1625\Wedstr97.mde"""" /compact"",,,"					%1625		
+1805				AddProgmanItemQuiet	"Hupswim<Hupswim>,Onderhou<Onderhoud Hupswim>,""%320\msaccess.exe"",%s,%1630\HZZIAN2.ICO,,""/repair """"%1635\Hupsw97.mde"""" /compact"",,,"					%1635		
+1855				AddProgmanItemQuiet	"Hupswim<Hupswim>,HuppayCo<Huppay (Contributie administratie)>,""%320\msaccess.exe"",%s,%1630\HZZIAN2.ICO,,""/runtime """"%1740\Huppay.mde"""""",,,"					%1740		
+1860				AddProgmanItemQuiet	"Hupswim<Hupswim>,Onderhou<Onderhoud Huppay>,""%320\msaccess.exe"",%s,%1630\HZZIAN2.ICO,,""/repair """"%1740\Huppay.mde"""" /compact"",,,"					%1740		
+"=== Add Self Registering Items ==="
+=== Profile Lines ===

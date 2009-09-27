@@ -1,0 +1,103 @@
+Option Compare Database
+Option Explicit
+
+
+Private Const sExportBaseDir = "d:\zwemdevelopment\versie5.11e\textbackupsHupprog\"
+
+
+Private Function objExists(objType As Integer, objName As String) As Boolean
+On Error GoTo fout
+objExists = False
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim obj As AccessObject
+Select Case objType
+  Case acForm
+    Set obj = Application.CurrentProject.AllForms(objName)
+  Case acReport
+    Set obj = Application.CurrentProject.AllReports(objName)
+  Case acModule
+    Set obj = Application.CurrentProject.AllModules(objName)
+  Case acMacro
+    Set obj = Application.CurrentProject.AllMacros(objName)
+End Select
+
+objExists = True
+
+Exit Function
+fout:
+Exit Function
+
+End Function
+
+Private Function retrieveObjects(sImpLocation As String, objType As Integer, objFilePfx As String) As Boolean
+On Error GoTo fout
+retrieveObjects = False
+
+Dim s As String
+s = dir(sImpLocation & objFilePfx & "*.txt")
+While s <> ""
+  Dim fFullName As String, fFileName As String
+  Dim fObjName As String
+  fObjName = Mid(s, Len(objFilePfx) + 1, Len(s) - Len(objFilePfx) - 4)
+  fFullName = sImpLocation & s
+  fFileName = s
+  
+  
+  
+  
+  If Not objExists(objType, fObjName) Then
+    Application.LoadFromText objType, fObjName, fFullName
+  End If
+  
+  s = dir()
+Wend
+
+retrieveObjects = True
+Exit Function
+
+fout:
+MsgBox Err & " retrieveObjects" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+Public Function RestoreDatabaseObjects(ByVal blSilent As Boolean) As Boolean
+On Error GoTo fout
+
+RestoreDatabaseObjects = False
+
+If Not blSilent Then
+
+  If MsgBox("Restore all database objects from directory" & vbCrLf & sExportBaseDir & " ?") = vbCancel Then
+    Exit Function
+  End If
+
+End If
+
+Dim sImpLocation As String
+sImpLocation = sExportBaseDir  'Do not forget the closing back slash!
+
+If Not retrieveObjects(sImpLocation, acForm, "FORM_") Then
+  Exit Function
+End If
+
+If Not retrieveObjects(sImpLocation, acReport, "REPORT_") Then
+  Exit Function
+End If
+
+If Not retrieveObjects(sImpLocation, acModule, "MODULE_") Then
+  Exit Function
+End If
+
+
+
+RestoreDatabaseObjects = True
+
+Exit Function
+fout:
+MsgBox Err & " RestoreDatabaseOjects" & vbCrLf & Error$, 16
+Exit Function
+End Function
