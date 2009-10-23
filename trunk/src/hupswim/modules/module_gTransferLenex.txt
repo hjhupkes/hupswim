@@ -3610,6 +3610,10 @@ Do Until rs.EOF
     dis = lenParseResultStatus(Nz(rs("LEN_STATUS")))
   End If
   
+  If (Len(dis) > 10) Then
+    dis = Left(dis, 10)
+  End If
+  
   rsOutp("PLL_DIS") = hzn(dis)
   
   
@@ -4112,6 +4116,10 @@ Do Until td.EOF
       End If
     Else
       tdOutp("TY_Opm") = td("LEN_COMMENT")
+    End If
+    
+    If (Len(dis) > 10) Then
+      dis = Left(dis, 10)
     End If
     
     tdOutp("TY_DIS") = hzn(dis)
@@ -4645,8 +4653,14 @@ Do Until tma.EOF
     
       Dim dis As String
       dis = Nz(tma("LEN_DSQCODE"))
-    
-    
+                
+      If (Len(dis) > 10) Then
+        dis = lenParseResultStatus(dis)
+        If (Len(dis) > 10) Then
+          dis = Right(dis, 10)
+        End If
+      End If
+      
       tmaOutp("TD_DIS") = hzn(dis)
     
       tmaOutp("TD_Opm") = hzn(Nz(tma("LEN_Comment")))

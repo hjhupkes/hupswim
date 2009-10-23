@@ -2329,7 +2329,7 @@ sql = "SELECT DISTINCTROW dtWedstrijdGegevens.WE_Wedstrijdnummer, dtWedstrijdGeg
 "dtOfficials.JU_Voorletters, dtOfficials.JU_Voorvoegsel, dtOfficials.JU_Achternaam, dtOfficials.[JU_Hr/Mw], " & _
 "dtOfficials.JU_Plaats, dtOfficials.JU_Bevoegdheid, dtWedstrijdJury.JD_Klokken, dtWedstrijdJury.[JD_Echte functie], " & _
 "dtWedstrijdJury.JD_Teller, dtWedstrijdGegevens.WE_Prijzen, dtWedstrijdGegevens.WE_aantalstarts, " & _
-"dtWedstrijdGegevens.we_elektronisch, dtWedstrijdGegevens.we_puntentelling, 0 AS jux_line_number, 0 as jux_order , 0 as jux_fnc_sortcode, " & _
+"dtWedstrijdGegevens.we_elektronisch, dtWedstrijdGegevens.we_puntentelling, 0 AS jux_line_number, 0 as jux_order , 0 as jux_fmt_order, 0 as jux_fnc_sortcode, " & _
 "dtWedstrijdGegevens.WE_JuryWissel, dtWedstrijdGegevens.WE_AantalZiekmeldingen, " & _
 "dtWedstrijdGegevens.WE_AantalZiekmeldingen_Txt,dtWedstrijdGegevens.WE_AantalAFM,dtWedstrijdGegevens.WE_AantalNG,dtWedstrijdGegevens.WE_AantalNGZA, dtWedstrijdGegevens.WE_ZonderKennisGevingAfwezig, " & _
 "dtWedstrijdGegevens.WE_MetKennisGevingAfwezig, dtWedstrijdGegevens.WE_Opmerkingen_Scheidsrechter, " & _
@@ -2404,6 +2404,26 @@ Do Until rs.EOF
 Loop
 
 appCleanRS rs
+
+'now write down the order as it will be displayed in the report in the jux_fmt_order field
+
+curOrder = 0
+
+Set rs = CurrentDb().OpenRecordset("select * from [~voorblad] order by jux_line_number, jux_order;")
+
+rs.MoveFirst
+
+Do Until rs.EOF
+  curOrder = curOrder + 1
+  rs.Edit
+    rs("jux_fmt_order") = curOrder
+  rs.Update
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
 
 
 'now gather list of vers.

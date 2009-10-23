@@ -324,8 +324,10 @@ Dim fFilePath As String
 fFileName = extractFileName(fFullFileName)
 fFilePath = extractFilePath(fFullFileName)
 
+'Due to misconfigured web pages, some archives automatically receive a zip file extension when downloading.
+'To work around, always recognize .zip files as archives
 
-If (fFileExt = fZipFileExt) Then
+If (fFileExt = fZipFileExt) Or (fFileExt = "zip") Then
 
   zipData.zipIsZip = True
   zipData.zipArchiveFullName = fFullFileName
