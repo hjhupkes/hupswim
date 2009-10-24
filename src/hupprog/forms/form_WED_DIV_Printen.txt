@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1168957332
+Checksum =-793383945
 Begin Form
     AllowFilters = NotDefault
     RecordSelectors = NotDefault
@@ -16,7 +16,7 @@ Begin Form
     GridX =30
     GridY =30
     Width =10875
-    ItemSuffix =487
+    ItemSuffix =489
     Left =4080
     Top =855
     Right =14955
@@ -2140,16 +2140,16 @@ Begin Form
                                         Begin OptionButton
                                             SpecialEffect =0
                                             OverlapFlags =247
-                                            Left =390
-                                            Top =3294
+                                            Left =396
+                                            Top =3709
                                             OptionValue =73
                                             Name ="optLeenCap"
                                             Begin
                                                 Begin Label
                                                     BackStyle =1
                                                     OverlapFlags =247
-                                                    Left =722
-                                                    Top =3270
+                                                    Left =728
+                                                    Top =3685
                                                     Width =2415
                                                     Height =240
                                                     Name ="Label391"
@@ -2254,6 +2254,32 @@ Begin Form
                                     FontName ="MS Sans Serif"
                                     GUID = Begin
                                         0x49f8c2f7f76bef43978974792c5ac9c5
+                                    End
+                                End
+                                Begin CheckBox
+                                    SpecialEffect =0
+                                    OverlapFlags =247
+                                    Left =1155
+                                    Top =3284
+                                    TabIndex =5
+                                    Name ="blSpeedoOorkondeSingle"
+                                    DefaultValue ="True"
+                                    GUID = Begin
+                                        0x77a2640f2ca35e43adeb7e7e32c38216
+                                    End
+                                    Begin
+                                        Begin Label
+                                            OverlapFlags =247
+                                            Left =1362
+                                            Top =3250
+                                            Width =3345
+                                            Height =240
+                                            Name ="Label488"
+                                            Caption ="Aparte oorkondes per gezwommen afstand "
+                                            GUID = Begin
+                                                0xdba7d4845be69b4b94034a6e3f1efe36
+                                            End
+                                        End
                                     End
                                 End
                             End
@@ -2545,7 +2571,14 @@ Select Case choice
   Case OPT_LENGTE_PROG
     tpS = REP_LNG_PROG
   Case OPT_SPD_OORK
-    tpS = REP_SPD_OORK
+    Dim optOorkondeSingle As Boolean
+    optOorkondeSingle = Nz(Me.blSpeedoOorkondeSingle)
+    
+    If (optOorkondeSingle) Then
+      tpS = REP_SPD_OORK_SNG
+    Else
+      tpS = REP_SPD_OORK
+    End If
   Case OPT_LNCAP
     tpS = REP_LNCAP
   Case OPT_FAC_OVZ
@@ -2816,7 +2849,14 @@ Select Case choice
       Exit Function
     End If
   Case OPT_SPD_OORK
-    'need to do nothing
+    Dim optOorkondeSingle As Boolean
+    optOorkondeSingle = Nz(Me.blSpeedoOorkondeSingle)
+    
+    If (optOorkondeSingle) Then
+      If Not uitslagCreate(waarde()) Then
+        Exit Function
+      End If
+    End If
     
     
 End Select
@@ -2960,6 +3000,9 @@ Me.blFacKlein.Enabled = (choice = OPT_FAC_IND)
 Me.blFacSingleVer.Enabled = (choice = OPT_FAC_IND)
 
 Me.cmbFacVer.Enabled = Nz(Me.blFacSingleVer) And (choice = OPT_FAC_IND)
+
+
+Me.blSpeedoOorkondeSingle.Enabled = (choice = OPT_SPD_OORK)
 
 
 
