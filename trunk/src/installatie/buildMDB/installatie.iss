@@ -84,6 +84,10 @@ var
   blHupprogFound:boolean;
   blPackagerFound:boolean;
   
+  blHupswimPrepared:boolean;
+  blHupprogPrepared:boolean;
+  blPackagerPrepared:boolean;
+  
   blFoundAcc2003:boolean;
   blFoundAcc2007:boolean;
 
@@ -92,6 +96,11 @@ begin
   blHupswimFound:=FileExists(expandConstant('{src}\hupsw97.mdb'));
   blHupprogFound:=FileExists(expandConstant('{src}\wedstr97.mdb'));
   blPackagerFound:=FileExists(expandConstant('{src}\packager.mdb'));
+  
+  blHupswimPrepared:=false;
+  blHupprogPrepared:=false;
+  blPackagerPrepared:=false;
+  
 
   result:=true;
 
@@ -195,24 +204,36 @@ end;
 function PrepareBuildHupswim(): boolean;
 begin
   result:=true;
-  if not FileCopy(expandConstant('{src}\bin\empty_stub_acc2003.mdb'), expandConstant('{src}\hupsw97.mdb') , true ) then begin
-    result:=false;
+  if (not blHupswimPrepared) then begin
+    blHupswimPrepared:=true;
+    if not FileCopy(expandConstant('{src}\bin\empty_stub_acc2003.mdb'), expandConstant('{src}\hupsw97.mdb') , true ) then begin
+      blHupswimPrepared:=false;
+      result:=false;
+    end;
   end;
 end;
 
 function PrepareBuildHupprog(): boolean;
 begin
   result:=true;
-  if not FileCopy(expandConstant('{src}\bin\empty_stub_acc2003.mdb'), expandConstant('{src}\wedstr97.mdb') , true ) then begin
-    result:=false;
+  if (not blHupprogPrepared) then begin
+    blHupprogPrepared:=true;
+    if not FileCopy(expandConstant('{src}\bin\empty_stub_acc2003.mdb'), expandConstant('{src}\wedstr97.mdb') , true ) then begin
+      blHupprogPrepared:=false;
+      result:=false;
+    end;
   end;
 end;
 
 function PrepareBuildPackager(): boolean;
 begin
   result:=true;
-  if not FileCopy(expandConstant('{src}\bin\empty_stub_acc2003.mdb'), expandConstant('{src}\packager.mdb') , true ) then begin
-    result:=false;
+  if (not blPackagerPrepared) then begin
+    blPackagerPrepared:=true;
+    if not FileCopy(expandConstant('{src}\bin\empty_stub_acc2003.mdb'), expandConstant('{src}\packager.mdb') , true ) then begin
+      blPackagerPrepared:=false;
+      result:=false;
+    end;
   end;
 end;
 

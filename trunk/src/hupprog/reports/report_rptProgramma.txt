@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1489176253
+Checksum =-1738593374
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -11,7 +11,7 @@ Begin Report
     Left =930
     Top =1260
     Right =13755
-    Bottom =9735
+    Bottom =8685
     ShortcutMenuBar ="gShortcutRpt"
     Toolbar ="gRptToolbar"
     RecSrcDt = Begin
@@ -51,9 +51,9 @@ Begin Report
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000180000000000102710271027 ,
         0x0000102700000000000000000000c40200000000000000000000000000000000 ,
-        0x00000000000000000300000000000000000010005c4b03006843040000000000 ,
+        0x000000000000000003000000000000000000100072bf030072bf030000000000 ,
         0x000000000000010000000000000000000000000000000000e7b14b4c03000000 ,
-        0x05000400ff000000000000000000000000000000000000000000000000000000 ,
+        0x05000000ff000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
@@ -2153,7 +2153,6 @@ Begin Report
                     ColumnWidth =210
                     FontSize =10
                     Name ="Baan"
-                    ControlSource ="=IIf([DE_Reserve]=\"J\",\"Res.\",[DE_Baan] & \".\")"
                 End
                 Begin TextBox
                     TextAlign =1
@@ -3345,6 +3344,32 @@ Begin Report
                         0x77508ae2c7a8074f91673375c37ba395
                     End
                 End
+                Begin TextBox
+                    Visible = NotDefault
+                    IMESentenceMode =3
+                    Left =9212
+                    Top =3571
+                    Width =276
+                    TabIndex =106
+                    Name ="DE_Reserve"
+                    ControlSource ="DE_Reserve"
+                    GUID = Begin
+                        0xe5fc5dcf7b2e8b4690704e725c3a142a
+                    End
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    IMESentenceMode =3
+                    Left =9590
+                    Top =3571
+                    Width =276
+                    TabIndex =107
+                    Name ="DE_Baan"
+                    ControlSource ="DE_Baan"
+                    GUID = Begin
+                        0xee95fc3fe075854093d0638d51a3a249
+                    End
+                End
             End
         End
         Begin BreakFooter
@@ -4336,7 +4361,11 @@ If (blIsOW) Then
   Exit Sub
 End If
 
-If [DE_Reserve] = "J" Then Cancel = True
+If (blIsUitslag) Then
+  If (Nz([DE_Reserve]) = "J") Or (Nz([ty_dis]) = DIS_AFM) Then Cancel = True
+ElseIf (blIsProgramma) Then
+  If Nz([DE_Reserve]) = "J" Then Cancel = True
+End If
 
 If IsNull([DE_Vereniging]) Then
   Cancel = True
@@ -5955,6 +5984,26 @@ Else
       End If
     End If
   End If 'if blIsUitslag or blIsUitslagLijst
+  
+  
+  
+  If (blIsProgramma) Then
+    If (Nz([DE_Reserve]) = "J") Then
+      Me.Controls("baan") = "Res."
+    Else
+      Me.Controls("baan") = Nz([DE_Baan]) & "."
+    End If
+  ElseIf (blIsUitslag) Then
+    If (Nz([DE_Reserve]) = "J") Then
+      Me.Controls("baan") = "Res."
+    ElseIf Nz([ty_dis]) = DIS_AFM Then
+      Me.Controls("baan") = "Afg."
+    ElseIf Nz([ty_dis]) = DIS_ZK Then
+      Me.Controls("baan") = Nz([DE_Baan]) & ". X"
+    Else
+      Me.Controls("baan") = Nz([DE_Baan]) & "."
+    End If
+  End If
   
 End If 'if isnull([de_vereniging])
 
