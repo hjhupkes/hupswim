@@ -4015,7 +4015,7 @@ Exit Function
 
 End Function
 
-Private Function lenReadTijdenFromRS(ByVal lxVersion As Long, ByRef skRnk As Recordset, ByRef td As Recordset, ByRef tdOutp As Recordset, ByRef spColl As Recordset, ByRef sp As Recordset, ByRef impProg As Recordset, ByRef impWed As Recordset, ByRef impPloegleden As Recordset, ByVal isEstaf As Boolean) As Boolean
+Private Function lenReadTijdenFromRS(ByVal lxVersion As Long, ByRef skRnk As Recordset, ByRef skHeat As Recordset, ByRef td As Recordset, ByRef tdOutp As Recordset, ByRef spColl As Recordset, ByRef sp As Recordset, ByRef impProg As Recordset, ByRef impWed As Recordset, ByRef impPloegleden As Recordset, ByVal isEstaf As Boolean) As Boolean
 On Error GoTo fout
 lenReadTijdenFromRS = False
 
@@ -4084,10 +4084,22 @@ Do Until td.EOF
     tdOutp("TY_Serienummer") = Null
     tdOutp("TY_Baan") = Null
     
+    
+
+    
     If (lxVersion >= LX_VERSION_3) Then
       tdOutp("TY_Baan") = td("LEN_Lane")
-      tdOutp("TY_Serienummer") = td("LEN_HEATID")
-      'tdOutp("INT_HEAT_LEN_ID") = td("LEN_HEATID")
+      
+      'lookup heat number
+      Dim tpHtiPrLenID As Long
+      Dim tpHtiHeatLenID As Long
+      tpHtiPrLenID = Nz(td("LEN_EVENTID"))
+      tpHtiHeatLenID = Nz(td("LEN_HeatID"))
+      skHeat.Seek "=", tpHtiPrLenID, tpHtiHeatLenID
+      If (Not skHeat.NoMatch) Then
+        tdOutp("TY_serienummer") = skHeat("HTI_HT_Number")
+      End If
+      
     End If
     
     
@@ -4406,7 +4418,7 @@ End Function
 
 
 
-Private Function lenReadTijdenFromXMLTables(ByVal lxVersion As Long) As Boolean
+Private Function lenReadTijdenFromXMLTables(ByVal lxVersion As Long, ByRef skHeat As Recordset) As Boolean
 On Error GoTo fout
 lenReadTijdenFromXMLTables = False
 
@@ -4454,7 +4466,7 @@ sql = "SELECT LEN_RESULT.*, LEN_RELAY.ID_RELAY FROM ((LEN_RESULT INNER JOIN LEN_
 
 Set td = CurrentDb().OpenRecordset(sql)
 
-If Not lenReadTijdenFromRS(lxVersion, skRnk, td, tdOutp, spColl, sp, impProg, impWed, impPloegleden, True) Then
+If Not lenReadTijdenFromRS(lxVersion, skRnk, skHeat, td, tdOutp, spColl, sp, impProg, impWed, impPloegleden, True) Then
   Exit Function
 End If
 
@@ -4466,7 +4478,7 @@ sql = "SELECT LEN_RESULT.*, LEN_ATHLETE.ID_ATHLETE FROM ((LEN_RESULT INNER JOIN 
 
 Set td = CurrentDb().OpenRecordset(sql)
 
-If Not lenReadTijdenFromRS(lxVersion, skRnk, td, tdOutp, spColl, sp, impProg, impWed, impPloegleden, False) Then
+If Not lenReadTijdenFromRS(lxVersion, skRnk, skHeat, td, tdOutp, spColl, sp, impProg, impWed, impPloegleden, False) Then
   Exit Function
 End If
 
@@ -4494,7 +4506,6 @@ End If
 'TY_AGEGROUP_ID
 
 
-
 DoCmd.SetWarnings False
 
 sql = "UPDATE gIMP_LEN_Tijden INNER JOIN gIMP_LEN_Zwemmers ON gIMP_LEN_Tijden.TY_Zwemmer_ID = gIMP_LEN_Zwemmers.ZW_ID SET gIMP_LEN_Tijden.TY_Ver_ID = [ZW_VER_ID];"
@@ -4505,7 +4516,6 @@ DoCmd.RunSQL sql
 
 sql = "UPDATE gIMP_LEN_TIJDEN INNER JOIN gIMP_LEN_Leeftijdsgroepen ON (gIMP_LEN_TIJDEN.INT_Agegroup_Len_ID = gIMP_LEN_Leeftijdsgroepen.INT_LEN_ID) AND (gIMP_LEN_TIJDEN.TY_PROG_ID = gIMP_LEN_Leeftijdsgroepen.LF_PR_ID) SET gIMP_LEN_TIJDEN.TY_Agegroup_ID = [LF_ID];"
 DoCmd.RunSQL sql
-
 
 
 
@@ -5068,7 +5078,7 @@ End Function
 
 
 
-Private Function lenReadDeelnemersFromRS(lxVersion As Long, ByRef dln As Recordset, ByRef dlnOutp As Recordset, ByRef mtInf As Recordset, ByVal isEstaf As Boolean) As Boolean
+Private Function lenReadDeelnemersFromRS(lxVersion As Long, ByRef skHeat As Recordset, ByRef dln As Recordset, ByRef dlnOutp As Recordset, ByRef mtInf As Recordset, ByVal isEstaf As Boolean) As Boolean
 On Error GoTo fout
 lenReadDeelnemersFromRS = False
 
@@ -5119,11 +5129,19 @@ Do Until dln.EOF
   End If
   
   
+    
   If (lxVersion < LX_VERSION_3) Then
     dlnOutp("DE_Serienummer") = CInt(val(Nz(dln("LEN_HEAT"))))
   Else
-    dlnOutp("DE_Serienummer") = dln("LEN_HeatID")
-    'dlnOutp("INT_HEAT_LEN_ID") = dln("LEN_HeatID")
+    'lookup heat number
+    Dim tpHtiPrLenID As Long
+    Dim tpHtiHeatLenID As Long
+    tpHtiPrLenID = Nz(dln("LEN_EVENTID"))
+    tpHtiHeatLenID = Nz(dln("LEN_HeatID"))
+    skHeat.Seek "=", tpHtiPrLenID, tpHtiHeatLenID
+    If (Not skHeat.NoMatch) Then
+      dlnOutp("DE_serienummer") = skHeat("HTI_HT_Number")
+    End If
   End If
   dlnOutp("DE_Baan") = CInt(val(Nz(dln("LEN_LANE"))))
   dlnOutp("INT_Agegroup_LEN_ID") = CLng(val(Nz(dln("LEN_AGEGROUPID"))))
@@ -5195,7 +5213,131 @@ Resume
 End Function
 
 
-Private Function lenReadDeelnemersFromXMLTables(ByVal lxVersion As Long) As Boolean
+
+
+Private Function lenReadHeatsFromXMLTables_createTmpTable() As Boolean
+On Error GoTo fout
+lenReadHeatsFromXMLTables_createTmpTable = False
+
+If Not lenReadHeatsFromXMLTables_cleanTmpTable() Then
+  Exit Function
+End If
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+
+Set tb = db.CreateTableDef("~len_read_heats_id")
+
+tb.Fields.Append tb.CreateField("HTI_PR_LEN_ID", dbLong)
+tb.Fields.Append tb.CreateField("HTI_HT_LEN_ID", dbLong)
+tb.Fields.Append tb.CreateField("HTI_HT_Number", dbLong)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("HTI_PR_LEN_ID", dbLong)
+idx.Fields.Append idx.CreateField("HTI_HT_LEN_ID", dbLong)
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+Set idx = Nothing
+Set tb = Nothing
+Set db = Nothing
+
+lenReadHeatsFromXMLTables_createTmpTable = True
+Exit Function
+
+fout:
+MsgBox Err & " lenReadHeatsFromXMLTables_createTmpTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Private Function lenReadHeatsFromXMLTables_cleanTmpTable() As Boolean
+On Error GoTo fout
+lenReadHeatsFromXMLTables_cleanTmpTable = False
+
+DoCmd.DeleteObject acTable, "~len_read_heats_id"
+
+
+lenReadHeatsFromXMLTables_cleanTmpTable = True
+Exit Function
+
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+MsgBox Err & " lenReadHeatsFromXMLTables_cleanTmpTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function lenReadHeatsFromXMLTables_fillIDTable() As Boolean
+On Error GoTo fout
+lenReadHeatsFromXMLTables_fillIDTable = False
+
+If Not lenReadHeatsFromXMLTables_createTmpTable() Then
+  Exit Function
+End If
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("~len_read_heats_id")
+rsOut.Index = "PrimaryKey"
+
+
+Dim sql As String
+sql = "SELECT LEN_EVENT.LEN_eventid, LEN_HEAT.LEN_heatid, LEN_HEAT.LEN_number " & _
+  "FROM LEN_EVENT INNER JOIN ((LEN_HEAT INNER JOIN LEN_HEAT_COLL ON LEN_HEAT.ID_HEAT = LEN_HEAT_COLL.SYS_REF_CH_HEAT) " & _
+  "INNER JOIN LEN_HEATS ON LEN_HEAT_COLL.ID_HEAT_COLL = LEN_HEATS.SYS_REF_HEAT_COLL) " & _
+  "ON LEN_EVENT.SYS_REF_HEATS = LEN_HEATS.ID_HEATS;"
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpNr As Long, tpHeatID As Long, tpEvID As Long
+  
+  tpEvID = Nz(rs("LEN_EventID"))
+  tpHeatID = Nz(rs("LEN_HeatID"))
+  tpNr = Nz(rs("LEN_Number"))
+  
+  'Only interested in one number per heat;
+  rsOut.Seek "=", tpEvID, tpHeatID
+  If rsOut.NoMatch Then
+    If (tpNr > 0) And (tpNr <= 10000) Then
+      rsOut.AddNew
+        rsOut("HTI_PR_LEN_ID") = tpEvID
+        rsOut("HTI_HT_LEN_ID") = tpHeatID
+        rsOut("HTI_HT_Number") = tpNr
+      rsOut.Update
+    End If
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsOut
+
+lenReadHeatsFromXMLTables_fillIDTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lenReadHeatnFromXMLTables_fillIDTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+
+
+
+Private Function lenReadDeelnemersFromXMLTables(ByVal lxVersion As Long, ByRef skHeat As Recordset) As Boolean
 On Error GoTo fout
 lenReadDeelnemersFromXMLTables = False
 
@@ -5215,7 +5357,7 @@ sql = "SELECT LEN_ENTRY.*, LEN_ATHLETE.ID_ATHLETE FROM ((LEN_ENTRY INNER JOIN LE
 "INNER JOIN LEN_ATHLETE ON LEN_ENTRIES.ID_ENTRIES = LEN_ATHLETE.SYS_REF_ENTRIES;"
 
 Set dln = CurrentDb().OpenRecordset(sql)
-If Not (lenReadDeelnemersFromRS(lxVersion, dln, dlnOutp, mtInf, False)) Then
+If Not (lenReadDeelnemersFromRS(lxVersion, skHeat, dln, dlnOutp, mtInf, False)) Then
   Exit Function
 End If
 
@@ -5227,7 +5369,7 @@ sql = "SELECT LEN_ENTRY.*, LEN_RELAY.ID_RELAY FROM ((LEN_ENTRY INNER JOIN LEN_EN
 "INNER JOIN LEN_RELAY ON LEN_ENTRIES.ID_ENTRIES = LEN_RELAY.SYS_REF_ENTRIES;"
 
 Set dln = CurrentDb().OpenRecordset(sql)
-If Not (lenReadDeelnemersFromRS(lxVersion, dln, dlnOutp, mtInf, True)) Then
+If Not (lenReadDeelnemersFromRS(lxVersion, skHeat, dln, dlnOutp, mtInf, True)) Then
   Exit Function
 End If
 
@@ -6598,7 +6740,7 @@ Exit Function
 
 End Function
 
-Private Function lenAppendHeat(ByRef skHeats As Recordset, ByRef skPrWithHeats As Recordset, ByRef rsHeat As Recordset, ByRef rsHeatColl As Recordset, ByRef muHeatID As Long, ByVal lPRXId As Long, lSerie As Long) As Boolean
+Private Function lenAppendHeat(ByRef skHeats As Recordset, ByRef skPrWithHeats As Recordset, ByRef rsHeat As Recordset, ByRef rsHeatColl As Recordset, ByRef muHeatID As Long, ByVal lPRXId As Long, lSerie As Long, ByRef lLenHeatID As Long) As Boolean
 On Error GoTo fout
 lenAppendHeat = False
 
@@ -6611,15 +6753,23 @@ If skHeats.NoMatch Then
   Dim heatCollID As Long
   heatCollID = lPRXId
 
+    
+  rsHeat.AddNew
+    rsHeat("ID_HEAT") = muHeatID
+    
+    rsHeat("LEN_HeatID") = muHeatID
+    lLenHeatID = muHeatID
+    
+    rsHeat("LEN_Number") = lSerie
+  rsHeat.Update
+  
+  
   skHeats.AddNew
     skHeats("HT_PR_ID") = lPRXId
     skHeats("HT_Serie") = lSerie
+    skHeats("HT_HT_Len_ID") = lLenHeatID
   skHeats.Update
   
-  rsHeat.AddNew
-    rsHeat("ID_HEAT") = muHeatID
-    rsHeat("LEN_Number") = lSerie
-  rsHeat.Update
   
   If Not lenAddToCollection(rsHeatColl, heatCollID, muHeatID, "HEAT") Then
     Exit Function
@@ -6632,7 +6782,9 @@ If skHeats.NoMatch Then
     skPrWithHeats.Update
   End If
   
-  
+Else
+
+  lLenHeatID = Nz(skHeats("HT_HT_LEN_ID"))
   
 End If
 
@@ -6743,12 +6895,15 @@ Do Until dlnInp.EOF
     et("LEN_HEAT") = IIf(sr = 0, Null, sr)
     
     If (lxVersion >= LX_VERSION_3) Then
-      If (sr = 0) Then
-        et("LEN_HEATID") = Null
-      Else
-        et("LEN_HEATID") = sr
-        If Not lenAppendHeat(skHeats, skPrWithHeat, rsHeat, rsHeatColl, maxUsedHeatID, Nz(dlnInp("DE_PROG_ID")), sr) Then
+      et("LEN_HeatID") = Null
+      If (sr > 0) Then
+        Dim lHtLenID As Long
+        
+        If Not lenAppendHeat(skHeats, skPrWithHeat, rsHeat, rsHeatColl, maxUsedHeatID, Nz(dlnInp("DE_PROG_ID")), sr, lHtLenID) Then
           Exit Function
+        End If
+        If (lHtLenID > 0) Then
+          et("LEN_HEATID") = lHtLenID
         End If
       End If
     End If
@@ -7538,12 +7693,15 @@ Do Until tdInp.EOF
     
     
     If (lxVersion >= LX_VERSION_3) Then
-      If (sr = 0) Then
-        rs("LEN_HEATID") = Null
-      Else
+      rs("LEN_HEATID") = Null
+      If (sr > 0) Then
+        Dim lHtLenID As Long
         rs("LEN_HEATID") = sr
-        If Not lenAppendHeat(skHeats, skPrWithHeat, rsHeat, rsHeatColl, maxUsedHeatXID, Nz(tdInp("TY_PROG_ID")), sr) Then
+        If Not lenAppendHeat(skHeats, skPrWithHeat, rsHeat, rsHeatColl, maxUsedHeatXID, Nz(tdInp("TY_PROG_ID")), sr, lHtLenID) Then
           Exit Function
+        End If
+        If (lHtLenID > 0) Then
+          rs("LEN_HeatID") = lHtLenID
         End If
       End If
       rs("LEN_LANE") = IIf(bn = 0, Null, bn)
@@ -7944,11 +8102,23 @@ If Not lenReadRelaySwimmersFromXMLTables() Then
   Exit Function
 End If
 
-If Not lenReadDeelnemersFromXMLTables(lxVersion) Then
+Dim skHeat As Recordset
+Set skHeat = Nothing
+If (lxVersion >= LX_VERSION_3) Then
+  If Not lenReadHeatsFromXMLTables_fillIDTable() Then
+    Exit Function
+  End If
+  Set skHeat = CurrentDb().OpenRecordset("~len_read_heats_id")
+  skHeat.Index = "PrimaryKey"
+ 
+End If
+
+
+If Not lenReadDeelnemersFromXMLTables(lxVersion, skHeat) Then
   Exit Function
 End If
 
-If Not lenReadTijdenFromXMLTables(lxVersion) Then
+If Not lenReadTijdenFromXMLTables(lxVersion, skHeat) Then
   Exit Function
 End If
 
@@ -7963,6 +8133,11 @@ If Not lenReadArchivedTimesFromXMLTables(maxUsedWedID) Then
   Exit Function
 End If
 
+
+appCleanRS skHeat
+If Not lenReadHeatsFromXMLTables_cleanTmpTable() Then
+  Exit Function
+End If
   
 
 
@@ -8578,6 +8753,7 @@ Set tb = db.CreateTableDef("~len_write_heats")
 
 tb.Fields.Append tb.CreateField("HT_PR_ID", dbLong)
 tb.Fields.Append tb.CreateField("HT_Serie", dbLong)
+tb.Fields.Append tb.CreateField("HT_HT_LEN_ID", dbLong)
 
 Dim idx As Index
 Set idx = tb.CreateIndex("PrimaryKey")
