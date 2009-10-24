@@ -48,7 +48,37 @@ Exit Function
 End Function
 
 
-Private Function lnhExportWedstrijdGegevens(ByVal singleWedOnly As Boolean, ByRef wedInf As WED_BASIC_INFO) As Boolean
+
+Private Function lnhExportWedContact(ByVal lCntID As Long) As Boolean
+On Error GoTo fout
+lnhExportWedContact = False
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gIMP_LEN_contact")
+
+outp.AddNew
+  outp("CT_ID") = lCntID
+  outp("CT_Adres") = hzn(cont_adres())
+  outp("CT_Email") = hzn(cont_email())
+  outp("CT_Naam") = hzn(contpersoon())
+  outp("CT_Plaats") = hzn(cont_plaats())
+  outp("CT_Postcode") = hzn(cont_postcode_sep())
+  outp("CT_Telefoonnummer") = hzn(cont_tel())
+outp.Update
+
+appCleanRS outp
+
+
+lnhExportWedContact = True
+Exit Function
+fout:
+MsgBox Err & " lnhExportWedContact" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function lnhExportWedstrijdGegevens(ByVal singleWedOnly As Boolean, ByRef wedInf As WED_BASIC_INFO, ByRef muCntID As Long) As Boolean
 On Error GoTo fout
 lnhExportWedstrijdGegevens = False
 
@@ -131,7 +161,16 @@ Do Until inp.EOF
     outp("WE_ElektronischeTijd") = inp("WE_elektronisch")
     outp("WE_AantalBanen") = inp("WE_Aantal_Banen")
     outp("WE_Nation") = "NED"
+    
     outp("WE_Contact_ID") = Null
+    
+    If (contpersoon() <> "") Then
+      muCntID = muCntID + 1
+      If Not lnhExportWedContact(muCntID) Then
+        Exit Function
+      End If
+      outp("WE_Contact_ID") = muCntID
+    End If
     
     outp("WE_PartOfTimeArchive") = False
     
@@ -1109,9 +1148,10 @@ If Not blFnd Then
   Err.Raise 1, , "Kon wedstrijd: " & wednr & " niet vinden."
 End If
 
+Dim muCntID As Long
+muCntID = 0
 
-
-If Not lnhExportWedstrijdGegevens(singleWedOnly, wedInf) Then
+If Not lnhExportWedstrijdGegevens(singleWedOnly, wedInf, muCntID) Then
   Exit Function
 End If
 
