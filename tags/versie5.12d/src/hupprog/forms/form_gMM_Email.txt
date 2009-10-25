@@ -1,0 +1,182 @@
+Version =20
+VersionRequired =20
+Checksum =1705479394
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    AllowEdits = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    GridX =5
+    GridY =5
+    Width =9735
+    ItemSuffix =94
+    Left =3525
+    Top =840
+    Right =16365
+    Bottom =8640
+    RecSrcDt = Begin
+        0x9f73a3c8af5ae340
+    End
+    RecordSource ="select * from gMailMergeEmail"
+    Caption ="emails"
+    OnOpen ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            Width =1701
+            Height =1701
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ListBox
+            SpecialEffect =2
+            Width =1701
+            Height =1417
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =0
+            BackColor =16776960
+            Name ="FormHeader1"
+        End
+        Begin Section
+            Height =5130
+            BackColor =65280
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    EnterKeyBehavior = NotDefault
+                    ScrollBars =2
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =585
+                    Top =570
+                    Width =8496
+                    Height =1413
+                    Name ="mmEmails"
+                    ControlSource ="MME_Emails"
+                    GUID = Begin
+                        0x7863a834a44b3e458dc16acde79e5230
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =585
+                            Top =300
+                            Width =1335
+                            Height =240
+                            Name ="Label91"
+                            Caption ="Email adressen:  "
+                            GUID = Begin
+                                0xb9fb2f8c7be6f04599bab3932104efab
+                            End
+                        End
+                    End
+                End
+                Begin TextBox
+                    EnterKeyBehavior = NotDefault
+                    ScrollBars =2
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =570
+                    Top =2865
+                    Width =8511
+                    Height =1923
+                    ColumnWidth =2490
+                    TabIndex =1
+                    Name ="mmUnknown"
+                    ControlSource ="MME_Unknown"
+                    GUID = Begin
+                        0x5386bb38a6119947bb23c1cdb369863f
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =85
+                            Left =570
+                            Top =2595
+                            Width =2280
+                            Height =240
+                            Name ="Label92"
+                            Caption ="Personen zonder email adres:"
+                            GUID = Begin
+                                0xf4e4d03d9ef3fc4d9aca35c1b6d67e64
+                            End
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    TextFontFamily =34
+                    Left =585
+                    Top =2085
+                    Width =1935
+                    Height =330
+                    FontSize =8
+                    FontWeight =400
+                    TabIndex =2
+                    Name ="btnEmailCopy"
+                    Caption ="Kopieren naar clipboard"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0x4def61536ea8324eb3b93b88f7c6f763
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =65280
+            Name ="FormFooter2"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+
+Private Sub btnEmailCopy_Click()
+On Error Resume Next
+Me.mmEmails.SetFocus
+Me.mmEmails.SelStart = 0
+Me.mmEmails.SelLength = Len(Nz(Me.mmEmails))
+DoCmd.DoMenuItem acFormBar, acEditMenu, acCopy, , acMenuVer70
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

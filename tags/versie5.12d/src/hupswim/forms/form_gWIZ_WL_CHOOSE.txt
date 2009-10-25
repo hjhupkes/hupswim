@@ -1,0 +1,207 @@
+Version =20
+VersionRequired =20
+Checksum =-1366633399
+Begin Form
+    AllowFilters = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridX =24
+    GridY =24
+    Width =8645
+    DatasheetFontHeight =10
+    ItemSuffix =28
+    Left =2220
+    Top =405
+    Right =13605
+    Bottom =7080
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0xa4ec1aa2f340e340
+    End
+    RecordSource ="gWIZ_WL"
+    DatasheetFontName ="Arial"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin OptionButton
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin OptionGroup
+            SpecialEffect =3
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ListBox
+            SpecialEffect =2
+            Width =1701
+            Height =1417
+            LabelX =-1701
+        End
+        Begin Section
+            Height =5267
+            BackColor =-2147483633
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =4913
+                    Top =4913
+                    Name ="WL_FileURL"
+                    ControlSource ="WL_FileURL"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    OverlapFlags =85
+                    Left =6708
+                    Top =4913
+                    TabIndex =1
+                    Name ="WL_Description"
+                    ControlSource ="WL_Description"
+                End
+                Begin ListBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =4
+                    Left =165
+                    Top =307
+                    Width =8235
+                    Height =4495
+                    TabIndex =2
+                    Name ="wedList"
+                    RowSourceType ="Table/Query"
+                    ColumnWidths ="4536;1134;1305;0"
+                    AfterUpdate ="[Event Procedure]"
+                End
+                Begin CheckBox
+                    OverlapFlags =85
+                    Left =212
+                    Top =4913
+                    TabIndex =3
+                    Name ="blOnlyDutch"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="True"
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =435
+                            Top =4890
+                            Width =2295
+                            Height =240
+                            Name ="Label24"
+                            Caption ="Alleen Nederlandse wedstrijden"
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =165
+                    Top =47
+                    Width =825
+                    Height =210
+                    Name ="Label25"
+                    Caption ="Wedstrijd: "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =5835
+                    Top =45
+                    Width =1935
+                    Height =210
+                    Name ="Label26"
+                    Caption ="Laatste wijziging bestand: "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =4701
+                    Top =47
+                    Width =525
+                    Height =210
+                    Name ="Label27"
+                    Caption ="Land: "
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub updateView()
+On Error GoTo fout
+
+Dim sql As String
+
+If (Me.blOnlyDutch) Then
+  sql = "SELECT DISTINCTROW splMeetList.WL_Description, splMeetList.WL_Nation, splMeetList.WL_ModificationDate, " & _
+    "splMeetList.WL_FileURL FROM splMeetList where WL_Nation=""NED"" ORDER BY splMeetList.WL_Description;"
+Else
+  sql = "SELECT DISTINCTROW splMeetList.WL_Description, splMeetList.WL_Nation, splMeetList.WL_ModificationDate, " & _
+     "splMeetList.WL_FileURL FROM splMeetList ORDER BY splMeetList.WL_Description;"
+End If
+
+Me.wedList.RowSource = sql
+
+Exit Sub
+fout:
+MsgBox Err & " updateView" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+
+Private Sub blOnlyDutch_AfterUpdate()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub wedList_AfterUpdate()
+On Error Resume Next
+If Nz(Me.wedList.value) <> "" Then
+  Me.WL_FileURL = Me.wedList.Column(3)
+  Me.WL_Description = Me.wedList.Column(0)
+Else
+  Me.WL_FileURL = Null
+  Me.WL_Description = Null
+End If
+
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+Dim mstFrm As Form_gWIZ_WL_MASTER
+
+Set mstFrm = Forms("gWIZ_WL_MASTER")
+
+mstFrm.wzbNotifyChange
+
+
+End Sub

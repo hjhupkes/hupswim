@@ -1,0 +1,110 @@
+Option Compare Database
+Option Explicit
+
+Public Function findStringInOrd2dList(list() As String, s As String, nStr As Integer, firstIdx As Integer) As Integer
+Dim l As Integer
+Dim r As Integer
+Dim m As Integer
+
+If (nStr <= 0) Then
+  findStringInOrd2dList = -1
+  Exit Function
+End If
+'Invariant: to Find is always in the interval (l, r]
+l = 0
+r = nStr
+While (r > l)
+  'Round to high.
+  m = (r + l + 1) \ 2
+  'Note that l < m <= r
+  'Test m
+  Dim comp As Integer
+  comp = StrComp(s, list(firstIdx, m))
+  If (comp = 0) Then
+    findStringInOrd2dList = m
+    Exit Function
+  ElseIf (comp < 0) Then
+  r = (m - 1)
+  Else
+    l = m
+  End If
+Wend
+findStringInOrd2dList = -1
+
+End Function
+
+Public Function findStringInOrdList(list() As String, s As String, nStr As Integer) As Integer
+Dim l As Integer
+Dim r As Integer
+Dim m As Integer
+
+If (nStr <= 0) Then
+  findStringInOrdList = -1
+  Exit Function
+End If
+'Invariant: to Find is always in the interval (l, r]
+l = 0
+r = nStr
+While (r > l)
+  'Round to high.
+  m = (r + l + 1) \ 2
+  'Note that l < m <= r
+  'Test m
+  Dim comp As Integer
+  comp = StrComp(s, list(m))
+  If (comp = 0) Then
+    findStringInOrdList = m
+    Exit Function
+  ElseIf (comp < 0) Then
+  r = (m - 1)
+  Else
+    l = m
+  End If
+Wend
+findStringInOrdList = -1
+
+End Function
+
+Public Function cleanupXMLStructureTables(xmlObjectsTable As String, glbTablePrefix As String, Optional cleanObjectTables As Boolean = True) As Boolean
+On Error GoTo fout
+cleanupXMLStructureTables = False
+Dim blDeletingTable As Boolean
+blDeletingTable = False
+
+
+If (cleanObjectTables) Then
+    Dim xmlObjs As Recordset
+    Set xmlObjs = CurrentDb().OpenRecordset(xmlObjectsTable)
+    xmlObjs.MoveFirst
+    Do Until xmlObjs.EOF
+      Dim tbName As String
+      tbName = xmlObjs("XML_TABLE_NAME")
+      blDeletingTable = True
+      DoCmd.DeleteObject acTable, glbTablePrefix & tbName
+      DoCmd.DeleteObject acTable, glbTablePrefix & tbName & "_COLL"
+      blDeletingTable = False
+      xmlObjs.MoveNext
+    Loop
+End If
+
+blDeletingTable = True
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_IMPORT"
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_IMPORT_COLL"
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT"
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_EXPORT_COLL"
+
+blDeletingTable = False
+
+
+cleanupXMLStructureTables = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+If (blDeletingTable And (Err = 3011 Or Err = 7874)) Then
+  Resume Next
+End If
+
+
+MsgBox "Errorcode: " & Err & Chr(13) & Error$, 16
+Exit Function
+End Function

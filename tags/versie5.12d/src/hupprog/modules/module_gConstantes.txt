@@ -1,0 +1,140 @@
+Option Compare Database
+Option Explicit
+
+Public Const LIMEPS = 0.001
+
+Public Const CAT_MAX_AGE = 10000
+
+Public Const FRM_ERR_DUP_INDEX = 3022    'duplictate index
+Public Const FRM_ERR_REL_NO_PARENT = 3201    'toevoegen aan related tabel
+Public Const FRM_ERR_REL_HAS_DESC = 3200    'verwijderen uit hoofdtabel
+Public Const FRM_ERR_NO_MATCHING_KEY = 3101      'there is no record with key matching enz
+Public Const FRM_ERR_INV_DATA_ENTRY = 2113   'data is invalid for field type
+Public Const FRM_ERR_INV_KEY = 3058 ' a key is null
+
+Public Const FRM_ERR_MSG_DATA_ENTRY = "De tekst die u hebt ingevuld kon niet worden verwerkt." & vbCrLf & vbCrLf & "Voorbeelden van geldige invoer voor zwemtijden:" & vbCrLf & _
+  "30.23  (geeft 0.30.23)" & vbCrLf & "113.23 (geeft 1.13.23)" & vbCrLf & "10148.33 (geeft 1.01.48.33)" & vbCrLf & vbCrLf & _
+  "Voorbeelden van geldige invoer voor data: " & vbCrLf & _
+  "01-03-2009 (geeft 1 maart 2009 )" & vbCrLf & "1-5  (geeft 1 mei van het huidige jaar)" & vbCrLf & "feb 27 (geeft 27 februari van het huidige jaar)"
+
+
+
+
+Public Const DIS_ZK = "ZK"
+Public Const DIS_AFM = "AFM"
+Public Const DIS_NG = "NG"
+Public Const DIS_NGZA = "NGZA"
+Public Const DIS_VV = "VV"
+
+
+
+
+Public Const REG_N_REGIONS = 14
+
+
+Public Const MAX_N_LEVELS = 20
+
+Public Const MAX_N_PNT_PROGS = 550
+
+Public Const MAX_N_PROGS = 3000
+Public Const MAX_N_VAR_CATS = 50000
+Public Const MAX_N_VAR_CATS_PER_PROG = 10
+Public Const MAX_N_VAR_CATS_PER_PROG_NON_DISPLAY = 50
+Public Const MAX_N_RECORDS = 50000
+Public Const MAX_N_REC_PER_PROG = 15
+
+
+Public Const LFT_MODE_SZYR = "SZYR"
+Public Const LFT_MODE_WEDYR_START = "WEDYR_START"
+Public Const LFT_MODE_WEDYR_END = "WEDYR"
+Public Const LFT_MODE_WEDDAT = "WEDDAT"
+
+Public Const RELAY_MODE_BOTH = "BOTH"
+Public Const RELAY_MODE_TEAM = "TEAM"
+Public Const RELAY_MODE_IND = "IND"
+
+Public Const LX_RELAY_MODE_NONE = "NONE"
+Public Const LX_RELAY_MODE_BOTH = "BOTH"
+Public Const LX_RELAY_MODE_CLUB = "CLUB"
+Public Const LX_RELAY_MODE_IND = "INDIVIDUAL"
+
+Public Const LX_LFT_MODE_DATE = "DATE"
+Public Const LX_LFT_MODE_YEAR = "YEAR"
+
+Public Const LX_STATUS_EXH = "EXH"
+
+
+Public Const LX_VERSION_2 = 200
+Public Const LX_VERSION_3 = 300
+
+
+
+Public Const QLF_CONV_SAME_LN_ONLY = "LNEQ"
+Public Const QLF_CONV_FINA_POINTS = "FINA"
+Public Const QLF_CONV_NONE = "NONE"
+Public Const QLF_CONV_PREFER_LCM = "PRF_LCM"
+
+Public Const PROG_TYPE_FIN = "FIN"
+Public Const PROG_TYPE_SF = "SF"
+Public Const PROG_TYPE_QF = "QF"
+Public Const PROG_TYPE_AFIN = "AFIN"
+Public Const PROG_TYPE_BFIN = "BFIN"
+Public Const PROG_TYPE_CFIN = "CFIN"
+Public Const PROG_TYPE_FST = "FST"
+Public Const PROG_TYPE_SER = "SER"
+Public Const PROG_TYPE_SWOFF = "SO"
+Public Const PROG_TYPE_RANKING = "RNK"
+Public Const PROG_TYPE_PUNT = "PNT"
+
+
+Global Const MAX_ESTAF_LIST_CNT = 30
+Global Const MAX_ESTAF_CNT = 25
+Global Const MAX_ESTAF_RES = 2
+Global Const MAX_N_MEETEL = 20 'Cannot be 25
+Global Const MAX_N_DLN_VERS = 3000
+
+Global Const MAX_N_TUSSENTIJDEN = 250
+
+
+
+Type RECORD_INFO
+  recType As String * 10
+  naam As String * 50
+  tijd As Double
+  Plaats As String * 50
+  datum As Date
+  tussentijden As String
+End Type
+Type CAT_INFO
+  cat As String * 20
+  bescat As String * 50
+  lim As String * 50
+  resLim As String * 50
+  vvt As Double
+  rec As RECORD_INFO
+  blDetFromEvDetails As Boolean
+  Code As String * 4
+End Type
+
+Type CONTACT_INFO
+  naam As String
+  Plaats As String
+  nation As String
+  Email As String
+  fax As String
+  internet As String
+  mobiel As String
+  tel As String
+  state As String
+  adres As String
+  adres2 As String
+  Postcode As String
+End Type
+
+Public Type LX_IMP_STATS
+  nNewWeds As Integer
+  nNewProgs As Integer
+  newWedMinNr As Long
+  nNewSwimmer As Long
+  nImpWed As Integer
+End Type

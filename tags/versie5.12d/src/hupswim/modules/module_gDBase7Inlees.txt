@@ -1,0 +1,839 @@
+Option Compare Database
+Option Explicit
+
+Const maxNFields = 100
+Const dbtStartFieldByte = 33
+Const dbtEmptyBytes = 8 + 16 * 16
+Const dbtEndFieldTerminator = 13 '0x0D
+Const dbtEndFileTerminator = 26 '0x0A
+Const fltString = 0
+Const fltNum = 1
+Const fltLog = 2
+Const fltDate = 3
+
+
+
+
+Public Function ImportDBase7Table(file As String, tableName As String) As Boolean
+On Error GoTo fout
+'======================================================================
+'Deze functie leest uit een Binary DBAse 7 file en maakt een nieuwe tabel
+'binnen Access aan met de naam tableName
+'=======================================================================
+
+'x,1 = VeldNaam
+'x,2 = Lengte
+'x,3 = VeldType
+
+
+Dim FieldData(0 To maxNFields, 1 To 3) As Variant
+Dim nFields As Integer
+Dim Nr As Integer
+Nr = FreeFile
+
+Open file For Binary As #Nr
+
+
+Dim buf As Byte
+Dim strBuf As String
+Dim tpFieldName As String
+Dim tpFieldType As Integer
+Dim tpFieldLength As Integer
+
+Get #Nr, 1, buf
+
+'If buf <> 48 Then
+  'MsgBox "U heeft niet het juiste bestandsformaat geselecteerd.", 16
+  'Close #nr
+  'Exit Function
+'End If
+  
+
+DoCmd.Hourglass True
+
+
+' We gaan eerst alle velden inlezen
+nFields = 0
+Get #Nr, dbtStartFieldByte, buf
+
+Dim errCnt As Integer
+errCnt = 0
+
+Do Until buf = dbtEndFieldTerminator '0x0D end FieldNames Terminator
+  strBuf = ""
+  While buf <> 0
+    strBuf = strBuf & Chr(buf)
+    Get #Nr, , buf
+    errCnt = errCnt + 1
+    If errCnt > 15000 Then
+      GoTo lbEndDo
+    End If
+    
+  Wend
+  tpFieldName = strBuf
+  Get #Nr, dbtStartFieldByte + nFields * 32 + 11, buf
+  Select Case buf
+    Case Asc("C")
+      tpFieldType = fltString
+    Case Asc("N")
+      tpFieldType = fltNum
+    Case Asc("L")
+      tpFieldType = fltLog
+    Case Else
+      tpFieldType = fltString
+  End Select
+  
+  Get #Nr, dbtStartFieldByte + nFields * 32 + 16, buf
+  tpFieldLength = buf
+  
+  nFields = nFields + 1
+  FieldData(nFields, 1) = tpFieldName
+  FieldData(nFields, 2) = tpFieldLength
+  FieldData(nFields, 3) = tpFieldType
+  Get #Nr, dbtStartFieldByte + nFields * 32, buf
+  errCnt = errCnt + 1
+  If errCnt > 15000 Then
+    GoTo lbEndDo
+  End If
+  
+  
+Loop
+
+lbEndDo:
+If errCnt > 15000 Then
+  MsgBox "U heeft niet het juiste bestandsformaat geselecteerd of het bestand is corrupt." & Chr$(13) & "Vermoedelijk is het bestand over de email beschadigd." _
+  & Chr$(13) & "Vraag de betreffende vereniging het bestand nogmaals in te sturen, ditmaal ingepakt met behulp van WINZIP. " & _
+  "Dit voorkomt beschadiging.", 16
+  ImportDBase7Table = False
+  DoCmd.Hourglass False
+  Close
+  Exit Function
+End If
+
+'We maken een nieuwe tabel aan.
+
+Dim i As Integer
+Dim mydb As Database
+Dim tpTable As TableDef
+
+Set mydb = CurrentDb()
+
+Set tpTable = mydb.CreateTableDef
+
+tpTable.name = tableName
+For i = 1 To nFields
+  Select Case FieldData(i, 3)
+  Case fltString
+    tpTable.Fields.Append tpTable.CreateField(FieldData(i, 1), dbText, FieldData(i, 2))
+  Case fltNum
+    tpTable.Fields.Append tpTable.CreateField(FieldData(i, 1), dbDouble)
+  Case fltLog
+    tpTable.Fields.Append tpTable.CreateField(FieldData(i, 1), dbBoolean)
+  End Select
+Next i
+
+mydb.TableDefs.Append tpTable
+Set tpTable = Nothing
+
+
+'Alle overbodige nullen eruit lezen...
+Dim uitvoer
+Set uitvoer = mydb.OpenRecordset(tableName)
+
+Get #Nr, dbtStartFieldByte + nFields * 32 + 1, buf
+
+If (buf = 0) Then
+  Get #Nr, dbtStartFieldByte + nFields * 32 + dbtEmptyBytes, buf
+End If
+
+Do Until EOF(Nr) Or buf = dbtEndFileTerminator
+  uitvoer.AddNew
+  For i = 1 To nFields
+    uitvoer(FieldData(i, 1)) = GetBinaryData(FieldData(i, 3), FieldData(i, 2), Nr)
+  Next i
+  uitvoer.Update
+  Get #Nr, , buf
+Loop
+
+
+
+
+
+Close #Nr
+
+uitvoer.Close
+DoCmd.Hourglass False
+ImportDBase7Table = True
+
+Exit Function
+fout:
+
+If Err = 3010 Then
+  DoCmd.DeleteObject acTable, tableName
+  Resume
+End If
+
+MsgBox Error$, 16
+
+Close #Nr
+
+'On Error GoTo 0
+'Resume
+
+DoCmd.Hourglass False
+Exit Function
+
+
+
+End Function
+
+
+Private Function GetBinaryData(ByVal Dtype As Integer, ByVal Length As Integer, ByVal Nr As Integer) As Variant
+On Error GoTo fout
+'========We geven alles als Variant terug============
+
+'=========
+'0x20 staat voor spatie
+'asc(F) staat voor false bij logical fields
+'asc(T) staat voor true bij logical fields
+'0x20 bij logical fields staat voor niet ingevuld...
+'=========
+
+Dim i As Integer
+Dim strBuf As String
+Dim buf As Byte
+strBuf = ""
+
+For i = 1 To Length
+  Get #Nr, , buf
+  strBuf = strBuf & Chr(buf)
+Next i
+
+Select Case Dtype
+Case fltNum
+  GetBinaryData = CInt(val(Nz(strBuf, 0)))
+Case fltLog
+  GetBinaryData = (Nz(strBuf) = "T" Or Nz(strBuf) = "t")
+Case Else 'includes fltString
+  If Trim(Nz(strBuf, "")) = "" Then
+    GetBinaryData = Null
+  Else
+    GetBinaryData = Trim(Nz(strBuf, ""))
+  End If
+End Select
+
+Exit Function
+fout:
+MsgBox Error$, 64
+Exit Function
+End Function
+
+
+Public Function ImportDBaseGetDatumPlaats(file As String, ByRef Plaats, ByRef Datum) As Boolean
+On Error GoTo fout
+Dim Nr As Integer
+Nr = FreeFile
+Open file For Binary As #Nr
+Dim buf As Byte
+
+Get #Nr, 1, buf
+
+If buf <> 48 Then
+  MsgBox "U heeft niet het juiste bestandsformaat geselecteerd.", 16
+  Close #Nr
+  Exit Function
+End If
+
+
+
+
+Get #1, 1351, buf
+Plaats = GetBinaryData(fltString, 15, Nr)
+Datum = GetBinaryData(fltString, 10, Nr)
+
+ImportDBaseGetDatumPlaats = True
+Close #Nr
+Exit Function
+
+fout:
+MsgBox Error$, 16
+Close #Nr
+
+Exit Function
+
+
+End Function
+
+Public Function ImportDBaseGetVerNaam(file As String, ByRef mode) As String
+Dim FieldData(0 To maxNFields, 1 To 3) As Variant
+Dim nFields As Integer
+Dim Nr As Integer
+Nr = FreeFile
+
+Open file For Binary As #Nr
+
+
+Dim buf As Byte
+Dim strBuf As String
+Dim tpFieldName As String
+Dim tpFieldType As Integer
+Dim tpFieldLength As Integer
+
+Get #Nr, 1, buf
+
+If buf <> 48 Then
+  MsgBox "U heeft niet het juiste bestandsformaat geselecteerd.", 16
+  Close #Nr
+  Exit Function
+End If
+  
+
+DoCmd.Hourglass True
+
+
+' We gaan eerst alle velden inlezen
+nFields = 0
+Get #Nr, dbtStartFieldByte, buf
+
+Dim errCnt As Integer
+errCnt = 0
+
+Do Until buf = dbtEndFieldTerminator '0x0D end FieldNames Terminator
+  strBuf = ""
+  While buf <> 0
+    strBuf = strBuf & Chr(buf)
+    Get #Nr, , buf
+    errCnt = errCnt + 1
+    If errCnt > 15000 Then
+      GoTo lbEndDo
+    End If
+    
+  Wend
+  tpFieldName = strBuf
+  Get #Nr, dbtStartFieldByte + nFields * 32 + 11, buf
+  Select Case buf
+    Case Asc("C")
+      tpFieldType = fltString
+    Case Asc("N")
+      tpFieldType = fltNum
+    Case Asc("L")
+      tpFieldType = fltLog
+    Case Else
+      tpFieldType = fltString
+  End Select
+  
+  Get #Nr, dbtStartFieldByte + nFields * 32 + 16, buf
+  tpFieldLength = buf
+  
+  nFields = nFields + 1
+  FieldData(nFields, 1) = tpFieldName
+  FieldData(nFields, 2) = tpFieldLength
+  FieldData(nFields, 3) = tpFieldType
+  Get #Nr, dbtStartFieldByte + nFields * 32, buf
+  errCnt = errCnt + 1
+  If errCnt > 15000 Then
+    GoTo lbEndDo
+  End If
+  
+  
+Loop
+
+lbEndDo:
+If errCnt > 15000 Then
+  MsgBox "Het bestand is corrupt." & Chr$(13) & "Vermoedelijk is het bestand over de email beschadigd." _
+  & Chr$(13) & "Vraag de betreffende vereniging het bestand nogmaals in te sturen, ditmaal ingepakt met behulp van WINZIP. " & _
+  "Dit voorkomt beschadiging.", 16
+  ImportDBaseGetVerNaam = False
+  DoCmd.Hourglass False
+  Close
+  Exit Function
+End If
+
+'We maken een nieuwe tabel aan.
+
+Dim i As Integer
+
+Dim varBuf
+'Alle overbodige nullen eruit lezen...
+
+Get #Nr, dbtStartFieldByte + nFields * 32 + dbtEmptyBytes, buf
+
+For i = 1 To nFields
+  varBuf = GetBinaryData(FieldData(i, 3), FieldData(i, 2), Nr)
+  If FieldData(i, 1) = "Verenig" Then
+    ImportDBaseGetVerNaam = Nz(varBuf, "")
+  End If
+Next i
+
+
+'Debug
+
+mode = 1
+
+
+
+Close #Nr
+
+DoCmd.Hourglass False
+
+
+Exit Function
+fout:
+
+
+MsgBox Error$, 16
+
+Close #Nr
+DoCmd.Hourglass False
+Exit Function
+
+End Function
+
+Public Function IsDBase7File(file As String) As Boolean
+On Error GoTo fout
+
+Dim Nr
+Nr = FreeFile
+
+Open file For Binary As Nr
+
+Dim buf As Byte
+
+Get #Nr, 1, buf
+
+IsDBase7File = (buf = 48)
+
+Close #Nr
+Exit Function
+
+fout:
+Close #Nr
+Exit Function
+End Function
+
+Public Function ImportDBase7GetDatumPlaats2(file As String, ByRef Datum, ByRef Plaats) As Boolean
+On Error GoTo fout
+'==========================================================================================================
+'Deze functie leest één record uit een Binary DBAse 7 file en bepaalt de datum en de plaats van een uitslag.
+'==========================================================================================================
+
+'x,1 = VeldNaam
+'x,2 = Lengte
+'x,3 = VeldType
+
+
+Dim FieldData(0 To maxNFields, 1 To 3) As Variant
+Dim nFields As Integer
+Dim Nr As Integer
+Nr = FreeFile
+
+Open file For Binary As #Nr
+
+
+Dim buf As Byte
+Dim strBuf As String
+Dim tpFieldName As String
+Dim tpFieldType As Integer
+Dim tpFieldLength As Integer
+
+Get #Nr, 1, buf
+
+If buf <> 48 Then
+  MsgBox "U heeft niet het juiste bestandsformaat geselecteerd.", 16
+  Close #Nr
+  Exit Function
+End If
+  
+
+DoCmd.Hourglass True
+
+
+' We gaan eerst alle velden inlezen
+nFields = 0
+Get #Nr, dbtStartFieldByte, buf
+
+Dim errCnt As Integer
+errCnt = 0
+
+Do Until buf = dbtEndFieldTerminator '0x0D end FieldNames Terminator
+  strBuf = ""
+  While buf <> 0
+    strBuf = strBuf & Chr(buf)
+    Get #Nr, , buf
+    errCnt = errCnt + 1
+    If errCnt > 15000 Then
+      GoTo lbEndDo
+    End If
+    
+  Wend
+  tpFieldName = strBuf
+  Get #Nr, dbtStartFieldByte + nFields * 32 + 11, buf
+  Select Case buf
+    Case Asc("C")
+      tpFieldType = fltString
+    Case Asc("N")
+      tpFieldType = fltNum
+    Case Asc("L")
+      tpFieldType = fltLog
+    Case Else
+      tpFieldType = fltString
+  End Select
+  
+  Get #Nr, dbtStartFieldByte + nFields * 32 + 16, buf
+  tpFieldLength = buf
+  
+  nFields = nFields + 1
+  FieldData(nFields, 1) = tpFieldName
+  FieldData(nFields, 2) = tpFieldLength
+  FieldData(nFields, 3) = tpFieldType
+  Get #Nr, dbtStartFieldByte + nFields * 32, buf
+  errCnt = errCnt + 1
+  If errCnt > 15000 Then
+    GoTo lbEndDo
+  End If
+  
+  
+Loop
+
+lbEndDo:
+If errCnt > 15000 Then
+  MsgBox "Het bestand is corrupt." & Chr$(13) & "Vermoedelijk is het bestand over de email beschadigd." _
+  & Chr$(13) & "Vraag de betreffende vereniging het bestand nogmaals in te sturen, ditmaal ingepakt met behulp van WINZIP. " & _
+  "Dit voorkomt beschadiging.", 16
+  ImportDBase7GetDatumPlaats2 = False
+  DoCmd.Hourglass False
+  Close
+  Exit Function
+End If
+'We maken een nieuwe tabel aan.
+
+Dim i As Integer
+
+Dim varBuf
+'Alle overbodige nullen eruit lezen...
+
+Get #Nr, dbtStartFieldByte + nFields * 32 + dbtEmptyBytes, buf
+
+For i = 1 To nFields
+  varBuf = GetBinaryData(FieldData(i, 3), FieldData(i, 2), Nr)
+  If FieldData(i, 1) = "Datum" Then
+    Datum = Nz(varBuf, "")
+  ElseIf FieldData(i, 1) = "Plaats" Then
+    Plaats = Nz(varBuf, "")
+  End If
+Next i
+
+
+
+
+
+Close #Nr
+
+DoCmd.Hourglass False
+ImportDBase7GetDatumPlaats2 = True
+
+Exit Function
+fout:
+
+
+MsgBox Error$, 16
+
+Close #Nr
+DoCmd.Hourglass False
+Exit Function
+
+
+
+End Function
+
+
+Public Function ExportDBase7Table(file As String, tableName As String) As Boolean
+On Error GoTo fout
+'======================================================================
+'Deze functie leest uit een Binary DBAse 7 file en maakt een nieuwe tabel
+'binnen Access aan met de naam tableName
+'=======================================================================
+
+'x,1 = VeldNaam
+'x,2 = Lengte
+'x,3 = VeldType
+'x,4 = fieldstartpos
+
+Dim FieldData(0 To maxNFields, 1 To 4) As Variant
+Dim nFields As Integer
+
+Dim tpFieldName As String
+Dim tpFieldType As Integer
+Dim tpFieldLength As Integer
+
+
+Dim mydb As Database, tpTable As TableDef
+Set mydb = CurrentDb()
+
+Set tpTable = mydb.TableDefs(tableName)
+
+nFields = tpTable.Fields.Count
+
+Dim i As Integer
+
+Dim recSize As Integer
+
+recSize = 0
+
+
+For i = 0 To nFields - 1
+  FieldData(i, 1) = tpTable.Fields(i).name
+  FieldData(i, 4) = recSize + 1
+  Select Case tpTable.Fields(i).Type
+    Case dbText
+      
+      FieldData(i, 3) = fltString
+      FieldData(i, 2) = tpTable.Fields(i).Size
+      
+    Case dbInteger
+      FieldData(i, 3) = fltNum
+      FieldData(i, 2) = CInt(val(tpTable.Fields(i).ValidationText))
+    Case dbBoolean
+      FieldData(i, 3) = fltLog
+      FieldData(i, 2) = 1
+    Case dbDate
+      FieldData(i, 3) = fltDate
+      FieldData(i, 2) = 8
+    Case Else
+      FieldData(i, 3) = fltString
+      FieldData(i, 2) = tpTable.Fields(i).Size
+  End Select
+  recSize = recSize + FieldData(i, 2)
+Next i
+
+recSize = recSize + 1
+
+
+
+Dim headSize As Integer
+headSize = (nFields + 1) * 32 + dbtEmptyBytes
+
+
+
+
+Dim Nr As Integer
+Nr = FreeFile
+
+
+If dir(file) <> "" Then Kill file
+
+
+Open file For Binary As #Nr
+
+
+Dim buf As Byte
+Dim strBuf As String
+Dim nRecs As Integer
+
+buf = 48
+Put #Nr, 1, buf
+
+Dim geg As Recordset
+Set geg = mydb.OpenRecordset(tableName)
+
+Dim blLeeg As Boolean
+blLeeg = False
+
+geg.MoveLast
+
+
+If blLeeg Then
+  nRecs = 0
+Else
+  nRecs = geg.RecordCount
+End If
+
+
+
+
+
+
+'buf = 99 'year
+buf = CByte(Format(Now, "yy"))
+Put #Nr, , buf
+'buf = 12  'month
+buf = CByte(Format(Now, "mm"))
+Put #Nr, , buf
+'buf = 10  'day
+buf = CByte(Format(Now, "dd"))
+Put #Nr, , buf
+buf = nRecs Mod 256 'nRecs_1
+Put #Nr, , buf
+buf = (nRecs \ 256) Mod 256 'nRecs_2
+Put #Nr, , buf
+buf = 0     'bit 7
+Put #Nr, , buf 'bit 8
+buf = 0
+Put #Nr, , buf
+buf = headSize Mod 256   'headsize mod 256
+Put #Nr, , buf
+buf = (headSize \ 256) Mod 256 'headsize _2
+Put #Nr, , buf
+buf = (recSize Mod 256)    'recsize_1
+Put #Nr, , buf
+buf = (recSize \ 256) Mod 256  'recsize_2
+Put #Nr, , buf
+DoCmd.Hourglass True
+
+Dim outS As String
+'wijziging dd oktober 2004.
+'outS = String(dbtStartFieldByte - 13, 0)
+outS = String(17, 0)
+
+PutSequence outS, Nr
+
+'nog twee nullen
+buf = 3
+Put #Nr, , buf
+
+outS = String(2, 0)
+PutSequence outS, Nr
+
+
+' We gaan eerst alle velden exporteren
+
+For i = 0 To nFields - 1
+  outS = Trim(Left(FieldData(i, 1), 10))
+  outS = outS & String(11 - Len(outS), 0)
+  'outS is nu gelijk aan veldnaam
+  PutSequence outS, Nr
+  
+  Select Case FieldData(i, 3)
+    Case fltString
+      buf = Asc("C")
+      Put #Nr, , buf
+    Case fltNum
+      buf = Asc("N")
+      Put #Nr, , buf
+    Case fltLog
+      buf = Asc("L")
+      Put #Nr, , buf
+    Case fltDate
+      buf = Asc("D")
+      Put #Nr, , buf
+  End Select
+
+
+'wijziging oktober 2004.
+'Niet vier nullen, maar slechts twee.
+'Eerste twee posities zijn voor cumulative rec size
+buf = FieldData(i, 4) Mod 256
+Put #Nr, , buf
+buf = (FieldData(i, 4) \ 256) Mod 256
+Put #Nr, , buf
+
+  'Nu aanvullen met 4 nullen
+  'outS = String(4, 0)
+  
+  outS = String(2, 0)
+  PutSequence outS, Nr
+  
+  'Nu veldlengte neerdumpen
+  buf = CByte(FieldData(i, 2))
+  Put #Nr, , buf
+  
+  'Nu aanvullen met 15 nullen
+  outS = String(15, 0)
+  PutSequence outS, Nr
+Next i
+'Nu end of fielddata terminator neerzetten
+buf = dbtEndFieldTerminator
+Put #Nr, , buf
+
+
+'Hele zooi nullen erin zetten...
+outS = String(dbtEmptyBytes - 1, 0)
+PutSequence outS, Nr
+
+
+geg.MoveFirst
+
+Do Until geg.EOF
+  buf = Asc(" ")
+  Put #Nr, , buf
+  For i = 0 To nFields - 1
+    Select Case FieldData(i, 3)
+      Case fltString
+        outS = Left(Nz(geg(FieldData(i, 1))), FieldData(i, 2))
+        outS = outS & String(FieldData(i, 2) - Len(outS), Asc(" "))
+      Case fltNum
+        outS = Left(CStr(Nz(geg(FieldData(i, 1)))), FieldData(i, 2))
+        outS = String(FieldData(i, 2) - Len(outS), Asc(" ")) & outS
+      Case fltLog
+        If Nz(geg(FieldData(i, 1)), False) Then
+          outS = "T"
+        Else
+          outS = "F"
+        End If
+      Case fltDate
+        If Nz(geg(FieldData(i, 1)), "") = "" Then
+          outS = "        "
+        Else
+          outS = Format(Nz(geg(FieldData(i, 1))), "yyyymmdd")
+        End If
+    End Select
+    PutSequence outS, Nr
+  Next i
+  
+  geg.MoveNext
+Loop
+
+buf = dbtEndFileTerminator
+Put #Nr, , buf
+
+
+
+Close #Nr
+
+
+DoCmd.Hourglass False
+ExportDBase7Table = True
+
+Exit Function
+fout:
+
+
+
+
+
+
+If Err = 3021 Then
+  blLeeg = True
+  Resume Next
+End If
+
+
+Close #Nr
+
+
+MsgBox Error$, 16
+
+
+'debug
+'On Error GoTo 0
+'Resume
+
+DoCmd.Hourglass False
+Exit Function
+
+
+
+End Function
+
+Private Function PutSequence(ByVal seq As String, ByVal Nr As Integer)
+On Error Resume Next
+Dim i As Integer
+Dim ch As String
+Dim buf As Byte
+For i = 1 To Len(seq)
+  ch = Mid(seq, i, 1)
+  buf = CByte(Asc(ch))
+  Put #Nr, , buf
+Next i
+
+End Function

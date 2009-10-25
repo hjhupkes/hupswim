@@ -1,0 +1,2895 @@
+Option Compare Database
+Option Explicit
+
+Const LIM_CODE_ZERO = 1
+Const LIM_CODE_INFTY = 2
+Const LIM_CODE_LEVEL = 3
+Const LIM_CODE_FINA = 4
+Const LIM_CODE_FILE = 5
+
+Public Const LIM_ACTION_CLEAR_LIM = 1
+Public Const LIM_ACTION_CLEAR_VVT = 2
+Public Const LIM_ACTION_SET_VVT = 3
+Public Const LIM_ACTION_SET_MIX = 4
+Public Const LIM_ACTION_SET_STD = 5
+
+Public Const REC_ACTION_CLEAR_MAIN = 1
+Public Const REC_ACTION_CLEAR_EXTRA = 2
+Public Const REC_ACTION_SET_MAIN = 3
+Public Const REC_ACTION_SET_EXTRA = 4
+
+
+
+
+
+Public Function limImportLimits_Cleanup()
+On Error GoTo fout
+limImportLimits_Cleanup = False
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "Delete * from gLIM_IMP_Limsets"
+DoCmd.RunSQL sql
+
+sql = "Delete * from gLIM_IMP_Lims"
+DoCmd.RunSQL sql
+
+sql = "Delete * from gLIM_IMP_Options"
+DoCmd.RunSQL sql
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gLIM_IMP_Options")
+
+
+'Restore options to default values.
+rs.AddNew
+  rs("ILO_AppendFinaBaan") = 25
+  rs("ILO_AppendFinaPoints") = 0
+  rs("ILO_AppendLevelBaan") = 25
+  rs("ILO_AppendLevelCode") = "A+"
+  rs("ILO_LimAction") = hzn(LIM_ACTION_CLEAR_LIM)
+  rs("ILO_LimActionIncludeSubcats") = True
+  rs("ILO_LimActionNullifyOnNotFound") = True
+  rs("ILO_ProgsOnlyEmpty") = False
+  rs("ILO_ProgsSingleProgOnly") = False
+rs.Update
+
+appCleanRS rs
+
+
+
+DoCmd.SetWarnings True
+
+
+limImportLimits_Cleanup = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " limImportLimits_Cleanup" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+
+Private Function limImportLimits_Read_Was_File_Append_Lim(ByRef rsLim As Recordset, ByRef maxUsedLimID As Long, ByVal ges As String, ByVal lft As Long, ByVal af As String, ByVal sl As String, ByVal bn As Integer, ByVal isMin As Boolean, ByVal td As Double, ByVal limName As String) As Boolean
+On Error GoTo fout
+limImportLimits_Read_Was_File_Append_Lim = False
+
+maxUsedLimID = maxUsedLimID + 1
+
+rsLim.AddNew
+  rsLim("LIM_ID") = maxUsedLimID
+  rsLim("LIM_IsVVT") = False
+  rsLim("LIM_IsMinLim") = isMin
+  rsLim("LIM_ISMaxLim") = Not isMin
+  rsLim("LIM_Baan") = bn
+  rsLim("INT_MAX_AGE") = lft
+  rsLim("INT_Geslacht") = ges
+  rsLim("LIM_Tijd") = td
+  rsLim("LIM_Afstand") = af
+  rsLim("LIM_Slag") = sl
+  rsLim("LIM_Name") = limName
+
+rsLim.Update
+
+limImportLimits_Read_Was_File_Append_Lim = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+'to become private
+Private Function limImportLimits_Read_Was_File(fName As String) As Boolean
+On Error GoTo fout
+limImportLimits_Read_Was_File = False
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL "delete * from gWAS_XML_LIM"
+DoCmd.SetWarnings True
+
+If Not gXMLReader.importXMLTable(fName, "gWAS_XML_LIM", True) Then
+  Exit Function
+End If
+
+If Not lenCleanTransferTables() Then
+  Exit Function
+End If
+
+'Now fill gIMP_LEN_LIMIETEN table.
+
+Dim rsInp As Recordset
+Dim rsOut As Recordset
+
+Set rsInp = CurrentDb().OpenRecordset("gWAS_XML_LIM")
+Set rsOut = CurrentDb().OpenRecordset("gIMP_LEN_LIMIETEN")
+
+Dim maxUsedLimID As Long
+maxUsedLimID = 0
+
+rsInp.MoveFirst
+Do Until rsInp.EOF
+  
+  Dim maxAge As Integer
+  Dim ges As String
+  Dim af As String
+  Dim sl As String
+  
+  
+  af = Nz(rsInp("afstand"))
+  sl = slag_from_was(Nz(rsInp("slag")))
+  
+  
+  Dim alim25 As Double
+  Dim blim25 As Double
+  
+  Dim alim50 As Double
+  Dim blim50 As Double
+  
+  maxAge = val(Nz(rsInp("jrg")))
+  If (maxAge <= 0) Then
+    maxAge = 0
+  ElseIf (maxAge >= 20) Then
+    maxAge = CAT_MAX_AGE
+  End If
+  
+  ges = ges_from_was(Nz(rsInp("mj")))
+  
+  alim25 = tijd_from_was(Nz(rsInp("a_limiet25")))
+  blim25 = tijd_from_was(Nz(rsInp("b_limiet25")))
+  
+  alim50 = tijd_from_was(Nz(rsInp("a_limiet50")))
+  blim50 = tijd_from_was(Nz(rsInp("b_limiet50")))
+  
+  Dim bl2550Equal As Boolean
+  bl2550Equal = True
+  
+  If (Abs(alim25 - alim50) < 0.001) Then
+     bl2550Equal = True
+  End If
+  
+  
+  Dim bl25ABEqual As Boolean
+  Dim bl25BValid As Boolean
+  Dim bl25BIsRes As Boolean
+  
+     
+  bl25ABEqual = False
+  bl25BValid = False
+  bl25BIsRes = False
+  
+  
+  
+  Dim bl50ABEqual As Boolean
+  Dim bl50BValid As Boolean
+  Dim bl50BIsRes As Boolean
+  
+     
+  bl50ABEqual = False
+  bl50BValid = False
+  bl50BIsRes = False
+  
+  
+  If (Abs(alim25 - blim25) < 0.001) Then
+     bl25ABEqual = True
+  ElseIf Abs(blim25) > 1 Then
+    bl25BValid = True
+    If (Abs(alim25 - blim25) < (afstand_tot_distance(af) / 50) * 0.4) And (Abs(alim25 - blim25) < 5#) Then
+      bl25BIsRes = True
+    End If
+  End If
+  
+  If Not bl2550Equal Then
+    If (Abs(alim50 - blim50) < 0.001) Then
+      bl50ABEqual = True
+    ElseIf Abs(blim50) > 1 Then
+      bl50BValid = True
+      If (Abs(alim50 - blim50) < (afstand_tot_distance(af) / 50) * 0.4) And (Abs(alim50 - blim50) < 5#) Then
+        bl50BIsRes = True
+      End If
+    End If
+  End If
+  
+  Dim limName As String
+  Dim limTd As Double
+  Dim limBn As Integer
+  
+  If (bl2550Equal) Then
+    If (bl25ABEqual) Then
+      'single limit
+      limName = "Limiet"
+      limTd = alim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+    ElseIf (bl25BIsRes) Then
+      'limit + reserve margin
+      limName = "Limiet"
+      limTd = alim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+      limName = "Reserve Limiet"
+      limTd = blim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, True, limTd, limName) Then
+        Exit Function
+      End If
+    Else
+      'two different limits.
+      'limit + reserve margin
+      limName = "A-Limiet"
+      limTd = alim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+      limName = "B-Limiet"
+      limTd = blim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+    End If
+  Else
+    'Aparte 25 + 50 limieten.
+    If (bl25ABEqual) Then
+      'single limit
+      limName = "Limiet 25m"
+      limTd = alim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+    ElseIf (bl25BIsRes) Then
+      'limit + reserve margin
+      limName = "Limiet 25m"
+      limTd = alim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+      limName = "Reserve Limiet 25m"
+      limTd = blim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, True, limTd, limName) Then
+        Exit Function
+      End If
+    Else
+      'two different limits.
+      'limit + reserve margin
+      limName = "A-Limiet 25m"
+      limTd = alim25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+      limName = "B-Limiet 25m"
+      limTd = blim25
+      limBn = 25
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+    End If
+    
+    If (bl50ABEqual) Then
+      'single limit
+      limName = "Limiet 50m"
+      limTd = alim50
+      limBn = 50
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+    ElseIf (bl50BIsRes) Then
+      'limit + reserve margin
+      limName = "Limiet 50m"
+      limTd = alim50
+      limBn = 50
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+      limName = "Reserve Limiet 50m"
+      limTd = blim50
+      limBn = 50
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, True, limTd, limName) Then
+        Exit Function
+      End If
+    Else
+      'two different limits.
+      'limit + reserve margin
+      limName = "A-Limiet 50m"
+      limTd = alim50
+      limBn = 50
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+      limName = "B-Limiet 50m"
+      limTd = blim50
+      limBn = 50
+      If Not limImportLimits_Read_Was_File_Append_Lim(rsOut, maxUsedLimID, ges, maxAge, af, sl, limBn, False, limTd, limName) Then
+        Exit Function
+      End If
+      
+    End If
+  
+  End If
+  
+  
+  
+
+  rsInp.MoveNext
+Loop
+
+
+limImportLimits_Read_Was_File = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+'to become private
+Private Function limImportLimits_Compare(lim1SetID As Long, lim2SetID As Long, ByRef compare As Integer) As Boolean
+On Error GoTo fout
+limImportLimits_Compare = False
+
+compare = 0
+
+
+ 'Need to determine how the limits compare.
+ Dim limS As Recordset
+ Dim sql As String
+ sql = "SELECT gLIM_IMP_Lims.* FROM gLIM_Imp_Lims " & _
+       "ORDER BY LIM_Geslacht, LIM_Max_Age, LIM_Afstand, LIM_Slag, LIM_Tijd; "
+
+ Set limS = CurrentDb().OpenRecordset(sql)
+ 
+ Dim prvSl As String
+ Dim prvAf As String
+ Dim prvGs As String
+ Dim prvAge As Integer
+ Dim prvTijd As Double
+ Dim prvIsOne As Boolean
+ 
+ prvSl = ""
+ prvAf = ""
+ prvGs = ""
+ prvAge = -1
+ prvTijd = 0
+ prvIsOne = False
+ 
+ limS.MoveFirst
+ Do Until limS.EOF
+   Dim curSl As String
+   Dim curAf As String
+   Dim curGs As String
+   Dim curAge As Integer
+   Dim curTijd As Double
+   Dim curIsOne As Boolean
+   
+   Dim limSetID As Long
+   limSetID = Nz(limS("LIM_SET_ID"))
+   
+   Dim limIs1 As Boolean
+   Dim limIs2 As Boolean
+   limIs1 = False
+   limIs2 = False
+   
+   If (limSetID = lim1SetID) Then
+     limIs1 = True
+   ElseIf (limSetID = lim2SetID) Then
+     limIs2 = True
+   End If
+   
+   
+   If (limIs1 Or limIs2) Then
+     'Allow the limit to be processed.
+     
+     curSl = Nz(limS("LIM_Slag"))
+     curAf = Nz(limS("LIM_Afstand"))
+     curGs = Nz(limS("LIM_Geslacht"))
+     curAge = Nz(limS("LIM_MAX_AGE"))
+     curTijd = Nz(limS("LIM_TIJD"))
+     curIsOne = limIs1
+ 
+     If (curSl = prvSl) And (curAf = prvAf) And (curGs = prvGs) And (curAge = prvAge) Then
+       'We have a match
+       If (curTijd > prvTijd + LIMEPS) Then
+         If (curIsOne And (Not prvIsOne)) Then
+           'one is larger than two.
+           compare = 1
+           Exit Do
+         ElseIf ((Not curIsOne) And (prvIsOne)) Then
+           'two is larger than one
+           compare = -1
+           Exit Do
+         End If
+         
+         
+       ElseIf (curTijd < prvTijd - LIMEPS) Then
+         If (curIsOne And (Not prvIsOne)) Then
+           'one is smaller than two
+           compare = -1
+           Exit Do
+         ElseIf ((Not curIsOne) And (prvIsOne)) Then
+           'two is smaller than one
+           compare = 1
+           Exit Do
+         End If
+       Else
+         If (curIsOne <> prvIsOne) Then
+           'they are equal to within tolerance.
+           compare = 0
+           Exit Do
+         End If
+       End If
+     End If 'if a match
+ 
+ 
+ 
+     prvSl = curSl
+     prvAf = curAf
+     prvGs = curGs
+     prvAge = curAge
+     prvTijd = curTijd
+     prvIsOne = curIsOne
+     
+   End If ' if the limit may be processed (isLim1 or isLim2)
+ 
+   limS.MoveNext
+Loop
+ 
+ 
+appCleanRS limS
+
+limImportLimits_Compare = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function limImportLimits_DetermineLimAction() As Boolean
+On Error GoTo fout
+limImportLimits_DetermineLimAction = False
+
+
+'This procedure will analyze the limits in the LEN_IMP_Limieten table and generate
+'some default import settings.
+
+
+'Now need to perform an analysis.
+'First check to see if 25m limits present.
+
+Dim rs As Recordset
+
+
+Dim hasVVT As Boolean
+Dim vvtSetID As Long
+
+Dim hasMin25 As Boolean
+Dim min25SetID As Long
+Dim hasMax25 As Boolean
+Dim max25SetID As Long
+Dim hasMin50 As Boolean
+Dim min50SetID As Long
+Dim hasMax50 As Boolean
+Dim max50SetID As Long
+
+hasVVT = False
+vvtSetID = -1
+
+hasMin25 = False
+min25SetID = -1
+hasMax25 = False
+max25SetID = -1
+hasMin50 = False
+min50SetID = -1
+hasMax50 = False
+max50SetID = -1
+
+
+Set rs = CurrentDb().OpenRecordset("select * from gLIM_Imp_Limsets where IL_INT_CODE = " & LIM_CODE_FILE)
+
+rs.MoveFirst
+
+Do Until rs.EOF
+
+  Dim bn As Integer, isMin As Boolean, isMax As Boolean, isVVT As Boolean, limSetID As Long
+  bn = Nz(rs("IL_FileBaan"))
+  isMin = Nz(rs("IL_FileIsMin"))
+  isMax = Nz(rs("IL_FileIsMax"))
+  isVVT = Nz(rs("IL_FileIsVVT"))
+  limSetID = Nz(rs("IL_Counter"))
+  
+  If (bn = 50) Then
+    If (isMin) Then
+      hasMin50 = True
+      min50SetID = limSetID
+    ElseIf (isMax) Then
+      hasMax50 = True
+      max50SetID = limSetID
+    End If
+  Else
+    If (isMin) Then
+       hasMin25 = True
+       min25SetID = limSetID
+    ElseIf (isMax) Then
+      hasMax25 = True
+      max25SetID = limSetID
+    End If
+  End If
+  
+  If (isVVT) Then
+    hasVVT = True
+    vvtSetID = limSetID
+  End If
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+Dim isReverse25 As Boolean
+Dim isReverse50 As Boolean
+
+isReverse25 = False
+isReverse50 = False
+
+Dim compare As Integer
+
+If (hasMin25 And hasMax25) Then
+  If Not limImportLimits_Compare(min25SetID, max25SetID, compare) Then
+    Exit Function
+  End If
+  If (compare = 0) Then
+    hasMax25 = False
+  ElseIf (compare > 0) Then
+    isReverse25 = True
+  End If
+End If
+
+If (hasMin50 And hasMax50) Then
+  If Not limImportLimits_Compare(min50SetID, max50SetID, compare) Then
+    Exit Function
+  End If
+  If (compare = 0) Then
+    hasMax50 = False
+  ElseIf (compare > 0) Then
+    isReverse50 = True
+  End If
+End If
+
+'Check to see if the 50m baan and 25m baan limits are equal or not.
+If (hasMin25 And hasMin50) Then
+  If Not limImportLimits_Compare(min25SetID, min50SetID, compare) Then
+    Exit Function
+  End If
+  If (compare = 0) Then
+    hasMin50 = False
+  End If
+End If
+
+If (hasMax25 And hasMax50) Then
+  If Not limImportLimits_Compare(max25SetID, max50SetID, compare) Then
+    Exit Function
+  End If
+  If (compare = 0) Then
+    hasMax50 = False
+  End If
+End If
+
+
+Dim has25 As Boolean
+Dim has50 As Boolean
+
+has25 = hasMin25 Or hasMax25
+has50 = hasMin50 Or hasMax50
+
+Dim blPatternFound As Boolean
+
+blPatternFound = False
+
+'These are the patterns which we wish to match.
+Dim isLimMix As Boolean, isLim25 As Boolean, isLim50 As Boolean
+Dim has25ResLim As Boolean, has50ResLim As Boolean, hasResLim As Boolean
+Dim lim25SetID As Long, lim50SetID As Long, resLim25SetID As Long, resLim50SetID As Long
+Dim limMinSetID As Long, limMaxSetID As Long, limMidSetID As Long, resLimSetID As Long
+
+isLimMix = False
+isLim25 = False
+isLim50 = False
+has25ResLim = False
+has50ResLim = False
+hasResLim = False
+lim25SetID = -1
+lim50SetID = -1
+resLim25SetID = -1
+resLim50SetID = -1
+limMinSetID = -1
+limMaxSetID = -1
+limMidSetID = -1
+resLimSetID = -1
+
+
+
+'We now have all the information to make an informed decision.
+'Possibilities:
+If (has25 And has50) Then
+  If (hasMax25 And hasMax50) Then
+    blPatternFound = True
+    
+    isLimMix = True
+    
+    lim25SetID = max25SetID
+    lim50SetID = max50SetID
+    
+    If (isReverse25) Then
+      resLim25SetID = min25SetID
+    End If
+    
+    If (isReverse50) Then
+      resLim50SetID = min50SetID
+    End If
+    
+  End If
+ElseIf (has25) Then
+  blPatternFound = True
+  isLim25 = True
+  If (hasMin25 And hasMax25) Then
+    limMaxSetID = max25SetID
+    If (isReverse25) Then
+      resLimSetID = min25SetID
+    Else
+      limMinSetID = min25SetID
+    End If
+  ElseIf (hasMin25) Then
+    limMinSetID = min25SetID
+  ElseIf (hasMax25) Then
+    limMaxSetID = max25SetID
+  End If
+ElseIf (has50) Then
+  blPatternFound = True
+  isLim50 = True
+  If (hasMin50 And hasMax50) Then
+    limMaxSetID = max50SetID
+    If (isReverse50) Then
+      resLimSetID = min50SetID
+    Else
+      limMinSetID = min50SetID
+    End If
+  ElseIf (hasMin50) Then
+    limMinSetID = min50SetID
+  ElseIf (hasMax50) Then
+    limMaxSetID = max50SetID
+  End If
+
+End If
+
+
+If (Not blPatternFound) Then
+  If (hasVVT) Then
+    blPatternFound = True
+  End If
+End If
+
+If (blPatternFound) Then
+
+  'Need to output the pattern as a default pattern to the options table.
+  Set rs = CurrentDb().OpenRecordset("gLIM_IMP_Options")
+  
+  rs.MoveFirst
+  
+  rs.Edit
+      
+    If (isLimMix) Then
+      rs("ILO_LimAction") = LIM_ACTION_SET_MIX
+      If (lim25SetID <> -1) Then
+        rs("ILO_LimMix25SetID") = lim25SetID
+      End If
+      If (lim50SetID <> -1) Then
+        rs("ILO_LimMix50SetID") = lim50SetID
+      End If
+      
+      If (resLim25SetID <> -1) Then
+        rs("ILO_LimMix25ResSetID") = resLim25SetID
+      End If
+      
+      If (resLim50SetID <> -1) Then
+        rs("ILO_LimMix50ResSetID") = resLim50SetID
+      End If
+    ElseIf (isLim25 Or isLim50) Then
+      rs("ILO_LimAction") = LIM_ACTION_SET_STD
+      
+      If (limMinSetID <> -1) Then
+        rs("ILO_LimStdMinSetID") = limMinSetID
+      End If
+      
+      If (limMidSetID <> -1) Then
+        rs("ILO_LimStdTstSetID") = limMidSetID
+      End If
+      
+      If (limMaxSetID <> -1) Then
+        rs("ILO_LimStdMaxSetID") = limMaxSetID
+      End If
+      
+      If (resLimSetID <> -1) Then
+        rs("ILO_LimStdResSetID") = resLimSetID
+      End If
+      
+    ElseIf (hasVVT) Then
+      rs("ILO_LimAction") = LIM_ACTION_SET_VVT
+      
+      If (vvtSetID <> -1) Then
+        rs("ILO_LimVVTSetID") = vvtSetID
+      End If
+    End If
+  
+  rs.Update
+
+
+End If
+
+
+
+
+limImportLimits_DetermineLimAction = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+MsgBox Err & " limImportLimits_Analyze" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+'to become private
+Public Function limImportLimits_AppendStandardSets() As Boolean
+On Error GoTo fout
+limImportLimits_AppendStandardSets = False
+
+
+'It will generate a table consisting of a summary of the diverse limits in gLIM_IMP_Limsets
+'It will also generate default import settings in gLIM_IMP_Options
+
+
+'Now need to fill gLIM_IMP_Limsets.
+
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset("gLIM_Imp_Limsets")
+
+
+Dim idxNul As Long
+Dim idxInfty As Long
+
+rs.AddNew
+  rs("IL_Hup_Name") = "NUL"
+  rs("IL_Hup_Description") = "Geen onderlimiet"
+  rs("IL_INT_CODE") = LIM_CODE_ZERO
+  idxNul = rs("IL_Counter")
+rs.Update
+
+rs.AddNew
+  rs("IL_Hup_Name") = "ONEINDIG"
+  rs("IL_Hup_Description") = "Geen bovenlimiet"
+  rs("IL_INT_CODE") = LIM_CODE_INFTY
+  idxInfty = rs("IL_Counter")
+rs.Update
+
+
+appCleanRS rs
+
+
+
+limImportLimits_AppendStandardSets = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " limImportLimits_AppendStandardSets" & Error$, 16
+Exit Function
+End Function
+
+
+Public Function limImportLimits_AppendFile(fName As String, ByVal fFileShortDes As String) As Boolean
+On Error GoTo fout
+limImportLimits_AppendFile = False
+
+If (fFileShortDes = "") Then
+  Err.Raise 1, , "Invalid limit set description"
+End If
+
+
+If Right(fName, 4) = ".lef" Or Right(fName, 4) = ".lxf" Then
+  Dim lxfDir As String
+  Dim lxfFName As String
+  lxfDir = extractFilePath(fName)
+  lxfFName = extractFileName(fName)
+  
+  If Not lenReadFile(lxfDir, lxfFName, False) Then
+    Exit Function
+  End If
+  
+ElseIf (Right(fName, 4) = ".xml") Then
+  'was limit file
+  
+  If Not limImportLimits_Read_Was_File(fName) Then
+    Exit Function
+  End If
+  
+End If
+
+
+
+'Now need to add the recently appended limits to the table of available limits.
+
+Dim sql As String
+
+
+sql = "SELECT gIMP_LEN_LIMIETEN.* FROM gIMP_LEN_LIMIETEN ORDER BY gIMP_LEN_LIMIETEN.LIM_Name, gIMP_LEN_LIMIETEN.LIM_Baan, " & _
+"gIMP_LEN_LIMIETEN.LIM_IsVVT, gIMP_LEN_LIMIETEN.LIM_IsMinLim, gIMP_LEN_LIMIETEN.LIM_IsMaxLim;"
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim limSets As Recordset
+Set limSets = CurrentDb().OpenRecordset("gLIM_IMP_LIMSETS")
+
+Dim limOut As Recordset
+Set limOut = CurrentDb().OpenRecordset("gLIM_IMP_LIMS")
+
+inp.MoveFirst
+
+
+Dim curBn As Integer, curIsMin As Boolean, curIsMax As Boolean, curIsVVT As Boolean, curName As String
+
+curName = ""
+curBn = -1
+curIsMin = False
+curIsMax = False
+curIsVVT = False
+
+Dim curLimSetID As Long
+
+Do Until inp.EOF
+
+  Dim tpName As String
+  Dim tpBn As Integer
+  Dim tpIsMin As Boolean
+  Dim tpIsMax As Boolean
+  Dim tpIsVVT As Boolean
+  
+  
+  tpName = Nz(inp("LIM_Name"))
+  tpBn = Nz(inp("LIM_BAAN"))
+  tpIsMin = Nz(inp("LIM_IsMinLim"))
+  tpIsMax = Nz(inp("LIM_IsMaxLim"))
+  tpIsVVT = Nz(inp("LIM_IsVVT"))
+  
+  
+  If (tpName <> curName) Or (tpBn <> curBn) Or (tpIsMin <> curIsMin) Or (tpIsMax <> curIsMax) Or (tpIsVVT <> curIsVVT) Then
+  
+    Dim setName As String, setDescription As String
+    
+    setName = fFileShortDes & ":" & tpName & ":" & tpBn & ":" & IIf(tpIsMin, "MIN", IIf(tpIsMax, "MAX", IIf(tpIsVVT, "VVT", "")))
+    setDescription = fName
+    
+    
+  
+    'get a new limSetID
+    limSets.AddNew
+      curLimSetID = limSets("IL_Counter")
+      
+      limSets("IL_FileIsMax") = tpIsMax
+      limSets("IL_FileIsMin") = tpIsMin
+      limSets("IL_FileIsVVT") = tpIsVVT
+      limSets("IL_FileLimName") = hzn(tpName)
+      limSets("IL_FileBaan") = tpBn
+      limSets("IL_Hup_Name") = hzn(setName)
+      limSets("IL_Hup_Description") = hzn(setDescription)
+      limSets("IL_INT_CODE") = LIM_CODE_FILE
+      limSets("IL_FileFileName") = hzn(fName)
+        
+    
+    limSets.Update
+    
+    curName = tpName
+    curBn = tpBn
+    curIsMin = tpIsMin
+    curIsMax = tpIsMax
+    curIsVVT = tpIsVVT
+    
+  End If
+  
+  
+  'Now get the limit.
+  
+  limOut.AddNew
+  
+    limOut("LIM_SET_ID") = curLimSetID
+    limOut("LIM_MAX_AGE") = inp("INT_MAX_AGE")
+    limOut("LIM_GESLACHT") = inp("INT_Geslacht")
+    limOut("LIM_TIJD") = inp("LIM_TIJD")
+    limOut("LIM_AFSTAND") = inp("LIM_AFSTAND")
+    limOut("LIM_SLAG") = inp("LIM_SLAG")
+    
+  limOut.Update
+  
+  
+  
+
+  inp.MoveNext
+Loop
+
+
+
+
+
+
+limImportLimits_AppendFile = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' could not find object to delete
+
+MsgBox Err & " limImportLimits_AppendFile" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function limImportLimits_AppendLevel(ByVal levString As String, ByVal bn As Integer) As Boolean
+On Error GoTo fout
+limImportLimits_AppendLevel = False
+
+If (bn <> 25) And (bn <> 50) Then
+  Err.Raise 1, , "Baanlengte moet 25 of 50 zijn. Gevonden: " & bn
+End If
+
+If (levString <> "A+") Then
+  If (Len(levString) > 1) Then
+    Err.Raise 1, , "Ongeldige niveau-code: " & levString
+  End If
+  If (Asc(levString) < Asc("A") Or Asc(levString) > Asc("H")) Then
+    Err.Raise 1, , "Ongeldige niveau-code: " & levString
+  End If
+End If
+
+'Now check to see if this level is already contained in the limSets.
+
+Dim setID As Long
+setID = Nz(DLookup("IL_Counter", "gLIM_IMP_LIMSETS", "IL_LevelBaan=" & bn & " and IL_LevelCode=""" & levString & """"), -1)
+
+If (setID <> -1) Then
+  Err.Raise 1, , "Deze niveau-limieten staan al in de lijst"
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gLIM_IMP_Limsets")
+
+rs.AddNew
+  setID = Nz(rs("IL_Counter"))
+  
+  rs("IL_LevelBaan") = bn
+  rs("IL_LevelCode") = hzn(levString)
+  rs("IL_Hup_Name") = "Niveau:" & levString & ":" & bn
+  rs("IL_Hup_Description") = "Niveau limieten " & levString & " (" & bn & " baan)"
+  rs("IL_INT_CODE") = LIM_CODE_LEVEL
+  
+rs.Update
+
+appCleanRS rs
+
+'Now add to gLIM_IMP_Lims
+
+Dim sql As String
+sql = "INSERT INTO gLIM_IMP_Lims ( LIM_Max_Age, LIM_Geslacht, LIM_Afstand, LIM_Slag, LIM_Tijd, LIM_SET_ID ) " & _
+      "SELECT fdtgNiveauLimieten.LEV_MAX_AGE, fdtgNiveauLimieten.LEV_Geslacht, fdtgNiveauLimieten.LEV_Afstand, " & _
+      "fdtgNiveauLimieten.LEV_Slag, fdtgNiveauLimieten.LEV_Tijd, " & setID & " AS SID FROM fdtgNiveauLimieten " & _
+      "WHERE (((fdtgNiveauLimieten.LEV_Level)=""" & levString & """) AND ((fdtgNiveauLimieten.LEV_Baan)=" & bn & "));"
+
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+limImportLimits_AppendLevel = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " limImportLimits_AppendLevel" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function limImportLimits_AppendFina(ByVal finPoint As Double, finBn As Integer) As Boolean
+On Error GoTo fout
+limImportLimits_AppendFina = False
+
+If (finBn <> 25) And (finBn <> 50) Then
+  Err.Raise 1, , "Baanlengte moet 25 of 50 zijn. Gevonden: " & finBn
+End If
+
+If (finPoint < 1) Then
+  Err.Raise 1, , "Ongeldig fina punten score: " & finPoint
+End If
+
+
+Dim setID As Long
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gLIM_IMP_Limsets")
+
+rs.AddNew
+  setID = Nz(rs("IL_Counter"))
+  
+  rs("IL_FinaBaan") = finBn
+  rs("IL_FinaPoint") = finPoint
+  rs("IL_Hup_Name") = "Fina:" & finPoint & ":" & finBn
+  rs("IL_Hup_Description") = "Fina score: " & finPoint & " (" & finBn & " baan)"
+  rs("IL_INT_CODE") = LIM_CODE_FINA
+  
+rs.Update
+
+appCleanRS rs
+
+'Now add to gLIM_IMP_Lims
+
+Dim wr As Recordset
+Set wr = CurrentDb().OpenRecordset("select * from fdtgWR where len_baan = " & finBn)
+
+
+Dim limOut As Recordset
+Set limOut = CurrentDb().OpenRecordset("gLIM_IMP_Lims")
+
+wr.MoveFirst
+
+Do Until wr.EOF
+  
+  Dim tpAf As String, tpSl As String, tpGes As String
+  Dim tpWr As Double
+  tpAf = Nz(wr("LEN_AFstand"))
+  tpSl = Nz(wr("LEN_Slag"))
+  tpGes = Nz(wr("LEN_Geslacht"))
+  
+  tpWr = Nz(wr("LEN_WR"))
+  
+  Dim tpLim As Double
+  'Have to calculate back fina points
+   
+   Dim tpWRSec As Double, tpLimSec As Double
+   tpWRSec = swtToSeconds(tpWr)
+   tpLimSec = 0.01 * CLng(100 * tpWRSec / Exp(Log(0.001 * finPoint) / 3))
+   
+   tpLim = swtFromSeconds(tpLimSec)
+   
+   
+   limOut.AddNew
+     limOut("LIM_SET_ID") = setID
+     limOut("LIM_MAX_AGE") = CAT_MAX_AGE
+     limOut("LIM_Geslacht") = hzn(tpGes)
+     limOut("LIM_Afstand") = hzn(tpAf)
+     limOut("LIM_Slag") = hzn(tpSl)
+     limOut("LIM_Tijd") = tpLim
+   limOut.Update
+  
+
+
+  wr.MoveNext
+Loop
+
+
+
+limImportLimits_AppendFina = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' could not find current record
+
+DoCmd.SetWarnings True
+MsgBox Err & " limImportLimits_AppendFina" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function limImportLimits_FindLimit(ByVal setID As Long, _
+ByVal prAfstand As String, ByVal prSlag As String, ByVal prCat As String, _
+ByVal wedAgeDate As Date, wedLftMode As String, _
+ByRef rsLims As Recordset, ByRef lim As Double) As Boolean
+
+On Error GoTo fout
+limImportLimits_FindLimit = False
+
+
+Dim maxLimAge As Integer
+maxLimAge = catGetMaxAllowedAge_bare(prCat, wedAgeDate, wedLftMode)
+  
+  Dim limGes As String
+  limGes = m_of_v(prCat)
+  
+
+lim = 0
+
+Dim findStr As String
+
+findStr = "LIM_SET_ID = " & setID & " and LIM_Max_Age >= " & maxLimAge & " and LIM_Afstand=""" & prAfstand & """ and LIM_SLAG=""" & prSlag & """  And lim_geslacht = """ & limGes & """"
+  
+  rsLims.FindFirst findStr
+  If (Not rsLims.NoMatch) Then
+    'The first record is also the one with minimal LIM_MAX_AGE (if rsLims if sorted correctly, which we require).
+    lim = Nz(rsLims("LIM_Tijd"))
+  End If
+
+
+limImportLimits_FindLimit = True
+Exit Function
+fout:
+MsgBox Err & " limImportLimits_FindLimit" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function limImportLimits_ApplyToProgs_Perform(ByVal limAction As Integer, _
+ByVal limStdMinSetID As Long, _
+ByVal limStdTstSetID As Long, _
+ByVal limStdMaxSetID As Long, _
+ByVal limStdResSetID As Long, _
+ByVal limMix25SetID As Long, _
+ByVal limMix50SetID As Long, _
+ByVal limMix25ResSetID As Long, _
+ByVal limMix50ResSetID As Long, _
+ByVal limVVTSetID As Long, _
+ByVal prAfstand As String, ByVal prSlag As String, ByVal prCat As String, _
+ByVal wedAgeDate As Date, wedLftMode As String, _
+ByRef rsLims As Recordset, _
+ByRef limS As String, ByRef resLimS As String, ByRef vvt As Double, ByRef blLimFound As Boolean, ByRef blVVTFound As Boolean) As Boolean
+
+On Error GoTo fout
+limImportLimits_ApplyToProgs_Perform = False
+
+blLimFound = False
+blVVTFound = False
+
+
+limS = ""
+resLimS = ""
+vvt = 0
+
+
+    Select Case limAction
+      Case LIM_ACTION_CLEAR_LIM
+        limS = ""
+        resLimS = ""
+        blLimFound = True
+      Case LIM_ACTION_CLEAR_VVT
+        vvt = 0
+        blVVTFound = True
+      Case LIM_ACTION_SET_MIX
+        Dim limMix25 As Double
+        Dim limMix50 As Double
+        Dim limMix25Res As Double
+        Dim limMix50Res As Double
+        
+        limMix25 = 0
+        limMix50 = 0
+        limMix25Res = 0
+        limMix50Res = 0
+        
+        If (limMix25SetID = -1) Then
+          Err.Raise 1, , "Internal error."
+        End If
+        
+        If Not limImportLimits_FindLimit(limMix25SetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limMix25) Then
+          Exit Function
+        End If
+        
+        If (limMix50SetID = -1) Then
+          Err.Raise 1, , "Internal error"
+        End If
+        
+        If Not limImportLimits_FindLimit(limMix50SetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limMix50) Then
+          Exit Function
+        End If
+        
+        If (limMix25ResSetID <> -1) Then
+          If Not limImportLimits_FindLimit(limMix25ResSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limMix25Res) Then
+            Exit Function
+          End If
+        End If
+        
+        If (limMix50ResSetID <> -1) Then
+          If Not limImportLimits_FindLimit(limMix25ResSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limMix50Res) Then
+            Exit Function
+          End If
+        End If
+        
+        
+        If (swtIsValid(limMix25)) Or (swtIsValid(limMix50)) Then
+            
+            blLimFound = True
+            
+        
+            'now construct the limit.
+            limS = Trim(fmtSwimTime(limMix25)) & "/" & Trim(fmtSwimTime(limMix50))
+            
+            Dim res25Valid As Boolean, res50Valid As Boolean
+            res25Valid = (swtToSeconds(limMix25Res) - swtToSeconds(limMix25) > 0.1) And (swtToSeconds(limMix25Res) - swtToSeconds(limMix25) < 30#)
+            res50Valid = (swtToSeconds(limMix50Res) - swtToSeconds(limMix50) > 0.1) And (swtToSeconds(limMix50Res) - swtToSeconds(limMix50) < 30#)
+            
+            If (res25Valid Or res50Valid) Then
+              If (res25Valid And res50Valid) Then
+                resLimS = lenFormatResLim(swtToSeconds(limMix25Res) - swtToSeconds(limMix25)) & "/" & lenFormatResLim(swtToSeconds(limMix50Res) - swtToSeconds(limMix50))
+              ElseIf (res25Valid) Then
+                resLimS = lenFormatResLim(swtToSeconds(limMix25Res) - swtToSeconds(limMix25)) & "/" & lenFormatResLim(0)
+              ElseIf (res50Valid) Then
+                resLimS = lenFormatResLim(0) & "/" & lenFormatResLim(swtToSeconds(limMix50Res) - swtToSeconds(limMix50))
+              End If
+              
+                        
+            Else
+              resLimS = ""
+            End If
+        End If
+
+      Case LIM_ACTION_SET_STD
+        Dim limStdMin As Double
+        Dim limStdTst As Double
+        Dim limStdMax As Double
+        Dim limStdRes As Double
+        
+        If (limStdMinSetID <> -1) Then
+          If Not limImportLimits_FindLimit(limStdMinSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limStdMin) Then
+            Exit Function
+          End If
+        End If
+        
+        If (limStdTstSetID <> -1) Then
+          If Not limImportLimits_FindLimit(limStdTstSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limStdTst) Then
+            Exit Function
+          End If
+        End If
+        
+        If (limStdMaxSetID <> -1) Then
+          If Not limImportLimits_FindLimit(limStdMaxSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limStdMax) Then
+            Exit Function
+          End If
+        End If
+        
+        If (limStdResSetID <> -1) Then
+          If Not limImportLimits_FindLimit(limStdResSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limStdRes) Then
+            Exit Function
+          End If
+        End If
+        
+        Dim limMinValid As Boolean
+        Dim limTstValid As Boolean
+        Dim limMaxValid As Boolean
+        Dim limResValid As Boolean
+        
+        limMinValid = swtIsValid(limStdMin)
+        limMaxValid = swtIsValid(limStdMax)
+        limTstValid = swtIsValid(limStdTst)
+        
+        limResValid = False
+        If (limMaxValid) Then
+          limResValid = (swtToSeconds(limStdRes) - swtToSeconds(limStdMax) > 0.1) And (swtToSeconds(limStdRes) - swtToSeconds(limStdMax) < 30#)
+        End If
+        
+        If (limResValid) Then
+          resLimS = lenFormatResLim(swtToSeconds(limStdRes) - swtToSeconds(limStdMax))
+        Else
+          resLimS = ""
+        End If
+        
+        blLimFound = True
+        If (limTstValid And limMinValid And limMaxValid) Then
+          limS = Trim(fmtSwimTime(limStdMin)) & "-" & Trim(fmtSwimTime(limStdTst)) & "-" & Trim(fmtSwimTime(limStdMax))
+        ElseIf (limTstValid And limMinValid) Then
+          limS = Trim(fmtSwimTime(limStdMin)) & "-" & Trim(fmtSwimTime(limStdTst)) & "+"
+        ElseIf (limTstValid And limMaxValid) Then
+          limS = "0-" & Trim(fmtSwimTime(limStdTst)) & "-" & Trim(fmtSwimTime(limStdMax))
+        ElseIf (limTstValid) Then
+          limS = "0-" & Trim(fmtSwimTime(limStdTst)) & "+"
+        ElseIf (limMinValid And limMaxValid) Then
+          limS = Trim(fmtSwimTime(limStdMin)) & "-" & Trim(fmtSwimTime(limStdMax))
+        ElseIf (limMinValid) Then
+          limS = Trim(fmtSwimTime(limStdMin)) & "+"
+        ElseIf (limMaxValid) Then
+          limS = Trim(fmtSwimTime(limStdMax))
+        Else
+          blLimFound = False
+          limS = ""
+          resLimS = ""
+        End If
+        
+        
+      Case LIM_ACTION_SET_VVT
+        Dim limVVT As Double
+        
+        If (limVVTSetID = -1) Then
+          Err.Raise 1, , "Internal error"
+        End If
+        
+        If Not limImportLimits_FindLimit(limVVTSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, rsLims, limVVT) Then
+          Exit Function
+        End If
+        
+        If (limVVT > 1.1) Then
+          vvt = limVVT
+          blVVTFound = True
+        Else
+          vvt = 0
+        End If
+        
+    End Select
+
+
+
+limImportLimits_ApplyToProgs_Perform = True
+Exit Function
+
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+'This is the main driver which applies the choice to the progs.
+Public Function limImportLimits_ApplyToProgs() As Boolean
+On Error GoTo fout
+limImportLimits_ApplyToProgs = False
+
+Dim blEntireMeet As Boolean, blSingleProg As Boolean, blOnlyEmpty As Boolean
+Dim wednr As Long, wedMeetMainNr As Long, curProg As String
+
+Dim wedAgeDate As Date, wedLftMode As String
+
+
+Dim opts As Recordset
+Set opts = CurrentDb().OpenRecordset("gLIM_IMP_Options")
+
+opts.MoveFirst
+
+blOnlyEmpty = Nz(opts("ILO_ProgsOnlyEmpty"))
+blSingleProg = Nz(opts("ILO_ProgsSingleProgOnly"))
+blEntireMeet = Nz(opts("ILO_ProgsEntireMeet"))
+wednr = Nz(opts("ILO_ProgsWedNr"))
+wedMeetMainNr = Nz(opts("ILO_ProgsMeetMainNr"))
+curProg = Nz(opts("ILO_ProgsCurProg"))
+
+wedAgeDate = Nz(opts("ILO_WedAgeDate"), #1/1/1900#)
+wedLftMode = Nz(opts("ILO_WedLftMode"))
+
+
+Dim limAction As Integer
+Dim limStdMinSetID As Long
+Dim limStdTstSetID As Long
+Dim limStdMaxSetID As Long
+Dim limStdResSetID As Long
+Dim limMix25SetID As Long
+Dim limMix50SetID As Long
+Dim limMix25ResSetID As Long
+Dim limMix50ResSetID As Long
+Dim limVVTSetID As Long
+
+Dim blIncludeSub As Boolean
+Dim blNullifyOnNotFound As Boolean
+
+
+limAction = Nz(opts("ILO_LimAction"))
+limStdMinSetID = Nz(opts("ILO_LimStdMinSetID"), -1)
+limStdTstSetID = Nz(opts("ILO_LimStdTstSetID"), -1)
+limStdMaxSetID = Nz(opts("ILO_LimStdMaxSetID"), -1)
+limStdResSetID = Nz(opts("ILO_LimStdResSetID"), -1)
+
+limMix25SetID = Nz(opts("ILO_LimMix25SetID"), -1)
+limMix50SetID = Nz(opts("ILO_LimMix50SetID"), -1)
+limMix25ResSetID = Nz(opts("ILO_LimMix25ResSetID"), -1)
+limMix50ResSetID = Nz(opts("ILO_LimMix50ResSetID"), -1)
+
+limVVTSetID = Nz(opts("ILO_LimVVTSetID"), -1)
+
+blIncludeSub = Nz(opts("ILO_LimActionIncludeSubCats"))
+blNullifyOnNotFound = Nz(opts("ILO_LimActionNullifyOnNotFound"))
+
+
+Dim rsLims As Recordset
+Set rsLims = CurrentDb().OpenRecordset("Select * from gLIM_IMP_LIMS order by lim_afstand, lim_slag, lim_geslacht, lim_max_age")
+
+'first get list of progs on which to apply procedure.
+Dim progsSQL As String
+progsSQL = wedGetProgsSQL(blSingleProg, blEntireMeet, curProg, wednr, wedMeetMainNr, True, False)
+
+Dim lftSQL As String
+lftSQL = wedGetLftSQL(blSingleProg, blEntireMeet, curProg, wednr, wedMeetMainNr, True)
+
+Dim prs As Recordset
+Set prs = CurrentDb().OpenRecordset(progsSQL)
+
+
+
+prs.MoveFirst
+Do Until prs.EOF
+  
+  Dim tpAf As String, tpSl As String, tpCat As String
+  tpAf = Nz(prs(FNM_PR_AF))
+  tpSl = Nz(prs(FNM_PR_SL))
+  tpCat = Nz(prs(FNM_PR_CAT))
+  
+    
+    Dim limS As String, limSOld As String
+    Dim resLimS As String, resLimSOld As String
+    Dim vvt As Double, vvtOld As Double
+    
+    limSOld = Nz(prs(FNM_PR_LIM))
+    resLimSOld = Nz(prs(FNM_PR_LIM_RES))
+    vvtOld = Nz(prs(FNM_PR_VVT))
+    
+    limS = limSOld
+    resLimS = resLimSOld
+    vvt = vvtOld
+    
+    
+    Dim blShouldProcess As Boolean
+    blShouldProcess = True
+    
+    If (limAction = LIM_ACTION_SET_MIX Or limAction = LIM_ACTION_SET_STD) And (blOnlyEmpty) And (limSOld <> "") Then
+      blShouldProcess = False
+    End If
+    
+    If (limAction = LIM_ACTION_SET_VVT) And (blOnlyEmpty) And (vvtOld > 0.1) Then
+      blShouldProcess = False
+    End If
+    
+    If (limAction = LIM_ACTION_SET_MIX Or limAction = LIM_ACTION_SET_STD Or limAction = LIM_ACTION_SET_VVT) And (catIsMCat(tpCat)) And (blIncludeSub) Then
+      blShouldProcess = False
+    End If
+    
+    If (blShouldProcess) Then
+    
+    
+      'Need to take action to determine the limit.
+    
+      Dim blLimFound As Boolean, blVVTFound As Boolean
+    
+      blLimFound = False
+      blVVTFound = False
+    
+      If Not limImportLimits_ApplyToProgs_Perform(limAction, limStdMinSetID, limStdTstSetID, limStdMaxSetID, limStdResSetID, limMix25SetID, _
+        limMix50SetID, limMix25ResSetID, limMix50ResSetID, limVVTSetID, tpAf, tpSl, tpCat, wedAgeDate, wedLftMode, rsLims, limS, resLimS, vvt, blLimFound, blVVTFound) Then
+        Exit Function
+      End If
+      
+      'Need to determine if we need to overwrite.
+      
+      If (limAction = LIM_ACTION_CLEAR_LIM Or limAction = LIM_ACTION_SET_MIX Or limAction = LIM_ACTION_SET_STD) Then
+        If (blLimFound Or blNullifyOnNotFound) Then
+          prs.Edit
+            prs(FNM_PR_LIM) = hzn(limS)
+            prs(FNM_PR_LIM_RES) = hzn(resLimS)
+          prs.Update
+        End If
+      ElseIf (limAction = LIM_ACTION_CLEAR_VVT Or limAction = LIM_ACTION_SET_VVT) Then
+        If (blVVTFound) Or blNullifyOnNotFound Then
+          prs.Edit
+            prs(FNM_PR_VVT) = vvt
+          prs.Update
+        End If
+      End If
+    
+        
+    End If 'if blShouldProcess
+    
+    
+
+  prs.MoveNext
+Loop
+
+appCleanRS prs
+
+
+Dim lft As Recordset
+Set lft = CurrentDb().OpenRecordset(lftSQL)
+
+
+lft.MoveFirst
+Do Until lft.EOF
+  
+  tpAf = Nz(lft(FNM_PR_AF))
+  tpSl = Nz(lft(FNM_PR_SL))
+  tpCat = Nz(lft(FNM_PRL_CAT))
+  
+  If (Not catIsMCat(tpCat)) Then
+    
+    limSOld = Nz(lft(FNM_PRL_LIM))
+    resLimSOld = Nz(lft(FNM_PRL_LIM_RES))
+    vvtOld = Nz(lft(FNM_PRL_VVT))
+    
+    
+    'Need to take action to determine the limit.
+    
+    limS = limSOld
+    resLimS = resLimSOld
+    vvt = vvtOld
+    
+    
+
+    blShouldProcess = True
+    
+    If (limAction = LIM_ACTION_SET_MIX Or limAction = LIM_ACTION_SET_STD) And (blOnlyEmpty) And (limSOld <> "") Then
+      blShouldProcess = False
+    End If
+    
+    If (limAction = LIM_ACTION_SET_VVT) And (blOnlyEmpty) And (vvtOld > 0.1) Then
+      blShouldProcess = False
+    End If
+    
+    If (Not blIncludeSub) Then
+      blShouldProcess = False
+    End If
+    
+    
+    'Need to take action to determine the limit.
+    If (blShouldProcess) Then
+    
+        blLimFound = False
+        blVVTFound = False
+        
+        If Not limImportLimits_ApplyToProgs_Perform(limAction, limStdMinSetID, limStdTstSetID, limStdMaxSetID, limStdResSetID, limMix25SetID, _
+          limMix50SetID, limMix25ResSetID, limMix50ResSetID, limVVTSetID, tpAf, tpSl, tpCat, wedAgeDate, wedLftMode, rsLims, limS, resLimS, vvt, blLimFound, blVVTFound) Then
+          Exit Function
+        End If
+          
+        'Need to decide whether to overwrite.
+          
+        If (limAction = LIM_ACTION_CLEAR_LIM Or limAction = LIM_ACTION_SET_MIX Or limAction = LIM_ACTION_SET_STD) Then
+          If (blLimFound Or blNullifyOnNotFound) Then
+            lft.Edit
+              lft(FNM_PRL_LIM) = hzn(limS)
+              lft(FNM_PRL_LIM_RES) = hzn(resLimS)
+            lft.Update
+          End If
+        ElseIf (limAction = LIM_ACTION_CLEAR_VVT Or limAction = LIM_ACTION_SET_VVT) Then
+          If (blVVTFound) Or blNullifyOnNotFound Then
+            lft.Edit
+              lft(FNM_PRL_VVT) = vvt
+            lft.Update
+          End If
+        End If
+        
+    End If 'if blShouldProcess
+  Else
+    Err.Raise 1, , "Found VAR-cat in sub-category list"
+  End If
+
+  lft.MoveNext
+Loop
+
+
+appCleanRS lft
+appCleanRS rsLims
+
+
+
+limImportLimits_ApplyToProgs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " limImportLimits_ApplyToProgs" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+'Maintenance function; only for use by HJH
+Public Function limMaintenance_ReadNiveauTabel(ByVal fName As String) As Boolean
+On Error GoTo fout
+limMaintenance_ReadNiveauTabel = False
+
+Dim sql As String
+sql = "Delete * from fdtgNiveauLimieten"
+DoCmd.SetWarnings False
+
+DoCmd.RunSQL sql
+
+If Not lenReadFile(extractFilePath(fName), extractFileName(fName), False) Then
+  Exit Function
+End If
+
+
+sql = "INSERT INTO fdtgNiveauLimieten ( LEV_Baan, LEV_MAX_AGE, LEV_Geslacht, LEV_Tijd, LEV_Afstand, LEV_Slag, LEV_Level ) " & _
+      "SELECT gIMP_LEN_LIMIETEN.LIM_Baan, gIMP_LEN_LIMIETEN.INT_Max_Age, gIMP_LEN_LIMIETEN.INT_Geslacht, gIMP_LEN_LIMIETEN.LIM_Tijd, " & _
+      "gIMP_LEN_LIMIETEN.LIM_Afstand , gIMP_LEN_LIMIETEN.LIM_Slag, gIMP_LEN_LIMIETEN.LIM_Name FROM gIMP_LEN_LIMIETEN;"
+      
+      
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+
+
+
+
+DoCmd.SetWarnings True
+limMaintenance_ReadNiveauTabel = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " limMaintenance_ReadNiveauTabel" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function recImportRecs_Cleanup()
+On Error GoTo fout
+recImportRecs_Cleanup = False
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "Delete * from gREC_IMP_RECsets"
+DoCmd.RunSQL sql
+
+sql = "Delete * from gREC_IMP_Recs"
+DoCmd.RunSQL sql
+
+sql = "Delete * from gREC_IMP_ExtraLft"
+DoCmd.RunSQL sql
+
+sql = "Delete * from gREC_IMP_Options"
+DoCmd.RunSQL sql
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gREC_IMP_Options")
+
+'Restore options to default values.
+
+rs.AddNew
+
+  rs("IRO_RecActionIncludeSubCats") = True
+  rs("IRO_RecActionSetExtraClear") = True
+  rs("IRO_RecActionNullifyOnNotFound") = True
+  rs("IRO_ProgsOnlyEmpty") = False
+  rs("IRO_ProgsSingleProgOnly") = False
+  rs("IRO_RecAction") = hzn(REC_ACTION_CLEAR_MAIN)
+  
+rs.Update
+
+appCleanRS rs
+
+
+DoCmd.SetWarnings True
+
+recImportRecs_Cleanup = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " recImportRecs_Cleanup" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+
+
+
+
+
+Public Function splRecList_Acquire() As Boolean
+On Error GoTo fout
+splRecList_Acquire = False
+
+
+
+Dim listURL As String
+listURL = "http://www.swimrankings.net/services/RecordLenex/allLists.lxf"
+
+
+Dim listFName As String
+
+listFName = downloadFile(listURL)
+If (listFName = "") Then
+  Err.Raise 1, , "Error downloading file: " & listURL
+  Exit Function
+End If
+  
+If Not lenImportRecordLists(listFName, "splRecList") Then
+  Exit Function
+End If
+  
+  
+
+
+splRecList_Acquire = True
+Exit Function
+
+fout:
+'close all open filestreams.
+Close
+MsgBox Err & " splRecList_Acquire" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function splRecList_Cleanup() As Boolean
+On Error GoTo fout
+splRecList_Cleanup = False
+
+
+DoCmd.DeleteObject acTable, "splRecList"
+
+
+splRecList_Cleanup = True
+Exit Function
+
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+
+MsgBox Err & " splRecList_Cleanup" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function recImportRecs_AppendRecURL(ByVal fURL As String) As Boolean
+On Error GoTo fout
+recImportRecs_AppendRecURL = False
+
+Dim fName As String
+
+fName = downloadFile(fURL)
+If (fName = "") Then
+  Err.Raise 1, , "Error downloading file: " & fURL
+  Exit Function
+End If
+  
+If Not recImportRecs_AppendRecFile(fName) Then
+  Exit Function
+End If
+  
+recImportRecs_AppendRecURL = True
+Exit Function
+
+fout:
+MsgBox Err & " recImportRecs_AppendRecURL" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function recImportRecs_AppendRecFile(ByVal fName As String) As Boolean
+On Error GoTo fout
+recImportRecs_AppendRecFile = False
+
+'First import the file.
+If Not lenReadFile(extractFilePath(fName), extractFileName(fName), False) Then
+  Exit Function
+End If
+
+'Now analyze the records and append to our tables.
+Dim recs As Recordset
+Set recs = CurrentDb().OpenRecordset("Select * from gIMP_LEN_RECORDS order by REC_TYPE, REC_NAME, REC_BAAN")
+
+Dim rsetOut As Recordset
+Dim recOut As Recordset
+
+Set rsetOut = CurrentDb().OpenRecordset("gREC_IMP_RECsets")
+Set recOut = CurrentDb().OpenRecordset("gREC_IMP_Recs")
+
+Dim curType As String, curName As String, curBn As Integer
+
+
+Dim zwms As Recordset, pl As Recordset, ver As Recordset
+
+Set zwms = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+zwms.Index = "PrimaryKey"
+
+Set pl = CurrentDb().OpenRecordset("gIMP_LEN_PLOEG")
+pl.Index = "PrimaryKey"
+
+Set ver = CurrentDb().OpenRecordset("gIMP_LEN_VER")
+ver.Index = "PrimaryKey"
+
+Dim pll As Recordset
+Set pll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+pll.Index = "IndexByPloegVolg"
+
+
+curType = ""
+curName = ""
+curBn = -1
+
+Dim curRecAgeMode As String
+curRecAgeMode = ""
+
+Dim curSetID As Long
+curSetID = -1
+
+recs.MoveFirst
+Do Until recs.EOF
+  Dim tpType As String, tpName As String, tpBn As String
+  tpType = Nz(recs("REC_Type"))
+  tpName = Nz(recs("REC_Name"))
+  tpBn = Nz(recs("REC_Baan"))
+  
+  If (tpType <> curType) Or (tpName <> curName) Or (tpBn <> curBn) Then
+    'Insert a new set.
+    
+    curRecAgeMode = Nz(recs("REC_AgeMode"))
+    
+    rsetOut.AddNew
+      rsetOut("IR_FileRecName") = hzn(tpName)
+      rsetOut("IR_FileRecBaan") = tpBn
+      rsetOut("IR_FileRecAgeMode") = hzn(curRecAgeMode)
+      rsetOut("IR_FileRecCode") = hzn(tpType)
+      rsetOut("IR_FileFileName") = hzn(fName)
+      rsetOut("IR_Hup_Name") = hzn(tpType & ":" & tpBn & ":" & tpName)
+      rsetOut("IR_Hup_Description") = hzn(tpName)
+      curSetID = Nz(rsetOut("IR_Counter"))
+    rsetOut.Update
+    
+    curType = tpType
+    curName = tpName
+    curBn = tpBn
+  End If
+  
+  
+  'now append the record to the recOut table.
+  Dim tpHolderName As String
+  tpHolderName = ""
+  
+  Dim tpVerName As String
+  tpVerName = ""
+  
+  Dim tpEstDeelns As String
+  tpEstDeelns = ""
+  
+  If (Nz(recs("REC_IsEstaf"))) Then
+    Dim tpEstAf As String
+    tpEstAf = Nz(recs("REC_Afstand"))
+    Dim tpEstNZwms As Integer
+    tpEstNZwms = afstand_n_zwemmers(tpEstAf)
+    
+  
+    Dim plID As Long
+    plID = Nz(recs("REC_PLOEG_ID"))
+    pl.Seek "=", plID
+    If Not pl.NoMatch Then
+      Dim verID As Long
+      verID = Nz(pl("PL_VER_ID"))
+      ver.Seek "=", verID
+      If Not ver.NoMatch Then
+        tpHolderName = Nz(ver("V_Naam"))
+        tpVerName = Nz(ver("V_Naam"))
+      End If
+      
+      If (tpEstNZwms > 0) And (tpEstNZwms <= MAX_ESTAF_CNT) Then
+        Dim i As Integer
+        For i = 0 To tpEstNZwms - 1
+          pll.Seek "=", plID, (i + 1)
+          If (pll.NoMatch) Then
+            tpEstDeelns = ""
+            Exit For
+          Else
+            Dim tpPllSwIdx As Long
+            tpPllSwIdx = Nz(pll("PLL_Zwemmer_ID"))
+            zwms.Seek "=", tpPllSwIdx
+            If zwms.NoMatch Then
+              tpEstDeelns = ""
+              Exit For
+            Else
+              Dim tpPllName As String
+              tpPllName = fmtName(Nz(zwms("ZW_Voornaam")), Nz(zwms("ZW_Voegsel")), Nz(zwms("ZW_Achternaam")))
+              If (i > 0) Then
+                tpEstDeelns = tpEstDeelns & ", "
+              End If
+              tpEstDeelns = tpEstDeelns & tpPllName
+            End If
+          End If
+        Next i
+      End If 'if tpEstNZwms > 0 and <= max_estaf_cnt
+    End If
+  Else
+    Dim zwID As Long
+    zwID = Nz(recs("REC_Zwemmer_ID"))
+    zwms.Seek "=", zwID
+    If Not zwms.NoMatch Then
+      tpHolderName = fmtName(Nz(zwms("ZW_Voornaam")), Nz(zwms("ZW_Voegsel")), Nz(zwms("ZW_Achternaam")))
+      verID = Nz(zwms("ZW_VER_ID"))
+      ver.Seek "=", verID
+      If Not ver.NoMatch Then
+        tpVerName = Nz(ver("V_Naam"))
+      End If
+    End If
+  End If
+  
+  recOut.AddNew
+    recOut("REC_SET_ID") = curSetID
+    recOut("REC_MAx_Age") = recs("INT_MAX_AGE")
+    recOut("REC_Geslacht") = recs("INT_Geslacht")
+    recOut("REC_Tijd") = recs("REC_Tijd")
+    
+    Dim tpNDec As Integer
+    tpNDec = Nz(recs("REC_AantalDecimalen"), 0)
+    
+    If (tpNDec = 1) Then
+      recOut("REC_AantalDecimalen") = 1
+    Else
+      recOut("REC_AantalDecimalen") = 2
+    End If
+    
+    recOut("REC_Afstand") = recs("REC_Afstand")
+    recOut("REC_Slag") = recs("REC_Slag")
+    recOut("REC_Name") = hzn(tpHolderName)
+    
+    Dim tpRecPlaats As String
+    tpRecPlaats = Nz(recs("REC_Plaats"))
+    If (tpRecPlaats <> "Onbekend") Then
+      recOut("REC_Plaats") = hzn(tpRecPlaats)
+    Else
+      recOut("REC_Plaats") = Null
+    End If
+    
+    recOut("REC_Datum") = recs("REC_Datum")
+    recOut("REC_Nation") = recs("REC_Nation")
+    recOut("REC_WedDescription") = recs("REC_WedDescription")
+    recOut("REC_Vereniging") = hzn(tpVerName)
+    recOut("REC_Est_Deelnemers") = hzn(tpEstDeelns)
+  recOut.Update
+  
+  
+  
+  
+
+
+  recs.MoveNext
+Loop
+
+
+
+
+recImportRecs_AppendRecFile = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recImportRecs_AppendRecFile" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function recImportRecs_AppendLimFile(fName As String, ByVal fRecCode As String) As Boolean
+On Error GoTo fout
+recImportRecs_AppendLimFile = False
+
+If (fRecCode = "") Then
+  Err.Raise 1, , "Invalid record code"
+End If
+
+
+If Right(fName, 4) = ".lef" Or Right(fName, 4) = ".lxf" Then
+  Dim lxfDir As String
+  Dim lxfFName As String
+  lxfDir = extractFilePath(fName)
+  lxfFName = extractFileName(fName)
+  
+  If Not lenReadFile(lxfDir, lxfFName, False) Then
+    Exit Function
+  End If
+  
+ElseIf (Right(fName, 4) = ".xml") Then
+  'was limit file
+  
+  If Not limImportLimits_Read_Was_File(fName) Then
+    Exit Function
+  End If
+  
+End If
+
+
+
+'Now need to add the recently appended limits to the table of available limits.
+
+Dim sql As String
+
+
+sql = "SELECT gIMP_LEN_LIMIETEN.* FROM gIMP_LEN_LIMIETEN ORDER BY gIMP_LEN_LIMIETEN.LIM_Name, gIMP_LEN_LIMIETEN.LIM_Baan, " & _
+"gIMP_LEN_LIMIETEN.LIM_IsVVT, gIMP_LEN_LIMIETEN.LIM_IsMinLim, gIMP_LEN_LIMIETEN.LIM_IsMaxLim;"
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset(sql)
+
+Dim recSets As Recordset
+Set recSets = CurrentDb().OpenRecordset("gREC_IMP_RECSETS")
+
+Dim recOut As Recordset
+Set recOut = CurrentDb().OpenRecordset("gREC_IMP_RECS")
+
+inp.MoveFirst
+
+
+Dim curBn As Integer, curIsMin As Boolean, curIsMax As Boolean, curIsVVT As Boolean, curName As String
+
+curName = ""
+curBn = -1
+curIsMin = False
+curIsMax = False
+curIsVVT = False
+
+Dim curRecSetID As Long
+
+Do Until inp.EOF
+
+  Dim tpName As String
+  Dim tpBn As Integer
+  Dim tpIsMin As Boolean
+  Dim tpIsMax As Boolean
+  Dim tpIsVVT As Boolean
+  
+  
+  tpName = Nz(inp("LIM_Name"))
+  tpBn = Nz(inp("LIM_BAAN"))
+  tpIsMin = Nz(inp("LIM_IsMinLim"))
+  tpIsMax = Nz(inp("LIM_IsMaxLim"))
+  tpIsVVT = Nz(inp("LIM_IsVVT"))
+  
+  
+  If (tpName <> curName) Or (tpBn <> curBn) Or (tpIsMin <> curIsMin) Or (tpIsMax <> curIsMax) Or (tpIsVVT <> curIsVVT) Then
+  
+    Dim setName As String, setDescription As String
+    
+    setName = fRecCode & ":" & tpBn & ":" & tpName & ":" & IIf(tpIsMin, "MIN", IIf(tpIsMax, "MAX", IIf(tpIsVVT, "VVT", "")))
+    setDescription = fName
+    
+    
+  
+    'get a new limSetID
+    recSets.AddNew
+      curRecSetID = recSets("IR_Counter")
+      
+      recSets("IR_FileRecName") = hzn(tpName)
+      recSets("IR_FileRecBaan") = tpBn
+      recSets("IR_FileRecCode") = hzn(fRecCode)
+      recSets("IR_FileFileName") = hzn(fName)
+      recSets("IR_Hup_Name") = hzn(setName)
+      recSets("IR_Hup_Description") = hzn(setDescription)
+        
+    
+    recSets.Update
+    
+    curName = tpName
+    curBn = tpBn
+    curIsMin = tpIsMin
+    curIsMax = tpIsMax
+    curIsVVT = tpIsVVT
+    
+  End If
+  
+  
+  'Now get the limit.
+  
+  recOut.AddNew
+  
+    recOut("REC_SET_ID") = curRecSetID
+    recOut("REC_MAX_AGE") = inp("INT_MAX_AGE")
+    recOut("REC_GESLACHT") = inp("INT_Geslacht")
+    recOut("REC_TIJD") = inp("LIM_TIJD")
+    recOut("REC_AFSTAND") = inp("LIM_AFSTAND")
+    recOut("REC_SLAG") = inp("LIM_SLAG")
+    
+  recOut.Update
+  
+  
+  
+
+  inp.MoveNext
+Loop
+
+
+
+
+
+
+recImportRecs_AppendLimFile = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' could not find object to delete
+
+MsgBox Err & " recImportRecs_AppendLimFile" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Public Function recImportRecs_ApplyToProgs() As Boolean
+On Error GoTo fout
+recImportRecs_ApplyToProgs = False
+
+
+Dim blEntireMeet As Boolean, blSingleProg As Boolean, blOnlyEmpty As Boolean
+Dim wednr As Long, wedMeetMainNr As Long, curProg As String
+Dim wedAgeDate As Date, wedLftMode As String
+Dim recAction As Integer, blIncludeSub As Boolean
+Dim setMainSetID As Long, setMainRecType As String, blSetExtraClear As Boolean
+Dim blNullifyOnNotFound As Boolean
+
+Dim opts As Recordset
+Set opts = CurrentDb().OpenRecordset("gREC_IMP_Options")
+
+opts.MoveFirst
+
+
+blOnlyEmpty = Nz(opts("IRO_ProgsOnlyEmpty"))
+blSingleProg = Nz(opts("IRO_ProgsSingleProgOnly"))
+blEntireMeet = Nz(opts("IRO_ProgsEntireMeet"))
+wednr = Nz(opts("IRO_ProgsWedNr"))
+wedMeetMainNr = Nz(opts("IRO_ProgsMeetMainNr"))
+curProg = Nz(opts("IRO_ProgsCurProg"))
+
+wedAgeDate = Nz(opts("IRO_WedAgeDate"), #1/1/1900#)
+wedLftMode = Nz(opts("IRO_WedLftMode"))
+
+
+
+
+recAction = Nz(opts("IRO_RecAction"))
+blIncludeSub = Nz(opts("IRO_RecActionIncludeSubCats"))
+setMainSetID = Nz(opts("IRO_RecActionSetMainSetID"), -1)
+setMainRecType = Nz(opts("IRO_RecActionSetMainRecType"))
+blSetExtraClear = Nz(opts("IRO_RecActionSetExtraClear"))
+blNullifyOnNotFound = Nz(opts("IRO_RecActionNullifyOnNotFound"))
+
+
+appCleanRS opts
+
+'All the options have been imported.
+
+
+
+Select Case recAction
+
+  Case REC_ACTION_CLEAR_MAIN, REC_ACTION_SET_MAIN
+  
+    If Not recImportRecs_ApplyToProgs_TypeMain(blEntireMeet, blSingleProg, blOnlyEmpty, wednr, wedMeetMainNr, curProg, wedAgeDate, wedLftMode, recAction, blIncludeSub, setMainSetID, setMainRecType, blNullifyOnNotFound) Then
+      Exit Function
+    End If
+  
+  Case REC_ACTION_CLEAR_EXTRA, REC_ACTION_SET_EXTRA
+    If Not recImportRecs_ApplyToProgs_TypeExtra(blEntireMeet, blSingleProg, wednr, wedMeetMainNr, curProg, wedAgeDate, wedLftMode, recAction, blSetExtraClear) Then
+      Exit Function
+    End If
+    
+End Select
+
+
+
+recImportRecs_ApplyToProgs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " recImportRecs_ApplyToProgs" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function recImportRecs_ApplyToProgs_TypeMain(blEntireMeet As Boolean, blSingleProg As Boolean, blOnlyEmpty As Boolean, _
+wednr As Long, wedMeetMainNr As Long, curProg As String, _
+wedAgeDate As Date, wedLftMode As String, _
+recAction As Integer, blIncludeSub As Boolean, _
+setMainSetID As Long, setMainRecType As String, blNullifyOnNotFound As Boolean) As Boolean
+On Error GoTo fout
+recImportRecs_ApplyToProgs_TypeMain = False
+
+Dim rss As Recordset
+
+Set rss = CurrentDb().OpenRecordset("gREC_IMP_RECSets")
+rss.Index = "PrimaryKey"
+
+
+Dim setMainAgeMode As String
+
+If (setMainSetID <> -1) Then
+  rss.Seek "=", setMainSetID
+  If rss.NoMatch Then
+    Err.Raise 1, , "Could not find record-set: " & setMainSetID
+  End If
+  
+  setMainAgeMode = Nz(rss("IR_FileRecAgeMode"))
+  If (setMainAgeMode = "") Then
+    setMainAgeMode = wedLftMode
+  End If
+
+End If
+
+
+
+appCleanRS rss
+
+
+
+Dim rsRecs As Recordset
+Set rsRecs = CurrentDb().OpenRecordset("Select * from gREC_IMP_RECS order by rec_afstand, rec_slag, rec_geslacht, rec_max_age")
+
+
+'first get list of progs on which to apply procedure.
+Dim progsSQL As String
+progsSQL = wedGetProgsSQL(blSingleProg, blEntireMeet, curProg, wednr, wedMeetMainNr, True, False)
+
+
+Dim prs As Recordset
+Set prs = CurrentDb().OpenRecordset(progsSQL)
+
+
+
+prs.MoveFirst
+Do Until prs.EOF
+  
+  Dim tpAf As String, tpSl As String, tpCat As String
+  tpAf = Nz(prs(FNM_PR_AF))
+  tpSl = Nz(prs(FNM_PR_SL))
+  tpCat = Nz(prs(FNM_PR_CAT))
+  
+    
+    
+    Dim recOld As RECORD_INFO
+    Dim recNew As RECORD_INFO
+    
+    If Not lenReadRecInfo(recOld, prs, FNM_PR_REC_PRFX) Then
+      Exit Function
+    End If
+    
+    'Need to take action to determine the record.
+    Dim blShouldProcess As Boolean
+    blShouldProcess = True
+    
+    If (recAction = REC_ACTION_SET_MAIN) And (blOnlyEmpty) And (recOld.Tijd > 0.1) Then
+      blShouldProcess = False
+    End If
+    
+    If (recAction = REC_ACTION_SET_MAIN) And (catIsMCat(tpCat)) And (blIncludeSub) Then
+      blShouldProcess = False
+    End If
+    
+    If (blShouldProcess) Then
+    
+      Dim blNewRecFound As Boolean
+      blNewRecFound = False
+    
+      If Not recImportRecs_ApplyToProgs_PerformMain(recAction, setMainSetID, setMainRecType, setMainAgeMode, tpAf, tpSl, tpCat, wedAgeDate, wedLftMode, rsRecs, recNew, blNewRecFound) Then
+        Exit Function
+      End If
+    
+      If (blNewRecFound Or (blNullifyOnNotFound)) Then
+        prs.Edit
+          If Not lenWriteRecInfo(recNew, prs, FNM_PR_REC_PRFX) Then
+            Exit Function
+          End If
+        prs.Update
+      End If
+    
+    End If
+    
+
+
+  prs.MoveNext
+Loop
+
+appCleanRS prs
+
+
+
+Dim lftSQL As String
+lftSQL = wedGetLftSQL(blSingleProg, blEntireMeet, curProg, wednr, wedMeetMainNr, True)
+
+
+Dim lft As Recordset
+Set lft = CurrentDb().OpenRecordset(lftSQL)
+
+
+lft.MoveFirst
+Do Until lft.EOF
+  
+  tpAf = Nz(lft(FNM_PR_AF))
+  tpSl = Nz(lft(FNM_PR_SL))
+  tpCat = Nz(lft(FNM_PRL_CAT))
+  
+  If (Not catIsMCat(tpCat)) Then
+    
+    If Not lenReadRecInfo(recOld, lft, FNM_PRL_REC_PRFX) Then
+      Exit Function
+    End If
+    
+    blShouldProcess = True
+    
+    If (recAction = REC_ACTION_CLEAR_MAIN) Then
+      If (Not blIncludeSub) Then
+        blShouldProcess = False
+      End If
+    End If
+    
+    If (recAction = REC_ACTION_SET_MAIN) Then
+      If (Not blIncludeSub) Then
+        blShouldProcess = False
+      End If
+    End If
+    
+    If (blOnlyEmpty) And (recOld.Tijd > 0.1) Then
+      blShouldProcess = False
+    End If
+    
+    'Need to take action to determine the record.
+    
+    If (blShouldProcess) Then
+    
+      blNewRecFound = False
+    
+      If Not recImportRecs_ApplyToProgs_PerformMain(recAction, setMainSetID, setMainRecType, setMainAgeMode, tpAf, tpSl, tpCat, wedAgeDate, wedLftMode, rsRecs, recNew, blNewRecFound) Then
+        Exit Function
+      End If
+    
+      If (blNewRecFound Or blNullifyOnNotFound) Then
+    
+        lft.Edit
+          If Not lenWriteRecInfo(recNew, lft, FNM_PRL_REC_PRFX) Then
+            Exit Function
+          End If
+        lft.Update
+      End If
+    End If
+    
+    
+  Else
+    Err.Raise 1, , "Found VAR-cat in sub-category list"
+  End If
+
+  lft.MoveNext
+Loop
+
+
+
+appCleanRS lft
+
+
+appCleanRS rsRecs
+
+
+
+
+
+
+recImportRecs_ApplyToProgs_TypeMain = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " recImportRecs_ApplyToProgs_TypeMain" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Public Function recImportRecs_ApplyToProgs_TypeExtra(blEntireMeet As Boolean, blSingleProg As Boolean, _
+wednr As Long, wedMeetMainNr As Long, curProg As String, _
+wedAgeDate As Date, wedLftMode As String, _
+recAction As Integer, _
+blSetExtraClear As Boolean) As Boolean
+On Error GoTo fout
+recImportRecs_ApplyToProgs_TypeExtra = False
+
+
+Dim sql As String
+sql = "UPDATE gREC_IMP_ExtraLft INNER JOIN gREC_IMP_RECSets ON gREC_IMP_ExtraLft.RL_SetID = gREC_IMP_RECSets.IR_Counter " & _
+"SET gREC_IMP_ExtraLft.RL_INT_AgeMode = [ir_FileRecAgeMode];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim ers As Recordset
+Set ers = CurrentDb().OpenRecordset("select * from gREC_IMP_ExtraLft order by rl_order")
+
+
+
+Dim rsRecs As Recordset
+Set rsRecs = CurrentDb().OpenRecordset("Select * from gREC_IMP_RECS order by rec_afstand, rec_slag, rec_geslacht, rec_max_age")
+
+
+'first get list of progs on which to apply procedure.
+Dim progsSQL As String
+progsSQL = wedGetProgsSQL(blSingleProg, blEntireMeet, curProg, wednr, wedMeetMainNr, True, False)
+
+
+Dim prs As Recordset
+Set prs = CurrentDb().OpenRecordset(progsSQL)
+
+
+Dim prer As Recordset
+Set prer = CurrentDb().OpenRecordset("dtProgrammaExtraRecords")
+
+prs.MoveFirst
+Do Until prs.EOF
+  
+  Dim tpAf As String, tpSl As String
+  tpAf = Nz(prs(FNM_PR_AF))
+  tpSl = Nz(prs(FNM_PR_SL))
+  
+  Dim tpWedNr As Long, tpProgNr As String, tpProgCat As String
+  tpWedNr = Nz(prs(FNM_PR_WED))
+  tpProgNr = Nz(prs(FNM_PR_PROG))
+  tpProgCat = Nz(prs(FNM_PR_CAT))
+  
+    
+   'now have to perform the action.
+   
+   Dim maxUsedOrder As Long
+   'First check to see if we have to clear
+   If (recAction = REC_ACTION_CLEAR_EXTRA) Or (recAction = REC_ACTION_SET_EXTRA And blSetExtraClear) Then
+     'We need to clear all current extra records.
+     sql = "Delete * from dtProgrammaExtraRecords where prr_wedstrijdnummer = " & tpWedNr & " and prr_programmanummer=""" & tpProgNr & """;"
+     DoCmd.SetWarnings False
+     DoCmd.RunSQL sql
+     DoCmd.SetWarnings True
+     maxUsedOrder = 0
+   Else
+     maxUsedOrder = Nz(DMax("PRR_Order", "dtProgrammaExtraRecords", "PRR_Wedstrijdnummer=" & tpWedNr & " and prr_programmanummer=""" & tpProgNr & """"), 0)
+   End If
+   
+   
+   If (recAction = REC_ACTION_SET_EXTRA) Then
+     ers.MoveFirst
+     Do Until ers.EOF
+       Dim tpCat As String, tpCatDes As String, tpSetID As Long, tpRecType As String, tpAgeMode As String
+       Dim tpOrder As Long
+       tpOrder = Nz(ers("RL_Order"))
+       tpCat = Nz(ers("RL_Cat"))
+       tpCatDes = Nz(ers("RL_CatDes"))
+       tpSetID = Nz(ers("RL_SetID"))
+       tpRecType = Nz(ers("RL_Type"))
+       tpAgeMode = Nz(ers("RL_INT_AgeMode"))
+       
+       Dim recNew As RECORD_INFO
+       
+       Dim blNewRecFound As Boolean
+       blNewRecFound = False
+       
+       Dim blShouldProcess As Boolean
+       blShouldProcess = True
+       
+       'Check if categories match.
+       Dim tpCatGes As String
+       Dim tpProgCatGes As String
+       
+       tpCatGes = m_of_v(tpCat)
+       tpProgCatGes = m_of_v(tpProgCat)
+       
+       If (tpCatGes <> "*" And tpProgCatGes <> "*") Then
+         If (tpCatGes <> tpProgCatGes) Then
+           blShouldProcess = False
+         End If
+       End If
+       
+       If (blShouldProcess) Then
+         'Have to check if ages match.
+         Dim tpCatMinAge As Integer, tpCatMaxAge As Integer
+         Dim tpProgCatMinAge As Integer, tpProgCatMaxAge As Integer
+         
+         If Not catGetAllowedAgeRange_bare(tpCat, tpCatMinAge, tpCatMaxAge, wedAgeDate, wedLftMode, wedLftMode, False) Then
+           Exit Function
+         End If
+         
+         If Not catGetAllowedAgeRange_bare(tpProgCat, tpProgCatMinAge, tpProgCatMaxAge, wedAgeDate, wedLftMode, wedLftMode, False) Then
+           Exit Function
+         End If
+         
+         If (tpCatMinAge > tpProgCatMaxAge) Or (tpCatMaxAge < tpProgCatMinAge) Then
+           blShouldProcess = False
+         End If
+         
+       End If
+       
+       
+       If (blShouldProcess) Then
+         'get the record
+         If Not recImportRecs_ApplyToProgs_FindRec(tpSetID, tpAf, tpSl, tpCat, wedAgeDate, wedLftMode, tpAgeMode, tpRecType, recNew, rsRecs, blNewRecFound) Then
+           Exit Function
+         End If
+        
+         If (blNewRecFound) And (recNew.Tijd > 0.1) Then
+        
+          'add the record to the extra records
+          
+           prer.AddNew
+             prer("PRR_Wedstrijdnummer") = tpWedNr
+             prer("PRR_Programmanummer") = hzn(tpProgNr)
+             prer("PRR_Order") = maxUsedOrder + tpOrder
+             prer("PRR_LftCat") = hzn(tpCat)
+             prer("PRR_LftCatDes") = hzn(tpCatDes)
+            
+             If Not lenWriteRecInfo(recNew, prer, "PRR_") Then
+               Exit Function
+             End If
+            
+           prer.Update
+         End If 'if blNewRecFound and recNew.tijd > 0.1
+         
+       End If 'if blShouldProcess
+       
+       ers.MoveNext
+     Loop
+   
+   End If 'if recAction REC_ACTION_SET_EXTRA
+    
+ 
+  prs.MoveNext
+Loop
+
+appCleanRS prs
+
+appCleanRS ers
+
+appCleanRS prer
+
+appCleanRS rsRecs
+
+
+recImportRecs_ApplyToProgs_TypeExtra = True
+Exit Function
+
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+DoCmd.SetWarnings True
+MsgBox Err & " recImportRecs_ApplyToProgs_TypeExtra" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function recImportRecs_ApplyToProgs_FindRec(ByVal setID As Long, ByVal prAfstand As String, prSlag As String, prCat As String, ByVal wedAgeDate As Date, ByVal wedLftMode As String, ByVal recAgeMode As String, ByVal recType As String, ByRef rec As RECORD_INFO, ByRef rsRecs As Recordset, ByRef blFound As Boolean) As Boolean
+On Error GoTo fout
+recImportRecs_ApplyToProgs_FindRec = False
+
+
+blFound = False
+
+'First clear the record.
+If Not lenInitRecInfo(rec) Then
+  Exit Function
+End If
+
+
+Dim recMaxAge As Long
+recMaxAge = catGetMaxAllowedAgeTranslated(prCat, wedAgeDate, wedLftMode, recAgeMode)
+
+
+Dim recGes As String
+recGes = m_of_v(prCat)
+
+
+
+
+
+Dim findStr As String
+findStr = "REC_SET_ID = " & setID & " and REC_Max_Age >= " & recMaxAge & " and Rec_Afstand=""" & prAfstand & """ and REC_SLAG=""" & prSlag & """  And REC_geslacht = """ & recGes & """"
+  
+  rsRecs.FindFirst findStr
+  If (Not rsRecs.NoMatch) Then
+    'The first record is also the one with minimal REC_MAX_AGE (if rsRecs if sorted correctly, which we require).
+    rec.Datum = Nz(rsRecs("REC_Datum"), #1/1/1900#)
+    rec.naam = Nz(rsRecs("REC_Name"))
+    rec.Plaats = Nz(rsRecs("REC_Plaats"))
+    rec.recType = recType
+    rec.Tijd = Nz(rsRecs("REC_Tijd"))
+    rec.tussentijden = ""
+    
+    blFound = True
+  
+  End If
+
+
+
+
+recImportRecs_ApplyToProgs_FindRec = True
+Exit Function
+
+
+fout:
+MsgBox Err & " recImportRecs_ApplyToProgs_FindRec" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function recImportRecs_ApplyToProgs_PerformMain(ByVal recAction As Integer, _
+ByVal setMainSetID As Long, setMainType As String, setMainLftMode As String, _
+ByVal prAfstand As String, ByVal prSlag As String, ByVal prCat As String, _
+ByVal wedAgeDate As Date, wedLftMode As String, _
+ByRef rsRecs As Recordset, _
+ByRef recNew As RECORD_INFO, ByRef blNewRecFound As Boolean) As Boolean
+
+On Error GoTo fout
+recImportRecs_ApplyToProgs_PerformMain = False
+
+
+Select Case recAction
+  Case REC_ACTION_CLEAR_MAIN
+    blNewRecFound = True
+    If Not lenInitRecInfo(recNew) Then
+      Exit Function
+    End If
+  Case REC_ACTION_SET_MAIN
+    'Have to find record.
+    If Not recImportRecs_ApplyToProgs_FindRec(setMainSetID, prAfstand, prSlag, prCat, wedAgeDate, wedLftMode, setMainLftMode, setMainType, recNew, rsRecs, blNewRecFound) Then
+      Exit Function
+    End If
+  Case Else
+    Err.Raise 1, , "Internal error."
+End Select
+
+
+
+
+recImportRecs_ApplyToProgs_PerformMain = True
+Exit Function
+fout:
+MsgBox Err & " recImport_Recs_ApplyToProgs_PerformMain" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function recImportRecs_DetermineRecAction() As Boolean
+On Error GoTo fout
+recImportRecs_DetermineRecAction = False
+
+'get a default action.
+Dim rss As Recordset
+Set rss = CurrentDb().OpenRecordset("gREC_IMP_RECSets")
+
+Dim opt As Recordset
+Set opt = CurrentDb().OpenRecordset("gREC_IMP_Options")
+
+rss.MoveFirst
+opt.MoveFirst
+
+If rss.EOF Then
+  opt.Edit
+  opt("IRO_RecAction") = REC_ACTION_CLEAR_MAIN
+  opt("IRO_RecActionIncludeSubCats") = True
+  opt.Update
+Else
+  opt.Edit
+  opt("IRO_RecAction") = REC_ACTION_SET_MAIN
+  opt("IRO_RecActionIncludeSubCats") = True
+  opt("IRO_RecActionSetMainSetID") = Nz(rss("IR_Counter"))
+  opt("IRO_RecActionSetMainRecType") = Nz(rss("IR_FileRecCode"))
+  opt.Update
+End If
+
+recImportRecs_DetermineRecAction = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " recImportRecs_DetermineRecAction" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function recAcquireRecs_DetermineSettings() As Boolean
+On Error GoTo fout
+recAcquireRecs_DetermineSettings = False
+
+
+Dim setID25 As Long
+Dim setID50 As Long
+
+setID25 = Nz(DFirst("IR_Counter", "gREC_IMP_RECSets", "IR_FileRecBaan = 25"), -1)
+setID50 = Nz(DFirst("IR_Counter", "gREC_IMP_RECSets", "IR_FileRecBaan = 50"), -1)
+
+If (setID25 >= 0) Or (setID50 >= 0) Then
+  Dim opt As Recordset
+  Set opt = CurrentDb().OpenRecordset("gREC_IMP_Options")
+
+  opt.MoveFirst
+
+  opt.Edit
+    If (setID25 > 0) Then
+       opt("IRO_Acq25SetID") = setID25
+    End If
+    If (setID50 > 0) Then
+      opt("IRO_Acq50SetID") = setID50
+    End If
+  opt.Update
+End If
+
+
+recAcquireRecs_DetermineSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " recAcquireRecs_DetermineSettings" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function recAcquireRecs_cleanup() As Boolean
+On Error GoTo fout
+recAcquireRecs_cleanup = False
+
+Dim sql As String
+
+sql = "Delete * from gREC_ACQ_Recs"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+recAcquireRecs_cleanup = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " recAcquireRecs_cleanup" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function recAcquireRecs_Acquire() As Boolean
+On Error GoTo fout
+recAcquireRecs_Acquire = False
+
+Dim sql As String
+
+
+'copy the selected recordsets to gREC_ACQ_RECS
+Dim setID25 As Long, setID50 As Long
+setID25 = Nz(DLookup("IRO_Acq25SetID", "gREC_IMP_Options"), -1)
+setID50 = Nz(DLookup("IRO_Acq50SetID", "gREC_IMP_Options"), -1)
+
+Dim setName25 As String, setName50 As String
+If (setID25 >= 0) Then
+  setName25 = Nz(DLookup("IR_Hup_Name", "gREC_IMP_Recsets", "IR_Counter = " & setID25))
+End If
+If (setID50 >= 0) Then
+  setName50 = Nz(DLookup("IR_Hup_Name", "gREC_IMP_Recsets", "IR_Counter = " & setID50))
+End If
+
+
+Dim setLftMode25 As String, setLftMode50 As String
+If (setID25 >= 0) Then
+  setLftMode25 = Nz(DLookup("IR_FileRecAgeMode", "gREC_IMP_Recsets", "IR_Counter = " & setID25))
+  If (setLftMode25 = "") Then
+    setLftMode25 = LFT_MODE_WEDYR_END
+  End If
+End If
+If (setID50 >= 0) Then
+  setLftMode50 = Nz(DLookup("IR_FileRecAgeMode", "gREC_IMP_Recsets", "IR_Counter = " & setID50))
+  If (setLftMode50 = "") Then
+    setLftMode50 = LFT_MODE_WEDYR_END
+  End If
+End If
+
+
+If (setID25 < 0) And (setID50 < 0) Then
+  Exit Function
+End If
+
+If (setName25 = "") And (setName50 = "") Then
+  Exit Function
+End If
+
+
+If (setName25 <> "") Then
+  sql = "INSERT INTO gREC_ACQ_Recs ( REC_DS_NAME, REC_DS_AGEMODE, REC_Baanlengte,REC_Vereniging, REC_EST_Deelnemers, REC_Max_Age, REC_Geslacht, REC_Tijd, REC_AantalDecimalen, REC_Afstand, REC_Slag, REC_Name, REC_Plaats, REC_Datum, REC_WedDescription, REC_Nation ) " & _
+    "SELECT """ & setName25 & """ as SET_NAME, """ & setLftMode25 & """ as SET_AGE_MODE, 25 as BAAN, gREC_IMP_Recs.REC_Vereniging, gREC_IMP_Recs.REC_EST_Deelnemers, gREC_IMP_Recs.REC_Max_Age, gREC_IMP_Recs.REC_Geslacht, gREC_IMP_Recs.REC_Tijd, gREC_IMP_Recs.REC_AantalDecimalen, gREC_IMP_Recs.REC_Afstand, " & _
+    "gREC_IMP_Recs.REC_Slag, gREC_IMP_Recs.REC_Name, gREC_IMP_Recs.REC_Plaats, gREC_IMP_Recs.REC_Datum,gREC_IMP_Recs.REC_WedDescription, gREC_IMP_Recs.REC_Nation " & _
+    "FROM gREC_IMP_Recs WHERE (((gREC_IMP_Recs.REC_SET_ID)=" & setID25 & "));"
+
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+End If
+If (setName50 <> "") Then
+  sql = "INSERT INTO gREC_ACQ_Recs ( REC_DS_NAME, REC_DS_AGEMODE,   REC_Baanlengte,REC_Vereniging, REC_EST_Deelnemers, REC_Max_Age, REC_Geslacht, REC_Tijd, REC_AantalDecimalen, REC_Afstand, REC_Slag, REC_Name, REC_Plaats, REC_Datum, REC_WedDescription, REC_Nation ) " & _
+    "SELECT """ & setName50 & """ as SET_NAME, """ & setLftMode50 & """ as SET_AGE_MODE, 50 as BAAN, gREC_IMP_Recs.REC_Vereniging, gREC_IMP_Recs.REC_EST_Deelnemers, gREC_IMP_Recs.REC_Max_Age, gREC_IMP_Recs.REC_Geslacht, gREC_IMP_Recs.REC_Tijd, gREC_IMP_Recs.REC_AantalDecimalen, gREC_IMP_Recs.REC_Afstand, " & _
+    "gREC_IMP_Recs.REC_Slag, gREC_IMP_Recs.REC_Name, gREC_IMP_Recs.REC_Plaats, gREC_IMP_Recs.REC_Datum,  gREC_IMP_Recs.REC_WedDescription, gREC_IMP_Recs.REC_Nation " & _
+    "FROM gREC_IMP_Recs WHERE (((gREC_IMP_Recs.REC_SET_ID)=" & setID50 & "));"
+
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+End If
+recAcquireRecs_Acquire = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " recAcquireRecs_cleanup" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function recAcquireRecs(ByRef isFnd25 As Boolean, ByRef isFnd50 As Boolean, ByRef dsName25 As String, ByRef dsName50 As String) As Boolean
+On Error GoTo fout
+recAcquireRecs = False
+
+isFnd25 = False
+isFnd50 = False
+
+If Not recAcquireRecs_cleanup() Then
+  Exit Function
+End If
+
+DoCmd.OpenForm "gWIZ_REC_MASTER", , , , , acDialog, "Acquire"
+
+dsName25 = Nz(DFirst("REC_DS_NAME", "gREC_ACQ_RECS", "REC_Baanlengte =25"))
+dsName50 = Nz(DFirst("REC_DS_NAME", "gREC_ACQ_RECS", "REC_Baanlengte =50"))
+
+
+If dsName25 <> "" Then
+  isFnd25 = True
+End If
+
+If dsName50 <> "" Then
+  isFnd50 = True
+End If
+
+
+
+recAcquireRecs = True
+Exit Function
+fout:
+MsgBox Err & " recAcquireRecs" & vbCrLf & Error$, 16
+Exit Function
+
+End Function

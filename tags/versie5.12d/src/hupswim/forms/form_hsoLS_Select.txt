@@ -1,0 +1,212 @@
+Version =20
+VersionRequired =20
+Checksum =177988443
+Begin Form
+    AutoResize = NotDefault
+    PopUp = NotDefault
+    Modal = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    ScrollBars =2
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =5045
+    DatasheetFontHeight =10
+    ItemSuffix =33
+    Left =2940
+    Top =2550
+    Right =8970
+    Bottom =9135
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x449d9179805fe340
+    End
+    RecordSource ="SELECT [dtLidsoorten].Cat_nr, [dtLidsoorten].Beschrijving, [dtLidsoorten].TeltMe"
+        "e FROM [dtLidsoorten];"
+    Caption ="Lid Soorten"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin Subform
+            SpecialEffect =2
+            Width =1701
+            Height =1701
+        End
+        Begin FormHeader
+            Height =330
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =56
+                    Top =113
+                    Width =450
+                    Height =210
+                    Name ="Label10"
+                    Caption ="Code"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =623
+                    Top =113
+                    Width =1650
+                    Height =210
+                    Name ="Label11"
+                    Caption ="Beschrijving lidsoort:"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =3000
+                    Top =120
+                    Width =1950
+                    Height =210
+                    Name ="lbTeltmee"
+                    Caption ="Lidsoort is van toepassing:"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =56
+                    Width =336
+                    Name ="ON_Code"
+                    ControlSource ="Cat_nr"
+                    Format =">"
+                    DefaultValue ="1"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =623
+                    Width =2331
+                    TabIndex =1
+                    Name ="ON_Beschrijving"
+                    ControlSource ="Beschrijving"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3231
+                    Top =12
+                    Height =211
+                    TabIndex =2
+                    Name ="TeltMee"
+                    ControlSource ="TeltMee"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =510
+            BackColor =12632256
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    Left =56
+                    Top =56
+                    Height =358
+                    Name ="btnDeselecteren"
+                    Caption ="Alles &deselecteren"
+                    OnClick ="[Event Procedure]"
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    Left =1870
+                    Top =56
+                    Height =358
+                    TabIndex =1
+                    Name ="btnSelecteren"
+                    Caption ="Alles &selecteren"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+
+
+Private Sub btnDeselecteren_Click()
+On Error Resume Next
+Dim geg As Recordset
+Set geg = Me.Form.RecordsetClone
+geg.MoveFirst
+Do Until geg.EOF
+    geg.Edit
+    geg("Teltmee") = False
+    geg.Update
+    geg.MoveNext
+Loop
+Me.Form.Requery
+End Sub
+
+Private Sub btnSelecteren_Click()
+On Error Resume Next
+Dim geg As Recordset
+Set geg = Me.Form.RecordsetClone
+geg.MoveFirst
+Do Until geg.EOF
+    geg.Edit
+    geg("Teltmee") = True
+    geg.Update
+    geg.MoveNext
+Loop
+Me.Form.Requery
+End Sub

@@ -1,0 +1,202 @@
+Version =20
+VersionRequired =20
+Checksum =-475425772
+Begin Form
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    ScrollBars =2
+    BorderStyle =1
+    GridX =5
+    GridY =5
+    Width =8844
+    ItemSuffix =16
+    Left =795
+    Top =330
+    Right =8730
+    Bottom =5340
+    BeforeDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x8ac55bef3d78e340
+    End
+    RecordSource ="SELECT * from fdtgDisCodes order by dis_code;"
+    Caption ="Diskwalificatie codes"
+    OnOpen ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    OnError ="[Event Procedure]"
+    Begin
+        Begin Label
+            FontWeight =700
+            BackColor =12632256
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin OptionButton
+            AutoLabel = NotDefault
+            SpecialEffect =2
+            Width =187
+            Height =187
+        End
+        Begin CheckBox
+            AutoLabel = NotDefault
+            SpecialEffect =2
+            Width =187
+            Height =187
+        End
+        Begin TextBox
+            AutoLabel = NotDefault
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ListBox
+            AutoLabel = NotDefault
+            Width =1701
+            Height =1417
+            LabelX =-1701
+        End
+        Begin ComboBox
+            AutoLabel = NotDefault
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =435
+            BackColor =65280
+            Name ="FormHeader1"
+            Begin
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    Left =150
+                    Top =195
+                    Width =525
+                    Height =240
+                    FontWeight =400
+                    BackColor =16777215
+                    Name ="Text8"
+                    Caption ="Code"
+                End
+                Begin Label
+                    BackStyle =0
+                    OverlapFlags =85
+                    Left =1057
+                    Top =195
+                    Width =1170
+                    Height =240
+                    FontWeight =400
+                    BackColor =16777215
+                    Name ="Text10"
+                    Caption ="Omschrijving"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =65280
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =135
+                    Width =525
+                    ColumnWidth =495
+                    Name ="DIS_CODE"
+                    ControlSource ="DIS_CODE"
+                    Format =">"
+                    InputMask =">CCC;;\" \""
+                End
+                Begin TextBox
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =1042
+                    Width =7599
+                    ColumnWidth =7215
+                    TabIndex =1
+                    Name ="DIS_NAAM"
+                    ControlSource ="DIS_NAAM"
+                    AfterUpdate ="[Event Procedure]"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =510
+            BackColor =65280
+            Name ="FormFooter2"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =82
+                    Left =135
+                    Top =75
+                    Width =1311
+                    Height =330
+                    Name ="btnPrinten"
+                    Caption ="-> P&rinten"
+                    StatusBarText ="Rapporten printen"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x631af0be5667394db9ecdd1e85e5fbcf
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+
+Private Sub btnPrinten_Click()
+On Error Resume Next
+DoCmd.OpenForm "PRN_DAT_Master"
+End Sub
+
+Private Sub DIS_NAAM_AfterUpdate()
+On Error Resume Next
+[DIS_NAAM] = capitalizefirst([DIS_NAAM])
+End Sub
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
+On Error Resume Next
+    
+response = acDataErrContinue
+
+If MsgBox("Diskwalificatie code verwijderen", vbOKCancel + vbQuestion) = vbCancel Then
+  Cancel = True
+End If
+
+Exit Sub
+End Sub
+
+
+Private Sub Form_Error(dataerr As Integer, response As Integer)
+On Error Resume Next
+If dataerr = 3022 Then
+  MsgBox "Deze code bestaat al." & Chr$(13) & "Druk op <esc>.", 16
+  response = acDataErrContinue
+  Exit Sub
+End If
+
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Exit Sub
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

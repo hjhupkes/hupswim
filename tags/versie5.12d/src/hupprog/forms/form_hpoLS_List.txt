@@ -1,0 +1,160 @@
+Version =20
+VersionRequired =20
+Checksum =-1991380144
+Begin Form
+    AutoResize = NotDefault
+    PopUp = NotDefault
+    Modal = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    DividingLines = NotDefault
+    ScrollBars =2
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =4932
+    DatasheetFontHeight =10
+    ItemSuffix =33
+    Left =2940
+    Top =2550
+    Right =8970
+    Bottom =9135
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    AfterInsert ="[Event Procedure]"
+    BeforeDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x9d2646b93e5fe340
+    End
+    RecordSource ="SELECT Cat_nr, Beschrijving, TeltMee FROM dtContactGroepen;"
+    Caption ="Lid Soorten"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin Subform
+            SpecialEffect =2
+            Width =1701
+            Height =1701
+        End
+        Begin FormHeader
+            Height =323
+            BackColor =12632256
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =56
+                    Top =113
+                    Width =450
+                    Height =210
+                    Name ="Label10"
+                    Caption ="Code"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =623
+                    Top =113
+                    Width =1650
+                    Height =210
+                    Name ="Label11"
+                    Caption ="Beschrijving groep:"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =12632256
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =56
+                    Width =336
+                    Name ="ON_Code"
+                    ControlSource ="Cat_nr"
+                    Format =">"
+                    AfterUpdate ="[Event Procedure]"
+                    DefaultValue ="1"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =623
+                    Width =2331
+                    TabIndex =1
+                    Name ="ON_Beschrijving"
+                    ControlSource ="Beschrijving"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =12632256
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+
+Private Sub Form_AfterInsert()
+On Error Resume Next
+ON_Code_AfterUpdate
+End Sub
+
+
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
+On Error Resume Next
+If MsgBox("Deze lidsoorten werkelijk verwijderen?" & vbCrLf & _
+"NB: Als u deze lidsoorten verwijdert, dan verdwijnen deze uit het hele programma en wordt ook " & _
+"de verdeling van de zwemmers over de diverse lidsoorten aangetast.", vbYesNo + vbDefaultButton2 + vbQuestion) = vbNo Then
+  Cancel = True
+End If
+
+response = acDataErrContinue
+
+End Sub
+
+Private Sub ON_Code_AfterUpdate()
+On Error Resume Next
+ON_Code.DefaultValue = "=" & CStr(ON_Code.value + 1)
+End Sub

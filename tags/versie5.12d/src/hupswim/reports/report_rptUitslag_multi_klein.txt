@@ -1,0 +1,351 @@
+Version =20
+VersionRequired =20
+Checksum =880202097
+Begin Report
+    LayoutForPrint = NotDefault
+    DateGrouping =1
+    GrpKeepTogether =1
+    GridX =15
+    GridY =15
+    Width =10776
+    ItemSuffix =119
+    Left =510
+    Top =735
+    Right =12780
+    Bottom =6060
+    ShortcutMenuBar ="gShortcutRpt"
+    Toolbar ="gRptToolbar"
+    RecSrcDt = Begin
+        0xd46f113b7f5fe340
+    End
+    RecordSource ="SELECT fmtName(nz([voornaam]),nz([voegsel]),nz([achternaam])) AS naam, [dtwedstr"
+        "ijden].Datum, [dtwedstrijden].Plaats, [dtwedstrijden].Beschrijving, [dtwedstrijd"
+        "en].Baanlengte, [~TimeBijzList].* FROM ([~TimeBijzList] INNER JOIN [dtwedstrijde"
+        "n] ON [~TimeBijzList].TO_Wedstrijdnummer = [dtwedstrijden].[Wedstrijd nummer]) I"
+        "NNER JOIN [dtLeden] ON [~TimeBijzList].TO_Startnummer = [dtLeden].Startnummer;"
+    OnOpen ="[Event Procedure]"
+    MenuBar ="gMnBasic"
+    PrtMip = Begin
+        0x3702000053030000dd00000053030000000000000b1500000901000000000000 ,
+        0x020000006801000000000000a20700000100000000000000
+    End
+    PrtDevMode = Begin
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x010402059c00c4020326000401000900ea0a6f086400010007002c0101000100 ,
+        0x2c01030001004c65747465720000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000010000000000000001000000 ,
+        0x0200000001000000000000000000000000000000000000000000000050524956 ,
+        0xe230000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000180000000000102710271027 ,
+        0x0000102700000000000000000000c40200000000000000000000000000000000 ,
+        0x00000000000000000300000000000000000010005c4b03006843040000000000 ,
+        0x000000000000010000000000000000000000000000000000e7b14b4c03000000 ,
+        0x05000a00ff000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000
+    End
+    PrtDevNames = Begin
+        0x080013001e000100000000000000000000000000000000000000000000005044 ,
+        0x4643726561746f723a00
+    End
+    Begin
+        Begin Label
+            TextFontFamily =2
+            FontName ="Arial"
+        End
+        Begin Line
+            Width =1701
+        End
+        Begin TextBox
+            OldBorderStyle =0
+            TextFontFamily =2
+            Width =1701
+            LabelX =-1701
+            FontName ="Arial"
+        End
+        Begin BreakLevel
+            GroupHeader = NotDefault
+            GroupFooter = NotDefault
+            ControlSource ="=stnrExpand(nz([TO_Startnummer]))"
+        End
+        Begin BreakLevel
+            GroupHeader = NotDefault
+            GroupFooter = NotDefault
+            KeepTogether =2
+            ControlSource ="TO_Wedstrijdnummer"
+        End
+        Begin BreakLevel
+            ControlSource ="=afstOrder(nz([to_afstand]))"
+        End
+        Begin BreakLevel
+            ControlSource ="TO_Slag"
+        End
+        Begin FormHeader
+            KeepTogether = NotDefault
+            Height =0
+            Name ="scRepHeader"
+        End
+        Begin PageHeader
+            Height =907
+            OnFormat ="[Event Procedure]"
+            Name ="scPageHeader"
+            Begin
+                Begin TextBox
+                    TextAlign =2
+                    TextFontFamily =34
+                    Width =10776
+                    Height =346
+                    FontSize =12
+                    FontWeight =700
+                    Name ="fldHeader"
+                    ControlSource ="=[naam] & \" (\" & [to_startnummer] & \")\""
+                End
+                Begin TextBox
+                    TextAlign =2
+                    TextFontFamily =34
+                    Top =340
+                    Width =10776
+                    Height =346
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    Name ="fldHeaderDate"
+                End
+            End
+        End
+        Begin BreakHeader
+            KeepTogether = NotDefault
+            Height =0
+            Name ="scStartHeader"
+        End
+        Begin BreakHeader
+            KeepTogether = NotDefault
+            Height =240
+            BreakLevel =1
+            Name ="scWedHeader"
+            Begin
+                Begin TextBox
+                    TextFontFamily =34
+                    Width =5376
+                    FontWeight =700
+                    Name ="fldWedDes"
+                    ControlSource ="=[beschrijving] & \", \" & Format([datum],\"dd-mm-yyyy\") & \" te \" & [plaats] "
+                        "& \" (\" & [baanlengte] & \"m)\""
+                End
+            End
+        End
+        Begin Section
+            KeepTogether = NotDefault
+            CanGrow = NotDefault
+            CanShrink = NotDefault
+            Height =216
+            Name ="scDetail"
+            Begin
+                Begin TextBox
+                    Visible = NotDefault
+                    TextAlign =1
+                    TextFontFamily =34
+                    Left =4195
+                    Width =441
+                    Height =216
+                    Name ="ty_dis"
+                    ControlSource ="TO_Dis"
+                    Format =">"
+                End
+                Begin TextBox
+                    CanGrow = NotDefault
+                    CanShrink = NotDefault
+                    TextAlign =1
+                    TextFontFamily =34
+                    Top =216
+                    Width =5417
+                    Height =0
+                    TabIndex =1
+                    Name ="fldEstDlns"
+                    ControlSource ="TO_EST_Deelnemers"
+                End
+                Begin TextBox
+                    TextFontFamily =34
+                    Left =4612
+                    Width =786
+                    Height =216
+                    TabIndex =2
+                    Name ="fldDis"
+                    ControlSource ="=fmtUitslagDis(nz([ty_dis]),\"\")"
+                    Format =">"
+                End
+                Begin TextBox
+                    TextAlign =1
+                    TextFontFamily =34
+                    Left =1670
+                    Width =906
+                    Height =216
+                    TabIndex =3
+                    Name ="fldTime1"
+                    ControlSource ="=fmtSwimTime(nz([to_summary_tijd1])) & [to_summary_bijz1]"
+                End
+                Begin TextBox
+                    TextAlign =1
+                    TextFontFamily =34
+                    Left =2607
+                    Width =996
+                    Height =216
+                    TabIndex =4
+                    Name ="fldTime2"
+                    ControlSource ="=fmtSwimTime(nz([to_summary_tijd2])) & [to_summary_bijz2]"
+                    Format ="# 00.00;;\"\";\"\""
+                End
+                Begin TextBox
+                    TextAlign =1
+                    TextFontFamily =34
+                    Left =3590
+                    Width =1011
+                    Height =216
+                    TabIndex =5
+                    Name ="fldEindtijd"
+                    ControlSource ="=fmtUitslagEindtijd(nz([to_eindtijd]),nz([to_dis]),nz([to_bijz]))"
+                End
+                Begin TextBox
+                    TextFontFamily =34
+                    Width =726
+                    Height =216
+                    TabIndex =6
+                    Name ="fldAfstand"
+                    ControlSource ="TO_Afstand"
+                End
+                Begin TextBox
+                    TextFontFamily =34
+                    Left =718
+                    Width =846
+                    Height =216
+                    TabIndex =7
+                    Name ="fldSlag"
+                    ControlSource ="TO_Slag"
+                End
+            End
+        End
+        Begin BreakFooter
+            KeepTogether = NotDefault
+            Height =188
+            BreakLevel =1
+            Name ="scWedFooter"
+        End
+        Begin BreakFooter
+            KeepTogether = NotDefault
+            ForceNewPage =2
+            Height =0
+            Name ="scStartFooter"
+        End
+        Begin PageFooter
+            Height =0
+            Name ="scPageFooter"
+        End
+        Begin FormFooter
+            KeepTogether = NotDefault
+            Height =0
+            Name ="scRepFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+Private dPerStartDate As Date
+Private dPerEndDate As Date
+
+Private Function initReport() As Boolean
+On Error GoTo fout
+initReport = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [~TimeBijzList_stats]")
+rs.MoveFirst
+If Not rs.EOF Then
+  dPerStartDate = Nz(rs("TO_PerStartDate"), #1/1/1900#)
+  dPerEndDate = Nz(rs("TO_PerEndDate"), #1/1/1900#)
+Else
+  dPerStartDate = #1/1/1900#
+  dPerEndDate = #1/1/1900#
+End If
+  
+  
+appCleanRS rs
+
+
+initReport = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " initReport" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Sub initFormat()
+On Error GoTo fout
+
+Dim ctl As Control
+If db_narrow Then
+  For Each ctl In Me.Section(acDetail).Controls
+    ctl.FontName = "Arial Narrow"
+  Next ctl
+End If
+
+
+
+Exit Sub
+fout:
+MsgBox Err & " initFormat" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+
+
+
+
+
+Private Sub Report_Open(Cancel As Integer)
+On Error Resume Next
+
+Cancel = True
+
+If Not initReport() Then
+  Exit Sub
+End If
+initFormat
+
+Cancel = False
+End Sub
+
+Private Sub scPageHeader_Format(Cancel As Integer, FormatCount As Integer)
+On Error Resume Next
+If (lenDateIsValid(dPerStartDate) And lenDateIsValid(dPerEndDate)) Then
+  Me.fldHeaderDate = "Overzicht tijden gewommen tussen " & Format(dPerStartDate, "dd\-mm\-yyyy") & " en " & Format(dPerEndDate, "dd\-mm\-yyyy")
+ElseIf (lenDateIsValid(dPerStartDate)) Then
+  Me.fldHeaderDate = "Overzicht tijden gewommen vanaf " & Format(dPerStartDate, "dd\-mm\-yyyy")
+ElseIf lenDateIsValid(dPerEndDate) Then
+  Me.fldHeaderDate = "Overzicht tijden gewommen tot en met " & Format(dPerEndDate, "dd\-mm\-yyyy")
+Else
+  Me.fldHeaderDate = "Overzicht gezwommen tijden"
+End If
+
+End Sub

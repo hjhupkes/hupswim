@@ -1,0 +1,45 @@
+Option Compare Database
+Option Explicit
+
+
+
+
+
+
+
+Public Function dsbDistributePrepare() As Boolean
+On Error Resume Next
+dsbDistributePrepare = False
+
+
+DoCmd.DeleteObject acModule, "__gSys_Backup"
+
+DoCmd.DeleteObject acModule, "__hsSys_Restore"
+DoCmd.DeleteObject acModule, "__hpSys_Restore"
+
+DoCmd.DeleteObject acModule, "__gSys_Convert97"
+DoCmd.DeleteObject acModule, "__gSys_Restore_Tree"
+
+DoCmd.DeleteObject acModule, "__stbSys_Restore_Tree"
+DoCmd.DeleteObject acModule, "__stbSys_Restore_Tree_XMLReader"
+
+'Note that these are macros
+DoCmd.DeleteObject acMacro, "__gSys_Restore"
+DoCmd.DeleteObject acMacro, "__stbSys_Restore_Tree"
+
+KlaarVoorVerspreidenMaken False
+
+
+dsbDistributePrepare = True
+
+End Function
+
+Public Function dsbDistributeFinal() As Boolean
+On Error Resume Next
+dsbDistributeFinal = False
+
+DoCmd.Rename "AutoExec", acMacro, "igAutoExec"
+vergrendel
+
+dsbDistributeFinal = True
+End Function

@@ -1,0 +1,45 @@
+Option Compare Database
+Option Explicit
+
+Public Function rslApplyResMarges_ProcessRS(ByRef rmAfs() As String, ByRef rmTd() As Double, ByVal nRM As Integer, blZero As Boolean, bl50Apart As Boolean, blAftrekken As Boolean, blLeeg As Boolean, ByRef rs As Recordset, ByVal blRSIsLftGroepen As Boolean) As Boolean
+On Error GoTo fout
+rslApplyResMarges_ProcessRS = False
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim limS As String
+  Dim resLimS As String
+  limS = Nz(rs("limiet"))
+  resLimS = Nz(rs("res_marge"))
+  
+  Dim afs As String
+  afs = Nz(rs("afstand"))
+  
+  If ((Not blLeeg) Or resLimS = "") Then
+    'may process.
+    Dim prevLimS As String
+    Dim prevResLimsS As String
+    If Not rslApplyResMarges_Perform(rmAfs, rmTd, nRM, afs, blZero, bl50Apart, blAftrekken, limS, resLimS) Then
+      Exit Function
+    End If
+    If (prevLimS <> limS) Or (prevResLimsS <> resLimS) Then
+      rs.Edit
+      rs("limiet") = limS
+      rs("res_marge") = resLimS
+      rs.Update
+    End If
+  End If
+
+
+  rs.MoveNext
+Loop
+
+
+rslApplyResMarges_ProcessRS = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function

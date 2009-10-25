@@ -1,0 +1,377 @@
+Option Compare Database
+Option Explicit
+
+Public Type QLF_GLB_SETTINGS
+  blAllow25 As Boolean
+  blAllow50 As Boolean
+  dQlfMinDateShort As Date
+  dQlfMinDateLong As Date
+  sSeasonShortRegMask As String
+  sSeasonLongRegMask As String
+End Type
+
+
+Function wed_beschrijving() As String
+On Error Resume Next
+wed_beschrijving = Nz(Forms![wed_master]![Beschrijving])
+End Function
+
+Function wed_plaats() As String
+On Error Resume Next
+wed_plaats = Nz(Forms![wed_master]![Plaats])
+End Function
+
+
+Function wed_aanvang()
+On Error Resume Next
+wed_aanvang = Forms![wed_master]![Aanvang]
+End Function
+
+
+
+Public Function wed_actBaanlengte()
+On Error Resume Next
+
+Dim x
+x = Null
+x = Forms![wed_master]![Baanlengte]
+If IsNull(x) Then
+  wed_actBaanlengte = "*"
+Else
+  wed_actBaanlengte = x
+End If
+    
+Exit Function
+End Function
+
+
+
+
+
+Function boete() As String
+On Error Resume Next
+boete = Format(dbGetSettingDouble("boete"), "\" + geld_symbool + " 0.00") & IIf(dbGetSettingBoolean("boete_per_start"), " per start.", "")
+End Function
+
+
+
+Function cont() As String
+On Error Resume Next
+cont = dbGetSettingString("con")
+End Function
+Function con_email() As String
+On Error Resume Next
+con_email = dbGetSettingString("email_con")
+End Function
+Function cont_email() As String
+On Error Resume Next
+cont_email = dbGetSettingString("email_cont")
+End Function
+
+Function geld_symbool() As String
+On Error Resume Next
+geld_symbool = "€"
+End Function
+
+
+Function cont_adres() As String
+On Error Resume Next
+cont_adres = dbGetSettingString("adres_cont")
+End Function
+
+Function cont_postcode() As String
+On Error Resume Next
+cont_postcode = dbGetSettingString("postcode_cont") & "  " & dbGetSettingString("plaats_cont")
+End Function
+
+Function cont_postcode_sep() As String
+On Error Resume Next
+cont_postcode_sep = dbGetSettingString("postcode_cont")
+End Function
+Function cont_plaats() As String
+On Error Resume Next
+cont_plaats = dbGetSettingString("plaats_cont")
+End Function
+
+Function cont_tel() As String
+On Error Resume Next
+cont_tel = dbGetSettingString("tel_cont")
+End Function
+
+Function contpersoon() As String
+On Error Resume Next
+contpersoon = dbGetSettingString("cont")
+End Function
+
+Function controle() As Integer
+On Error Resume Next
+controle = dbGetSettingLong("cat_controle")
+End Function
+
+Function dbdir() As String
+On Error Resume Next
+dbdir = dbGetSettingString("dir")
+End Function
+
+
+Public Function db_grijs() As Boolean
+On Error Resume Next
+db_grijs = dbGetSettingBoolean("achtergrondGrijs")
+End Function
+
+Function dbAanschrijvingRecsVerbergen() As Boolean
+On Error Resume Next
+dbAanschrijvingRecsVerbergen = dbGetSettingBoolean("aan_recsVerbergen")
+End Function
+
+Function dbAanschrijvingsText() As String
+On Error Resume Next
+dbAanschrijvingsText = "Aanschrijving"
+If dbGetSettingBoolean("aan_Uitnodiging") Then
+  dbAanschrijvingsText = "Uitnodiging"
+End If
+End Function
+
+
+Function dbUitslagRecsVerbergen() As Boolean
+On Error Resume Next
+dbUitslagRecsVerbergen = dbGetSettingBoolean("uit_recsVerbergen")
+End Function
+
+Function dbUitslagVerbVerbergen() As Boolean
+On Error Resume Next
+dbUitslagVerbVerbergen = dbGetSettingBoolean("uit_verbVerbergen")
+End Function
+
+Function dbUitslagDisCodesPerProg() As Boolean
+On Error Resume Next
+dbUitslagDisCodesPerProg = Not dbGetSettingBoolean("uit_geenDisCodesPerProg")
+End Function
+
+
+
+
+Function dbDeelnemerLijstStartsTonen() As Boolean
+On Error Resume Next
+dbDeelnemerLijstStartsTonen = Not dbGetSettingBoolean("dl_startsNietWeergeven")
+End Function
+Function dbDeelnemerLijstSorterenOpStartnummer() As Boolean
+On Error Resume Next
+dbDeelnemerLijstSorterenOpStartnummer = dbGetSettingBoolean("dl_sortenOpstartnummer")
+End Function
+
+
+
+Function dbdir_op() As String
+On Error Resume Next
+dbdir_op = dbGetSettingString("dir_op")
+End Function
+
+
+Function tel() As String
+On Error Resume Next
+tel = dbGetSettingString("tel_con")
+End Function
+
+
+
+
+Function dblogo() As String
+On Error Resume Next
+dblogo = ""
+If dbGetSettingBoolean("blLogo") Then
+  dblogo = dbGetSettingString("logo")
+End If
+End Function
+
+
+
+
+
+Public Function lenex_file() As Boolean
+On Error Resume Next
+If Forms![wed_imp_master]![Type] = 20 Then
+  lenex_file = True
+Else
+  lenex_file = False
+End If
+End Function
+
+Public Function mm_backup_file() As Boolean
+On Error Resume Next
+If Forms![wed_imp_master]![Type] = 30 Then
+  mm_backup_file = True
+Else
+  mm_backup_file = False
+End If
+End Function
+
+
+Public Function was2005_file() As Boolean
+On Error Resume Next
+If Forms![wed_imp_master]![Type] = 6 Then
+    was2005_file = True
+Else
+    was2005_file = False
+End If
+End Function
+
+
+
+
+Public Function dbIsMultipleVer() As Boolean
+On Error Resume Next
+dbIsMultipleVer = dbGetSettingBoolean("blIsMultipleVer")
+End Function
+
+
+Function ver() As String
+On Error Resume Next
+ver = dbGetSettingString("ver")
+End Function
+
+
+
+Function depot() As String
+On Error Resume Next
+depot = "00-000"
+depot = Format(dbGetSettingString("depot"), "00-000")
+End Function
+
+
+
+
+Public Function dbdir_hp() As String
+On Error Resume Next
+dbdir_hp = dbGetSettingString("dir_hp")
+End Function
+
+Public Function db_afz_afdrukken() As Boolean
+On Error Resume Next
+db_afz_afdrukken = dbGetSettingBoolean("afzender_afdrukken")
+End Function
+
+
+Public Function dbdir_template() As String
+On Error Resume Next
+dbdir_template = directory_goedmaak(dbGetSettingString("dir_template"))
+End Function
+
+Public Function dbdir_comp() As String
+On Error Resume Next
+dbdir_comp = dbGetSettingString("dir_compact")
+End Function
+
+
+
+Public Function db_narrow() As Boolean
+On Error Resume Next
+db_narrow = dbGetSettingBoolean("narrow")
+End Function
+Public Function db_verb() As Boolean
+On Error Resume Next
+db_verb = dbGetSettingBoolean("club_verbeter")
+End Function
+Public Function dbdir_backup() As String
+On Error Resume Next
+dbdir_backup = dbGetSettingString("dir_back")
+End Function
+
+
+Public Function db_def_code() As Long
+On Error Resume Next
+db_def_code = dbGetSettingLong("def_code")
+End Function
+
+
+
+
+
+
+
+
+Public Sub dbGetGlbQlfSettings(ByRef qlfData As QLF_GLB_SETTINGS)
+On Error Resume Next
+qlfData.blAllow25 = True
+qlfData.blAllow50 = True
+qlfData.dQlfMinDateLong = #1/1/1900#
+qlfData.dQlfMinDateShort = #1/1/1900#
+qlfData.sSeasonLongRegMask = "*"
+qlfData.sSeasonShortRegMask = "*"
+
+Dim iKan200 As Integer, iKan50 As Integer
+Dim dDat50 As Date, dDat200 As Date
+
+iKan200 = dbGetSettingLong("kan_200")
+iKan50 = dbGetSettingLong("kan_50")
+
+dDat200 = dbGetSettingDate("dat_200")
+dDat50 = dbGetSettingDate("dat_50")
+
+Dim curYear As Long
+Dim curMonth As Long
+
+curYear = val(Format(Now(), "yyyy"))
+curMonth = val(Format(Now(), "mm"))
+
+Select Case iKan50
+  Case 1
+    If (curMonth >= 8) Then
+      qlfData.dQlfMinDateShort = DateSerial(curYear, 1, 1)
+    Else
+      qlfData.dQlfMinDateShort = DateSerial(curYear - 1, 1, 1)
+    End If
+  Case 2
+    qlfData.sSeasonShortRegMask = ssGetCurSeason()
+  Case 3
+    If (curMonth >= 8) Then
+      qlfData.dQlfMinDateShort = DateSerial(curYear - 1, 8, 1)
+    Else
+      qlfData.dQlfMinDateShort = DateSerial(curYear - 2, 8, 1)
+    End If
+  Case 4
+    'onbeperkt
+  Case 5
+    If (lenDateIsValid(dDat50)) Then
+      qlfData.dQlfMinDateShort = dDat50
+    End If
+End Select
+
+
+Select Case iKan200
+  Case 1
+    If (curMonth >= 8) Then
+      qlfData.dQlfMinDateLong = DateSerial(curYear, 1, 1)
+    Else
+      qlfData.dQlfMinDateLong = DateSerial(curYear - 1, 1, 1)
+    End If
+  Case 2
+    qlfData.sSeasonLongRegMask = ssGetCurSeason()
+  Case 3
+    If (curMonth >= 8) Then
+      qlfData.dQlfMinDateLong = DateSerial(curYear - 1, 8, 1)
+    Else
+      qlfData.dQlfMinDateLong = DateSerial(curYear - 2, 8, 1)
+    End If
+  Case 4
+    'onbeperkt
+  Case 5
+    If (lenDateIsValid(dDat200)) Then
+      qlfData.dQlfMinDateLong = dDat200
+    End If
+End Select
+
+Dim iBad As Integer
+iBad = dbGetSettingLong("h_bad")
+Select Case iBad
+  Case 1
+    qlfData.blAllow50 = False
+  Case 2
+    qlfData.blAllow25 = False
+  Case Else
+    'onbeperkt
+End Select
+
+
+
+End Sub

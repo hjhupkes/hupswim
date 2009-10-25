@@ -1,0 +1,231 @@
+Version =20
+VersionRequired =20
+Checksum =-521995582
+Begin Form
+    AutoResize = NotDefault
+    PopUp = NotDefault
+    Modal = NotDefault
+    RecordSelectors = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    DividingLines = NotDefault
+    AllowAdditions = NotDefault
+    OrderByOn = NotDefault
+    ScrollBars =2
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =6689
+    DatasheetFontHeight =10
+    ItemSuffix =10
+    Left =660
+    Top =2580
+    Right =7800
+    Bottom =9630
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x2dc0b3d4847ae340
+    End
+    RecordSource ="SELECT * FROM [fdtgTussenAfstanden] ORDER BY TU_Baan,TU_Eindslag, sqlAfstOrder(n"
+        "z([tu_eindafstand]));"
+    Caption ="Tussentijden aanpassen"
+    AfterUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =323
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =1875
+                    Height =210
+                    Name ="Label5"
+                    Caption ="Afstand / Slag / Baan"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =2551
+                    Top =113
+                    Width =750
+                    Height =210
+                    Name ="Label6"
+                    Caption ="Afstand 1"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =3571
+                    Top =113
+                    Width =810
+                    Height =210
+                    Name ="Label7"
+                    Caption ="Afstand 2"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =4592
+                    Top =113
+                    Width =750
+                    Height =210
+                    Name ="Label10"
+                    Caption ="Afstand 3"
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =5612
+                    Top =113
+                    Width =810
+                    Height =210
+                    Name ="Label11"
+                    Caption ="Afstand 4"
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =113
+                    Width =681
+                    Name ="TU_Eindafstand"
+                    ControlSource ="TU_Eindafstand"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =850
+                    Width =801
+                    TabIndex =1
+                    Name ="TU_Eindslag"
+                    ControlSource ="TU_Eindslag"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1757
+                    Width =276
+                    TabIndex =2
+                    Name ="TU_Baan"
+                    ControlSource ="TU_Baan"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =2551
+                    Width =921
+                    TabIndex =3
+                    Name ="TU_Afstand1"
+                    ControlSource ="TU_Afstand1"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3571
+                    Width =921
+                    TabIndex =4
+                    Name ="TU_Afstand2"
+                    ControlSource ="TU_Afstand2"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =4592
+                    Width =921
+                    TabIndex =5
+                    Name ="Text12"
+                    ControlSource ="TU_Afstand3"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =5612
+                    Width =921
+                    TabIndex =6
+                    Name ="Text13"
+                    ControlSource ="TU_Afstand4"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =720
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =120
+                    Top =120
+                    Width =6300
+                    Height =450
+                    Name ="Label14"
+                    Caption ="NB: Gebruik Afstand 3 en Afstand 4 alleen als afstand 1 en 2 ingevuld zijn. \015"
+                        "\012NB2: De tussenafstanden voor rug, school en vlinder zijn gelijk aan die voor"
+                        " vrij."
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+Dim mstFrm As Form_INST_Master
+
+Set mstFrm = Forms("INST_Master")
+
+mstFrm.notifyTstChange
+
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+Me.OrderBy = ""
+
+setBackground Me
+End Sub

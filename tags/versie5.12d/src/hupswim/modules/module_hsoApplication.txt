@@ -1,0 +1,321 @@
+Option Compare Database
+Option Explicit
+
+
+
+
+
+
+
+Const LKP_LIST_MAX_ENTRIES = 1024
+
+
+
+Global n_char As Integer        ' hoeveel karakters in de combobox.
+
+Global lkpListLastDir As String
+Global lkpListLastExt As String
+Global lkpListLastCnt As Integer
+Global lkpListLastTime As Date
+Global lkpListEntries(0 To LKP_LIST_MAX_ENTRIES) As String
+
+
+
+
+
+Public Sub notifyGlobalChange()
+On Error Resume Next
+rec_NotifyExternalChange
+time_NotifyExternalChange
+insTimes_NotifyExternalChange
+insCandidates_NotifyExternalChange
+op_notifyExternalChange
+End Sub
+
+Public Sub notifyWedStructureChange()
+On Error Resume Next
+op_notifyExternalChange
+insCandidates_NotifyExternalChange
+End Sub
+
+Public Sub notifyWedOpstellingChange()
+On Error Resume Next
+op_notifyExternalChange
+End Sub
+
+Public Sub notifyTimeChange()
+On Error Resume Next
+time_NotifyExternalChange
+insTimes_NotifyExternalChange
+insCandidates_NotifyExternalChange
+End Sub
+
+Public Sub notifyRecordChange()
+On Error Resume Next
+rec_NotifyExternalChange
+
+End Sub
+
+Public Function start_up_controle() As Boolean
+On Error GoTo fout
+
+start_up_controle = False
+
+
+On Error Resume Next
+changeProperty "Auto Compact", dbBoolean, False
+
+On Error GoTo fout
+
+
+
+If dbFirstUse() Then
+  DoCmd.OpenForm "WIZ_FU_Master"
+End If
+
+start_up_controle = True
+    
+Exit Function
+fout:
+MsgBox Err & " start_up_controle" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+
+Private Function lkpListShouldRecalc(dir As String, ext As String) As Boolean
+On Error GoTo fout
+lkpListShouldRecalc = True
+
+
+If (dir <> lkpListLastDir) Then
+  Exit Function
+End If
+
+If (ext <> lkpListLastExt) Then
+  Exit Function
+End If
+
+
+If Abs(DateDiff("s", Now(), Nz(lkpListLastTime, #1/1/1900#))) > 10 Then
+  Exit Function
+End If
+
+
+lkpListShouldRecalc = False
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+Public Function lkpListExtension() As String
+On Error Resume Next
+Dim extensie As String
+extensie = "tijd*.*"
+If lenex_file() Then
+  extensie = "*.l?f"
+End If
+If (mm_backup_file()) Then
+  extensie = "*.zip"
+End If
+
+If was2005_file() Then
+  extensie = "*.xml"
+End If
+
+
+lkpListExtension = extensie
+
+End Function
+
+
+Public Function lkpListDirectory() As String
+On Error Resume Next
+lkpListDirectory = IIf(IsNull(Forms![wed_imp_master]![dir]), dbdir_op(), Nz(Forms![wed_imp_master]![dir]))
+
+If (lkpListDirectory = "") Then
+  lkpListDirectory = dbdir_op()
+End If
+
+End Function
+
+Private Function lkpListCalculate() As Boolean
+On Error GoTo fout
+
+
+lkpListCalculate = False
+Dim directory As String
+directory = lkpListDirectory()
+
+Dim ext As String
+ext = lkpListExtension()
+
+If (Not lkpListShouldRecalc(directory, ext)) Then
+  lkpListCalculate = True
+  Exit Function
+End If
+
+
+'Now have to calculate.
+
+Dim dirQry As String
+dirQry = directory_goedmaak(directory) & "\" & ext
+
+Dim entCnt As Long
+entCnt = 0
+
+lkpListEntries(entCnt) = dir(dirQry)
+
+If lkpListEntries(entCnt) <> "" Then
+    entCnt = 1
+    Do Until entCnt = LKP_LIST_MAX_ENTRIES
+        lkpListEntries(entCnt) = dir
+        If lkpListEntries(entCnt) = "" Then Exit Do
+        entCnt = entCnt + 1
+    Loop
+End If
+
+lkpListLastCnt = entCnt
+lkpListLastDir = directory
+lkpListLastExt = ext
+lkpListLastTime = Now()
+
+
+
+lkpListCalculate = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Function listFilesGetList(x, y)
+On Error Resume Next
+listFilesGetList = 0
+If Not lkpListCalculate() Then
+  Exit Function
+End If
+
+If y = 0 Then listFilesGetList = lkpListEntries(x)
+If y = 1 Then listFilesGetList = lkpListLastCnt
+
+End Function
+
+
+
+
+'Only to be used for preparing the file.
+Public Function KlaarVoorVerspreidenMaken(Optional blShowDlg As Boolean = True)
+
+
+
+If (blShowDlg) Then
+  If MsgBox("Prepare for distribution?") = 2 Then
+   Exit Function
+  End If
+End If
+
+
+DoCmd.OpenForm "wed_master", acDesign
+Forms![wed_master].Ploegleider.DefaultValue = ""
+Forms![wed_master].Melden.DefaultValue = ""
+DoCmd.Close acForm, "wed_master", acSaveYes
+
+
+Dim mydb As Database, geg As Recordset
+Set mydb = CurrentDb()
+Set geg = mydb.OpenRecordset("dtSettings")
+geg.MoveFirst
+geg.Edit
+geg("dir_back") = "d:\zwemdevelopment\leegdat"
+'geg("dir_back") = "\\10.0.0.10\mirror (h)\hj\zwemdevelopment\leegdat"
+geg.Update
+geg.Close
+
+
+Dim sEmptyBck As String
+sEmptyBck = extractFilePath(CurrentDb.name) & "\..\..\bin\bck_empty\backswim.hup"
+
+If Not FileExists(sEmptyBck) Then
+  sEmptyBck = "d:\zwemdevelopment\leegdat\backswim.hup"
+End If
+
+backup_teruglezen_driver sEmptyBck, False
+
+
+
+dbSetUsed (False)
+'DoCmd.RunCommand acCmdMakeMDEFile
+
+
+
+End Function
+
+
+
+Public Sub vergrendel()
+On Error Resume Next
+changeProperty "AllowBypassKey", dbBoolean, False
+changeProperty "AppIcon", dbText, dbdir_comp() & "\hzzian2.ico"
+changeProperty "Allowspecialkeys", dbBoolean, False
+changeProperty "allowtoolbarchanges", dbBoolean, False
+changeProperty "AllowBuiltinToolbars", dbBoolean, False
+changeProperty "allowfullmenus", dbBoolean, True
+changeProperty "StartUpShowDBWindow", dbBoolean, False
+changeProperty "AppTitle", dbText, APP_NAME_HUPSWIM
+
+End Sub
+
+Public Sub ontgrendel()
+On Error Resume Next
+changeProperty "AllowBypassKey", dbBoolean, True
+End Sub
+
+
+Function streepje(KeyAscii As Integer)
+On Error Resume Next
+If KeyAscii = 27 Then
+  n_char = 0
+  Exit Function
+End If
+
+If KeyAscii >= 48 And KeyAscii <= 57 Then
+  n_char = n_char + 1
+  If n_char = 2 Then
+    SendKeys "-"
+    n_char = n_char + 1
+  End If
+Else
+  If KeyAscii = 8 Then
+    n_char = IIf(n_char = 0, 0, n_char - 1)
+  End If
+End If
+
+Exit Function
+End Function
+
+
+
+
+Public Function appAddNewRecord()
+On Error Resume Next
+Dim intcurrenttype, strcurrentname
+intcurrenttype = Application.CurrentObjectType
+strcurrentname = Application.CurrentObjectName
+DoCmd.GoToRecord , , acNewRec
+If intcurrenttype = acForm Then
+    Select Case strcurrentname
+        
+    End Select
+End If
+
+
+End Function
