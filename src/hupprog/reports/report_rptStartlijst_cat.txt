@@ -5590,7 +5590,7 @@ If (blIsOW) Then
 End If
 
 If (blIsUitslag) Then
-  If (Nz([DE_Reserve]) = "J") Or (Nz([ty_dis]) = DIS_AFM) Then Cancel = True
+  If (Nz([DE_Reserve]) = "J") Or (Nz([ty_dis]) = DIS_AFM) Or (Nz([ty_dis]) = DIS_NG) Then Cancel = True
 ElseIf (blIsProgramma) Then
   If Nz([DE_Reserve]) = "J" Then Cancel = True
 End If
@@ -6420,6 +6420,7 @@ Dim argWednr As Long, argBlEntireMeet As Boolean, argWedMainNr As Long, argBlIsO
 Dim argSFirstProg As String, argSLastProg As String
 Dim argBlRestrictRnk As Boolean, argLMaxRnk As Long
 Dim argBlSingleProg As Boolean, argSingleProg As String
+Dim argProgHideNgAfm As Boolean
 
 argWednr = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_NR))
 argBlEntireMeet = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_ENTIRE_MEET))
@@ -6431,6 +6432,7 @@ argBlRestrictRnk = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_RESTRICT_RNK
 argLMaxRnk = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_MAX_RNK))
 argBlSingleProg = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_IS_SINGLE_PROG))
 argSingleProg = rxpGetUserArg(rxpPnt, RXP_PV_ARG_SINGLE_PROG)
+argProgHideNgAfm = rxpGetUserArg(rxpPnt, RXP_PV_ARG_PRG_HIDE_NG_AFM)
 
 
 
@@ -6513,6 +6515,11 @@ ElseIf (argSFirstProg = "") Then
 Else
   whereClause = whereClause & " AND ( val(nz([pr_programmanummer])) <= " & val(argSLastProg) & " ) AND (  val(nz([pr_programmanummer])) >= " & val(argSFirstProg) & " ) "
 End If
+
+If (blIsProgramma And argProgHideNgAfm) Then
+  whereClause = whereClause & " AND (nz([ty_dis]) <> """ & DIS_AFM & """ ) AND (nz([ty_dis]) <> """ & DIS_NG & """ ) "
+End If
+
 
 sql = sql & whereClause
 
@@ -7226,6 +7233,8 @@ Else
       Me.Controls("baan") = "Res."
     ElseIf Nz([ty_dis]) = DIS_AFM Then
       Me.Controls("baan") = "Afg."
+    ElseIf Nz([ty_dis]) = DIS_NG Then
+      Me.Controls("baan") = "Ng."
     ElseIf Nz([ty_dis]) = DIS_ZK Then
       Me.Controls("baan") = Nz([DE_Baan]) & ". X"
     Else

@@ -279,6 +279,7 @@ Public Const RXP_PV_ARG_RESTRICT_RNK = "RestrictRank"
 Public Const RXP_PV_ARG_MAX_RNK = "MaxRank"
 Public Const RXP_PV_ARG_IS_SINGLE_PROG = "IsSingleProg"
 Public Const RXP_PV_ARG_SINGLE_PROG = "SingleProg"
+Public Const RXP_PV_ARG_PRG_HIDE_NG_AFM = "ProgHideNgAfm"
 
 
 Private Const RXP_UTL_TXT_FULL_WIDTH = 120
@@ -3900,6 +3901,7 @@ Dim wednr As Long, wedInf As WED_BASIC_INFO
 Dim blEntireMeet As Boolean, sFirstProg As String, sLastProg As String
 Dim blRestrictRnk As Boolean, lMaxRnk As Long
 Dim blSingleProg As Boolean, sSingleProg As String
+Dim blHideNgAfm As Boolean
 
 Dim rs As Recordset
 Set rs = CurrentDb().OpenRecordset("hpoPV_Stats")
@@ -3914,6 +3916,7 @@ blRestrictRnk = Nz(rs("PV_RestrictRank"))
 lMaxRnk = Nz(rs("PV_MaxRank"))
 blSingleProg = Nz(rs("PV_IsSingleProg"))
 sSingleProg = Nz(rs("PV_SingleProg"))
+blHideNgAfm = Nz(rs("PV_Prog_HideNgAfm"))
 
 appCleanRS rs
 
@@ -3978,6 +3981,11 @@ End If
 If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_SINGLE_PROG, sSingleProg) Then
   Exit Function
 End If
+
+If Not rxpSetUserArg(rxpPnt, RXP_PV_ARG_PRG_HIDE_NG_AFM, rxpFormatBoolean(blHideNgAfm)) Then
+  Exit Function
+End If
+
 
 
   
