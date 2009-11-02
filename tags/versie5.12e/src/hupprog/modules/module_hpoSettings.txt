@@ -1,0 +1,285 @@
+Option Compare Database
+Option Explicit
+
+
+Public Function dbdir_comp() As String
+On Error Resume Next
+dbdir_comp = dbGetSettingString("dir_compact")
+End Function
+
+
+
+Public Function Vraag_ProgrammaOpmaak() As TProgrammaOpmaak
+On Error Resume Next
+Dim tpNaam As String
+tpNaam = dbGetSettingString("ProgrammaOpmaakNaam")
+
+Dim tpProgrammaOpmaak As TProgrammaOpmaak
+
+
+
+If ProgrammaOpmaakInlezen(tpNaam, tpProgrammaOpmaak) Then
+  Vraag_ProgrammaOpmaak = tpProgrammaOpmaak
+Else
+  Vraag_ProgrammaOpmaak = DefaultProgrammaOpmaak()
+End If
+
+Exit Function
+
+End Function
+
+
+
+
+Function controle() As Integer
+On Error Resume Next
+controle = dbGetSettingLong("cat_controle")
+End Function
+
+
+Function dbdir() As String
+On Error Resume Next
+dbdir = dbGetSettingString("dir")
+End Function
+
+Function dbDeelnemerLijstStartsTonen() As Boolean
+On Error Resume Next
+dbDeelnemerLijstStartsTonen = Not dbGetSettingBoolean("dl_StartsNietWeergeven")
+End Function
+
+
+Function dbDeelnemerLijstSorterenOpStartnummer() As Boolean
+On Error Resume Next
+dbDeelnemerLijstSorterenOpStartnummer = dbGetSettingBoolean("dl_SortenOpStartnummer")
+End Function
+
+Function dbJurySorterenOpAlfabet() As Boolean
+On Error Resume Next
+dbJurySorterenOpAlfabet = dbGetSettingBoolean("TKAlfabetisch")
+End Function
+
+
+Function dbStartTijd() As Boolean
+On Error Resume Next
+dbStartTijd = dbGetSettingBoolean("EstafTusTijd")
+End Function
+
+Function optie_baanindeling() As Integer
+On Error Resume Next
+optie_baanindeling = dbGetSettingLong("baanindeling_optie")
+End Function
+
+Function dbdir_op() As String
+On Error Resume Next
+dbdir_op = dbGetSettingString("dir_op")
+End Function
+
+Function ver() As String
+On Error Resume Next
+ver = dbGetSettingString("ver")
+End Function
+
+
+
+Sub abc0()
+On Error Resume Next
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtSettings")
+rs.MoveFirst
+rs.Edit
+  rs("abc") = 0
+rs.Update
+appCleanRS rs
+Exit Sub
+End Sub
+Sub abc1()
+On Error Resume Next
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtSettings")
+rs.MoveFirst
+rs.Edit
+  rs("abc") = 1
+rs.Update
+appCleanRS rs
+Exit Sub
+End Sub
+
+
+Function abc() As Integer
+On Error Resume Next
+abc = dbGetSettingLong("abc")
+End Function
+Public Function db_narrow() As Boolean
+On Error Resume Next
+db_narrow = dbGetSettingBoolean("narrow")
+End Function
+
+
+Function dbdir_mailmerge()
+On Error Resume Next
+dbdir_mailmerge = dbGetSettingString("dir_mailmerge")
+End Function
+
+Function baanindeling_afwisselen() As Boolean
+On Error Resume Next
+baanindeling_afwisselen = dbGetSettingBoolean("blAfwisselen")
+End Function
+
+
+
+
+
+
+
+Public Function db_grijs() As Boolean
+On Error Resume Next
+db_grijs = dbGetSettingBoolean("achtergrondgrijs")
+End Function
+
+
+
+Public Function db_afz_afdrukken() As Boolean
+On Error Resume Next
+db_afz_afdrukken = dbGetSettingBoolean("afzender_afdrukken")
+End Function
+
+
+
+
+
+
+
+
+
+Function cont_adres() As String
+On Error Resume Next
+cont_adres = dbGetSettingString("adres_cont")
+End Function
+
+Function cont_postcode() As String
+On Error Resume Next
+cont_postcode = dbGetSettingString("postcode_cont") & "  " & dbGetSettingString("plaats_cont")
+End Function
+
+Function cont_postcode_sep() As String
+On Error Resume Next
+cont_postcode_sep = dbGetSettingString("postcode_cont")
+End Function
+Function cont_plaats() As String
+On Error Resume Next
+cont_plaats = dbGetSettingString("plaats_cont")
+End Function
+
+
+
+Function cont_email() As String
+On Error Resume Next
+cont_email = dbGetSettingString("email_cont")
+End Function
+
+
+Function cont_tel() As String
+On Error Resume Next
+cont_tel = dbGetSettingString("tel_cont")
+End Function
+
+Function contpersoon() As String
+On Error Resume Next
+contpersoon = dbGetSettingString("cont")
+End Function
+
+
+
+
+Public Function dbdir_backup() As String
+On Error Resume Next
+dbdir_backup = dbGetSettingString("dir_back")
+End Function
+
+
+
+
+Public Function db_def_code() As Long
+On Error Resume Next
+db_def_code = dbGetSettingLong("def_code")
+End Function
+
+
+Public Function wed_actBaanlengte()
+On Error Resume Next
+Dim x
+x = Null
+x = Forms![wed_master]![WE_Baanlengte]
+If IsNull(x) Then
+  wed_actBaanlengte = "*"
+Else
+  wed_actBaanlengte = x
+End If
+End Function
+
+Function aant_deel()
+On Error Resume Next
+aant_deel = Forms![wed_master]![WE_Meetellende_deelnemers]
+End Function
+
+
+Public Function wed_aanvang()
+On Error Resume Next
+wed_aanvang = Forms![wed_master]![WE_Aanvang]
+End Function
+
+Function wed_beschrijving() As String
+On Error Resume Next
+wed_beschrijving = Nz(Forms![wed_master]![WE_Beschrijving])
+End Function
+
+Function wed_plaats() As String
+On Error Resume Next
+wed_plaats = Nz(Forms![wed_master]![WE_Plaats])
+End Function
+
+Public Function wed_IsOpenWater() As Boolean
+On Error Resume Next
+wed_IsOpenWater = False
+wed_IsOpenWater = Nz(Forms![wed_master]![WE_IsOpenWater], False)
+End Function
+
+
+
+Public Function wed_PuntTerugRekenen() As Boolean
+On Error Resume Next
+wed_PuntTerugRekenen = Nz(Forms![wed_master]![WE_PuntenTerugRekenen], False)
+End Function
+
+
+
+
+Function was2005_file() As Boolean
+On Error Resume Next
+If (Forms![wed_imp_master]![type] = 14) Then
+  was2005_file = True
+Else
+  was2005_file = False
+End If
+Exit Function
+End Function
+
+Function lenex_file() As Boolean
+On Error Resume Next
+If (Forms![wed_imp_master]![type] = 20) Then
+  lenex_file = True
+Else
+  lenex_file = False
+End If
+Exit Function
+End Function
+
+Public Function mm_backup_file() As Boolean
+On Error Resume Next
+If Forms![wed_imp_master]![type] = 30 Then
+  mm_backup_file = True
+Else
+  mm_backup_file = False
+End If
+Exit Function
+End Function

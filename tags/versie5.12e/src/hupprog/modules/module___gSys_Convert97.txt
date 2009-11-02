@@ -1,0 +1,28 @@
+Option Compare Database
+Option Explicit
+
+Public Function dsbConvertTo97() As Boolean
+On Error Resume Next
+Dim curDirName As String, curFileName As String
+curDirName = extractFilePath(Application.CurrentProject.FullName())
+curFileName = extractFileName(Application.CurrentProject.FullName())
+
+If extractFileName(curDirName) = "prepare" Then
+  'we are in business
+  Dim sUpperDirName As String
+  sUpperDirName = extractFilePath(curDirName)
+  Dim sTargetFileName As String
+  sTargetFileName = sUpperDirName & "\office97\" & curFileName
+  
+  SysCmd 605, sTargetFileName
+ElseIf extractFileName(curDirName) = "prep" Then
+  'we are in business
+  sUpperDirName = extractFilePath(curDirName)
+  sTargetFileName = sUpperDirName & "\off97\" & curFileName
+  
+  SysCmd 605, sTargetFileName
+End If
+
+
+dsbConvertTo97 = True
+End Function

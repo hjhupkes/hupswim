@@ -1,0 +1,226 @@
+Version =20
+VersionRequired =20
+Checksum =-1901854646
+Begin Form
+    PopUp = NotDefault
+    Modal = NotDefault
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowAdditions = NotDefault
+    BorderStyle =3
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =7483
+    DatasheetFontHeight =10
+    ItemSuffix =14
+    Left =2100
+    Top =2070
+    Right =10305
+    Bottom =9390
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x65f3fc123e5fe340
+    End
+    RecordSource ="SELECT * FROM dtProgramma WHERE (((dtProgramma.PR_Wedstrijdnummer)=waarde())) OR"
+        "DER BY Val([pr_programmanummer]);"
+    Caption ="Meetellende programmanummers"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =1247
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =113
+                    Top =793
+                    Width =540
+                    Height =210
+                    Name ="Label6"
+                    Caption ="Prognr"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =3975
+                    Top =795
+                    Width =1800
+                    Height =405
+                    Name ="Label7"
+                    Caption ="NIET op programmablad\015\012tonen: "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    TextAlign =2
+                    Left =240
+                    Top =165
+                    Width =4095
+                    Height =345
+                    FontSize =12
+                    FontWeight =700
+                    BackColor =65280
+                    Name ="Label8"
+                    Caption ="Meetellende Programmanummers"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =5896
+                    Top =793
+                    Width =1470
+                    Height =405
+                    Name ="Label12"
+                    Caption ="NIET op uitslaglijst\015\012tonen: "
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =113
+                    Width =795
+                    Name ="TP_Programmanummer"
+                    ControlSource ="PR_Programmanummer"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =4195
+                    TabIndex =1
+                    Name ="TP_Teltmee"
+                    ControlSource ="PR_ProgNietLatenZien"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =1077
+                    Width =2901
+                    TabIndex =2
+                    Name ="Text4"
+                    ControlSource ="=[pr_afstand] & \"m \" & mooi_slag(nz([pr_slag],\"\")) & \" \" & [pr_beschrijvin"
+                        "g categorie]"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =6066
+                    TabIndex =3
+                    Name ="Check13"
+                    ControlSource ="PR_UitNietLatenZien"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =680
+            BackColor =16776960
+            Name ="FormFooter"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =84
+                    Left =6292
+                    Top =113
+                    Width =1134
+                    Height =400
+                    FontSize =10
+                    FontWeight =700
+                    ForeColor =255
+                    Name ="btnTerug"
+                    Caption ="&Terug"
+                    OnClick ="[Event Procedure]"
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Function mooi_slag(slag As String) As String
+On Error Resume Next
+Select Case slag
+Case "Vrij"
+    mooi_slag = "Vrijeslag"
+Case "RUG"
+    mooi_slag = "Rugslag"
+Case "SCHOOL"
+    mooi_slag = "Schoolslag"
+Case "VLINDER"
+    mooi_slag = "Vlinderslag"
+Case "WISSEL"
+    mooi_slag = "Wisselslag"
+Case Else
+    mooi_slag = slag
+End Select
+    
+End Function
+
+Private Function alles(selecteren As Boolean)
+
+On Error Resume Next
+Dim geg As Recordset
+Set geg = Me.RecordsetClone
+
+geg.MoveFirst
+Do Until geg.EOF
+    geg.Edit
+    geg("TP_Teltmee") = selecteren
+    geg.Update
+    geg.MoveNext
+Loop
+
+End Function
+
+
+
+Private Sub btnTerug_Click()
+On Error Resume Next
+DoCmd.Close
+End Sub
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
