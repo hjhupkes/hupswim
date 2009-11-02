@@ -870,6 +870,7 @@ Do Until blSwmDone
               
               Dim blUse25 As Boolean
               blUse25 = True
+              
               If (bl25OK And bl50OK) Then
                 'Need to check which of the two times to use.
                 If (wedInfo.qlfConvMode = QLF_CONV_FINA_POINTS) Then
@@ -901,12 +902,15 @@ Do Until blSwmDone
               
                 
               'Now get the right time to use.
-              If (blUse25) Then
+              If (blUse25 And bl25OK) Then
                 outp("PC_InsTime" & tpFldSuffix) = swAfSlTime25(lkpPos)
                 outp("PC_InsWedNr" & tpFldSuffix) = swAfSlWed25(lkpPos)
-              Else
+              ElseIf ((Not blUse25) And bl50OK) Then
                 outp("PC_InsTime" & tpFldSuffix) = swAfSlTime50(lkpPos)
                 outp("PC_InsWedNr" & tpFldSuffix) = swAfSlWed50(lkpPos)
+              Else
+                outp("PC_InsTime" & tpFldSuffix) = 0
+                outp("PC_InsWedNr" & tpFldSuffix) = 0
               End If
             
               
@@ -1795,7 +1799,7 @@ End Function
 
 
 Public Function insAddCandidates(blOnlyValidInsTime As Boolean, blUseMaxCnt As Boolean, iMaxCnt As Integer, blUseLim As Boolean, sLim As String, sResLim As String, blHuidig As Boolean, blMeet As Boolean, openProg As String, openWedNr As Long, openMeetNr As Long) As Boolean
-On Error GoTo fout
+ On Error GoTo fout
 insAddCandidates = False
 
 
