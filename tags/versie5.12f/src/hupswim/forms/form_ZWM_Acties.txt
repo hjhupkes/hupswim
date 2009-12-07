@@ -1,0 +1,194 @@
+Version =20
+VersionRequired =20
+Checksum =-1544622768
+Begin Form
+    RecordSelectors = NotDefault
+    NavigationButtons = NotDefault
+    AllowDesignChanges = NotDefault
+    DefaultView =0
+    ScrollBars =0
+    TabularFamily =0
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =8370
+    DatasheetFontHeight =10
+    ItemSuffix =5
+    Left =3720
+    Top =2835
+    Right =15390
+    Bottom =7680
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0xf581a98c4f45e340
+    End
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    Begin
+        Begin Label
+            BackStyle =0
+            FontName ="Tahoma"
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="Tahoma"
+        End
+        Begin Section
+            Height =2381
+            BackColor =16776960
+            Name ="Detail"
+            GUID = Begin
+                0x598c8e414571fc46b1c2f16918fad84f
+            End
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =69
+                    TextFontFamily =2
+                    Left =285
+                    Top =465
+                    Width =2406
+                    Height =330
+                    FontSize =10
+                    FontWeight =700
+                    ForeColor =0
+                    Name ="btnExp"
+                    Caption ="&Exporteren..."
+                    StatusBarText ="Tijden exporteren"
+                    OnClick ="[Event Procedure]"
+                    FontName ="System"
+                    GUID = Begin
+                        0x809072ef806cad45bc8e9ffb020ae40c
+                    End
+                    UnicodeAccessKey =69
+                End
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =3255
+                    Top =435
+                    Width =5115
+                    Height =480
+                    Name ="Label3"
+                    Caption ="Tijden van deze zwemmen exporteren tbv andere vereniging\015\012(zie <Onderhoud>"
+                        " scherm voor meer opties om tijden te exporteren)"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0xfff06f7884ba8943a309b2a483898fb4
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =83
+                    TextFontFamily =2
+                    Left =285
+                    Top =1065
+                    Width =2406
+                    Height =330
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =1
+                    ForeColor =0
+                    Name ="btnSamenvoegen"
+                    Caption ="&Samenvoegen..."
+                    StatusBarText ="Gegevens van twee verschillende startnummers met elkar combineren"
+                    OnClick ="[Event Procedure]"
+                    FontName ="System"
+                    GUID = Begin
+                        0xf9755fd2f5d77c408b7b3f9435dd4de4
+                    End
+                    UnicodeAccessKey =83
+                End
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =3255
+                    Top =1065
+                    Width =5115
+                    Height =330
+                    Name ="Label1"
+                    Caption ="Gegevens van twee verschillende startnummers met elkaar combineren"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0x8e328ee4d852c947ac5830e21dd13904
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =68
+                    TextFontFamily =2
+                    Left =285
+                    Top =1665
+                    Width =2406
+                    Height =330
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =2
+                    ForeColor =0
+                    Name ="btnDubbel"
+                    Caption ="&Dubbele zwemmers..."
+                    StatusBarText ="Dubbele zwemmers opsporen"
+                    OnClick ="[Event Procedure]"
+                    FontName ="System"
+                    GUID = Begin
+                        0xf656fdc559ee4941b5aff3cfb7a7f220
+                    End
+                    UnicodeAccessKey =68
+                End
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =3255
+                    Top =1665
+                    Width =5115
+                    Height =330
+                    Name ="Label4"
+                    Caption ="Dubbele zwemmers in het bestand opsporen en corrigeren"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0xebe982edf13d0b4fbbe8e4eb384b7490
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub btnDubbel_Click()
+On Error Resume Next
+
+If Not swmCheckDuplicates() Then
+  Exit Sub
+End If
+
+DoCmd.OpenForm "SWM_DUP_Master"
+
+End Sub
+
+Private Sub btnExp_Click()
+On Error Resume Next
+
+DoCmd.OpenForm "ZWM_DLG_ExportTimes", , , , , acDialog
+
+End Sub
+
+Private Sub btnSamenvoegen_Click()
+On Error Resume Next
+DoCmd.OpenForm "ZWM_DLG_Smelten"
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

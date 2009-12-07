@@ -1,0 +1,556 @@
+Option Compare Database
+Option Explicit
+
+Public Sub ExportDatabaseObjects()
+On Error GoTo fout
+
+
+On Error Resume Next
+changeProperty "Auto Compact", dbBoolean, False
+
+On Error GoTo fout
+
+
+    
+Dim db As Database
+
+
+Dim d As Document
+Dim c As Container
+
+Dim sExportLocation As String
+
+Set db = CurrentDb()
+
+sExportLocation = directory_goedmaak(extractFilePath(db.name)) & "\textBackups" & appGetName()
+
+If Not DirectoryExists(sExportLocation) Then
+  MkDir sExportLocation
+End If
+
+If Not DirectoryExists(sExportLocation) Then
+  Err.Raise 1, , "Error creating directory: " & sExportLocation
+End If
+
+
+sExportLocation = sExportLocation & "\"   'Do not forget the closing back slash!
+
+Set c = db.Containers("Forms")
+For Each d In c.Documents
+    Application.SaveAsText acForm, d.name, sExportLocation & "Form_" & GoedTekens(d.name) & ".txt"
+Next d
+
+Set c = db.Containers("Reports")
+For Each d In c.Documents
+    Application.SaveAsText acReport, d.name, sExportLocation & "Report_" & GoedTekens(d.name) & ".txt"
+Next d
+
+Set c = db.Containers("Scripts")
+For Each d In c.Documents
+    Application.SaveAsText acMacro, d.name, sExportLocation & "Macro_" & GoedTekens(d.name) & ".txt"
+Next d
+
+Set c = db.Containers("Modules")
+For Each d In c.Documents
+    Application.SaveAsText acModule, d.name, sExportLocation & "Module_" & GoedTekens(d.name) & ".txt"
+Next d
+
+
+
+Set db = Nothing
+Set c = Nothing
+
+Debug.Print "All database objects have been exported as a text file to " & sExportLocation
+    
+Exit Sub
+    
+fout:
+MsgBox Err & " ExportDatabaseObjects" & vbCrLf & Error$, 16
+Exit Sub
+
+'debug
+On Error GoTo 0
+Resume
+    
+End Sub
+
+
+Private Function exportRelations_IsValidRelProp(ByVal sPropName As String) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "Name"
+    tpRes = True
+  Case "Table"
+    tpRes = True
+  Case "ForeignTable"
+    tpRes = True
+  Case "Attributes"
+    tpRes = True
+End Select
+
+exportRelations_IsValidRelProp = tpRes
+
+End Function
+
+
+Private Function exportTBStructure_IsValidTbProp(ByVal sPropName As String) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "ValidationRule"
+    tpRes = True
+  Case "ValidationText"
+    tpRes = True
+End Select
+
+exportTBStructure_IsValidTbProp = tpRes
+
+End Function
+
+Private Function exportTBStructure_IsValidFldProp(ByVal sPropName As String, ByVal blIsRelField As Boolean, ByVal blIsIdx) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "ValidationRule"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "ValidationText"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Name"
+    'If tableField, then name has been exported separately
+    tpRes = (blIsRelField Or blIsIdx)
+  Case "Type"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Attributes"
+    tpRes = Not blIsRelField
+  Case "Size"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "ForeignName"
+    tpRes = blIsRelField
+  Case "DefaultValue"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Required"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "AllowZeroLength"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Format"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "InputMask"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Description"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "DisplayControl"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  
+End Select
+
+exportTBStructure_IsValidFldProp = tpRes
+
+End Function
+
+Private Function exportTBStructure_IsValidIdxProp(ByVal sPropName As String) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "Name"
+    tpRes = True
+  Case "Unique"
+    tpRes = True
+  Case "Primary"
+    tpRes = True
+  Case "IgnoreNulls"
+    tpRes = True
+  
+End Select
+
+exportTBStructure_IsValidIdxProp = tpRes
+
+End Function
+
+
+
+Private Function exportTBStructure(ByVal sTbName As String, ByVal sFName As String) As Boolean
+On Error GoTo fout
+exportTBStructure = False
+
+Dim blFOpen As Boolean
+blFOpen = False
+
+Dim tbDef As TableDef, db As Database
+Set db = CurrentDb()
+Set tbDef = db.TableDefs(sTbName)
+
+
+Dim fNr As Integer
+fNr = FreeFile
+
+Open sFName For Output As #fNr
+blFOpen = True
+
+Print #fNr, "Begin Table"
+
+Dim prp As Property
+For Each prp In tbDef.Properties
+  If exportTBStructure_IsValidTbProp(prp.name) Then
+    exportProp "  ", prp, fNr
+  End If
+Next prp
+
+Dim fld As Field
+For Each fld In tbDef.Fields
+  Print #fNr, "  Begin Field"
+  exportProp "    ", fld.Properties("name"), fNr
+  For Each prp In fld.Properties
+    If exportTBStructure_IsValidFldProp(prp.name, False, False) Then
+      exportProp "    ", prp, fNr
+    End If
+  Next prp
+  Print #fNr, "  End"
+Next fld
+
+Dim idx As Index
+For Each idx In tbDef.Indexes
+  If Not idx.Foreign Then
+    Print #fNr, "  Begin Index"
+    For Each prp In idx.Properties
+      If exportTBStructure_IsValidIdxProp(prp.name) Then
+        exportProp "    ", prp, fNr
+      End If
+    Next prp
+    For Each fld In idx.Fields
+      Print #fNr, "    Begin Field"
+      For Each prp In fld.Properties
+        If exportTBStructure_IsValidFldProp(prp.name, False, True) Then
+          exportProp "      ", prp, fNr
+        End If
+      Next prp
+      Print #fNr, "    End" 'field
+    Next fld
+    Print #fNr, "  End"  'index
+  End If
+Next idx
+
+Print #fNr, "End" 'table
+
+Close #fNr
+blFOpen = False
+
+
+Set db = Nothing
+Set tbDef = Nothing
+
+
+exportTBStructure = True
+Exit Function
+fout:
+If blFOpen Then
+  Close #fNr
+End If
+
+MsgBox Err & " exportTbStructure" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Sub exportProp(ByVal sLeadTxt As String, ByRef prp As Property, ByVal fNr As Integer)
+
+If prp.type = dbBoolean Then
+  Print #fNr, sLeadTxt & prp.name & "::" & prp.type & "::" & IIf(prp.value, "True", "False")
+Else
+  Print #fNr, sLeadTxt & prp.name & "::" & prp.type & "::" & prp.value
+End If
+  
+
+End Sub
+
+
+Private Function exportRelations(sFName As String) As Boolean
+On Error GoTo fout
+exportRelations = False
+
+Dim blFOpen As Boolean
+blFOpen = False
+
+Dim db As Database
+Set db = CurrentDb()
+
+
+Dim fNr As Integer
+fNr = FreeFile
+
+Open sFName For Output As #fNr
+blFOpen = True
+
+Print #fNr, "Begin Relations"
+
+
+Dim rel As Relation
+
+For Each rel In db.Relations
+  Print #fNr, "  Begin Relation"
+  
+  Dim prp As Property
+  For Each prp In rel.Properties
+    If exportRelations_IsValidRelProp(prp.name) Then
+      exportProp "    ", prp, fNr
+    End If
+  Next prp
+  
+  Dim fld As Field
+  For Each fld In rel.Fields
+    Print #fNr, "    Begin Field"
+    For Each prp In fld.Properties
+      If exportTBStructure_IsValidFldProp(prp.name, True, False) Then
+        exportProp "      ", prp, fNr
+      End If
+    Next prp
+    Print #fNr, "    End" 'end field
+  Next fld
+  
+
+
+  Print #fNr, "  End" 'relation
+Next rel
+
+Print #fNr, "End" 'relations
+
+Close #fNr
+blFOpen = False
+
+exportRelations = True
+Exit Function
+fout:
+If blFOpen Then
+  Close #fNr
+End If
+
+MsgBox Err & " exportRelations" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Private Function cleanDir(ByVal sDir As String) As Boolean
+On Error GoTo fout
+cleanDir = False
+
+Dim s As String
+s = dir(sDir & "\*.txt")
+While s <> ""
+  Dim fFullName As String
+  fFullName = sDir & "\" & s
+   
+  FileSystem.Kill fFullName
+  
+  s = dir()
+Wend
+
+
+
+cleanDir = True
+Exit Function
+
+fout:
+MsgBox Err & " cleanDir" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function sysExportSourceTree() As Boolean
+On Error GoTo fout
+sysExportSourceTree = False
+
+On Error Resume Next
+changeProperty "Auto Compact", dbBoolean, False
+
+On Error GoTo fout
+
+
+Dim sBaseDir As String
+sBaseDir = extractFilePath(CurrentDb().name)
+
+If Not DirectoryExists(sBaseDir & "\src") Then
+  MkDir sBaseDir & "\src"
+End If
+
+
+Dim sAppName As String
+sAppName = LCase(appGetName())
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName) Then
+  MkDir sBaseDir & "\src\" & sAppName
+End If
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\tableStructures") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\tableStructures"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\tableStructures"
+End If
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\tableData") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\tableData"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\tableData"
+End If
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\relationships") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\relationships"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\relationships"
+End If
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\queries") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\queries"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\queries"
+End If
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\macros") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\macros"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\macros"
+End If
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\forms") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\forms"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\forms"
+End If
+
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\reports") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\reports"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\reports"
+End If
+
+If Not DirectoryExists(sBaseDir & "\src\" & sAppName & "\modules") Then
+  MkDir sBaseDir & "\src\" & sAppName & "\modules"
+Else
+  cleanDir sBaseDir & "\src\" & sAppName & "\modules"
+End If
+
+
+
+
+
+    
+Dim db As Database
+
+
+Dim d As Document
+Dim c As Container
+
+Dim sExportLocation As String
+
+Set db = CurrentDb()
+
+
+Set c = db.Containers("Forms")
+For Each d In c.Documents
+    Application.SaveAsText acForm, d.name, sBaseDir & "\src\" & sAppName & "\forms\form_" & GoedTekens(d.name) & ".txt"
+Next d
+
+Set c = db.Containers("Reports")
+For Each d In c.Documents
+    Application.SaveAsText acReport, d.name, sBaseDir & "\src\" & sAppName & "\reports\report_" & GoedTekens(d.name) & ".txt"
+Next d
+
+Set c = db.Containers("Scripts")
+For Each d In c.Documents
+  If (Left(d.name, 8) <> "__stbSys") Then
+    Application.SaveAsText acMacro, d.name, sBaseDir & "\src\" & sAppName & "\macros\macro_" & GoedTekens(d.name) & ".txt"
+  End If
+Next d
+
+Set c = db.Containers("Modules")
+For Each d In c.Documents
+  If (Left(d.name, 8) <> "__stbSys") Then
+    Application.SaveAsText acModule, d.name, sBaseDir & "\src\" & sAppName & "\modules\module_" & GoedTekens(d.name) & ".txt"
+  End If
+Next d
+
+
+Dim q As QueryDef
+For Each q In db.QueryDefs
+  If (Left(q.name, 1) <> "~") Then
+    Application.SaveAsText acQuery, q.name, sBaseDir & "\src\" & sAppName & "\queries\query_" & GoedTekens(q.name) & ".txt"
+  End If
+Next q
+
+Dim tb As TableDef
+For Each tb In db.TableDefs
+  Dim blExp As Boolean, blExpData As Boolean
+  blExp = Left(tb.name, 1) <> "~"
+  If (Not blExp) And Left(tb.name, 4) = "~imp" Then
+    blExp = True
+  End If
+  
+  If (blExp) Then
+    If (dbSystemObject And tb.Attributes) <> 0 Or (dbHiddenObject And tb.Attributes) <> 0 Then
+      blExp = False
+    End If
+  End If
+  
+  blExpData = False
+  If (blExp) Then
+    If (Left(tb.name, 3) = "fdt") Then
+      blExpData = True
+    End If
+  End If
+  
+  If (blExp) Then
+    If Not exportTBStructure(tb.name, sBaseDir & "\src\" & sAppName & "\tableStructures\tableStructure_" & GoedTekens(tb.name) & ".txt") Then
+      Err.Raise 3, , "Propagated error"
+    End If
+  End If
+  
+  If (blExpData) Then
+    If Not gXMLWriter.exportTableToXML(tb.name, sBaseDir & "\src\" & sAppName & "\tableData\tableData_" & GoedTekens(tb.name) & ".txt", "src", False) Then
+      Exit Function
+    End If
+    
+    'Cannot trust access exportXML. It uses the locale-specific decimal separator, destroying inter-computer usability.
+    'Will they ever learn?
+    'Application.ExportXML acExportTable, tb.name, sBaseDir & "\src\" & sAppName & "\TableData\TableData_" & GoedTekens(tb.name) & ".txt"
+  End If
+  
+Next tb
+
+If Not exportRelations(sBaseDir & "\src\" & sAppName & "\relationships\relationships.txt") Then
+  Err.Raise 3, , "Propagated error"
+End If
+
+
+
+
+
+Set db = Nothing
+Set c = Nothing
+
+Debug.Print "All database objects have been exported as a source tree to " & sBaseDir & "\src\" & sAppName
+
+sysExportSourceTree = True
+    
+Exit Function
+    
+fout:
+MsgBox Err & " sysExportSourceTree" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+    
+End Function

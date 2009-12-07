@@ -1,0 +1,423 @@
+Option Compare Database
+Option Explicit
+
+Global Const OW_MAX_DLNS = 10000
+
+
+Public Function owCalcStats(ByVal wednr As Long, ByVal nDlnsOnly As Boolean) As Boolean
+On Error GoTo fout
+owCalcStats = False
+
+Dim prgs As Recordset
+Set prgs = CurrentDb().OpenRecordset("Select * from dtProgramma where pr_wedstrijdnummer=" & wednr & ";")
+
+prgs.MoveFirst
+Do Until prgs.EOF
+
+  Dim prNr As String
+  prNr = Nz(prgs("PR_Programmanummer"))
+  
+  
+  Dim nDlns As Long
+  nDlns = Nz(DCount("de_index", "dtDeelnemers", "DE_Wedstrijdnummer=" & wednr & " and de_programmanummer = """ & prNr & """"))
+  
+  Dim nZk As Long
+  Dim nNG As Long
+  'Dim nArrNoDis As Long
+  Dim nArrTotal As Long
+  Dim nDis As Long
+  Dim nOpg As Long
+  Dim nTooLate As Long
+  
+  nZk = 0
+  nNG = 0
+  'nArrNoDis = 0
+  nArrTotal = 0
+  nDis = 0
+  nOpg = 0
+  nTooLate = 0
+  
+  If (Not nDlnsOnly) Then
+  
+    Dim td As Recordset
+    Set td = CurrentDb().OpenRecordset("Select * from dtTijden where ty_wedstrijdnummer=" & wednr & " and ty_programmanummer=""" & prNr & """")
+    
+    td.MoveFirst
+    Do Until td.EOF
+      Dim discode As String
+      discode = Nz(td("TY_Dis"))
+      
+      If (discode = "") Then
+        If (Nz(td("TY_Eindtijd")) > 1) Then
+          'nArrNoDis = nArrNoDis + 1
+          nArrTotal = nArrTotal + 1
+        End If
+      ElseIf discode = DIS_ZK Or discode = DIS_AFM Then
+        nZk = nZk + 1
+      ElseIf discode = DIS_NG Or discode = "NO" Then
+        nNG = nNG + 1
+      ElseIf discode = "AF" Then
+        nOpg = nOpg + 1
+      ElseIf discode = "OK" Or discode = DIS_NGZA Then
+        nTooLate = nTooLate + 1
+      Else
+        If (Nz(td("TY_Eindtijd")) > 1) Then
+          nArrTotal = nArrTotal + 1
+        End If
+        nDis = nDis + 1
+      End If
+        
+    
+      td.MoveNext
+    Loop
+  End If
+  
+  
+  prgs.Edit
+    prgs("PR_OW_NDeelnemers") = nDlns
+    prgs("PR_OW_NZiek") = nZk
+    prgs("PR_OW_NNG") = nNG
+    prgs("PR_OW_NNietTijdAfgemeld") = nTooLate
+    prgs("PR_OW_NGestart") = nDlns - nZk - nNG - nTooLate
+    prgs("PR_OW_NOpgegeven") = nOpg
+    prgs("PR_OW_NGediskwalificeerd") = nDis
+    prgs("PR_OW_NAangekomen") = nArrTotal
+    prgs("PR_OW_NOnbekend") = nDlns - nZk - nNG - nTooLate - nOpg - nArrTotal
+  prgs.Update
+
+
+  prgs.MoveNext
+Loop
+
+
+
+
+
+owCalcStats = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " owCalcStats" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function owCapIndeling_perform(ByRef nrs() As Long, wednr As Long, prognr As String, capKleur As String, capMinNr As Long, ByRef capMissing As String, blOverwriteExisting As Boolean) As Boolean
+On Error GoTo fout
+owCapIndeling_perform = False
+
+'First have to build array of used nrs.
+Dim rs As Recordset
+Dim sql As String
+
+sql = "SELECT dtDeelnemers.* FROM dtDeelnemers LEFT JOIN dtNamen ON " & _
+"(dtDeelnemers.DE_Startnummer = dtNamen.NA_Startnummer) AND " & _
+"(dtDeelnemers.DE_Vereniging = dtNamen.NA_Vereniging) " & _
+"WHERE de_wedstrijdnummer= " & waarde() & " and de_programmanummer = """ & prognr & """ " & _
+"ORDER BY dtDeelnemers.DE_Categorie, swtOrder(nz([DE_Inschrijftijd])), " & _
+"IIf(IsNull([na_achternaam]),nmExtractAchternaam(nz([na_naam])),[na_achternaam]);"
+
+
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim nNrs As Integer
+nNrs = 0
+
+Dim tpNr As Long
+Dim isEigenCap As Boolean
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  tpNr = Nz(rs("DE_OW_Capnummer"))
+  isEigenCap = Nz(rs("DE_OW_EigenCap"))
+  If (tpNr > 0) And (isEigenCap Or (Not blOverwriteExisting)) Then
+    'need to register number.
+    insLong tpNr, nNrs, nrs
+  End If
+  
+  rs.MoveNext
+Loop
+
+'now add the missing caps to the list.
+Dim sMissingCopy As String
+sMissingCopy = capMissing
+
+Dim tpTok As String
+tpTok = extractToken(sMissingCopy, ";")
+While (Len(tpTok) > 0)
+  Dim cpFirst As Long
+  Dim cpLast As Long
+  
+  cpFirst = CLng(val(extractToken(tpTok, "-")))
+  cpLast = CLng(val(tpTok))
+  
+  If (cpLast <= 0 Or cpLast <= cpFirst) Then
+    cpLast = cpFirst
+  End If
+  
+  If (cpLast - cpFirst > 1000) Then
+    Err.Raise 1, , "Het interval: " & cpFirst & " t/m " & cpLast & " van ontbrekende caps is te lang. "
+  End If
+  
+  Dim i As Long
+  For i = cpFirst To cpLast
+    insLong i, nNrs, nrs
+  Next i
+  
+  
+  
+  tpTok = extractToken(sMissingCopy, ";")
+Wend
+
+
+Dim freeNr As Long
+freeNr = capMinNr
+
+While (bSearchLong(freeNr, nNrs, nrs) <> -1)
+  freeNr = freeNr + 1
+Wend
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  tpNr = Nz(rs("DE_OW_Capnummer"))
+  isEigenCap = Nz(rs("DE_OW_EigenCap"))
+  
+  If (Nz(rs("DE_Serienummer")) <> 0) Or (Nz(rs("DE_Baan")) <> 0) Then
+    rs.Edit
+      rs("DE_Serienummer") = 0
+      rs("DE_Baan") = 0
+    rs.Update
+  End If
+  
+  If (tpNr = 0) Or ((Not isEigenCap) And blOverwriteExisting) Then
+    'need to obtain a new nr.
+    rs.Edit
+      rs("DE_OW_Capkleur") = hzn(capKleur)
+      rs("DE_OW_Capnummer") = freeNr
+    rs.Update
+    
+    freeNr = freeNr + 1
+    While (bSearchLong(freeNr, nNrs, nrs) <> -1)
+      freeNr = freeNr + 1
+    Wend
+  End If
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+
+owCapIndeling_perform = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " owCapIndeling_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function owCapIndeling(blHuidigProg As Boolean, blEntireMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long, blOverwriteExisting As Boolean) As Boolean
+On Error GoTo fout
+owCapIndeling = False
+
+
+If Not deelnemerCategorie(curWedNr) Then
+  Exit Function
+End If
+
+Dim nrs(0 To OW_MAX_DLNS) As Long
+
+
+Dim progsSQL As String
+
+'Get a string specifying the progs for which we must perform the cap-indeling.
+progsSQL = wedGetProgsSQL(blHuidigProg, blEntireMeet, curProg, curWedNr, curMeetNr, True, False)
+
+Dim progs As Recordset
+Set progs = CurrentDb().OpenRecordset(progsSQL)
+
+progs.MoveFirst
+Do Until progs.EOF
+  
+  Dim prognr As String
+  Dim capKleur As String
+  Dim capMinNr As Long
+  Dim capMissing As String
+  
+  prognr = Nz(progs("PR_Programmanummer"))
+  capKleur = Nz(progs("PR_OW_Capkleur"))
+  capMinNr = Nz(progs("PR_OW_MinCapNummer"))
+  capMissing = Nz(progs("PR_OW_MissingCaps"))
+  
+  If (capMinNr <= 0) Then
+    capMinNr = 1
+  End If
+  
+  If Not owCapIndeling_perform(nrs, curWedNr, prognr, capKleur, capMinNr, capMissing, blOverwriteExisting) Then
+    Exit Function
+  End If
+
+
+  progs.MoveNext
+Loop
+
+
+
+
+
+
+owCapIndeling = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " owCapIndeling" & vbCrLf & Error$, 16
+Exit Function
+On Error GoTo 0
+Resume Next
+End Function
+
+
+Public Function owWriteMissingCaps(sMissing As String) As Boolean
+On Error GoTo fout
+owWriteMissingCaps = False
+
+Dim sql As String
+sql = "Delete * from [hpoMissingcaps];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoMissingCaps")
+
+Dim tpTok As String
+tpTok = extractToken(sMissing, ";")
+While (Len(tpTok) > 0)
+  Dim cprFirst As Long, cprLast As Long
+  
+  cprFirst = CLng(val(extractToken(tpTok, "-")))
+  cprLast = CLng(val(tpTok))
+  
+  rs.AddNew
+  rs("CP_First") = cprFirst
+  rs("CP_Last") = cprLast
+  rs.Update
+  
+
+  'read next token
+  tpTok = extractToken(sMissing, ";")
+Wend
+
+
+owWriteMissingCaps = True
+Exit Function
+fout:
+MsgBox Err & " owWriteMissingCaps" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function owReadMissingCaps(ByRef sMissing As String) As Boolean
+On Error GoTo fout
+owReadMissingCaps = False
+
+sMissing = ""
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset("hpoMissingCaps")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim cprFirst As Long, cprLast As Long
+  cprFirst = Nz(rs("CP_First"))
+  cprLast = Nz(rs("CP_Last"))
+  
+  If (cprLast <= 0 Or cprLast <= cprFirst) Then
+    cprLast = cprFirst
+  End If
+  
+  If (cprFirst > 0) Then
+  
+    If (Len(sMissing) > 0) Then
+      sMissing = sMissing & ";"
+    End If
+    
+    sMissing = sMissing & cprFirst & "-" & cprLast
+  
+  End If
+  
+  rs.MoveNext
+Loop
+
+
+
+
+
+owReadMissingCaps = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " owReadMissingCaps" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function owGetMissingCaps(ByVal wednr As Long, ByVal prognr As String, ByRef sMissingCaps As String) As Boolean
+On Error GoTo fout
+owGetMissingCaps = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtProgramma")
+
+rs.Index = "PrimaryKey"
+
+rs.Seek "=", wednr, prognr
+
+If rs.NoMatch Then
+  Err.Raise 1, , "Internal error: Could not find prognr ( " & wednr & ", " & prognr & " )"
+End If
+
+sMissingCaps = Nz(rs("PR_OW_MissingCaps"))
+
+
+owGetMissingCaps = True
+Exit Function
+fout:
+MsgBox Err & " owGetMissingCaps" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function owSetMissingCaps(ByVal wednr As Long, ByVal prognr As String, ByVal sMissingCaps As String) As Boolean
+On Error GoTo fout
+owSetMissingCaps = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtProgramma")
+
+rs.Index = "PrimaryKey"
+
+rs.Seek "=", wednr, prognr
+
+If rs.NoMatch Then
+  Err.Raise 1, , "Internal error: Could not find prognr ( " & wednr & ", " & prognr & " )"
+End If
+
+rs.Edit
+rs("PR_OW_MissingCaps") = hzn(sMissingCaps)
+rs.Update
+
+
+owSetMissingCaps = True
+Exit Function
+fout:
+MsgBox Err & " owSetMissingCaps" & vbCrLf & Error$, 16
+Exit Function
+End Function

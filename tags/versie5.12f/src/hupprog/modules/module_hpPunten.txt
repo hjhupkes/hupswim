@@ -1,0 +1,55 @@
+Option Compare Database
+Option Explicit
+
+
+Public Function pntGetStdOpts(ByVal wednr As Long, ByRef blUseTst As Boolean, ByRef blTerugRekenen As Boolean, ByRef blSingleLft As Boolean) As Boolean
+On Error GoTo fout
+pntGetStdOpts = False
+
+
+blUseTst = True
+
+blTerugRekenen = Nz(DLookup("WE_PuntenTerugRekenen", "dtWedstrijdGegevens", "we_wedstrijdnummer=" & wednr), False)
+
+blSingleLft = False
+
+If Nz(DLookup("WE_Pnt_Lft_Beperking", "dtWedstrijdGegevens", "we_wedstrijdnummer=" & wednr), False) Then
+  blSingleLft = True
+End If
+
+
+pntGetStdOpts = True
+Exit Function
+fout:
+MsgBox Err & " pntGetStdOpts" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+Public Function pntFindVerStdInitVal(ByRef dlv As Recordset, ByVal actWedNr As Long, ByVal vName As String, ByRef vInitVal As Double, ByRef isFnd As Boolean) As Boolean
+On Error GoTo fout
+pntFindVerStdInitVal = False
+
+isFnd = False
+vInitVal = 0
+
+
+
+'note that dlv SWAPS the key order.
+dlv.Seek "=", vName, actWedNr
+If Not dlv.NoMatch Then
+  isFnd = True
+  vInitVal = dlv("DV_Tussenstand")
+End If
+
+
+
+pntFindVerStdInitVal = True
+Exit Function
+fout:
+MsgBox Err & " pntFindVerStdInitVal" & vbCrLf & Error$, 16
+Exit Function
+End Function

@@ -1,0 +1,538 @@
+Option Compare Database
+Option Explicit
+
+
+
+
+
+Public Function finIsFinalType(progType As String) As Boolean
+On Error Resume Next
+If (progType = "") Then
+  finIsFinalType = False
+  Exit Function
+End If
+
+If (progType = PROG_TYPE_SER Or progType = "PRLM" Or progType = PROG_TYPE_FST Or progType = PROG_TYPE_RANKING Or progType = PROG_TYPE_PUNT) Then
+  finIsFinalType = False
+Else
+  finIsFinalType = True
+End If
+  
+
+End Function
+
+Public Function finGetNSeries(progType As String) As Integer
+On Error Resume Next
+If (progType = "FIN") Then
+  finGetNSeries = 1
+ElseIf (progType Like "?FIN") Then
+  finGetNSeries = 1
+ElseIf (progType = "QF") Then
+  finGetNSeries = 4
+ElseIf (progType = "SF") Then
+  finGetNSeries = 2
+End If
+
+End Function
+
+Private Function finFillFinalForProg(wednr As Long, isMeet As Boolean, meetMainNr As Long, prognr As String, prType As String, prVorigProg As String, progCat As String, baanVolgorde() As Integer, nBanen As Integer, nReserves As Integer, incFastestTwo As Boolean, blPromptNonEmpty As Boolean) As Boolean
+On Error GoTo fout
+finFillFinalForProg = False
+
+
+Dim dlnCnt As Long
+dlnCnt = DCount("nz([DE_Startnummer])", "[dtDeelnemers]", "[DE_Wedstrijdnummer]=" & wednr & " and [DE_Programmanummer]=""" & prognr & """")
+If (dlnCnt > 0) Then
+  Dim response As Integer
+  If (blPromptNonEmpty) Then
+    response = MsgBox("Progr. " & prognr & " heeft al deelnemers. Deze zullen worden verwijderd. " & Chr$(13) & "Weet u zeker dat u met het indelen van dit programmanummer wilt doorgaan?", vbYesNoCancel + vbQuestion)
+  Else
+    response = vbOK
+  End If
+  
+  If (response = vbCancel) Then
+    Exit Function
+  ElseIf (response = vbNo) Then
+    finFillFinalForProg = True
+    Exit Function
+  Else
+    Dim delSQL As String
+    delSQL = "Delete * from [dtDeelnemers] where [DE_Wedstrijdnummer]=" & wednr & " and [de_Programmanummer]=""" & prognr & """"
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL delSQL
+    DoCmd.SetWarnings True
+  End If
+End If
+
+'Now select deelnemers that we want to append.
+Dim tsql As String
+
+
+If Not isMeet Then
+    tsql = "SELECT dtTijden.*, dtProgramma.*, dtDeelnemers.DE_Serienummer, dtDeelnemers.DE_Naam FROM dtDeelnemers INNER JOIN (dtWedstrijdGegevens INNER JOIN " & _
+    "(dtTijden INNER join dtProgramma ON (dtTijden.TY_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) AND (dtTijden.TY_Programmanummer = " & _
+    "dtProgramma.PR_Programmanummer)) ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) ON dtDeelnemers.DE_Index = dtTijden.TY_Index " & _
+    "WHERE (  (TY_Programmanummer = """ & prVorigProg & """) And " & _
+    "(nz([we_wedstrijdnummer]) = " & wednr & ") ) " & _
+    "ORDER BY CLng(nz([TY_Eindtijd])*100), nz([TY_ab]), clng(nz([TY_EindPunten])*1000);"
+Else
+  tsql = "SELECT dtTijden.*, dtProgramma.*, dtDeelnemers.DE_Serienummer, dtDeelnemers.DE_Naam FROM dtDeelnemers INNER JOIN (dtWedstrijdGegevens INNER JOIN " & _
+    "(dtTijden INNER join dtProgramma ON (dtTijden.TY_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) AND (dtTijden.TY_Programmanummer = " & _
+    "dtProgramma.PR_Programmanummer)) ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) ON dtDeelnemers.DE_Index = dtTijden.TY_Index " & _
+    "WHERE ( (TY_Programmanummer = """ & prVorigProg & """) And " & _
+    "( (nz([we_wedstrijdnummer]) = " & meetMainNr & ")   or (nz([we_mainWedstrijdNummer]) = " & meetMainNr & " ) ) ) " & _
+    "ORDER BY CLng(nz([TY_Eindtijd])*100), nz([TY_ab]), clng(nz([TY_EindPunten])*1000);"
+End If
+
+
+
+       
+Dim dlns As Recordset
+Set dlns = CurrentDb().OpenRecordset(tsql)
+dlns.MoveFirst
+Dim cnt As Integer
+cnt = 0
+
+Dim maxTimeFastCnt As Integer
+
+
+
+Dim serieEnc(1 To 4) As Integer
+Dim i As Integer
+For i = 1 To 4
+  serieEnc(i) = 0
+Next i
+
+
+Dim nSeries As Integer
+nSeries = finGetNSeries(prType)
+
+maxTimeFastCnt = nSeries * nBanen
+
+Dim isFirst As Boolean
+isFirst = True
+
+Dim prvType As String
+Dim incPrevFstPerSerie As Boolean
+Dim nPrevSeries As Integer
+
+'Dim maxQualifiedTime As Double
+Dim maxQualifiedPoints As Double
+Dim maxQualifiedAB As String
+
+
+Dim nRes As Integer
+nRes = 0
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("dtDeelnemers")
+
+Dim isEstaf As Boolean
+
+
+Dim isBFin As Boolean
+Dim isCFin As Boolean
+
+isBFin = False
+isCFin = False
+If (prType = "BFIN") Then
+  isBFin = True
+ElseIf (prType = "CFIN") Then
+  isCFin = True
+End If
+
+Dim validTimeCnt As Integer
+validTimeCnt = 0
+
+
+
+
+Dim zwms As Recordset
+Set zwms = CurrentDb().OpenRecordset("dtNamen")
+zwms.Index = "PrimaryKey"
+
+
+
+Do Until dlns.EOF
+  If (isFirst) Then
+    isFirst = False
+    prvType = Nz(dlns("PR_TYPE"))
+    isEstaf = Nz(dlns("PR_Afstand")) Like "*x*"
+    If (finIsFinalType(prvType) And incFastestTwo) Then
+    
+      If (isBFin Or isCFin) Then
+        MsgBox "B/C - Finales kunnen niet gehouden worden n.a.v halve of kwart finales", 16
+        Exit Function
+      End If
+    
+      incPrevFstPerSerie = True
+      
+      nPrevSeries = finGetNSeries(prvType)
+      maxTimeFastCnt = maxTimeFastCnt - 2 * nPrevSeries
+    Else
+      incPrevFstPerSerie = False
+    End If
+  End If
+  
+  'First check if
+  Dim gs As String
+  Dim gb As Date
+  Dim st As String
+  Dim est As Integer
+  Dim ver As String
+  'gb = Nz(dlns("NA_Geboortedatum"), #1/1/1900#)
+  'gs = Nz(dlns("NA_Geslacht"))
+  
+  Dim curCandidateProgNr As String
+  Dim curCandidateWedNr As Long
+  
+  curCandidateProgNr = Nz(dlns("TY_Programmanummer"))
+  curCandidateWedNr = Nz(dlns("TY_Wedstrijdnummer"))
+  
+  
+  Dim curCandidateQualifyPoints As Double
+  curCandidateQualifyPoints = 0
+  
+  Dim curCandidateValid As Boolean
+  curCandidateValid = False
+  
+  If (Abs(Nz(dlns("TY_EindPunten")) > 1)) Then
+    curCandidateQualifyPoints = Nz(dlns("TY_EindPunten"))
+    curCandidateValid = True
+  ElseIf swtIsValid(Nz(dlns("TY_Eindtijd"))) Then
+    curCandidateQualifyPoints = Nz(dlns("TY_Eindtijd"))
+    curCandidateValid = True
+  End If
+  
+  If (Nz(dlns("TY_Dis")) <> "") Then
+    curCandidateValid = False
+  End If
+  
+  
+  ver = Nz(dlns("TY_Vereniging"))
+  If (isEstaf) Then
+    est = Nz(dlns("TY_Estafettenummer"))
+  Else
+    st = Nz(dlns("TY_Startnummer"))
+    
+    zwms.Seek "=", st, ver
+    If Not zwms.NoMatch Then
+      gb = Nz(zwms("NA_Geboortedatum"), #1/1/1900#)
+      gs = Nz(zwms("NA_Geslacht"))
+    Else
+      Err.Raise 1, , "Zwemmer: " & st & " niet gevonden."
+    End If
+    
+  End If
+  
+  
+  
+  
+  If (curCandidateValid) Then
+    If (Not isEstaf) Then
+      If cat_voldoet_bare(st, progCat, gs, gb, wed_lft_mode(), True, wed_age_date()) <> CAT_OK Then
+        curCandidateValid = False
+      End If
+    End If
+  End If
+  
+  
+  
+  Dim blAppend As Boolean, blIsRes As Boolean
+  Dim blCheckForRes As Boolean
+  
+  blAppend = False
+  blIsRes = False
+  blCheckForRes = True
+  
+  If (curCandidateValid) Then
+  
+    blAppend = True
+    
+    'Check if time is in range.
+    If (isBFin Or isCFin) Then
+      If (isBFin) Then
+        If (validTimeCnt < nBanen) Then
+          blAppend = False
+          blCheckForRes = False
+        ElseIf (validTimeCnt >= 2 * nBanen) Then
+          blAppend = False
+        End If
+      Else
+        'C finale
+        If (validTimeCnt < 2 * nBanen) Then
+          blAppend = False
+          blCheckForRes = False
+        ElseIf (validTimeCnt >= 3 * nBanen) Then
+          blAppend = False
+        End If
+      End If
+      
+      If (blAppend) Then
+        maxQualifiedPoints = curCandidateQualifyPoints
+        maxQualifiedAB = Nz(dlns("TY_Ab"))
+      End If
+      validTimeCnt = validTimeCnt + 1
+    Else
+      If (cnt < maxTimeFastCnt) Then
+        maxQualifiedPoints = curCandidateQualifyPoints
+        maxQualifiedAB = Nz(dlns("TY_Ab"))
+        blAppend = True
+      Else
+        blAppend = False
+      End If
+    End If
+    
+   
+    
+    If (incPrevFstPerSerie) Then
+      'mark out series.
+      Dim ser As Integer
+      ser = Nz(dlns("DE_Serienummer"))
+      If (ser < 1 Or ser > nPrevSeries) Then
+        MsgBox "Serienr: " & ser & " in progr nr. " & prVorigProg & " is een ongeldig nummer.", 16
+        Exit Function
+      End If
+      Dim enc As Integer
+      enc = serieEnc(ser) + 1
+      serieEnc(ser) = enc
+      If (enc <= 2) Then
+        If (blAppend) Then
+          'There is room for an extra "fast time" qualification.
+          maxTimeFastCnt = maxTimeFastCnt + 1
+        Else
+          'This is a serie-first qualification
+          blAppend = True
+        End If
+      End If
+    End If
+    
+    If (Not blAppend) Then
+      'check against max qualification time.
+      If (Abs(curCandidateQualifyPoints - maxQualifiedPoints) < 0.001) Then
+        Dim isConflict As Boolean
+        isConflict = False
+        If (maxQualifiedAB = "") Then
+          isConflict = True
+        ElseIf (Nz(dlns("TY_AB")) = "") Then
+          isConflict = True
+        ElseIf (Nz(dlns("TY_AB")) = maxQualifiedAB) Then
+          isConflict = True
+        End If
+        If (isConflict) Then
+          MsgBox "NB: Er is een conflict bij toelating tot prognr. " & prognr & ". " & Chr$(13) & Nz(dlns("DE_NAAM")) & " heeft mogelijk ook recht om deel te nemen. ", vbCritical
+        End If
+      End If
+    End If
+    
+    If (Not blAppend And blCheckForRes) Then
+      If (nRes < nReserves) Then
+        nRes = nRes + 1
+        blAppend = True
+        blIsRes = True
+      End If
+    End If
+  End If
+  
+  If (blAppend) Then
+    'We gaan de deelnemer toevoegen.
+    Dim tvSer As Integer
+    Dim tvBn As Integer
+    
+    If (Not blIsRes) Then
+      tvSer = nSeries - (cnt Mod nSeries)
+      tvBn = baanVolgorde(cnt \ nSeries)
+    Else
+      tvSer = 0
+      tvBn = 0
+    End If
+    
+    Dim plIndex As Long
+    
+    outp.AddNew
+      outp("DE_Wedstrijdnummer") = wednr
+      outp("DE_Programmanummer") = prognr
+      outp("DE_Vereniging") = hzn(ver)
+      If (isEstaf) Then
+        outp("DE_Estafettenummer") = est
+      Else
+        outp("DE_Startnummer") = hzn(st)
+      End If
+      
+      If (swtIsValid(Nz(dlns("TY_Eindtijd")))) Then
+        outp("DE_Inschrijftijd") = Nz(dlns("TY_Eindtijd"), 0)
+      Else
+        outp("DE_Inschrijftijd") = 0
+      End If
+      outp("DE_Baan") = tvBn
+      outp("DE_Serienummer") = tvSer
+      outp("DE_Naam") = Nz(dlns("DE_Naam"))
+      If (blIsRes) Then
+        outp("DE_Reserve") = "J"
+      End If
+      
+      plIndex = outp("DE_Index")
+    outp.Update
+    
+    If (isEstaf) Then
+      Dim estPLSQL As String
+      
+      
+      
+      estPLSQL = "INSERT INTO dtPloegen ( PL_Index,PL_Vereniging, PL_Estafettenummer, PL_Wedstrijdnummer, PL_Volgorde, PL_Startnummer, PL_Naam, PL_Reserve, PL_Programmanummer ) " & _
+                  "SELECT " & plIndex & " as PLIDX,dtPloegen.PL_Vereniging, dtPloegen.PL_Estafettenummer, " & wednr & " as expr0,  dtPloegen.PL_Volgorde, dtPloegen.PL_Startnummer, " & _
+                  "dtPloegen.PL_Naam, ""N"" AS Expr1, """ & prognr & """ AS Expr2 " & _
+                  "FROM dtPloegen WHERE (((dtPloegen.PL_Wedstrijdnummer)= " & curCandidateWedNr & ") AND ((dtPloegen.PL_Programmanummer)=" & _
+                  """" & curCandidateProgNr & """) AND ((dtPloegen.PL_Reserve)=""N"") AND ((dtPloegen.PL_Vereniging) = """ & ver & """) AND ((dtPloegen.PL_Estafettenummer)=" & est & "));"
+
+      DoCmd.SetWarnings False
+      DoCmd.RunSQL estPLSQL
+      DoCmd.SetWarnings True
+    End If
+    
+    
+    cnt = cnt + 1
+  End If
+  
+  
+
+  dlns.MoveNext
+Loop
+
+
+
+
+
+
+
+finFillFinalForProg = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " finFinalForProg" & Error$, 16
+
+
+'debug
+On Error GoTo 0
+Resume
+
+
+Exit Function
+End Function
+
+
+
+
+Public Function finProgInRange(prognr As String, startProg As String, endprog As String) As Boolean
+On Error GoTo fout
+finProgInRange = True
+
+Dim valStart As Double
+Dim valEnd As Double
+
+
+
+
+valStart = val(startProg)
+valEnd = val(endprog)
+
+Dim valProg As Double
+valProg = val(prognr)
+
+If (Abs(valProg - valStart) < 0.0001) Then
+  If (prognr < startProg) Then
+    finProgInRange = False
+  End If
+ElseIf (Abs(valProg - valEnd) < 0.0001) Then
+  If (prognr > endprog) Then
+    finProgInRange = False
+  End If
+End If
+    
+    
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function finFillFinals(wednr As Long, isMeet As Boolean, meetMainNr As Long, startProg As String, endprog As String, ByVal nReserves As Integer, ByVal incFastTwoPerSer As Boolean, ByVal promptNonEmpty As Boolean) As Boolean
+On Error GoTo fout
+finFillFinals = False
+
+'Analyze estafettes.
+If Not analyzeEstafs(False, wednr, meetMainNr, "~AN_Estafs") Then
+  Exit Function
+End If
+
+If Not uitslagTransferSettings(wednr, True) Then
+  Exit Function
+End If
+
+If Not uitslagRanglijsten(wednr, True, PNT_CALC_MODE_RESULT) Then
+  Exit Function
+End If
+
+If Not uitslagPunten(wednr, True, PNT_CALC_MODE_RESULT) Then
+  Exit Function
+End If
+
+If (startProg = "") Then
+  startProg = "-9999"
+End If
+If (endprog = "") Then
+  endprog = "9999"
+End If
+
+Dim nBanen As Integer
+nBanen = Nz(DLookup("WE_Aantal_Banen", "dtWedstrijdGegevens", "[WE_Wedstrijdnummer]=" & wednr), 6)
+
+Dim baanVolgorde(0 To 20) As Integer
+
+If Not bnVolgorde(baanVolgorde, nBanen) Then
+  Exit Function
+End If
+
+
+'First clear all deelnemers.
+Dim sql As String
+sql = "Select * from [dtProgramma] where [pr_wedstrijdnummer]=" & wednr & " and val(nz([pr_programmanummer])) >= " & _
+  val(startProg) & " and val(nz([pr_programmanummer])) <= " & val(endprog) & " and finIsFinalType(nz([pr_Type]));"
+  
+Dim progs As Recordset
+Set progs = CurrentDb().OpenRecordset(sql)
+
+progs.MoveFirst
+Do Until progs.EOF
+  'check if programmanummer is in range.
+  If (finIsFinalType(Nz(progs("PR_Type")))) Then
+    If (finProgInRange(Nz(progs("PR_Programmanummer")), startProg, endprog)) Then
+      Dim prType As String
+      prType = Nz(progs("PR_Type"))
+      Dim prCat As String
+      prCat = Nz(progs("PR_Categorie"))
+      Dim prVorigProg As String
+      prVorigProg = Nz(progs("PR_Vorig_Programmanummer"))
+      If (prVorigProg <> "") Then
+        If (Not finFillFinalForProg(wednr, isMeet, meetMainNr, Nz(progs("PR_Programmanummer")), prType, prVorigProg, prCat, baanVolgorde, nBanen, nReserves, incFastTwoPerSer, promptNonEmpty)) Then
+          Exit Function
+         End If
+      End If
+    End If
+  End If
+  progs.MoveNext
+Loop
+  
+  
+
+
+
+
+finFillFinals = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function

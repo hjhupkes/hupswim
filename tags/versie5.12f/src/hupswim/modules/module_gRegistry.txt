@@ -1,0 +1,243 @@
+Option Compare Database
+Option Explicit
+
+
+Public Const HKEY_CLASSES_ROOT = &H80000000
+Public Const HKEY_CURRENT_CONFIG = &H80000005
+Public Const HKEY_CURRENT_USER = &H80000001
+Public Const HKEY_LOCAL_MACHINE = &H80000002
+Public Const HKEY_USERS = &H80000003
+
+Private Const REG_SZ As Long = 1
+Private Const REG_DWORD As Long = 4
+
+
+Private Const REG_ERROR_SUCCESS = 0&
+
+Private Const REG_ERROR_FILE_NOT_FOUND = 2&         ' Registry path does not exist
+Private Const REG_ERROR_ACCESS_DENIED = 5&          ' Requested permissions not available
+Private Const REG_ERROR_INVALID_HANDLE = 6&         ' Invalid handle or top-level key
+Private Const REG_ERROR_BAD_NETPATH = 53            ' Network path not found
+Private Const REG_ERROR_INVALID_PARAMETER = 87      ' Bad parameter to a Win32 API function
+Private Const REG_ERROR_CALL_NOT_IMPLEMENTED = 120& ' Function valid only in WinNT/2000?XP
+Private Const REG_ERROR_INSUFFICIENT_BUFFER = 122   ' Buffer too small to hold data
+Private Const REG_ERROR_BAD_PATHNAME = 161          ' Registry path does not exist
+Private Const REG_ERROR_NO_MORE_ITEMS = 259&        ' Invalid enumerated value
+Private Const REG_ERROR_BADDB = 1009                ' Corrupted registry
+Private Const REG_ERROR_BADKEY = 1010               ' Invalid registry key
+Private Const REG_ERROR_CANTOPEN = 1011&            ' Cannot open registry key
+Private Const REG_ERROR_CANTREAD = 1012&            ' Cannot read from registry key
+Private Const REG_ERROR_CANTWRITE = 1013&           ' Cannot write to registry key
+Private Const REG_ERROR_REGISTRY_RECOVERED = 1014&  ' Recovery of part of registry successful
+Private Const REG_ERROR_REGISTRY_CORRUPT = 1015&    ' Corrupted registry
+Private Const REG_ERROR_REGISTRY_IO_FAILED = 1016&  ' Input/output operation failed
+Private Const REG_ERROR_NOT_REGISTRY_FILE = 1017&   ' Input file not in registry file format
+Private Const REG_ERROR_KEY_DELETED = 1018&         ' Key already deleted
+Private Const REG_ERROR_KEY_HAS_CHILDREN = 1020&    ' Key has subkeys & cannot be deleted
+
+Private Const REG_KEY_CREATE_LINK = &H20
+Private Const REG_KEY_CREATE_SUB_KEY = &H4
+Private Const REG_KEY_ENUMERATE_SUB_KEYS = &H8
+Private Const REG_KEY_NOTIFY = &H10
+Private Const REG_KEY_QUERY_VALUE = &H1
+
+
+
+
+Private Const REG_KEY_READ = &H20019
+Private Const REG_KEY_WRITE = &H20006
+Private Const REG_KEY_ALL_ACCESS = &HF003F
+Private Const REG_KEY_SET_VALUE = &H2
+
+
+Private Type FILETIME
+  dwLowDateTime As Long
+  dwHighDateTime As Long
+End Type
+
+
+Private Const REG_OPTION_BACKUP_RESTORE = 4
+Private Const REG_OPTION_NON_VOLATILE = 0
+Private Const REG_OPTION_VOLATILE = 1
+
+Private Const REG_CREATED_NEW_KEY = &H1        ' A new key was created
+Private Const REG_OPENED_EXISTING_KEY = &H2    ' An existing key was opened
+
+Private Type SECURITY_ATTRIBUTES
+  nLength As Long
+  lpSecurityDescriptor As Long
+  bInheritHandle As Long
+End Type
+
+
+
+
+Private Declare Function RegCloseKey Lib "advapi32.dll" (ByVal hKey As Long) As Long
+
+'ulOPtions must be 0
+Private Declare Function RegOpenKeyEx Lib "advapi32.dll" Alias "RegOpenKeyExA" _
+      (ByVal hKey As Long, _
+       ByVal lpSubKey As String, _
+       ByVal ulOptions As Long, _
+       ByVal samDesired As Long, _
+       phkResult As Long) As Long
+       
+       
+'Reserved = 0
+'lpClass = &0H
+Private Declare Function RegCreateKeyEx Lib "advapi32.dll" Alias "RegCreateKeyExA" _
+       (ByVal hKey As Long, _
+       ByVal lpSubKey As String, _
+       ByVal Reserved As Long, _
+       ByVal lpClass As String, _
+       ByVal dwOptions As Long, _
+       ByVal samDesired As Long, _
+       lpSecurityAttributes As SECURITY_ATTRIBUTES, _
+       phkResult As Long, _
+       lpdwDisposition As Long) As Long
+       
+       
+Private Declare Function RegQueryValueExString Lib "advapi32.dll" Alias _
+   "RegQueryValueExA" (ByVal hKey As Long, ByVal lpValueName As _
+   String, ByVal lpReserved As Long, lpType As Long, ByVal lpData _
+   As String, lpcbData As Long) As Long
+   
+Private Declare Function RegQueryValueExLong Lib "advapi32.dll" Alias _
+   "RegQueryValueExA" (ByVal hKey As Long, ByVal lpValueName As _
+   String, ByVal lpReserved As Long, lpType As Long, lpData As _
+   Long, lpcbData As Long) As Long
+   
+Private Declare Function RegQueryValueExNULL Lib "advapi32.dll" Alias _
+   "RegQueryValueExA" (ByVal hKey As Long, ByVal lpValueName As _
+   String, ByVal lpReserved As Long, lpType As Long, ByVal lpData _
+   As Long, lpcbData As Long) As Long
+   
+Private Declare Function RegSetValueExString Lib "advapi32.dll" Alias _
+   "RegSetValueExA" (ByVal hKey As Long, ByVal lpValueName As String, _
+   ByVal Reserved As Long, ByVal dwType As Long, ByVal lpValue As _
+   String, ByVal cbData As Long) As Long
+   
+Private Declare Function RegSetValueExLong Lib "advapi32.dll" Alias _
+   "RegSetValueExA" (ByVal hKey As Long, ByVal lpValueName As String, _
+   ByVal Reserved As Long, ByVal dwType As Long, lpValue As Long, _
+   ByVal cbData As Long) As Long
+
+Public Function regGetKeyValueString(ByVal hRootKey As Long, sKeyName As String, ByVal sValueName As String, ByRef sValue As String) As Boolean
+On Error GoTo fout
+regGetKeyValueString = False
+
+
+Dim cch As Long
+Dim lrc As Long
+Dim lType As Long
+Dim sBuffer As String
+Dim hKey As Long
+
+hKey = 0
+
+lrc = RegOpenKeyEx(hRootKey, sKeyName, 0, REG_KEY_QUERY_VALUE, hKey)
+
+If (lrc <> REG_ERROR_SUCCESS) Then
+  Err.Raise 1, , "Er is een fout opgetreden bij het raadplegen van de sleutel: " & vbCrLf & sKeyName
+End If
+
+' Determine the size and type of data to be read
+lrc = RegQueryValueExNULL(hKey, sValueName, 0&, lType, 0&, cch)
+
+If lrc <> REG_ERROR_SUCCESS Then
+  Err.Raise 1, , "Er is een fout opgetreden bij het raadplegen van " & vbCrLf & sKeyName & ":" & sValueName
+End If
+
+If (lType <> REG_SZ) Then
+  Err.Raise 1, , "De onderstaande sleutel is niet van het type REG_SZ: " & vbCrLf & sKeyName & ":" & sValueName
+End If
+
+      
+sBuffer = String(cch, 0)
+
+lrc = RegQueryValueExString(hKey, sValueName, 0&, lType, sBuffer, cch)
+
+If (lrc <> REG_ERROR_SUCCESS) Then
+  Err.Raise 1, , "Er is een fout opgetreden bij het lezen van " & vbCrLf & sKeyName & ":" & sValueName
+End If
+
+sValue = Left(sBuffer, cch - 1)
+
+
+If (hKey <> 0) Then
+  On Error Resume Next
+  RegCloseKey hKey
+  hKey = 0
+End If
+
+
+
+regGetKeyValueString = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " regGetKeyValueString" & vbCrLf & Error$
+If (hKey <> 0) Then
+  On Error Resume Next
+  RegCloseKey hKey
+  hKey = 0
+End If
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Public Function regSetKeyValueString(ByVal hKeyRoot As Long, sKeyName As String, sValueName As String, sValue As String) As Boolean
+On Error GoTo fout
+regSetKeyValueString = False
+
+Dim lrc As Long, hKey As Long
+
+hKey = 0
+
+Dim sA As SECURITY_ATTRIBUTES, lDisposition As Long
+sA.nLength = Len(sA)
+sA.bInheritHandle = CLng(True)
+
+lrc = RegCreateKeyEx(hKeyRoot, sKeyName, 0, vbNullString, REG_OPTION_NON_VOLATILE, _
+                         REG_KEY_ALL_ACCESS, sA, hKey, lDisposition)
+
+If (lrc <> REG_ERROR_SUCCESS) Then
+  Err.Raise 1, , "Fout bij het openen van sleutel: " & vbCrLf & sKeyName
+End If
+       
+Dim lType As Long
+lType = REG_SZ
+       
+lrc = RegSetValueExString(hKey, sValueName, 0&, lType, sValue, Len(sValue))
+
+If (lrc <> REG_ERROR_SUCCESS) Then
+  Err.Raise 1, , "Fout bij het schrijven van sleutel: " & vbCrLf & sKeyName
+End If
+
+
+If (hKey <> 0) Then
+  On Error Resume Next
+  RegCloseKey hKey
+  hKey = 0
+End If
+      
+regSetKeyValueString = True
+
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " regSetKeyValueString" & vbCrLf & Error$
+If (hKey <> 0) Then
+  On Error Resume Next
+  RegCloseKey hKey
+  hKey = 0
+End If
+
+MsgBox msg, 16
+Exit Function
+       
+End Function
