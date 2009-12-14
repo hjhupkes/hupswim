@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1532684697
+Checksum =-636542991
 Begin Form
     MaxButton = NotDefault
     MinButton = NotDefault
@@ -26,6 +26,7 @@ Begin Form
         " [we_wedstrijdnummer] desc"
     Caption ="Wedstrijd gegevens"
     BeforeInsert ="[Event Procedure]"
+    OnDelete ="[Event Procedure]"
     OnOpen ="[Event Procedure]"
     PrtMip = Begin
         0x8905000089050000890500008905000000000000201c0000e010000001000000 ,
@@ -350,6 +351,11 @@ Attribute VB_Exposed = False
 Option Compare Database   'Use database order for string comparisons
 Option Explicit
 
+Private lUnprocessedDelete As Long
+Private wedDelNrs(0 To 10000) As Long
+Private wedDelete(0 To 10000) As Boolean
+Private wedDeleteCnt As Long
+
 
 
 Private Sub updateView()
@@ -409,7 +415,8 @@ If (tpNewWedNr > 999900) Then
 End If
 
 
-If Not wedMove(tpCurWedNr, tpNewWedNr) Then
+
+If Not wedNrSingleChange(tpCurWedNr, tpNewWedNr) Then
   Exit Sub
 End If
 
@@ -445,11 +452,6 @@ Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
 On Error Resume Next
 response = acDataErrContinue
 
-If MsgBox("Wedstrijd verwijderen?", vbQuestion + vbOKCancel) = vbCancel Then
-  Cancel = True
-End If
-
-
 End Sub
 
 Private Sub Form_BeforeInsert(Cancel As Integer)
@@ -460,6 +462,50 @@ End Sub
 
 
 
+
+Private Sub Form_Delete(Cancel As Integer)
+On Error Resume Next
+  
+  
+If (lUnprocessedDelete = 0) Then
+
+  'Need to initialize
+  Dim rs As Recordset
+  Set rs = Me.RecordsetClone
+
+  Dim i As Integer
+  For i = 0 To Me.SelHeight - 1
+    rs.AbsolutePosition = Me.SelTop - 1 + i
+    wedDelNrs(i) = Nz(rs("we_wedstrijdnummer"))
+  Next i
+  
+  appCleanRS rs
+  
+  
+  wedDeleteCnt = Me.SelHeight
+  lUnprocessedDelete = wedDeleteCnt
+  
+  If Not wedMayDeleteMultiple(wedDelNrs, wedDelete, wedDeleteCnt) Then
+    lUnprocessedDelete = 0
+  End If
+
+End If
+  
+  
+  
+If (lUnprocessedDelete > 0) Then
+  If wedDelete(wedDeleteCnt - lUnprocessedDelete) Then
+    Cancel = False
+  Else
+    Cancel = True
+  End If
+  lUnprocessedDelete = lUnprocessedDelete - 1
+Else
+  Cancel = True
+End If
+  
+
+End Sub
 
 Private Sub Form_Error(dataerr As Integer, response As Integer)
 On Error Resume Next

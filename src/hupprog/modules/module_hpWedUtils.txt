@@ -13,6 +13,10 @@ Public Const TNM_WED = "dtWedstrijdGegevens"
 Public Const FNM_WED_DATUM = "WE_Datum"
 Public Const FNM_WED_PLAATS = "WE_Plaats"
 Public Const FNM_WED_DES = "WE_Beschrijving"
+Public Const FNM_WED_MAIN_NR = "WE_MainWedstrijdNummer"
+Public Const FNM_WED_PART_OF_MEET = "WE_IsPartOfMeet"
+Public Const FNM_WED_NR = "WE_Wedstrijdnummer"
+
 
 
 
@@ -1038,3 +1042,123 @@ DoCmd.SetWarnings True
 MsgBox msg, 16
 Exit Function
 End Function
+
+
+
+
+Public Function wediNrChange_notify() As Boolean
+On Error GoTo fout
+wediNrChange_notify = False
+
+'do nothing
+
+wediNrChange_notify = True
+Exit Function
+
+fout:
+MsgBox Err & " wediNrChange_notify" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Sub wediNrChronologicalChange_getStats(ByRef lWedsPerYear As Long, ByRef lMinWedNrToChange As Long)
+lWedsPerYear = 100
+lMinWedNrToChange = -1
+End Sub
+
+
+Public Sub wediMove_prepareSpecialTables(ByRef blUseSimpleEdit As Boolean, ByRef sTbs() As String, ByRef sWedFld() As String, ByRef blAdd() As Boolean, ByRef nTbs As Integer)
+
+blUseSimpleEdit = False
+
+sTbs(0) = "dtWedstrijdGegevens"
+sWedFld(0) = "WE_Wedstrijdnummer"
+blAdd(0) = True
+
+
+sTbs(1) = "dtDeelnemendeVerenigingen"
+sWedFld(1) = "DV_Wedstrijdnummer"
+blAdd(1) = True
+
+
+sTbs(2) = "dtProgramma"
+sWedFld(2) = "PR_Wedstrijdnummer"
+blAdd(2) = False
+
+sTbs(3) = "dtWedstrijdJury"
+sWedFld(3) = "JD_Wedstrijdnummer"
+blAdd(3) = False
+
+
+sTbs(4) = "dtVervangingen"
+sWedFld(4) = "WZ_Wedstrijdnummer"
+blAdd(4) = False
+
+sTbs(5) = "dtgCatCodes"
+sWedFld(5) = "CT_Wedstrijdnummer"
+blAdd(5) = False
+
+  
+sTbs(6) = "dtProgramma"
+sWedFld(6) = "PR_PNT_Wedstrijdnummer"
+blAdd(6) = False
+
+nTbs = 7
+
+
+Dim sPntTbs(0 To 30) As String
+Dim sPntFldWed(0 To 30) As String
+Dim sDummy(0 To 30) As String
+Dim nPntTbs As Integer
+
+
+pntDuplicate_setupTables sPntTbs, sPntFldWed, sDummy, nPntTbs
+
+Dim i As Integer
+
+For i = 0 To nPntTbs - 1
+  sTbs(nTbs) = sPntTbs(i)
+  sWedFld(nTbs) = sPntFldWed(i)
+  blAdd(nTbs) = True
+  nTbs = nTbs + 1
+Next i
+
+
+End Sub
+
+
+
+Public Function wediMayDelete_prompt(wednr As Long, ByVal blSupressInitialPrompt As Boolean, blSupressWarning As Boolean, blAllowGlobalCancel As Boolean, ByRef isWarning As Boolean, ByRef isGlobalCancel As Boolean) As Boolean
+On Error GoTo fout
+
+wediMayDelete_prompt = False
+
+isGlobalCancel = False
+isWarning = False
+
+
+If Not blSupressInitialPrompt Then
+  If MsgBox("Weet u zeker dat u deze wedstrijd met nummer: " & wednr & " wilt verwijderen?", 33) = vbCancel Then
+    Exit Function
+  End If
+End If
+  
+
+
+
+wediMayDelete_prompt = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wediMayDelete_prompt" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Sub wediMayDelete_prepareDeleteTables(ByRef nTbs As Integer, ByRef sTbNames() As String, ByRef fNamesWed() As String, ByRef fNamesToUpdate() As String)
+
+nTbs = 0
+
+End Sub

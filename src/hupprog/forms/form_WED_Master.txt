@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =391609330
+Checksum =-532084113
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -28,6 +28,7 @@ Begin Form
     RecordSource ="select * from dtWedstrijdgegevens where [we_wedstrijdnummer] <> 0;"
     Caption ="Wedstrijden"
     OnCurrent ="[Event Procedure]"
+    OnDelete ="[Event Procedure]"
     BeforeUpdate ="[Event Procedure]"
     OnOpen ="[Event Procedure]"
     MenuBar ="gMnBasic"
@@ -617,7 +618,7 @@ Begin Form
                                     Top =3589
                                     Width =1146
                                     TabIndex =8
-                                    ColumnInfo ="\"\";\"\";\"\";\"dd/mm/yyyy\";\"\";\"\";\"\";\"\";\"10\";\"0\""
+                                    ColumnInfo ="\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"\";\"10\";\"0\""
                                     Name ="cmbMeetMainPart"
                                     ControlSource ="WE_MainWedstrijdnummer"
                                     RowSourceType ="Table/Query"
@@ -2027,7 +2028,7 @@ If (tpNewWedNr > 999900) Then
 End If
 
 
-If Not wedMove(tpCurWedNr, tpNewWedNr) Then
+If Not wedNrSingleChange(tpCurWedNr, tpNewWedNr) Then
   Exit Sub
 End If
 
@@ -2208,13 +2209,8 @@ Me.OrderBy = ""
 End Sub
 
 Private Sub Form_BeforeDelConfirm(Cancel As Integer, response As Integer)
-    On Error Resume Next
-    Const OKCANCEL = 1, OKDELETE = 1, CANCELDELETE = 2
-    Dim answer As Integer
-    response = DATA_ERRCONTINUE ' Suppress default delete confirm dialog box.
-' Display custom dialog box.
-    answer = MsgBox("Wedstrijd inclusief opstelling, jury en puntentelling verwijderen?", 33, "Hupprog")
-    If answer = CANCELDELETE Then Cancel = True
+On Error Resume Next
+response = acDataErrContinue
 End Sub
 
 Private Sub Form_BeforeUpdate(Cancel As Integer)
@@ -2234,6 +2230,16 @@ pvbNotifyNewView
 
 
 End Sub
+
+Private Sub Form_Delete(Cancel As Integer)
+On Error Resume Next
+Dim blDummy As Boolean
+If Not wedMayDelete(Nz(Me.[WE_Wedstrijdnummer])) Then
+  Cancel = True
+  Exit Sub
+End If
+End Sub
+
 
 Private Sub Form_Error(dataerr As Integer, response As Integer)
 On Error Resume Next

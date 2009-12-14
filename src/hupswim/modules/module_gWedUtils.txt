@@ -2387,3 +2387,1272 @@ fout:
 MsgBox Err & " appWedMRUAddWed" & vbCrLf & Error$, 16
 Exit Sub
 End Sub
+
+
+
+
+
+Private Function wedMove_handleTable(ByRef db As Database, ByVal sTbName As String, ByVal sFldWedNr As String, ByVal blAddRecs As Boolean, ByVal lWedNr As Long, ByVal lTgtWedNr As Long) As Boolean
+On Error GoTo fout
+wedMove_handleTable = False
+
+Dim tb As TableDef, fld As Field
+
+Set tb = db.TableDefs(sTbName)
+
+
+If (blAddRecs) Then
+
+  Dim sqlListSrc As String
+  sqlListSrc = ""
+
+  Dim sqlListTgt As String
+  sqlListTgt = ""
+
+
+  For Each fld In tb.Fields
+    Dim tpName As String
+    tpName = fld.name
+    
+    If (tpName <> "DE_Index" And tpName <> "TY_Counter" And tpName <> "JD_Teller") Then
+    
+      If (sqlListSrc <> "") Then
+        sqlListSrc = sqlListSrc & ", "
+      End If
+      If (sqlListTgt <> "") Then
+        sqlListTgt = sqlListTgt & ", "
+      End If
+      
+      
+      If (tpName = sFldWedNr) Then
+        sqlListSrc = sqlListSrc & CStr(lTgtWedNr)
+      Else
+        sqlListSrc = sqlListSrc & "[" & tpName & "]"
+      End If
+      
+      
+      sqlListTgt = sqlListTgt & "[" & tpName & "]"
+    End If
+  Next fld
+  
+  Dim sqlWhere As String
+  sqlWhere = "Where [" & sFldWedNr & "] = " & lWedNr & " "
+  
+  Dim sql As String
+  sql = "Insert into [" & sTbName & "] (" & sqlListTgt & ") select " & sqlListSrc & " from [" & sTbName & "] " & sqlWhere & ";"
+  
+  
+  DoCmd.SetWarnings False
+  db.Execute sql
+  DoCmd.SetWarnings True
+
+Else
+
+  sql = "update [" & sTbName & "] set [" & sFldWedNr & "] = " & lTgtWedNr & " where [" & sFldWedNr & "] = " & lWedNr & ";"
+  
+  
+  DoCmd.SetWarnings False
+  db.Execute sql
+  DoCmd.SetWarnings True
+
+
+End If
+
+
+
+
+wedMove_handleTable = True
+Exit Function:
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " wedMove_handleTable" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Private Function wedMove(ByRef skWed As Recordset, ByVal lSrcWedNr As Long, ByVal lTgtWedNr As Long) As Boolean
+On Error GoTo fout
+
+wedMove = False
+
+
+
+Dim blTransInProgress As Boolean
+blTransInProgress = False
+
+
+
+
+Dim sTbs(0 To 40) As String
+Dim sWedFld(0 To 40) As String
+Dim blAdd(0 To 40) As Boolean
+Dim nTbs As Integer
+
+Dim blUseSimpleEdit As Boolean
+
+wediMove_prepareSpecialTables blUseSimpleEdit, sTbs, sWedFld, blAdd, nTbs
+
+
+If (blUseSimpleEdit) Then
+
+  skWed.Seek "=", lSrcWedNr
+  
+  If (skWed.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  skWed.Edit
+    skWed(FNM_WED_NR) = lTgtWedNr
+  skWed.Update
+  
+  Dim dsNtxData As DIR_SERVER_DATA
+  
+  If Not dsInit(dsNtxData, False, "") Then
+    Exit Function
+  End If
+    
+  If Not dsRenamePropertyByName(dsNtxData, appGetName() & "\WED_AUX_DATA\" & lSrcWedNr, appGetName() & "\WED_AUX_DATA\" & lTgtWedNr) Then
+    Exit Function
+  End If
+    
+  If Not dsClean(dsNtxData) Then
+    Exit Function
+  End If
+  
+
+
+Else
+  
+  
+  
+  
+  Dim wrkSpace As Workspace
+  Set wrkSpace = DBEngine(0)
+  
+  Dim db As Database
+  Set db = wrkSpace(0)
+  
+  
+  wrkSpace.BeginTrans
+  
+    blTransInProgress = True
+    
+    Dim i As Integer
+    For i = 0 To nTbs - 1
+      If Not wedMove_handleTable(db, sTbs(i), sWedFld(i), blAdd(i), lSrcWedNr, lTgtWedNr) Then
+        Err.Raise 2, , "Silent"
+      End If
+    
+    Next i
+    
+    Dim sql As String
+    
+    
+    'Weds have been moved.
+    
+    'We can also move over the data in the directory server
+    Dim dsTxData As DIR_SERVER_DATA
+    If Not dsInit_Transactional(db, dsTxData, False, "") Then
+      Err.Raise 2, , "Silent"
+    End If
+    
+    If Not dsRenamePropertyByName(dsTxData, appGetName() & "\WED_AUX_DATA\" & lSrcWedNr, appGetName() & "\WED_AUX_DATA\" & lTgtWedNr) Then
+      Err.Raise 2, , "Silent"
+    End If
+    
+    If Not dsClean(dsTxData) Then
+      Err.Raise 2, , "Silent"
+    End If
+    
+    
+    
+    'We can now delete the original wedstrijd
+    
+    sql = "delete * from " & TNM_WED & " where [" & FNM_WED_NR & "] = " & lSrcWedNr
+    
+    DoCmd.SetWarnings False
+    db.Execute sql
+    DoCmd.SetWarnings True
+    
+    
+    
+    
+    
+  wrkSpace.CommitTrans
+  
+  Set wrkSpace = Nothing
+  Set db = Nothing
+  
+  
+  
+  blTransInProgress = False
+
+
+End If 'if blUseSimpleEdit
+
+wedMove = True
+
+Exit Function
+
+fout:
+
+Dim blSilent As Boolean, msg As String
+If (Err = 2) Then
+  blSilent = True
+Else
+  msg = Err & " wedMove" & vbCrLf & Error$
+End If
+
+On Error Resume Next
+
+DoCmd.SetWarnings True
+If (blTransInProgress) Then
+  wrkSpace.Rollback
+  Set wrkSpace = Nothing
+  Set db = Nothing
+End If
+
+If Not blSilent Then
+  MsgBox msg, 16
+End If
+
+Exit Function
+
+
+End Function
+
+
+
+
+Private Function wedNrChange_clean() As Boolean
+On Error GoTo fout
+wedNrChange_clean = False
+
+DoCmd.SetWarnings False
+
+Dim sql As String
+sql = "delete * from gWedNummerChange;"
+
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+wedNrChange_clean = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " wedNrChange_clean" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function wedNrChange_perform_addDependents() As Boolean
+On Error GoTo fout
+wedNrChange_perform_addDependents = False
+
+
+Dim skChange As Recordset
+Set skChange = CurrentDb().OpenRecordset("gWedNummerChange")
+skChange.Index = "PrimaryKey"
+
+Dim skChangeNew As Recordset
+Set skChangeNew = CurrentDb().OpenRecordset("gWedNummerChange")
+skChangeNew.Index = "IdxNewNummer"
+
+
+Dim rs As Recordset, sql As String
+sql = "SELECT " & TNM_WED & ".* FROM " & TNM_WED & " INNER JOIN gWedNummerChange ON " & TNM_WED & "." & FNM_WED_MAIN_NR & " = " & _
+      "gWedNummerChange.NR_OldNummer;"
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpWed As Long
+  tpWed = Nz(rs(FNM_WED_NR))
+  
+  skChange.Seek "=", tpWed
+  
+  If (skChange.NoMatch) Then
+    'have to add; since it is a dependent
+    Dim tpWedMainNr As Long
+    tpWedMainNr = Nz(rs(FNM_WED_MAIN_NR), -1)
+    If (tpWedMainNr <= 0) Then
+      Err.Raise 1, , "Internal error"
+    End If
+    
+    skChangeNew.Seek "=", tpWed
+    If (Not skChangeNew.NoMatch) Then
+      Err.Raise 1, , "Het wedstrijdnummer: " & tpWed & " valt buiten het datum bereik maar is nodig voor de chronologische volgorde. " & vbCrLf & "Vergroot het datum-bereik"
+    End If
+    
+    skChange.AddNew
+      skChange("NR_OldNummer") = tpWed
+      skChange("NR_NewNummer") = tpWed
+      skChange("NR_OldMainNummer") = tpWedMainNr
+    skChange.Update
+
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+appCleanRS skChange
+appCleanRS skChangeNew
+
+
+wedNrChange_perform_addDependents = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedNrChange_perform_addDependents" & vbCrLf & Error$, 16
+
+
+appCleanRS rs
+appCleanRS skChange
+appCleanRS skChangeNew
+
+
+Exit Function
+
+End Function
+
+
+
+Private Function wedNrChange_perform_calcNewMainNrs() As Boolean
+On Error GoTo fout
+wedNrChange_perform_calcNewMainNrs = False
+
+
+Dim skChange As Recordset
+Set skChange = CurrentDb().OpenRecordset("gWedNummerChange")
+skChange.Index = "PrimaryKey"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gWedNummerChange", dbOpenDynaset)
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpOldMainNr As Long
+  tpOldMainNr = Nz(rs("NR_OldMainNummer"), -1)
+  
+  Dim tpNewMainNr As Long
+  tpNewMainNr = tpOldMainNr
+  
+  
+  'Check to see if the mainNr has been changed
+  If (tpOldMainNr > 0) Then
+    skChange.Seek "=", tpOldMainNr
+    If (Not skChange.NoMatch) Then
+      tpNewMainNr = Nz(skChange("NR_INT_CurrentNummer"))
+    End If
+  End If
+  
+  If (tpNewMainNr > 0) Then
+    rs.Edit
+      rs("NR_INT_CurrentMainNummer") = tpNewMainNr
+    rs.Update
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skChange
+
+
+wedNrChange_perform_calcNewMainNrs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedNrChange_perform_calcNewMainNrs" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function wedNrChange_perform_clearMainWedNrs() As Boolean
+On Error GoTo fout
+wedNrChange_perform_clearMainWedNrs = False
+
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset(TNM_WED)
+skWed.Index = "PrimaryKey"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gWedNummerChange where nz([NR_OldMainNummer]) > 0")
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpWedNr As Long
+  tpWedNr = Nz(rs("NR_OldNummer"))
+  
+  skWed.Seek "=", tpWedNr
+  
+  If (skWed.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  skWed.Edit
+    skWed(FNM_WED_MAIN_NR) = Null
+  skWed.Update
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skWed
+
+
+wedNrChange_perform_clearMainWedNrs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedNrChange_perform_clearMainWedNrs" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function wedNrChange_perform_restoreMainWedNrs() As Boolean
+On Error GoTo fout
+wedNrChange_perform_restoreMainWedNrs = False
+
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset(TNM_WED)
+skWed.Index = "PrimaryKey"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gWedNummerChange where nz([NR_OldMainNummer]) > 0")
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpWedNr As Long
+  tpWedNr = Nz(rs("NR_INT_CurrentNummer"))
+  
+  Dim tpNewMainNr As Long
+  tpNewMainNr = Nz(rs("NR_INT_CurrentMainNummer"))
+  
+  skWed.Seek "=", tpWedNr
+  
+  If (skWed.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  skWed.Edit
+    skWed(FNM_WED_MAIN_NR) = tpNewMainNr
+  skWed.Update
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+appCleanRS skWed
+
+
+wedNrChange_perform_restoreMainWedNrs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedNrChange_perform_restoreMainWedNrs" & vbCrLf & Error$, 16
+Exit Function
+
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function wedNrChange_perform_testValidity(ByRef isValid As Boolean, ByRef offendingWedNr As Long) As Boolean
+On Error GoTo fout
+wedNrChange_perform_testValidity = False
+
+isValid = True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gWedNummerChange")
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset(TNM_WED)
+skWed.Index = "PrimaryKey"
+
+Dim skChange As Recordset
+Set skChange = CurrentDb().OpenRecordset("gWedNummerChange")
+skChange.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpNewNr As Long
+  tpNewNr = Nz(rs("NR_NewNummer"))
+  
+  skWed.Seek "=", tpNewNr
+  
+  If (Not skWed.NoMatch) Then
+    skChange.Seek "=", tpNewNr
+    If (skChange.NoMatch) Then
+      'This will cause an external block: anticipate and fail.
+      offendingWedNr = tpNewNr
+      isValid = False
+      Exit Do
+    End If
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skWed
+appCleanRS skChange
+
+wedNrChange_perform_testValidity = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedNrChange_perform_testValidity" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function wedNrChange_perform_updateWedNrs(ByRef freeWedNr As Long) As Boolean
+On Error GoTo fout
+wedNrChange_perform_updateWedNrs = False
+
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset(TNM_WED)
+skWed.Index = "PrimaryKey"
+
+
+skWed.Seek "=", freeWedNr
+If Not skWed.NoMatch Then
+  Err.Raise 1, , "Internal error"
+End If
+
+Dim skChangeCurNr As Recordset
+Set skChangeCurNr = CurrentDb().OpenRecordset("gWedNummerChange")
+skChangeCurNr.Index = "IdxCurNummer"
+
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gWedNummerChange;", dbOpenDynaset)
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpCurNr As Long
+  tpCurNr = Nz(rs("NR_INT_CurrentNummer"), -1)
+  
+  Dim tpNewNr As Long
+  tpNewNr = Nz(rs("NR_NewNummer"))
+  
+  
+  If (tpCurNr <> tpNewNr) Then
+  
+    'first check to see if this nummer is free
+    skWed.Seek "=", tpNewNr
+    
+    'First free up this new nummer
+    If (Not skWed.NoMatch) Then
+      skChangeCurNr.Seek "=", tpNewNr
+      If (skChangeCurNr.NoMatch) Then
+        'We have a block in place
+        'This should have been trapped
+        Err.Raise 1, , "Internal error"
+      End If
+      
+      
+      'Change the nummer and mark this change
+      If Not wedMove(skWed, tpNewNr, freeWedNr) Then
+        Exit Function
+      End If
+            
+      skChangeCurNr.Edit
+        skChangeCurNr("NR_INT_CurrentNummer") = freeWedNr
+      skChangeCurNr.Update
+      
+      'update the freeWedNr
+      freeWedNr = tpNewNr
+      
+    End If
+    
+    
+    'The new nummer is free
+    
+    If Not wedMove(skWed, tpCurNr, tpNewNr) Then
+      Exit Function
+    End If
+    
+    rs.Edit
+      rs("NR_INT_CurrentNummer") = tpNewNr
+    rs.Update
+    
+    If (freeWedNr = tpNewNr) Then
+      freeWedNr = tpCurNr
+    End If
+    
+  End If 'if tpCurNr <> tpNewNr
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skChangeCurNr
+appCleanRS skWed
+
+wedNrChange_perform_updateWedNrs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedNrChange_perform_updateWedNrs" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function wedNrChange_perform() As Boolean
+On Error GoTo fout
+wedNrChange_perform = False
+
+'First check if we have a free wedstrijd nummer which we can use
+Dim freeWedNr As Long
+freeWedNr = -100
+
+If Nz(DLookup("[" & FNM_WED_NR & "]", TNM_WED, "[" & FNM_WED_NR & "] = " & freeWedNr), 0) <> 0 Then
+  Err.Raise 1, , "Het wedstrijdnummer: -100 is in gebruik "
+End If
+
+'first add all dependents
+
+If (Not wedNrChange_perform_addDependents()) Then
+  Exit Function
+End If
+
+Dim blIsValid As Boolean, tpOffWedNr As Long
+
+If Not wedNrChange_perform_testValidity(blIsValid, tpOffWedNr) Then
+  Exit Function
+End If
+
+If (Not blIsValid) Then
+  Err.Raise 1, , "Het wedstrijdnummer: " & tpOffWedNr & " valt buiten het datum bereik maar is nodig voor de chronologische volgorde. " & vbCrLf & "Vergroot het datum-bereik"
+End If
+
+
+'Initialize the current nummers.
+Dim sql As String
+sql = "update gWedNummerChange set NR_INT_CurrentNummer = NR_OldNummer;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+'Now clear all MainWedstrijdNummer fields
+If Not wedNrChange_perform_clearMainWedNrs() Then
+  Exit Function
+End If
+
+Dim blIsOK As Boolean
+
+blIsOK = True
+
+If Not wedNrChange_perform_updateWedNrs(freeWedNr) Then
+  blIsOK = False
+End If
+
+
+'Try to restore the main nummers, even if the update unexpectedly failed.
+If Not wedNrChange_perform_calcNewMainNrs() Then
+  Exit Function
+End If
+
+If Not wedNrChange_perform_restoreMainWedNrs() Then
+  Exit Function
+End If
+
+If (Not blIsOK) Then
+  Exit Function
+End If
+
+
+wedNrChange_perform = True
+Exit Function
+
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " wedNrChange_perform" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function wedNrSingleChange(ByVal oldWedNr As Long, ByVal newWedNr As Long) As Boolean
+On Error GoTo fout
+wedNrSingleChange = False
+
+If Not wediNrChange_notify() Then
+  Exit Function
+End If
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset(TNM_WED)
+skWed.Index = "PrimaryKey"
+
+skWed.Seek "=", newWedNr
+If (Not skWed.NoMatch) Then
+  Err.Raise 1, , "Nieuwe wedstrijdnummer: " & newWedNr & " bestaat al"
+End If
+
+Dim oldMainNr As Long
+
+skWed.Seek "=", oldWedNr
+If skWed.NoMatch Then
+  Err.Raise 1, , "Oud wedstrijdnummer: " & oldWedNr & " bestaat niet"
+Else
+  oldMainNr = Nz(skWed(FNM_WED_MAIN_NR), -1)
+End If
+
+If Not wedNrChange_clean() Then
+  Exit Function
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gWedNummerChange")
+
+rs.AddNew
+  rs("NR_OldNummer") = oldWedNr
+  rs("NR_NewNummer") = newWedNr
+  If (oldMainNr > 0) Then
+    rs("NR_OldMainNummer") = oldMainNr
+  End If
+rs.Update
+
+appCleanRS rs
+
+If Not wedNrChange_perform() Then
+  Exit Function
+End If
+
+If Not wedNrChange_clean() Then
+  Exit Function
+End If
+
+
+wedNrSingleChange = True
+Exit Function
+
+fout:
+MsgBox Err & " wedNrSingleChange" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function wedNrChronologicalChange(ByVal dFirstDate As Date) As Boolean
+
+
+'=========================================================
+'Hernummert de wedstrijden in chronologische volgorde.
+'Vereiste is dat in de geselecteerde periode geen wedstrijdnummers
+'van een andere periode liggen.
+'=========================================================
+
+
+On Error GoTo fout
+wedNrChronologicalChange = False
+
+If Not wediNrChange_notify() Then
+  Exit Function
+End If
+
+If Not wedNrChange_clean() Then
+  Exit Function
+End If
+
+
+
+ Dim lWedsPerYear As Long, lMinWedNrToChange As Long
+ 
+ wediNrChronologicalChange_getStats lWedsPerYear, lMinWedNrToChange
+
+
+'Perform two scans of the data; one to find the minimum wedstrijd numer in the selected period for each year
+'The second pass is to fill the gWedNummerChange table
+Dim sql As String
+sql = "Select * from " & TNM_WED & " where [" & FNM_WED_DATUM & "] >= #" & Format(dFirstDate, "mm\-dd\-yyyy") & "# and [" & FNM_WED_NR & "] > " & lMinWedNrToChange & " order by [" & FNM_WED_DATUM & "], [" & FNM_WED_NR & "];"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("gWedNummerChange")
+
+Dim lYears(0 To 1000) As Long
+Dim lYearMinEncNr(0 To 1000) As Long
+Dim iYearNProcessed(0 To 1000) As Integer
+Dim nYears As Integer
+
+nYears = 0
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpNr As Long, tpYear As Long
+  tpNr = Nz(rs("wedstrijd nummer"))
+  tpYear = tpNr \ lWedsPerYear
+  Dim lkpPos As Integer
+  lkpPos = bSearchLong(tpYear, nYears, lYears)
+  If (lkpPos < 0) Then
+    'need to insert
+    Dim insPos As Integer
+    insPos = insLong(tpYear, nYears, lYears)
+    shiftRightLong insPos, 1, (nYears - 1), lYearMinEncNr
+    
+    
+    lYearMinEncNr(insPos) = tpNr
+    
+  Else
+    If (tpNr < lYearMinEncNr(lkpPos)) Then
+      lYearMinEncNr(lkpPos) = tpNr
+    End If
+  End If
+  rs.MoveNext
+Loop
+
+Dim i As Integer
+For i = 0 To nYears - 1
+  iYearNProcessed(i) = 0
+Next i
+
+
+'The second pass:
+rs.MoveFirst
+Do Until rs.EOF
+  tpNr = Nz(rs("wedstrijd nummer"))
+  tpYear = tpNr \ lWedsPerYear
+  
+  lkpPos = bSearchLong(tpYear, nYears, lYears)
+  If (lkpPos < 0) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  Dim tpOldMainNr As Long
+  Dim tpNewNr As Long
+  
+  tpOldMainNr = Nz(rs(FNM_WED_MAIN_NR), -1)
+  
+  tpNewNr = lYearMinEncNr(lkpPos) + iYearNProcessed(lkpPos)
+  
+  rsOut.AddNew
+    rsOut("NR_OldNummer") = tpNr
+    If (tpOldMainNr > 0) Then
+      rsOut("NR_OldMainNummer") = tpOldMainNr
+    End If
+    rsOut("NR_NewNummer") = tpNewNr
+  rsOut.Update
+  
+  iYearNProcessed(lkpPos) = iYearNProcessed(lkpPos) + 1
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsOut
+
+
+If Not wedNrChange_perform() Then
+  Exit Function
+End If
+
+If Not wedNrChange_clean() Then
+  Exit Function
+End If
+
+
+wedNrChronologicalChange = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " wedNrChronologicalChange" & vbCrLf & Error$, 16
+
+Exit Function
+
+
+'debug
+
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function wedMayDeleteMultiple(ByRef wednrs() As Long, ByRef wedDelete() As Boolean, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+wedMayDeleteMultiple = False
+
+
+'Handle multiple deletions
+
+
+Dim ordWeds(0 To 10000) As Long
+Dim ordWedDelete(0 To 10000) As Boolean
+Dim ordWedOrgNr(0 To 1000) As Integer
+Dim nOrdWeds As Integer
+
+
+
+Dim blCancelAll As Boolean
+blCancelAll = False
+
+
+
+'First order the wedstrijden
+Dim i As Integer
+For i = nWeds - 1 To 0 Step -1
+
+  If (Not blCancelAll) Then
+    If (i < nWeds - 1) Then
+      If wednrs(i) < wednrs(i + 1) Then
+        MsgBox "Kan alleen wedstrijden verwijderen indien deze op aflopend wedstrijdnummer zijn gesorteerd.", vbCritical
+        blCancelAll = True
+      End If
+    End If
+  End If
+
+  Dim tpWed As Long
+  tpWed = wednrs(i)
+  Dim insPos As Integer
+  Dim oldOrdWedCnt As Integer
+  oldOrdWedCnt = nOrdWeds
+  insPos = insLong(tpWed, nOrdWeds, ordWeds)
+  shiftRightInt insPos, 1, oldOrdWedCnt, ordWedOrgNr
+  ordWedOrgNr(insPos) = i
+Next i
+
+
+
+
+Dim blIsFirstDeletion As Boolean
+Dim blDeleteIsCancelled As Boolean
+Dim blSuppressWarnings As Boolean
+Dim blWarningDisplayed As Boolean
+Dim blSuppressPrompted As Boolean
+
+
+
+blIsFirstDeletion = True
+blDeleteIsCancelled = False
+blSuppressWarnings = False
+blWarningDisplayed = False
+blSuppressPrompted = False
+
+
+
+
+
+
+If Not blCancelAll Then
+  For i = 0 To nOrdWeds - 1
+    
+    ordWedDelete(i) = True
+    
+    If (blIsFirstDeletion) Then
+      blIsFirstDeletion = False
+      If (MsgBox("Geselecteerde wedstrijd(en) verwijderen?", vbOKCancel + vbQuestion) = vbCancel) Then
+        blDeleteIsCancelled = True
+      End If
+    End If
+    
+    If (blDeleteIsCancelled) Then
+      ordWedDelete(i) = False
+    Else
+      Dim isGlobalCancel As Boolean, isWarning As Boolean
+      
+      If (Not blSuppressWarnings) And (blWarningDisplayed) Then
+        If Not blSuppressPrompted Then
+          blSuppressPrompted = True
+          If MsgBox("Wilt u evt waarschuwingen onderdrukken voor de volgende wedstrijden die worden verwijderd?", _
+            vbQuestion + vbYesNo + vbDefaultButton2) = vbYes Then
+            blSuppressWarnings = True
+          End If
+        End If
+      End If
+    
+          
+      If Not wediMayDelete_prompt(ordWeds(i), True, blSuppressWarnings, True, isWarning, isGlobalCancel) Then
+        ordWedDelete(i) = False
+      End If
+    
+      If (isGlobalCancel) Then
+        blDeleteIsCancelled = True
+      End If
+    
+      If (isWarning) Then
+        blWarningDisplayed = True
+      End If
+    End If 'if blDeleteIsCancelled
+    
+  Next i
+End If
+
+ 
+
+
+If Not blCancelAll Then
+  For i = 0 To nOrdWeds - 1
+    If ordWedDelete(i) Then
+      If Not wedMayDelete_prepareDelete(ordWeds(i), True, ordWeds, ordWedDelete, nOrdWeds) Then
+        blCancelAll = True
+        Exit For
+      End If
+    End If
+  Next i
+End If
+  
+If (blCancelAll) Then
+  For i = 0 To nOrdWeds - 1
+    ordWedDelete(i) = False
+  Next i
+End If
+
+
+'Now convert data back to original.
+For i = 0 To nOrdWeds - 1
+  wedDelete(ordWedOrgNr(i)) = ordWedDelete(i)
+Next i
+
+
+wedMayDeleteMultiple = True
+Exit Function
+fout:
+MsgBox Err & " wedMayDeleteMultiple" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function wedMayDelete_prepareDelete_delOrClear(ByVal wednr As Long, ByVal blIsMultiple As Boolean, ByRef wedsToDelete() As Long, ByRef wedsWillDelete() As Boolean, ByVal nWedsToDelete, ByVal fNameWed As String, fNameToUpdate As String, ByVal tbName As String) As Boolean
+On Error GoTo fout
+wedMayDelete_prepareDelete_delOrClear = False
+
+
+If (fNameWed = fNameToUpdate) Then
+
+  Dim sql As String
+  sql = "Delete * from [" & tbName & "] where [" & fNameWed & "] =" & wednr & ";"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+
+Else
+  
+  Dim rs As Recordset
+  Set rs = CurrentDb().OpenRecordset("select * from [" & tbName & "] where [" & fNameToUpdate & "] = " & wednr)
+  
+  rs.MoveFirst
+  Do Until rs.EOF
+    Dim tpWed As Long, tpInsWed As Long
+    tpWed = Nz(rs(fNameWed))
+    
+    Dim tpRefWillDel As Boolean
+    tpRefWillDel = False
+    
+    If (blIsMultiple) Then
+      Dim lkpPos As Integer
+      lkpPos = bSearchLong(tpWed, nWedsToDelete, wedsToDelete)
+      If lkpPos >= 0 Then
+        If (wedsWillDelete(lkpPos)) Then
+          tpRefWillDel = True
+        End If
+      End If
+    Else
+      If tpWed = wednr Then
+        tpRefWillDel = True
+      End If
+    End If
+    
+    If (tpRefWillDel) Then
+      rs.Delete
+    Else
+      rs.Edit
+        rs(fNameToUpdate) = Null
+      rs.Update
+    End If
+    
+    rs.MoveNext
+  Loop
+  
+  appCleanRS rs
+
+End If
+
+
+
+wedMayDelete_prepareDelete_delOrClear = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedMayDelete_prepareDelete_delOrClear" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function wedMayDelete_prepareDelete(ByVal wednr As Long, ByVal blIsMultiple As Boolean, ByRef wedsToDelete() As Long, ByRef wedsWillDelete() As Boolean, ByVal nWedsToDelete) As Boolean
+On Error GoTo fout
+wedMayDelete_prepareDelete = False
+
+
+
+Dim nTbs As Integer
+Dim sTbNames(0 To 100) As String
+Dim fNamesWed(0 To 100) As String
+Dim fNamesToUpdate(0 To 100) As String
+
+wediMayDelete_prepareDeleteTables nTbs, sTbNames, fNamesWed, fNamesToUpdate
+
+Dim i  As Integer
+
+For i = 0 To nTbs - 1
+
+  If Not wedMayDelete_prepareDelete_delOrClear(wednr, blIsMultiple, wedsToDelete, wedsWillDelete, nWedsToDelete, fNamesWed(i), fNamesToUpdate(i), sTbNames(i)) Then
+    Exit Function
+  End If
+
+Next i
+
+'Also need to update MainWedstrijdNummers
+'This needs to be treated specially due to locking mechanisms.
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [" & TNM_WED & "] where [" & FNM_WED_MAIN_NR & "] = " & wednr)
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpWed As Long
+  tpWed = Nz(rs(FNM_WED_NR))
+  
+  Dim tpRefWillDel As Boolean
+  tpRefWillDel = False
+  
+  If (blIsMultiple) Then
+    Dim lkpPos As Integer
+    lkpPos = bSearchLong(tpWed, nWedsToDelete, wedsToDelete)
+    If lkpPos >= 0 Then
+      If (wedsWillDelete(lkpPos)) Then
+        tpRefWillDel = True
+      End If
+    End If
+  Else
+    If tpWed = wednr Then
+      tpRefWillDel = True
+    End If
+  End If
+  
+  If (tpRefWillDel) Then
+    'Check to see if we have a forward reference.
+    If (blIsMultiple) Then
+      If (tpWed < wednr) Then
+        Err.Raise 1, , "Het eerste deel van de meerdaagse wedstrijd: " & wednr & vbCrLf & "heeft een hoger wedstrijdnummer dan een van de latere delen: " & tpWed & _
+          vbCrLf & "Dit kan problemen opleveren met het verwijderen. " & vbCrLf & _
+          "Probeer deze wedstrijden een-voor-een te verwijderen."
+      End If
+    End If
+  Else
+    rs.Edit
+      rs(FNM_WED_PART_OF_MEET) = False
+      rs(FNM_WED_MAIN_NR) = Null
+    rs.Update
+  End If
+     
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+Dim blDummy As Boolean, sDummy As String
+If Not dsDeletePropertyByName(dsData, appGetName & "\WED_AUX_DATA\" & wednr, blDummy, sDummy) Then
+  Exit Function
+End If
+
+If Not dsClean(dsData) Then
+  Exit Function
+End If
+
+
+
+wedMayDelete_prepareDelete = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedMayDelete_prepareDelete" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function wedMayDelete(wednr As Long) As Boolean
+'Return true als wedstrijd verwijderd moet worden, false anders...
+'Deze functie zoekt eerst uit of een wedstrijd verwijderd kan worden en zo ja, maakt alles klaar om het te verwijderen.
+'Bedoeld om in wed_master na het drukken op Delete eerst een voorbereiding tot deleten te initiëren.
+
+On Error GoTo fout
+
+
+
+
+wedMayDelete = False
+
+
+Dim blDummy As Boolean
+
+If Not wediMayDelete_prompt(wednr, False, False, False, blDummy, blDummy) Then
+  Exit Function
+End If
+
+Dim lDummy(0 To 0) As Long
+Dim bDummy(0 To 0) As Boolean
+
+If Not wedMayDelete_prepareDelete(wednr, False, lDummy, bDummy, 0) Then
+  Exit Function
+End If
+
+'Nu hebben we alles gedaan wat nodig is..
+
+wedMayDelete = True
+
+
+
+Exit Function
+fout:
+MsgBox Err & " wedMayDelete" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+Exit Function
+End Function
