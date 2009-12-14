@@ -11,6 +11,9 @@ Public Const TNM_WED = "dtWedstrijden"
 Public Const FNM_WED_PLAATS = "Plaats"
 Public Const FNM_WED_DATUM = "Datum"
 Public Const FNM_WED_DES = "Beschrijving"
+Public Const FNM_WED_MAIN_NR = "MainWedstrijdNummer"
+Public Const FNM_WED_PART_OF_MEET = "IsPartOfMeet"
+Public Const FNM_WED_NR = "wedstrijd nummer"
 
 
 Public Const TNM_PR = "dtProgrammanummers"
@@ -856,3 +859,204 @@ Public Function wedAppendMissingTimes(ByVal lWedNr As Long, ByVal blEntireMeet A
 On Error Resume Next
 'do nothing
 End Function
+
+
+
+Public Function wediNrChange_notify() As Boolean
+On Error GoTo fout
+wediNrChange_notify = False
+
+notifyWedStructureChange
+
+
+wediNrChange_notify = True
+Exit Function
+
+fout:
+MsgBox Err & " wediNrChange_notify" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Sub wediNrChronologicalChange_getStats(ByRef lWedsPerYear As Long, ByRef lMinWedNrToChange As Long)
+lWedsPerYear = 1000
+lMinWedNrToChange = 1000000
+End Sub
+
+
+Public Sub wediMove_prepareSpecialTables(ByRef blUseSimpleEdit As Boolean, ByRef sTbs() As String, ByRef sWedFld() As String, ByRef blAdd() As Boolean, ByRef nTbs As Integer)
+
+blUseSimpleEdit = True
+
+End Sub
+
+
+
+Public Function wediMayDelete_prompt(wednr As Long, ByVal blSupressInitialPrompt As Boolean, blSupressWarning As Boolean, blAllowGlobalCancel As Boolean, ByRef isWarning As Boolean, ByRef isGlobalCancel As Boolean) As Boolean
+On Error GoTo fout
+
+wediMayDelete_prompt = False
+
+isGlobalCancel = False
+isWarning = False
+
+
+Dim intTijdTel As Long
+Dim intClubTel As Long
+
+If Not blSupressInitialPrompt Then
+  If MsgBox("Weet u zeker dat u deze wedstrijd met nummer: " & wednr & " inclusief opstelling en gezwommen tijden wilt verwijderen?", 33) = vbCancel Then
+    Exit Function
+  End If
+End If
+  
+If Not recMarkRecords(#1/1/2099#, -1) Then
+  Exit Function
+End If
+
+If Not prsMarkPRs(#1/1/1900#, #1/1/2099#, -1) Then
+  Exit Function
+End If
+
+
+
+
+Dim sql As String
+sql = "Select * from dtRecordsInternal where rc_wedstrijdnummer =" & wednr & ";"
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+
+
+Dim intTelHouder As Integer
+  
+  intClubTel = 0
+  intTelHouder = 0
+  
+  geg.MoveFirst
+  Do Until geg.EOF
+    If Nz(geg("rc_isMarked")) Then
+      intTelHouder = intTelHouder + 1
+    End If
+    intClubTel = intClubTel + 1
+    geg.MoveNext
+  Loop
+
+
+appCleanRS geg
+
+
+'Dat waren de clubrecords. Gebruiker vragen wat hij ermee wil doen...
+
+Dim msgstr As String
+msgstr = "Tijdens deze wedstrijd met nummer: " & wednr & " zijn " & intClubTel & " records gezwommen, waarvan er op dit moment" & Chr$(13) & intTelHouder & _
+    " nog steeds (als snelste) staan." & Chr$(13) & _
+    "Deze records zullen worden verwijderd indien u deze wedstrijd wilt verwijderen." & Chr$(13) & "Wilt u doorgaan?"
+    
+'Alleen als er records zijn gezwommen vragen of ze verwijderd moeten worden en zo ja, verwijderen...
+If intClubTel > 0 Then
+  isWarning = True
+  If (Not blSupressWarning) Then
+    If (blAllowGlobalCancel) Then
+      msgstr = msgstr & vbCrLf & vbCrLf & "NB: No = Alleen deze wedstrijd niet verwijderen" & vbCrLf & "NB: Cancel = Proces afbreken"
+      Dim answer As Integer
+      answer = MsgBox(msgstr, vbYesNoCancel + vbDefaultButton2 + vbQuestion, "Records verwijderen?")
+      If (answer = vbCancel) Then
+        isGlobalCancel = True
+      End If
+      If (answer <> vbYes) Then
+        Exit Function
+      End If
+    Else
+      If MsgBox(msgstr, vbOKCancel + vbDefaultButton2 + vbQuestion, "Records verwijderen?") = vbCancel Then
+        Exit Function
+      End If
+    End If
+  End If
+End If
+  
+  'records daadwerkelijk verwijderen gebeurt straks pas...
+
+
+
+sql = "select * from [dtTijden] where [wedstr nr] =" & wednr & ";"
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+Dim intPTel As Integer
+
+intTijdTel = 0
+intPTel = 0
+
+geg.MoveFirst
+  Do Until geg.EOF
+    If Nz(geg("IsMarked")) Then
+      intPTel = intPTel + 1
+    End If
+    intTijdTel = intTijdTel + 1
+    geg.MoveNext
+  Loop
+  
+appCleanRS geg
+
+
+msgstr = "Voor deze wedstrijd met nummer: " & wednr & " staan nog " & intTijdTel & " tijden geregistreerd, waarvan er op dit moment" & Chr$(13) & intPTel & _
+    " nog als PR geregistreerd staan." & Chr$(13) & _
+    "Deze tijden zullen worden verwijderd indien u deze wedstrijd wilt verwijderen." & Chr$(13) & "Wilt u doorgaan?"
+
+If intTijdTel > 0 Then
+  isWarning = True
+  If Not blSupressWarning Then
+    If (blAllowGlobalCancel) Then
+      msgstr = msgstr & vbCrLf & vbCrLf & "NB: No = Alleen deze wedstrijd niet verwijderen" & vbCrLf & "NB: Cancel = Proces afbreken"
+      answer = MsgBox(msgstr, vbYesNoCancel + vbDefaultButton2 + vbQuestion, "Tijden verwijderen?")
+      If (answer = vbCancel) Then
+        isGlobalCancel = True
+      End If
+      If (answer <> vbYes) Then
+        Exit Function
+      End If
+    Else
+      If MsgBox(msgstr, vbOKCancel + vbQuestion + vbDefaultButton2, "Tijden verwijderen?") = vbCancel Then
+        Exit Function
+      End If
+    End If
+  End If 'if not blSuppressWarning
+End If 'if intTijdTel > 0
+
+
+
+
+wediMayDelete_prompt = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wediMayDelete_prompt" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Sub wediMayDelete_prepareDeleteTables(ByRef nTbs As Integer, ByRef sTbNames() As String, ByRef fNamesWed() As String, ByRef fNamesToUpdate() As String)
+
+sTbNames(0) = "dtRecordsInternal"
+fNamesWed(0) = "rc_wedstrijdnummer"
+fNamesToUpdate(0) = "rc_wedstrijdnummer"
+
+sTbNames(1) = "dtTijden"
+fNamesWed(1) = "wedstr nr"
+fNamesToUpdate(1) = "wedstr nr"
+
+
+sTbNames(2) = "dtDeelnemers"
+fNamesWed(2) = "wedstrijdnr"
+fNamesToUpdate(2) = "wedstrijdNrInsTijd"
+
+sTbNames(3) = "dtDeelnemers"
+fNamesWed(3) = "wedstrijdnr"
+fNamesToUpdate(3) = "ESTINS_ExtInsWedNr"
+
+nTbs = 4
+
+End Sub
