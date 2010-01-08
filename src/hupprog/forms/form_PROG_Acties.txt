@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1050501450
+Checksum =-1379506673
 Begin Form
     AutoResize = NotDefault
     RecordSelectors = NotDefault
@@ -13,7 +13,7 @@ Begin Form
     GridY =10
     Width =11404
     DatasheetFontHeight =10
-    ItemSuffix =22
+    ItemSuffix =24
     Left =2940
     Top =1005
     Right =16035
@@ -61,6 +61,7 @@ Begin Form
         0x080013001e000100000000000000000000000000000000000000000000005044 ,
         0x4643726561746f723a00
     End
+    OnLoad ="[Event Procedure]"
     Begin
         Begin Label
             BackStyle =0
@@ -486,6 +487,38 @@ Begin Form
                     Name ="Label21"
                     Caption ="Limieten inlezen uit lenex files / was files / niveautabellen / fina tabellen"
                 End
+                Begin CommandButton
+                    OverlapFlags =85
+                    TextFontFamily =2
+                    Left =5612
+                    Top =3805
+                    Width =2046
+                    Height =336
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =15
+                    ForeColor =0
+                    Name ="btnETW"
+                    Caption ="Elektr. Tijdwaarn."
+                    OnClick ="[Event Procedure]"
+                    FontName ="System"
+                    GUID = Begin
+                        0x895064f1f312b7478fe3ce90c58dfcc7
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =7766
+                    Top =3805
+                    Width =3060
+                    Height =336
+                    Name ="lbETW"
+                    Caption ="Elektronische tijdwaarneming bedienen"
+                    GUID = Begin
+                        0xee206e16e2d03c408b6b982b7c4bacc4
+                    End
+                End
             End
         End
     End
@@ -497,6 +530,15 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Compare Database
 Option Explicit
+
+Private Sub updateView()
+On Error Resume Next
+Dim blHasETW As Boolean
+blHasETW = (etwLookupEquipmentType(waarde()) <> "")
+
+Me.btnETW.Enabled = blHasETW
+
+End Sub
 
 Private Sub btnABC_Click()
 On Error Resume Next
@@ -562,6 +604,11 @@ On Error Resume Next
 DoCmd.OpenForm "gWIZ_DEL_DLN_MASTER", , , , , acDialog
 End Sub
 
+Private Sub btnETW_Click()
+On Error Resume Next
+DoCmd.OpenForm "ETW_Master"
+End Sub
+
 Private Sub btnFin_Click()
 On Error Resume Next
 DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
@@ -613,6 +660,11 @@ On Error Resume Next
 DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
 DoCmd.OpenForm "gWIZ_REC_MASTER", , , , , acDialog
 Me.Requery
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+updateView
 End Sub
 
 Private Sub Form_Open(Cancel As Integer)

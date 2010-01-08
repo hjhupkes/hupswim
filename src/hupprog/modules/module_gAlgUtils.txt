@@ -537,6 +537,67 @@ extractToken = Left(s, PS - 1)
 s = Right(s, Len(s) - PS + 1 - Len(sep))
 End Function
 
+'find the next token in a sequence split by the string sep, where each token is started and finished by dlmChar.
+'The string sep may appear in the token; it is only treated as an actual separator if it is outside a dlmChar pair.
+'For example: the string     "abcd;efgh";"bla";"bla" will be tokenized as  abcd;efgh / bla / bla,
+'if sep = ; and dlmChar = "
+Public Function extractTokenDelimited(ByRef s As String, ByVal sep As String, ByVal dlmChar As String) As String
+On Error Resume Next
+
+
+Dim lenS As Long
+lenS = Len(s)
+
+Dim posSep  As Long
+posSep = InStr(1, s, sep)
+
+If (posSep = 0) Then
+  posSep = lenS + 1
+End If
+
+Dim posDlm As Long
+posDlm = InStr(1, s, dlmChar)
+If (posDlm = 0) Then
+  posDlm = lenS + 1
+End If
+
+If (posDlm >= posSep) Then
+  'the current token is unaffected by the deliminator.
+  'just return the entire token
+  If (posSep > lenS) Then
+    extractTokenDelimited = s
+    s = ""
+  Else
+    extractTokenDelimited = Left(s, posSep - 1)
+    s = Right(s, Len(s) - posSep + 1 - Len(sep))
+  End If
+Else
+  'find the next delimiter
+  Dim posNextDlm As Integer
+  posNextDlm = InStr(posDlm + 1, s, dlmChar)
+  If (posNextDlm = 0) Then
+    'ill formatted string
+    extractTokenDelimited = Mid(s, posDlm + 1, lenS)
+    s = ""
+  Else
+    extractTokenDelimited = Mid(s, posDlm + 1, posNextDlm - posDlm - 1)
+    
+    'Need to calculate  a new position for the separator token,
+    'since it may have been inside the delimiters.
+    
+    posSep = InStr(posNextDlm + 1, s, sep)
+    If (posSep = 0) Then
+      s = ""
+    Else
+      s = Right(s, Len(s) - posSep + 1 - Len(sep))
+    End If
+    
+  End If
+End If
+
+End Function
+
+
 
 
 Public Function boolToString(B As Boolean) As String

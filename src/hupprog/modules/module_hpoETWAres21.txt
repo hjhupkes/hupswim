@@ -1,0 +1,1425 @@
+Option Compare Database
+Option Explicit
+
+
+Private Const ARES_RUG_ID = 1
+Private Const ARES_SCHOOL_ID = 2
+Private Const ARES_VLINDER_ID = 3
+Private Const ARES_VRIJ_ID = 0
+Private Const ARES_WISSEL_ID = 4
+Private Const ARES_ONB_ID = 5
+
+Private Const ARES_MAX_STD_DISTANCE_ID = 100
+
+
+Public Type ARES21_CFG_INFO
+  sAresDir As String
+End Type
+
+Private Type ARES21_OP_INFO
+  sExpProgs() As String
+  lExpProgArIDs() As Long
+  nExpProgs As Integer
+End Type
+
+
+'to be obsoleted
+Public Function etwTest()
+Dim wedInf As WED_BASIC_INFO
+Dim blDummy As Boolean
+wedLookup 200908, blDummy, wedInf
+etwTest = etwAres21WriteStartlist(wedInf)
+End Function
+
+'to be obsoleted
+Public Function etwReadTest()
+Dim wedInf As WED_BASIC_INFO
+Dim blDummy As Boolean
+wedLookup 200908, blDummy, wedInf
+etwReadTest = etwAres21ReadResults(wedInf)
+End Function
+
+
+
+Public Function etwAres21PrepWriteStartlist(ByRef wedInf As WED_BASIC_INFO, ByRef blIsCancelled) As Boolean
+On Error GoTo fout
+etwAres21PrepWriteStartlist = False
+
+blIsCancelled = False
+
+Dim arCfg As ARES21_CFG_INFO
+If Not etwAres21ReadInfo(arCfg, wedInf.wednr) Then
+ appRaiseSilentError
+End If
+
+If (arCfg.sAresDir = "") Then
+  Err.Raise 1, , "De ares-21 directory is nog niet ingesteld."
+ElseIf (Not DirectoryExists(arCfg.sAresDir)) Then
+  Err.Raise 1, , "De ares-21 directory: " & vbCrLf & arCfg.sAresDir & vbCrLf & "bestaat niet."
+End If
+
+Dim msg As String
+msg = "De deelnemers en programmagegevens zullen worden weggeschreven naar de directory: " & _
+  vbCrLf & arCfg.sAresDir & vbCrLf & vbCrLf & "Zorg ervoor dat het ares-21 programma op de ares-21 computer is afgesloten." & _
+  vbCrLf & vbCrLf & "Start na de export het ares-21 programma weer op om de nieuwe gegevens in te laden." & _
+  vbCrLf & vbCrLf & "Wilt u doorgaan?"
+  
+If (MsgBox(msg, vbOKCancel + vbQuestion) = vbCancel) Then
+  blIsCancelled = True
+End If
+  
+
+
+etwAres21PrepWriteStartlist = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "etwAres21PrepWriteStartlist", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+Public Function etwAres21WriteStartlist(ByRef wedInf As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+etwAres21WriteStartlist = False
+
+Dim cfgInf As ARES21_CFG_INFO, opInf As ARES21_OP_INFO
+
+'Do not need to read operating info; it will be rewritten
+If Not arReadInfo(cfgInf, False, opInf, wedInf.wednr) Then
+  Exit Function
+End If
+
+If Not arExportMatch(cfgInf.sAresDir, wedInf, opInf) Then
+  Exit Function
+End If
+
+'Now store the operating info.
+If Not arWriteInfo(False, cfgInf, True, opInf, wedInf.wednr) Then
+  Exit Function
+End If
+
+
+etwAres21WriteStartlist = True
+Exit Function
+
+fout:
+MsgBox Err & " etwAres21WriteStartlist" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function etwAres21CheckResInterface(ByRef wedInf As WED_BASIC_INFO, ByRef blIsProblem As Boolean, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+etwAres21CheckResInterface = False
+
+
+blIsProblem = False
+sErrMsg = ""
+
+'Check to see if the file lstrslt.txt can be found in the ares-directory.
+Dim arCfg As ARES21_CFG_INFO
+If Not etwAres21ReadInfo(arCfg, wedInf.wednr) Then
+ appRaiseSilentError
+End If
+
+Dim fNameToCheck As String
+fNameToCheck = arCfg.sAresDir & "\LSTRSLT.TXT"
+
+If (arCfg.sAresDir = "") Then
+  blIsProblem = True
+  sErrMsg = "De ares-21 directory is nog niet ingesteld."
+ElseIf (Not FileExists(fNameToCheck)) Then
+  blIsProblem = True
+  sErrMsg = "Het bestand met resultaten: " & vbCrLf & fNameToCheck & vbCrLf & "kon niet worden gevonden."
+End If
+
+
+etwAres21CheckResInterface = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "etwAres21CheckResInterface", errInf
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+Public Function etwAres21ReadResults(ByRef wedInf As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+etwAres21ReadResults = False
+
+Dim cfgInf As ARES21_CFG_INFO, opInf As ARES21_OP_INFO
+
+If Not arReadInfo(cfgInf, True, opInf, wedInf.wednr) Then
+  Exit Function
+End If
+
+If Not arImportResults(wedInf, cfgInf, opInf) Then
+  Exit Function
+End If
+
+
+etwAres21ReadResults = True
+Exit Function
+
+fout:
+MsgBox Err & " etwAres21ReadResults" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function etwAres21ReadInfo(ByRef arCfgInfo As ARES21_CFG_INFO, ByVal lWedNr As Long) As Boolean
+Dim opInfo As ARES21_OP_INFO
+etwAres21ReadInfo = arReadInfo(arCfgInfo, False, opInfo, lWedNr)
+End Function
+
+Public Function etwAres21WriteInfo(ByRef arCfgInfo As ARES21_CFG_INFO, ByVal lWedNr As Long) As Boolean
+Dim opInfo As ARES21_OP_INFO
+etwAres21WriteInfo = arWriteInfo(True, arCfgInfo, False, opInfo, lWedNr)
+End Function
+
+
+
+
+Private Function arReadInfo(ByRef cfgInfo As ARES21_CFG_INFO, ByVal blReadOpInfo As Boolean, ByRef opInfo As ARES21_OP_INFO, ByVal wednr As Long) As Boolean
+On Error GoTo fout
+arReadInfo = False
+
+cfgInfo.sAresDir = ""
+
+If (blReadOpInfo) Then
+  opInfo.nExpProgs = 0
+End If
+
+
+Dim dsData As DIR_SERVER_DATA
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+Dim blDummy As Boolean, lDummy As Long
+If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\CFG\ARES_DATA_DIRECTORY", blDummy, cfgInfo.sAresDir, lDummy) Then
+  Exit Function
+End If
+
+cfgInfo.sAresDir = directory_goedmaak(cfgInfo.sAresDir)
+
+
+
+If (blReadOpInfo) Then
+  Dim sVal As String
+  
+  sVal = ""
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\OP\EXP_PROGS\N_EXP_PROGS", blDummy, sVal, lDummy) Then
+    Exit Function
+  End If
+  
+  If (sVal <> "") Then
+    Dim nExpProgs As Integer
+    nExpProgs = CInt(sVal)
+    
+    
+    ReDim opInfo.sExpProgs(nExpProgs)
+    ReDim opInfo.lExpProgArIDs(nExpProgs)
+    
+    Dim i As Integer
+    For i = 0 To nExpProgs - 1
+      Dim tpProg As String, tpProgArID As Long
+      sVal = ""
+      If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\OP\EXP_PROGS\PROG_" & i, blDummy, sVal, lDummy) Then
+        Exit Function
+      End If
+      tpProg = sVal
+      
+      sVal = ""
+      If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\OP\EXP_PROGS\PROG_ARES_ID_" & i, blDummy, sVal, lDummy) Then
+        Exit Function
+      End If
+      tpProgArID = CLng(val(sVal))
+      
+      Dim insPos As Integer
+      insPos = insString(tpProg, opInfo.nExpProgs, opInfo.sExpProgs)
+      shiftRightLong insPos, 1, opInfo.nExpProgs - 1, opInfo.lExpProgArIDs
+      opInfo.lExpProgArIDs(insPos) = tpProgArID
+      
+    Next i
+  
+  End If
+  
+End If 'if blReadOpInfo
+
+
+
+If Not dsClean(dsData) Then
+  Exit Function
+End If
+
+
+
+arReadInfo = True
+Exit Function
+fout:
+Dim msg As String
+msg = Err & " arReadInfo" & vbCrLf & Error$
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+Private Function arWriteInfo(ByVal blWriteCfgInfo As Boolean, ByRef cfgInfo As ARES21_CFG_INFO, ByVal blWriteOpInfo As Boolean, ByRef opInfo As ARES21_OP_INFO, ByVal wednr As Long) As Boolean
+On Error GoTo fout
+arWriteInfo = False
+
+Dim dsData As DIR_SERVER_DATA
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+Dim blDummy As Boolean, lDummy As Long
+
+If (blWriteCfgInfo) Then
+  dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\CFG\ARES_DATA_DIRECTORY", cfgInfo.sAresDir
+End If
+
+If (blWriteOpInfo) Then
+  dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\OP\EXP_PROGS\N_EXP_PROGS", opInfo.nExpProgs
+  Dim i As Integer
+  For i = 0 To opInfo.nExpProgs - 1
+    dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\OP\EXP_PROGS\PROG_" & i, opInfo.sExpProgs(i)
+    dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ARES21\OP\EXP_PROGS\PROG_ARES_ID_" & i, opInfo.lExpProgArIDs(i)
+  Next i
+End If
+
+
+If Not dsClean(dsData) Then
+  Exit Function
+End If
+
+
+arWriteInfo = True
+Exit Function
+fout:
+MsgBox Err & " arWriteInfo" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+'For the id codes in ares:
+'Individual swimmers: ares_bibID =  4* swimmer_id
+'Relay teams: ares_bibID = 4* relay_id + 1
+
+
+'routines for interfacing with the ares 21 interface.
+
+Private Function arEncode(ByVal s As String) As String
+Dim sNew As String
+sNew = ""
+
+Dim i As Integer
+For i = 1 To Len(s)
+  Dim tpChar As String
+  tpChar = Mid(s, i, 1)
+  If (tpChar <> """") Then
+   sNew = sNew & tpChar
+  End If
+Next i
+arEncode = sNew
+End Function
+
+
+
+
+'write the match in the transfer tables to the ares21 directory
+Private Function arExportMatch(ByVal sAresDir As String, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ARES21_OP_INFO) As Boolean
+On Error GoTo fout
+arExportMatch = False
+
+
+If Not DirectoryExists(sAresDir) Then
+  Err.Raise 1, , "De ares21-directory: " & vbCrLf & sAresDir & vbCrLf & "bestaat niet." & vbCrLf & "Kies een geldige ares21-directory"
+End If
+
+
+Dim sDistances(0 To 1000) As String
+Dim lDistanceIDs(0 To 1000) As Long
+Dim nDistances As Integer
+
+If Not arExportMatch_getDistances(sDistances, lDistanceIDs, nDistances) Then
+  Exit Function
+End If
+
+
+If Not arExportMatch_writeStrokes(sAresDir) Then
+ Exit Function
+End If
+
+If Not arExportMatch_writeDistances(sAresDir, sDistances, lDistanceIDs, nDistances) Then
+  Exit Function
+End If
+
+If Not arExportMatch_writeCats(sAresDir) Then
+  Exit Function
+End If
+
+
+If Not arExportMatch_writeCompetitors(sAresDir) Then
+  Exit Function
+End If
+
+
+Dim lProgXIDs(0 To MAX_N_PROGS) As Long
+Dim lProgMaxSerNr(0 To MAX_N_PROGS) As Long
+
+If Not arExportMatch_scanProgs(opInf, lProgXIDs, lProgMaxSerNr) Then
+  Exit Function
+End If
+
+If Not arExportMatch_writeDeelnemers(sAresDir, opInf, lProgXIDs, lProgMaxSerNr) Then
+  Exit Function
+End If
+
+If Not arExportMatch_writeProgramma(sAresDir, wedInf, opInf, lProgXIDs, lProgMaxSerNr, sDistances, lDistanceIDs, nDistances) Then
+  Exit Function
+End If
+
+
+arExportMatch = True
+Exit Function
+
+fout:
+MsgBox Err & " arExportMatch" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function arGetStrokeID(ByVal sSlag As String) As Long
+On Error Resume Next
+Select Case sSlag
+  Case "RUG"
+    arGetStrokeID = 1
+  Case "SCHOOL"
+    arGetStrokeID = 2
+  Case "VLINDER"
+    arGetStrokeID = 3
+  Case "VRIJ"
+    arGetStrokeID = 0
+  Case "WISSEL"
+    arGetStrokeID = 4
+  Case Else
+    arGetStrokeID = 5
+End Select
+End Function
+
+Private Function arGetStdDistanceID(ByVal sAf As String) As Long
+On Error Resume Next
+Select Case sAf
+  Case "25"
+    arGetStdDistanceID = 9
+  Case "50"
+    arGetStdDistanceID = 0
+  Case "100"
+    arGetStdDistanceID = 1
+  Case "200"
+    arGetStdDistanceID = 2
+  Case "400"
+    arGetStdDistanceID = 3
+  Case "800"
+    arGetStdDistanceID = 4
+  Case "1500"
+    arGetStdDistanceID = 5
+  Case "4x100"
+    arGetStdDistanceID = 6
+  Case "4x200"
+    arGetStdDistanceID = 7
+  Case "4x50"
+    arGetStdDistanceID = 8
+  Case Else
+    arGetStdDistanceID = -1
+End Select
+End Function
+
+
+
+
+
+Private Function arExportMatch_writeStrokes(ByVal sAresDir As String) As Boolean
+On Error GoTo fout
+arExportMatch_writeStrokes = False
+
+Dim fName As String, fNr As Integer
+fName = sAresDir & "\LSTSTYLE.TXT"
+fNr = FreeFile
+
+Open fName For Output As #fNr
+
+Print #fNr, "idStyle;Style;StyleAbr" & Chr(233) & "v"
+
+Print #fNr, arGetStrokeID("VRIJ") & "; ""Vrijeslag"" ; ""VR"""
+Print #fNr, arGetStrokeID("RUG") & "; ""Rugslag"" ; ""RU"""
+Print #fNr, arGetStrokeID("SCHOOL") & "; ""Schoolslag"" ; ""SS"""
+Print #fNr, arGetStrokeID("VLINDER") & "; ""Vlinderslag"" ; ""VL"""
+Print #fNr, arGetStrokeID("WISSEL") & "; ""Wisselslag"" ; ""WI"""
+Print #fNr, arGetStrokeID("ONB") & "; ""Onbekend"" ; ""??"""
+
+Close #fNr
+
+arExportMatch_writeStrokes = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " arExportMatch_writeStrokes" & vbCrLf & Error$
+
+Close
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+Private Function arExportMatch_writeDistances(ByVal sAresDir As String, ByRef sDistances() As String, ByRef lDistanceIDs() As Long, ByVal nDistances As Integer) As Boolean
+On Error GoTo fout
+arExportMatch_writeDistances = False
+
+
+Dim lOrdDistanceIDs(0 To 1000) As Long
+Dim sOrdDistances(0 To 1000) As String
+
+Dim i As Integer
+Dim nIns As Integer
+
+
+'Order the distances according to lDistanceIDs
+nIns = 0
+
+For i = 0 To nDistances - 1
+  Dim insPos As Integer
+  insPos = insLong(lDistanceIDs(i), nIns, lOrdDistanceIDs)
+  
+  shiftRightString insPos, 1, nIns - 1, sOrdDistances
+  sOrdDistances(insPos) = sDistances(i)
+Next i
+
+
+
+Dim fName As String, fNr As Integer
+fName = sAresDir & "\LSTLONG.TXT"
+fNr = FreeFile
+
+Open fName For Output As #fNr
+
+Print #fNr, "idLength;Longueur;Mlongueur;Relais"
+
+
+For i = 0 To nDistances - 1
+  Dim lAf As Long, iEstCnt As Integer
+  lAf = CLng(val(afstand_ind_part(sOrdDistances(i))))
+  iEstCnt = CInt(val(afstand_n_zwemmers(sOrdDistances(i))))
+  Print #fNr, lOrdDistanceIDs(i) & "; """ & sOrdDistances(i) & "m""; " & lAf * iEstCnt & " ;" & iEstCnt
+Next i
+
+Close #fNr
+
+arExportMatch_writeDistances = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " arExportMatch_writeDistances" & vbCrLf & Error$
+
+Close
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Private Sub arExportMatch_getDistances_addStandardDistances(ByRef sDistances() As String, ByRef nDistances As Integer)
+insString "25", nDistances, sDistances
+insString "50", nDistances, sDistances
+insString "100", nDistances, sDistances
+insString "200", nDistances, sDistances
+insString "400", nDistances, sDistances
+insString "800", nDistances, sDistances
+insString "1500", nDistances, sDistances
+insString "4x100", nDistances, sDistances
+insString "4x200", nDistances, sDistances
+insString "4x50", nDistances, sDistances
+End Sub
+
+
+Private Function arExportMatch_getDistances(ByRef sDistances() As String, ByRef lDistanceIDs() As Long, ByRef nDistances As Integer) As Boolean
+On Error GoTo fout
+arExportMatch_getDistances = False
+
+
+nDistances = 0
+
+arExportMatch_getDistances_addStandardDistances sDistances, nDistances
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpAf As String
+  tpAf = Nz(rs("PR_Afstand"))
+  
+  If bSearchString(tpAf, nDistances, sDistances) < 0 Then
+    insString tpAf, nDistances, sDistances
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+Dim maxUsedNonStdID As Long
+maxUsedNonStdID = ARES_MAX_STD_DISTANCE_ID
+
+Dim i As Integer
+For i = 0 To nDistances - 1
+  Dim tpID As Long
+  tpID = arGetStdDistanceID(sDistances(i))
+  If (tpID < 0) Then
+    tpID = maxUsedNonStdID + 1
+    maxUsedNonStdID = tpID
+  End If
+  lDistanceIDs(i) = tpID
+Next i
+
+
+
+arExportMatch_getDistances = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " arExportMatch_getDistances" & vbCrLf & Error$
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Private Function arGetCatCode(ByRef wedInf As WED_BASIC_INFO, ByVal sCat As String) As String
+arGetCatCode = "X"
+
+Dim cmpCat As CAT_COMPILED_INFO, blIsOK As Boolean
+ctxCompileCat sCat, wedInf.ageDate, wedInf.lftBep, False, blIsOK, cmpCat
+
+
+If (blIsOK) Then
+  
+  Dim minAge As Integer, maxAge As Integer
+  
+  If Not ctxGetAgeRange(wedInf.ageDate, wedInf.lftBep, cmpCat, minAge, maxAge) Then
+    Exit Function
+  End If
+  
+  If (cmpCat.sGes = "M" And maxAge >= 20) Then
+    arGetCatCode = "M"
+  ElseIf (cmpCat.sGes = "M") Then
+    arGetCatCode = "B"
+  ElseIf (cmpCat.sGes = "V" And maxAge >= 18) Then
+    arGetCatCode = "W"
+  ElseIf (cmpCat.sGes = "V") Then
+    arGetCatCode = "G"
+  End If
+End If
+
+End Function
+
+
+Private Function arExportMatch_writeCats(ByVal sAresDir As String) As Boolean
+On Error GoTo fout
+arExportMatch_writeCats = False
+
+
+Dim fName As String, fNr As Integer
+fName = sAresDir & "\LSTCAT.TXT"
+fNr = FreeFile
+
+Open fName For Output As #fNr
+
+Print #fNr, """Category"";""AbrevCat"""
+
+Print #fNr, """Men"";""M"""
+Print #fNr, """Women"";""W"""
+Print #fNr, """Boys"";""B"""
+Print #fNr, """Girls"";""G"""
+Print #fNr, """Mixed"";""X"""
+
+Close #fNr
+
+
+arExportMatch_writeCats = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " arExportMatch_writeCats" & vbCrLf & Error$
+
+Close
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+
+Private Function arExportMatch_writeCompetitors(ByVal sAresDir As String) As Boolean
+On Error GoTo fout
+arExportMatch_writeCompetitors = False
+
+
+Dim fName As String, fNr As Integer
+fName = sAresDir & "\LSTCONC.TXT"
+fNr = FreeFile
+
+Open fName For Output As #fNr
+
+Print #fNr, """id"";""bib"";""lastname"";""firstname"";""birthyear"";""abNat"";""abCat"""
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+skVer.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpBibID As Long, tpBib As String, tpLastName As String, tpVerID As Long
+  Dim tpFirstName As String, tpYOB As Long, tpVer As String, tpCat As String
+  
+  tpBibID = 4 * Nz(rs("ZW_ID"))
+  tpBib = Nz(rs("ZW_Startnummer"))
+  
+  tpVerID = Nz(rs("ZW_VER_ID"))
+  
+  skVer.Seek "=", tpVerID
+  If skVer.NoMatch Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  tpVer = Nz(skVer("V_Naam"))
+  
+  tpLastName = Nz(rs("ZW_Achternaam"))
+  tpFirstName = Nz(rs("ZW_Voornaam"))
+  
+  Dim tpVg As String
+  tpVg = Nz(rs("ZW_Voegsel"))
+  If (tpVg <> "") Then
+    tpFirstName = tpFirstName & " " & tpVg
+  End If
+  
+  tpYOB = Nz(rs("ZW_Jaartal"))
+  
+  Dim tpGes As String
+  tpGes = Nz(rs("ZW_Geslacht"))
+  
+  If (tpGes = "V") Then
+    tpCat = "W"
+  ElseIf (tpGes = "M") Then
+    tpCat = "M"
+  Else
+    tpCat = "X"
+  End If
+  
+  
+  
+  Print #fNr, tpBibID & ";""" & arEncode(tpBib) & """;""" & _
+    arEncode(tpLastName) & """;""" & arEncode(tpFirstName) & """;""" & tpYOB & """;""" & arEncode(tpVer) & """;""" & tpCat & """"
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  tpBibID = 4 * Nz(rs("PL_ID")) + 1
+  tpBib = "est_" & tpBibID
+  
+  tpVerID = Nz(rs("PL_VER_ID"))
+  
+  skVer.Seek "=", tpVerID
+  If skVer.NoMatch Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  tpVer = Nz(skVer("V_Naam"))
+  
+  tpLastName = Nz(rs("PL_Naam"))
+  tpFirstName = " "
+  
+    
+  tpYOB = 0
+  
+  tpGes = Nz(rs("PL_Geslacht"))
+  
+  If (tpGes = "V") Then
+    tpCat = "W"
+  ElseIf (tpGes = "M") Then
+    tpCat = "M"
+  Else
+    tpCat = "X"
+  End If
+  
+  
+  
+  Print #fNr, tpBibID & ";""" & arEncode(tpBib) & """;""" & _
+    arEncode(tpLastName) & """;""" & arEncode(tpFirstName) & """;""" & tpYOB & """;"""";""" & tpCat & """"
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+Close #fNr
+
+
+arExportMatch_writeCompetitors = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim msg As String
+msg = Err & " arExportMatch_writeCompetitors" & vbCrLf & Error$
+
+Close
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+
+
+
+Private Function arExportMatch_scanProgs(ByRef opInfo As ARES21_OP_INFO, ByRef lProgXIDs() As Long, ByRef lProgMaxSerNrs() As Long) As Boolean
+On Error GoTo fout
+arExportMatch_scanProgs = False
+
+Dim blHasCollisions As Boolean
+blHasCollisions = False
+
+Dim lMaxUsedProgArID As Long
+lMaxUsedProgArID = -1
+
+opInfo.nExpProgs = 0
+ReDim opInfo.sExpProgs(MAX_N_PROGS)
+ReDim opInfo.lExpProgArIDs(MAX_N_PROGS)
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma order by val(nz([pr_programmanummer])) , [pr_programmanummer];")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpProg As String
+  tpProg = Nz(rs("pr_programmanummer"))
+  
+  Dim tpProgXID As Long
+  tpProgXID = Nz(rs("pr_id"))
+  
+  Dim tpProgNumNr As Long
+  tpProgNumNr = CLng(val(tpProg))
+  
+  Dim tpProgArID As Long
+  tpProgArID = 100 * tpProgNumNr
+  If (tpProgArID <= lMaxUsedProgArID) Then
+    tpProgArID = lMaxUsedProgArID + 1
+  End If
+  lMaxUsedProgArID = tpProgArID
+  
+  Dim insPos As Integer
+  insPos = insString(tpProg, opInfo.nExpProgs, opInfo.sExpProgs)
+  
+  shiftRightLong insPos, 1, (opInfo.nExpProgs - 1), opInfo.lExpProgArIDs
+  shiftRightLong insPos, 1, (opInfo.nExpProgs - 1), lProgXIDs
+  shiftRightLong insPos, 1, (opInfo.nExpProgs - 1), lProgMaxSerNrs
+  
+  opInfo.lExpProgArIDs(insPos) = tpProgArID
+  lProgXIDs(insPos) = tpProgXID
+  lProgMaxSerNrs(insPos) = 0
+  
+  If (CStr(tpProgNumNr) <> tpProg) Then
+    blHasCollisions = True
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+If (Not blHasCollisions) Then
+  'can make aresIDs easier
+  Dim i As Integer
+  For i = 0 To opInfo.nExpProgs - 1
+    opInfo.lExpProgArIDs(i) = CLng(val(opInfo.sExpProgs(i)))
+  Next i
+End If
+
+
+
+
+
+arExportMatch_scanProgs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim msg As String
+msg = Err & " arExportMatch_scanProgs" & vbCrLf & Error$
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Private Function arExportMatch_writeDeelnemers_getExclusions(ByRef dsTmpData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+arExportMatch_writeDeelnemers_getExclusions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Tijden where nz([ty_dis] ) <> """";")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpDis As String
+  tpDis = Nz(rs("ty_dis"))
+  If (tpDis = DIS_AFM) Or (tpDis = DIS_ZK) Or (tpDis = DIS_NG) Or (tpDis = DIS_VV) Then
+    Dim tpIsEstaf As Boolean
+    Dim tpProgXID As Long
+    Dim tpExclXID As Long
+    
+    tpIsEstaf = Nz(rs("TY_IsEstaf"))
+    tpProgXID = Nz(rs("TY_Prog_ID"))
+       
+    If (Not tpIsEstaf) Then
+      tpExclXID = Nz(rs("TY_Zwemmer_ID"))
+    Else
+      tpExclXID = Nz(rs("TY_Ploeg_ID"))
+    End If
+    
+    dsSetString dsTmpData, "EXCL\" & tpProgXID & "\" & tpExclXID, ""
+    
+  End If
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+arExportMatch_writeDeelnemers_getExclusions = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim msg As String
+msg = Err & " arExportMatch_writeDeelnemers_getExclusions" & vbCrLf & Error$
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Private Sub arExportMatch_writeDeelnemers_handleOutput(ByVal fNr As Integer, ByRef rsDln As Recordset, ByRef dsTmpData As DIR_SERVER_DATA, ByRef opInf As ARES21_OP_INFO, ByRef lProgXIDs() As Long, ByRef lProgMaxSerNr() As Long, lOrdProgXIDs() As Long, iOrdProgXIDsOrgIdx() As Integer, ByVal iExpVolgorde As Integer, ByVal blExpUseSuppliedDlnArID As Boolean, lExpDlnArID As Long)
+
+Dim tpProgXID As Long
+Dim tpIsEstaf As Boolean
+Dim tpDlnXID As Long, tpDlnArBibID As Long
+Dim tpSer As Integer, tpBn As Integer
+
+tpProgXID = Nz(rsDln("de_prog_id"))
+tpIsEstaf = Nz(rsDln("de_isEstaf"))
+
+If (tpIsEstaf) Then
+  tpDlnXID = Nz(rsDln("de_ploeg_id"))
+  tpDlnArBibID = 4 * tpDlnXID + 1
+Else
+  tpDlnXID = Nz(rsDln("de_zwemmer_id"))
+  tpDlnArBibID = 4 * tpDlnXID
+End If
+
+If (blExpUseSuppliedDlnArID) Then
+  tpDlnArBibID = lExpDlnArID
+End If
+
+tpSer = Nz(rsDln("de_serienummer"))
+tpBn = Nz(rsDln("de_baan"))
+
+Dim lkpProgPos As Integer
+lkpProgPos = bSearchLong(tpProgXID, opInf.nExpProgs, lOrdProgXIDs)
+
+If (lkpProgPos < 0) Then
+  Err.Raise 1, , "internal error"
+End If
+
+ 
+Dim tpProgArID As Long
+tpProgArID = opInf.lExpProgArIDs(iOrdProgXIDsOrgIdx(lkpProgPos))
+ 
+ 
+
+'check exlusions
+Dim blExcluded As Boolean, sDummy As String, lDummy As Long
+If Not dsLookupPropertyByName(dsTmpData, "EXCL\" & tpProgXID & "\" & tpDlnXID, blExcluded, sDummy, lDummy) Then
+  Err.Raise 2, , "silent"
+End If
+
+If (Not blExcluded) And (tpSer > 0) And (tpBn > 0) Then
+  If (tpSer > lProgMaxSerNr(lkpProgPos)) Then
+    lProgMaxSerNr(lkpProgPos) = tpSer
+  End If
+  
+  Print #fNr, tpProgArID & ";0;" & (tpSer - 1) & ";" & tpBn & ";" & iExpVolgorde & ";" & tpDlnArBibID
+  
+End If
+
+
+End Sub
+
+
+Private Function arExportMatch_writeDeelnemers(ByVal sAresDir As String, ByRef opInf As ARES21_OP_INFO, ByRef lProgXIDs() As Long, ByRef lProgMaxSerNr() As Long) As Boolean
+On Error GoTo fout
+arExportMatch_writeDeelnemers = False
+
+Dim dsTmpData As DIR_SERVER_DATA
+
+If Not dsInit(dsTmpData, True, "__ares21__export__exclusions") Then
+  Exit Function
+End If
+
+If Not arExportMatch_writeDeelnemers_getExclusions(dsTmpData) Then
+  Exit Function
+End If
+
+Dim lOrdXIDs(0 To MAX_N_PROGS) As Long
+Dim iOrdXIDsOrgIdx(0 To MAX_N_PROGS) As Integer
+Dim nOrdXIDs As Integer
+
+nOrdXIDs = 0
+Dim i As Integer
+For i = 0 To opInf.nExpProgs - 1
+  Dim insPos As Integer
+  insPos = insLong(lProgXIDs(i), nOrdXIDs, lOrdXIDs)
+  shiftRightInt insPos, 1, (nOrdXIDs - 1), iOrdXIDsOrgIdx
+  iOrdXIDsOrgIdx(insPos) = i
+Next i
+
+
+Dim fName As String, fNr As Integer
+fName = sAresDir & "\LSTSTART.TXT"
+fNr = FreeFile
+
+Open fName For Output As #fNr
+
+Print #fNr, "event;round;heat;lane;relais;idBib"
+
+
+'write all entries
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+
+rs.MoveFirst
+Do Until rs.EOF
+  arExportMatch_writeDeelnemers_handleOutput fNr, rs, dsTmpData, opInf, lProgXIDs, lProgMaxSerNr, lOrdXIDs, iOrdXIDsOrgIdx, 0, False, -1
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+Dim skDln As Recordset
+Set skDln = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+skDln.Index = "PrimaryKey"
+
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Ploegleden where (not isnull([PLL_Deelnemer_ID]));")
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpDlnXID As Long
+  tpDlnXID = Nz(rs("pll_deelnemer_Id"))
+  
+  skDln.Seek "=", tpDlnXID
+  If skDln.NoMatch Then
+    Err.Raise 1, , "internal error"
+  End If
+  
+  Dim tpVolg As Integer
+  tpVolg = Nz(rs("pll_volgorde"))
+  
+  If (tpVolg > 0) Then
+    Dim tpZwmArID As Long
+    tpZwmArID = 4 * Nz(rs("pll_Zwemmer_id"))
+    arExportMatch_writeDeelnemers_handleOutput fNr, skDln, dsTmpData, opInf, lProgXIDs, lProgMaxSerNr, lOrdXIDs, iOrdXIDsOrgIdx, tpVolg, True, tpZwmArID
+  End If
+  
+  rs.MoveNext
+Loop
+
+Close #fNr
+
+arExportMatch_writeDeelnemers = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim msg As String
+msg = Err & " arExportMatch_writeDeelnemers" & vbCrLf & Error$
+
+Close
+appCleanRS rs
+
+If (Err <> 2) Then
+  MsgBox msg, 16
+End If
+
+Exit Function
+
+End Function
+
+
+
+
+Private Function arExportMatch_writeProgramma(ByVal sAresDir As String, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ARES21_OP_INFO, ByRef lProgXIDs() As Long, ByRef lProgMaxSerNr() As Long, ByRef sAfstanden() As String, lAfstandIDs() As Long, ByVal nAfstanden) As Boolean
+On Error GoTo fout
+arExportMatch_writeProgramma = False
+
+
+Dim fName As String, fNr As Integer
+fName = sAresDir & "\LSTRACE.TXT"
+fNr = FreeFile
+
+Open fName For Output As #fNr
+
+Dim fNameTitle As String, fNrTitle As Integer
+fNameTitle = sAresDir & "\LSTTITPR.TXT"
+fNrTitle = FreeFile
+
+Open fNameTitle For Output As #fNrTitle
+
+
+Print #fNr, "event;round;nbHeat;idLen;idStyle;abCat;date;time"
+Print #fNrTitle, "event;round;text"
+
+'output the progs in order of lProgAresIDs
+
+Dim skProgs As Recordset
+Set skProgs = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
+skProgs.Index = "PrimaryKey"
+
+Dim lOrdArIDs(0 To MAX_N_PROGS) As Long
+Dim iOrdArIDsOrgIdx(0 To MAX_N_PROGS) As Integer
+Dim nOrdArIDs As Integer
+
+nOrdArIDs = 0
+Dim i As Integer
+For i = 0 To opInf.nExpProgs - 1
+  Dim insPos As Integer
+  insPos = insLong(opInf.lExpProgArIDs(i), nOrdArIDs, lOrdArIDs)
+  shiftRightInt insPos, 1, (nOrdArIDs - 1), iOrdArIDsOrgIdx
+  iOrdArIDsOrgIdx(insPos) = i
+Next i
+
+
+For i = 0 To nOrdArIDs - 1
+  Dim lkpPos As Integer
+  lkpPos = iOrdArIDsOrgIdx(i)
+  
+  Dim tpProg As String
+  tpProg = opInf.sExpProgs(lkpPos)
+  
+  Dim tpProgArID As Long
+  tpProgArID = opInf.lExpProgArIDs(lkpPos)
+  
+  
+  Dim tpNSeries As Integer
+  tpNSeries = lProgMaxSerNr(lkpPos)
+  
+  Dim tpProgXID As Long
+  tpProgXID = lProgXIDs(lkpPos)
+  
+  
+  skProgs.Seek "=", tpProgXID
+  If skProgs.NoMatch Then
+    Err.Raise 1, , "internal error"
+  End If
+    
+  Dim tpSl As String, tpCat As String
+  
+  tpSl = Nz(skProgs("pr_slag"))
+  tpCat = Nz(skProgs("pr_categorie"))
+  
+  Dim tpAf As String, tpAfLkpPos As Integer, tpAfID As Long
+  tpAf = Nz(skProgs("pr_afstand"))
+  tpAfLkpPos = bSearchString(tpAf, nAfstanden, sAfstanden)
+  If (tpAfLkpPos < 0) Then
+    Err.Raise 1, , "internal error"
+  End If
+  tpAfID = lAfstandIDs(tpAfLkpPos)
+  
+    
+  Dim tpFmtDat As String, tpFmtTime As String
+  tpFmtDat = Format(wedInf.date, "mm\/dd\/yy")
+  tpFmtTime = Format(wedInf.avst, "hh:nn")
+  
+  Dim tpBesAfw As String
+  tpBesAfw = Nz(skProgs("pr_BeschrijvingAfwijkend"))
+  Dim tpCatDes As String
+  tpCatDes = Nz(skProgs("pr_beschrijvingCategorie"))
+  Dim tpProgType As String
+  tpProgType = Nz(skProgs("pr_type"))
+  
+  Dim tpFmtDes As String
+  tpFmtDes = "Pr. " & tpProg & ", S. %2: " & fmtProgDes_Kort(tpProgType, tpBesAfw, tpAf, tpSl, tpCatDes)
+  
+  Print #fNr, tpProgArID & " ;0 ;" & tpNSeries & " ;" & tpAfID & "; " & arGetStrokeID(tpSl) & " ;""" & arGetCatCode(wedInf, tpCat) & _
+    """ ;""" & tpFmtDat & """ ;""" & tpFmtTime & """ ;"
+    
+  Print #fNrTitle, tpProgArID & " ;0 ;"""" ;""" & tpFmtDes & """ ;"""" ;"
+
+Next i
+
+appCleanRS skProgs
+
+Close #fNr
+Close #fNrTitle
+
+arExportMatch_writeProgramma = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Dim msg As String
+msg = Err & " arExportMatch_writeProgramma" & vbCrLf & Error$
+
+Close
+
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+
+Private Function arImportResults(ByRef wedInf As WED_BASIC_INFO, ByRef cfgInf As ARES21_CFG_INFO, ByRef opInf As ARES21_OP_INFO) As Boolean
+On Error GoTo fout
+arImportResults = False
+
+
+Dim lOrdArIDs(0 To MAX_N_PROGS) As Long
+Dim iOrdArIDsOrgIdx(0 To MAX_N_PROGS) As Integer
+Dim nOrdArIDs As Integer
+
+nOrdArIDs = 0
+Dim i As Integer
+For i = 0 To opInf.nExpProgs - 1
+  Dim insPos As Integer
+  insPos = insLong(opInf.lExpProgArIDs(i), nOrdArIDs, lOrdArIDs)
+  shiftRightInt insPos, 1, (nOrdArIDs - 1), iOrdArIDsOrgIdx
+  iOrdArIDsOrgIdx(insPos) = i
+Next i
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoETWResTimes")
+
+Dim fName As String, fNr As Integer
+fName = cfgInf.sAresDir & "\LSTRSLT.TXT"
+
+fNr = FreeFile
+
+If Not FileExists(fName) Then
+  Err.Raise 1, , "Het bestand met uitslagen: " & vbCrLf & fName & vbCrLf & "kon niet worden gevonden."
+End If
+
+
+Open fName For Input As #fNr
+
+Dim tpS As String
+
+'Read the header line
+Line Input #fNr, tpS
+
+'Now read until end of file
+While Not EOF(fNr)
+  Line Input #fNr, tpS
+  
+  'Parse the line
+  Dim tpProgArID As Long
+  Dim tpSerIdx As Long
+  Dim tpLane As Long
+  Dim tpLap As Long
+  Dim tpStatus As Long
+  
+  Dim tpTimeThs As Long
+  Dim tpBckTimeThs As Long
+  Dim tpRctTimeThs As Long
+  
+  tpProgArID = CLng(extractToken(tpS, ";"))
+  
+  'ignore the round
+  extractToken tpS, ";"
+  
+  tpSerIdx = CLng(extractToken(tpS, ";"))
+  tpLap = CLng(extractToken(tpS, ";"))
+  tpLane = CLng(extractToken(tpS, ";"))
+  tpStatus = CLng(extractToken(tpS, ";"))
+  
+  'ignore the rank
+  extractToken tpS, ";"
+  
+  tpTimeThs = CLng(extractToken(tpS, ";"))
+  
+  'ignore the formatted time and formatted mod
+  extractTokenDelimited tpS, ";", """"
+  extractTokenDelimited tpS, ";", """"
+  
+  tpBckTimeThs = CLng(extractToken(tpS, ";"))
+  
+  'ignore the formatted backup time and formatted mod
+  extractTokenDelimited tpS, ";", """"
+  extractTokenDelimited tpS, ";", """"
+  
+  tpRctTimeThs = CLng(extractToken(tpS, ";"))
+  'ignore the formatted reaction time and formatted mod
+  extractTokenDelimited tpS, ";", """"
+  extractTokenDelimited tpS, ";", """"
+  
+  
+  Dim dTime As Double, dBckTime As Double, dRctTime As Double
+  
+  dTime = swtFromSeconds(tpTimeThs * 0.001)
+  dBckTime = swtFromSeconds(tpBckTimeThs * 0.001)
+  dRctTime = swtFromSeconds(tpRctTimeThs * 0.001)
+  
+  'Now check if the time needs processing
+  Dim blOK As Boolean
+  
+  blOK = True
+  
+  Dim blTimeValid As Boolean, blBckTimeValid As Boolean
+  blTimeValid = swtIsValid(dTime)
+  blBckTimeValid = swtIsValid(dBckTime)
+  
+  If (Not (blTimeValid Or blBckTimeValid)) Then
+    blOK = False
+  End If
+  
+  If (blOK) And (tpLane <= 0) Then
+    blOK = False
+  End If
+  
+  If (blOK) And (tpLap < 1) Then
+    blOK = False
+  End If
+  
+  If (blOK) And (tpLap Mod (2 * wedInf.baan) <> 0) Then
+    blOK = False
+  End If
+  
+  If (blOK) Then
+    Dim lWedNr As Long
+    lWedNr = wedInf.wednr
+    
+    Dim lkpPos As Integer
+    lkpPos = bSearchLong(tpProgArID, nOrdArIDs, lOrdArIDs)
+    
+    Dim sProg As String
+    
+    If (lkpPos < 0) Then
+      'did not find prog in exported list, attempt to use normal programma nr.
+      sProg = CStr(tpProgArID)
+      If (bSearchString(sProg, opInf.nExpProgs, opInf.sExpProgs) >= 0) Then
+        'there is a conflict
+        sProg = "?_" & tpProgArID
+      End If
+    Else
+      sProg = opInf.sExpProgs(iOrdArIDsOrgIdx(lkpPos))
+    End If
+  End If
+  
+  
+  If (blOK) Then
+    rs.AddNew
+      rs("ETWT_Wedstrijdnummer") = lWedNr
+      rs("ETWT_Programmanummer") = hzn(sProg)
+      rs("ETWT_Serienummer") = tpSerIdx + 1
+      rs("ETWT_Baan") = tpLane
+      rs("ETWT_Afstand") = tpLap
+      rs("ETWT_Tijd") = dTime
+      rs("ETWT_BackupTijd") = dBckTime
+      rs("ETWT_ReactieTijd") = dRctTime
+    rs.Update
+  End If
+  
+Wend
+
+
+
+
+appCleanRS rs
+Close #fNr
+
+arImportResults = True
+Exit Function
+
+fout:
+
+Dim msg As String
+msg = Err & " arImportResults" & vbCrLf & Error$
+
+Close
+appCleanRS rs
+DoCmd.SetWarnings True
+
+MsgBox msg, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function

@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1048926552
+Checksum =635892100
 Begin Form
     AllowEditing = NotDefault
     MaxButton = NotDefault
@@ -14,7 +14,7 @@ Begin Form
     GridX =20
     GridY =20
     Width =8844
-    ItemSuffix =47
+    ItemSuffix =48
     Left =1140
     Top =915
     Right =12045
@@ -389,7 +389,7 @@ Begin Form
             End
         End
         Begin FormFooter
-            Height =1474
+            Height =1644
             BackColor =65280
             Name ="FormFooter2"
             Begin
@@ -397,7 +397,7 @@ Begin Form
                     OverlapFlags =85
                     AccessKey =80
                     Left =113
-                    Top =1020
+                    Top =1247
                     Width =1245
                     Height =330
                     Name ="btnPnt"
@@ -548,7 +548,7 @@ Begin Form
                     OverlapFlags =85
                     AccessKey =70
                     Left =6916
-                    Top =1020
+                    Top =1247
                     Width =1815
                     Height =332
                     TabIndex =9
@@ -578,6 +578,21 @@ Begin Form
                         End
                     End
                 End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =5527
+                    Top =1247
+                    Width =1260
+                    Height =332
+                    TabIndex =11
+                    Name ="btnETW"
+                    Caption ="-> ETW"
+                    StatusBarText ="Elektronische tijdwaarneming bedienen"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xed72d11a60016d418246c42308b095f4
+                    End
+                End
             End
         End
     End
@@ -590,12 +605,51 @@ Attribute VB_Exposed = False
 Option Compare Database   'Use database order for string comparisons
 Option Explicit
 
+Private Sub updateView()
+On Error Resume Next
+
+Dim blIsSimplified As Boolean
+blIsSimplified = appIsSimplified()
+
+
+Me.OrderBy = ""
+DoCmd.Maximize
+If Forms![wed_master]![WE_Vervangende_tijd] = "N" Then
+    Me.btnPnt.Visible = False
+    [PR_Vervangende tijd].Visible = False
+    [ver].Visible = False
+    [PR_Opmerking].Visible = True
+    [opm].Visible = True
+    [PR_AantMeetel].Visible = False
+    [mt].Visible = False
+Else
+    Me.btnPnt.Visible = (Not blIsSimplified)
+    [PR_Vervangende tijd].Visible = True
+    [ver].Visible = True
+    [opm].Visible = False
+    [PR_Opmerking].Visible = False
+End If
+
+Me.btnFinIndelen.Visible = Not blIsSimplified
+
+Dim blHasETW As Boolean
+blHasETW = (etwLookupEquipmentType(waarde()) <> "")
+Me.btnETW.Enabled = blHasETW
+
+
+End Sub
+
 Private Sub alleen_AfterUpdate()
 If Me.alleen Then
     aantal.Enabled = True
 Else
     aantal.Enabled = False
 End If
+End Sub
+
+Private Sub btnETW_Click()
+On Error Resume Next
+DoCmd.OpenForm "ETW_Master", , , , , , "OPEN_ARGS_RESULTS"
 End Sub
 
 Private Sub btnTerug_Click()
@@ -742,32 +796,7 @@ End Sub
 Private Sub Form_Load()
 On Error Resume Next
 
-Dim blIsSimplified As Boolean
-blIsSimplified = appIsSimplified()
-
-
-Me.OrderBy = ""
-DoCmd.Maximize
-If Forms![wed_master]![WE_Vervangende_tijd] = "N" Then
-    Me.btnPnt.Visible = False
-    [PR_Vervangende tijd].Visible = False
-    [ver].Visible = False
-    [PR_Opmerking].Visible = True
-    [opm].Visible = True
-    [PR_AantMeetel].Visible = False
-    [mt].Visible = False
-Else
-    Me.btnPnt.Visible = (Not blIsSimplified)
-    [PR_Vervangende tijd].Visible = True
-    [ver].Visible = True
-    [opm].Visible = False
-    [PR_Opmerking].Visible = False
-End If
-
-Me.btnFinIndelen.Visible = Not blIsSimplified
-
-
-
+updateView
 
 End Sub
 
