@@ -485,12 +485,13 @@ If (endprog = "") Then
   endprog = "9999"
 End If
 
-Dim nBanen As Integer
+Dim nBanen As Integer, iFirstBaan As Integer
 nBanen = Nz(DLookup("WE_Aantal_Banen", "dtWedstrijdGegevens", "[WE_Wedstrijdnummer]=" & wednr), 6)
+iFirstBaan = Nz(DLookup("WE_Eerste_Baan", "dtWedstrijdGegevens", "[WE_Wedstrijdnummer]=" & wednr), 1)
 
 Dim baanVolgorde(0 To 20) As Integer
 
-If Not bnVolgorde(baanVolgorde, nBanen) Then
+If Not bnVolgorde(baanVolgorde, nBanen, iFirstBaan) Then
   Exit Function
 End If
 
