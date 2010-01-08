@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-2014828216
+Checksum =1445144981
 Begin Form
     RecordSelectors = NotDefault
     NavigationButtons = NotDefault
@@ -97,9 +97,10 @@ Begin Form
                     MultiSelect =2
                     ColumnCount =3
                     Left =113
-                    Top =633
+                    Top =1023
                     Width =4980
-                    Height =4996
+                    Height =4606
+                    TabIndex =1
                     BackColor =16776960
                     Name ="dln"
                     RowSourceType ="Table/Query"
@@ -114,7 +115,7 @@ Begin Form
                     OverlapFlags =85
                     Left =170
                     Top =5782
-                    TabIndex =1
+                    TabIndex =2
                     Name ="blSortAchternaam"
                     AfterUpdate ="[Event Procedure]"
                     DefaultValue ="True"
@@ -144,7 +145,7 @@ Begin Form
                     Left =3458
                     Top =5787
                     Width =1641
-                    TabIndex =2
+                    TabIndex =3
                     ColumnInfo ="\"\";\"\";\"10\";\"510\""
                     GUID = Begin
                         0x9c4b0fbc2dd582419c05c52aea503983
@@ -179,7 +180,7 @@ Begin Form
                     Top =633
                     Width =4980
                     Height =4981
-                    TabIndex =3
+                    TabIndex =4
                     BackColor =16776960
                     Name ="dlnVerwijder"
                     RowSourceType ="Table/Query"
@@ -223,7 +224,7 @@ Begin Form
                     Top =2494
                     Width =636
                     Height =336
-                    TabIndex =4
+                    TabIndex =5
                     Name ="btnToDelete"
                     Caption ="Command62"
                     OnClick ="[Event Procedure]"
@@ -260,7 +261,7 @@ Begin Form
                     Top =3120
                     Width =636
                     Height =336
-                    TabIndex =5
+                    TabIndex =6
                     Name ="btnToWed"
                     OnClick ="[Event Procedure]"
                     PictureData = Begin
@@ -290,6 +291,69 @@ Begin Form
                         0x6cc8891f69125149aa03df3a36b1dabf
                     End
                 End
+                Begin CommandButton
+                    Default = NotDefault
+                    TabStop = NotDefault
+                    OverlapFlags =93
+                    Left =518
+                    Top =623
+                    Width =135
+                    Height =225
+                    TabIndex =7
+                    Name ="btnDefault"
+                    OnClick ="[Event Procedure]"
+                    FontName ="Tahoma"
+                    GUID = Begin
+                        0x5221be3848a1fa4b8428eff04246d734
+                    End
+                End
+                Begin ComboBox
+                    LimitToList = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    AccessKey =90
+                    IMESentenceMode =3
+                    ColumnCount =5
+                    Left =698
+                    Top =633
+                    Width =3159
+                    Height =270
+                    GUID = Begin
+                        0xba0f5c220c66f2468ed9f6ee6d535d4b
+                    End
+                    Name ="cmbNm"
+                    RowSourceType ="Table/Query"
+                    ColumnWidths ="0;0;0;1422;1702"
+                    UnicodeAccessKey =90
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =113
+                            Top =633
+                            Width =525
+                            Height =240
+                            Name ="Label6"
+                            Caption ="&Zoek: "
+                            FontName ="Tahoma"
+                            GUID = Begin
+                                0x0027f6de126e5f4da479ba56b129e09d
+                            End
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =4025
+                    Top =623
+                    Width =1545
+                    Height =210
+                    Name ="Label7"
+                    Caption ="(enter = selecteren)"
+                    FontName ="Tahoma"
+                    GUID = Begin
+                        0xc46efc74891f1f41ac606fe4a36597e4
+                    End
+                End
             End
         End
         Begin FormFooter
@@ -309,6 +373,45 @@ Option Explicit
 
 Private lbbDln As Long
 Private lbtOps As Long
+
+
+Private Sub selectSwimmer(ByVal sVer As String, ByVal sStart As String)
+On Error GoTo fout
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gDEL_DLN_Zwemmers")
+rs.Index = "PrimaryKey"
+
+Dim blIsUpdated As Boolean
+blIsUpdated = False
+    
+rs.Seek "=", sVer, sStart
+If Not (rs.NoMatch) Then
+  rs.Edit
+    rs("DDS_Delete") = True
+  rs.Update
+  blIsUpdated = True
+End If
+
+
+If (blIsUpdated) Then
+
+  Me.cmbNm.Requery
+  Me.dln.Requery
+  Me.dlnVerwijder.Requery
+
+End If
+
+
+
+Exit Sub
+fout:
+MsgBox Err & " selectSwimmer" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+
 
 Private Sub moveSelected(ByVal blToDelete As Boolean)
 On Error GoTo fout
@@ -348,7 +451,7 @@ For Each varitm In ctl.ItemsSelected
 
 Next varitm
 
-
+Me.cmbNm.Requery
 Me.dln.Requery
 Me.dlnVerwijder.Requery
 
@@ -379,7 +482,7 @@ On Error GoTo fout
 
 
 
-Dim sqlInWed As String, sqlDelete As String
+Dim sqlInWed As String, sqlDelete As String, sqlFastSel As String
 
 sqlInWed = "Select dds_startnummer, dds_naam, dds_vereniging from gDEL_DLN_Zwemmers "
 
@@ -387,6 +490,9 @@ sqlDelete = sqlInWed
 
 sqlInWed = sqlInWed & " where dds_delete = false "
 sqlDelete = sqlDelete & " where dds_delete = true "
+
+sqlFastSel = "select ([dds_vereniging] & "";"" & [dds_startnummer]) as UNQ_ID,  dds_vereniging, dds_startnummer, dds_find_key, dds_vereniging from gDEL_DLN_Zwemmers where dds_delete = false order by dds_find_key;"
+
 
 If Nz(Me.cmbVereniging) <> "" Then
   sqlInWed = sqlInWed & " and dds_vereniging = """ & Nz(Me.cmbVereniging) & """ "
@@ -405,9 +511,11 @@ Me.dln.RowSource = sqlInWed
 
 Me.dlnVerwijder.RowSource = sqlDelete
 
+Me.cmbNm.RowSource = sqlFastSel
+
 Me.dln.Requery
 Me.dlnVerwijder.Requery
-
+Me.cmbNm.Requery
 
 Exit Sub
 fout:
@@ -435,7 +543,25 @@ End Sub
 
 
 
+Private Sub btnDefault_Click()
+On Error Resume Next
+Dim ctlPrevious As Control
+Set ctlPrevious = Screen.PreviousControl
+If ctlPrevious.name = Me.cmbNm.name Then
 
+  Dim sVer As String, sStart As String
+  sVer = Nz(Me.cmbNm.Column(1))
+  sStart = Nz(Me.cmbNm.Column(2))
+  
+  selectSwimmer sVer, sStart
+  Me.cmbNm.SetFocus
+  
+Else
+  
+  ctlPrevious.SetFocus
+End If
+
+End Sub
 
 
 
@@ -490,7 +616,11 @@ Private Sub Form_Load()
 On Error Resume Next
 readFormatData
 
-
+'Reposition the default button so it is not visible.
+Me.btnDefault.Left = Me.cmbNm.Left + 50
+Me.btnDefault.Top = Me.cmbNm.Top + 50
+Me.btnDefault.Width = 1
+Me.btnDefault.Height = 1
 
 
 End Sub
@@ -530,7 +660,7 @@ Me.lbSortAchternaam.Top = ndh - lbtOps
 
 
 Me.dln.Height = (ndh - Me.dln.Top - lbbDln)
-Me.dlnVerwijder.Height = Me.dln.Height
+Me.dlnVerwijder.Height = (ndh - Me.dlnVerwijder.Top - lbbDln)
 
 
 

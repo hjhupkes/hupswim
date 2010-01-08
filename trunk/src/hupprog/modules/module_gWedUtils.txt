@@ -1852,18 +1852,28 @@ Do Until rs.EOF
   If (tpStart <> curStart) Then
   
     Dim tpNm As String
-    Dim tpAchternaam As String
+    Dim tpAchternaam As String, tpVoornaam As String, tpVoegsel As String
+    
     tpNm = Nz(rs(FNM_DE_PERS_NAAM))
     tpAchternaam = Nz(rs(FNM_DE_PERS_ACHTNM))
+    tpVoornaam = Nz(rs(FNM_DE_PERS_VOORNM))
+    tpVoegsel = Nz(rs(FNM_DE_PERS_VOEGSEL))
+    
     If (tpAchternaam = "") Then
       tpAchternaam = nmExtractAchternaam(tpNm)
+      tpVoornaam = nmExtractVoornaam(tpNm)
+      tpVoegsel = nmExtractVoegsel(tpNm)
     End If
+    
+    Dim tpFindKey As String
+    tpFindKey = tpAchternaam & ", " & tpVoornaam & " " & tpVoegsel
   
     outS.AddNew
       outS("DDS_Vereniging") = hzn(tpVer)
       outS("DDS_Startnummer") = hzn(tpStart)
       outS("DDS_Naam") = hzn(tpNm)
       outS("DDS_Achternaam") = hzn(tpAchternaam)
+      outS("DDS_Find_Key") = hzn(tpFindKey)
       outS("DDS_Delete") = False
     outS.Update
     
@@ -1919,9 +1929,16 @@ Do Until rs.EOF
   
     tpNm = Nz(rs(FNM_PL_NAAM))
     tpAchternaam = Nz(rs(FNM_PL_ACHTNM))
+    tpVoornaam = Nz(rs(FNM_PL_VOORNM))
+    tpVoegsel = Nz(rs(FNM_PL_VOEGSEL))
+    
     If (tpAchternaam = "") Then
       tpAchternaam = nmExtractAchternaam(tpNm)
+      tpVoornaam = nmExtractVoornaam(tpNm)
+      tpVoegsel = nmExtractVoegsel(tpNm)
     End If
+    
+    tpFindKey = tpAchternaam & ", " & tpVoornaam & " " & tpVoegsel
   
     outS.Seek "=", tpVer, tpStart
     If outS.NoMatch Then
@@ -1930,6 +1947,7 @@ Do Until rs.EOF
         outS("DDS_Startnummer") = hzn(tpStart)
         outS("DDS_Naam") = hzn(tpNm)
         outS("DDS_Achternaam") = hzn(tpAchternaam)
+        outS("DDS_Find_Key") = hzn(tpFindKey)
         outS("DDS_Delete") = False
       outS.Update
     End If
