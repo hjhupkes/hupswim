@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-532084113
+Checksum =1390019805
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -15,7 +15,7 @@ Begin Form
     GridX =15
     GridY =15
     Width =11700
-    ItemSuffix =157
+    ItemSuffix =160
     Left =1680
     Top =600
     Right =14625
@@ -622,10 +622,10 @@ Begin Form
                                     Name ="cmbMeetMainPart"
                                     ControlSource ="WE_MainWedstrijdnummer"
                                     RowSourceType ="Table/Query"
-                                    RowSource ="SELECT format(nz( [dtWedstrijdgegevens].[WE_Wedstrijdnummer]),\"0\"), [dtWedstri"
-                                        "jdgegevens].[WE_Datum], [dtWedstrijdgegevens].[WE_Beschrijving], [dtWedstrijdgeg"
-                                        "evens].[WE_Plaats] FROM [dtWedstrijdgegevens] order by [we_wedstrijdnummer] desc"
-                                        ";"
+                                    RowSource ="SELECT Format(nz([dtWedstrijdgegevens].[WE_Wedstrijdnummer]),\"0\") AS Expr1, fm"
+                                        "tDate(nz([WE_Datum],#1/1/1900#)) AS fmtDat, dtWedstrijdgegevens.WE_Beschrijving,"
+                                        " dtWedstrijdgegevens.WE_Plaats FROM dtWedstrijdgegevens ORDER BY dtWedstrijdgege"
+                                        "vens.WE_Wedstrijdnummer DESC;"
                                     ColumnWidths ="871;1216;1636;1336"
                                     AfterUpdate ="[Event Procedure]"
                                     Begin
@@ -776,8 +776,8 @@ Begin Form
                                 Begin Label
                                     BackStyle =1
                                     OverlapFlags =247
-                                    Left =2556
-                                    Top =1869
+                                    Left =2565
+                                    Top =1845
                                     Width =465
                                     Height =225
                                     Name ="Text16"
@@ -802,14 +802,15 @@ Begin Form
                                     Left =1878
                                     Top =2769
                                     TabIndex =5
-                                    Name ="Check60"
+                                    Name ="fldIsETW"
                                     ControlSource ="we_elektronisch"
+                                    AfterUpdate ="[Event Procedure]"
                                     Begin
                                         Begin Label
                                             BackStyle =1
                                             OverlapFlags =247
                                             Left =2570
-                                            Top =2769
+                                            Top =2759
                                             Width =3030
                                             Height =240
                                             Name ="Label61"
@@ -817,23 +818,45 @@ Begin Form
                                         End
                                     End
                                 End
-                                Begin TextBox
+                                Begin ComboBox
+                                    RowSourceTypeInt =1
                                     OverlapFlags =247
-                                    TextAlign =1
+                                    IMESentenceMode =3
+                                    ColumnCount =2
+                                    ListWidth =1440
                                     Left =1878
-                                    Top =3089
-                                    Width =231
+                                    Top =3137
                                     TabIndex =6
-                                    Name ="WE_aantalstarts"
-                                    ControlSource ="WE_aantalstarts"
-                                    StatusBarText ="Keuze uit 1 of 2"
-                                    DefaultValue ="2"
+                                    GUID = Begin
+                                        0x6ce430aacaec994c81bf20c4593eada5
+                                    End
+                                    Name ="fldETWEquipment"
+                                    ControlSource ="WE_ETW_EquipmentType"
+                                    RowSourceType ="Value List"
+                                    RowSource ="\"ARES21\";\"Ares 21\""
+                                    ColumnWidths ="0;1440"
+                                    AfterUpdate ="[Event Procedure]"
+                                    Begin
+                                        Begin Label
+                                            OverlapFlags =247
+                                            Left =604
+                                            Top =3137
+                                            Width =945
+                                            Height =245
+                                            Name ="Apparatuur:_Label"
+                                            Caption ="Apparatuur:"
+                                            EventProcPrefix ="Apparatuur__Label"
+                                            GUID = Begin
+                                                0xb16fd29dcecd1742914958deceb12f9b
+                                            End
+                                        End
+                                    End
                                 End
                                 Begin Label
                                     BackStyle =1
                                     OverlapFlags =247
-                                    Left =2570
-                                    Top =3089
+                                    Left =2569
+                                    Top =3707
                                     Width =3030
                                     Height =240
                                     Name ="Label56"
@@ -842,14 +865,14 @@ Begin Form
                                 Begin TextBox
                                     OverlapFlags =247
                                     TextAlign =1
-                                    Left =1878
-                                    Top =3593
-                                    Width =561
+                                    Left =1877
+                                    Top =3707
+                                    Width =231
                                     TabIndex =7
-                                    Name ="WE_Inzwemmen"
-                                    ControlSource ="WE_Inzwemmen"
-                                    Format ="Short Time"
-                                    InputMask ="00:00;0;\" \""
+                                    Name ="WE_aantalstarts"
+                                    ControlSource ="WE_aantalstarts"
+                                    StatusBarText ="Keuze uit 1 of 2"
+                                    DefaultValue ="2"
                                 End
                                 Begin Label
                                     OverlapFlags =247
@@ -912,8 +935,8 @@ Begin Form
                                 End
                                 Begin Label
                                     OverlapFlags =247
-                                    Left =189
-                                    Top =3085
+                                    Left =188
+                                    Top =3703
                                     Width =1005
                                     Height =240
                                     Name ="Label134"
@@ -921,12 +944,43 @@ Begin Form
                                 End
                                 Begin Label
                                     OverlapFlags =247
-                                    Left =189
-                                    Top =3589
+                                    Left =188
+                                    Top =4207
                                     Width =960
                                     Height =240
                                     Name ="Label135"
                                     Caption ="Inzwemmen:"
+                                End
+                                Begin TextBox
+                                    OverlapFlags =247
+                                    TextAlign =1
+                                    Left =1877
+                                    Top =4211
+                                    Width =561
+                                    TabIndex =8
+                                    Name ="WE_Inzwemmen"
+                                    ControlSource ="WE_Inzwemmen"
+                                    Format ="Short Time"
+                                    InputMask ="00:00;0;\" \""
+                                End
+                                Begin CommandButton
+                                    OverlapFlags =247
+                                    AccessKey =76
+                                    TextFontFamily =34
+                                    Left =3703
+                                    Top =3099
+                                    Width =1131
+                                    Height =373
+                                    FontSize =8
+                                    TabIndex =9
+                                    Name ="btnETWSettings"
+                                    Caption ="Inste&llen..."
+                                    OnClick ="[Event Procedure]"
+                                    FontName ="MS Sans Serif"
+                                    GUID = Begin
+                                        0x49701a9c5ad14b408e306d885bf26d88
+                                    End
+                                    UnicodeAccessKey =108
                                 End
                             End
                         End
@@ -1979,8 +2033,8 @@ Else
 End If
 
 
-
-
+Me.fldETWEquipment.Enabled = (Nz(Me.fldIsETW, False))
+Me.btnETWSettings.Enabled = (Nz(Me.fldIsETW, False)) And (Nz(Me.fldETWEquipment) <> "")
 
 
 
@@ -2047,6 +2101,12 @@ fout:
 MsgBox Err & " btnEditWedstrijdNr_click" & vbCrLf & Error$, 16
 Exit Sub
 
+End Sub
+
+Private Sub btnETWSettings_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+DoCmd.OpenForm "ETW_Master"
 End Sub
 
 Private Sub btnVolgend_Click()
@@ -2191,6 +2251,16 @@ End Sub
 
 
 Private Sub cmbMeetMainPart_AfterUpdate()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub fldETWEquipment_AfterUpdate()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub fldIsETW_AfterUpdate()
 On Error Resume Next
 updateView
 End Sub
