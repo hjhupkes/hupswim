@@ -35,6 +35,8 @@ Public Const FNM_DE_PERS_ABC = "A/B/C"
 Public Const FNM_DE_PERS_RES = "Reserve"
 Public Const FNM_DE_PERS_BM = "BM"
 Public Const FNM_DE_PERS_ACHTNM = "Achternaam"
+Public Const FNM_DE_PERS_VOORNM = "Voornaam"
+Public Const FNM_DE_PERS_VOEGSEL = "Voegsel"
 Public Const FNM_DE_PERS_QLF_DAT = "InsDat"
 Public Const FNM_DE_PERS_QLF_BAAN = "InsBaan"
 
@@ -48,6 +50,8 @@ Public Const FNM_PL_STARTNR_TO_ORDER = "[dtDeelnemers].Startnummer"
 Public Const FNM_PL_NAAM = "NAAM"
 Public Const FNM_PL_RES = "Reserve"
 Public Const FNM_PL_ACHTNM = "Achternaam"
+Public Const FNM_PL_VOORNM = "Voornaam"
+Public Const FNM_PL_VOEGSEL = "Voegsel"
 Public Const FNM_PL_ESTNR = "Estafette nummer"
 Public Const FNM_PL_VLG = "Volgorde"
 
@@ -738,18 +742,18 @@ End If
 
 If (blHuidigProg) Then
   dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, " & _
-  "[dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, [dtLeden].achternaam " & _
+  "[dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel " & _
   "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) ON wedIns.[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd " & _
   "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") and ([dtProgrammanummers].programmanummer=""" & curProg & """) and " & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") )"
 ElseIf (blUseSelection) Then
   If (blMeet) Then
-    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats,[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam " & _
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats,[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
                  "FROM (([dtWedstrijden] INNER JOIN ([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) LEFT JOIN [dtWedstrijden] AS wedIns ON [dtDeelnemers].WedstrijdnrInsTijd = wedIns.[Wedstrijd nummer] " & _
                  "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
                  "( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) )"
 
   Else
-    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum,fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam " & _
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum,fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
               "FROM [dtWedstrijden] AS wedIns RIGHT JOIN (([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) ON wedIns.[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd " & _
               "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
               "((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") AND (([gSelProgs].TP_Teltmee)=True))"
@@ -757,13 +761,13 @@ ElseIf (blUseSelection) Then
   End If
 Else
   If (blMeet) Then
-    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam " & _
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
                  "FROM (([dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) LEFT JOIN [dtWedstrijden] AS wedIns ON [dtDeelnemers].WedstrijdnrInsTijd = wedIns.[Wedstrijd nummer] " & _
                  "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
                  "( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") ) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") ) )"
 
   Else
-    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum,fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam " & _
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum,fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
               "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) ON wedIns.[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd  " & _
               "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
               " ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") )"
