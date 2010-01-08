@@ -160,6 +160,7 @@ Do Until inp.EOF
     
     outp("WE_ElektronischeTijd") = inp("WE_elektronisch")
     outp("WE_AantalBanen") = inp("WE_Aantal_Banen")
+    outp("WE_EersteBaan") = inp("WE_Eerste_Baan")
     outp("WE_Nation") = "NED"
     
     outp("WE_Contact_ID") = Null
@@ -1288,6 +1289,7 @@ wed("WE_Kosten_Currency") = wedInp("WE_Kosten_Currency")
 
 wed("WE_Organ ver") = wedInp("WE_Organiserende_Vereniging")
 wed("WE_Aantal_banen") = wedInp("WE_aantalBanen")
+wed("WE_Eerste_baan") = wedInp("WE_EersteBaan")
 wed("WE_Elektronisch") = wedInp("WE_ElektronischeTijd")
 
 wed("WE_ISPartOfMeet") = isMeet
@@ -2298,8 +2300,8 @@ blReadingDeelns = False
     pll.MoveFirst
     Do Until pll.EOF
       tpVer = Nz(pll("V_Naam"))
-      Dim tpPLID As Long
-      tpPLID = Nz(pll("PLL_PLoeg_ID"))
+      Dim tpPlID As Long
+      tpPlID = Nz(pll("PLL_PLoeg_ID"))
       
       
       
@@ -2312,13 +2314,13 @@ blReadingDeelns = False
       startnr = Nz(pll("AUX_Startnummer"))
       opm = Nz(pll("PLL_DIS"))
       
-      If (tpPLID <> curPlID) Then
+      If (tpPlID <> curPlID) Then
         outpDln.Seek "=", wednr, prognr, tpVer, est
          curDEIndex = -1
          If Not outpDln.NoMatch Then
            curDEIndex = outpDln("DE_Index")
          End If
-         curPlID = tpPLID
+         curPlID = tpPlID
       End If
       
            

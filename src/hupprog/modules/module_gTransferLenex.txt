@@ -785,10 +785,10 @@ End If
 End Function
 
 
-Private Function lenParseDaytime(dtime As String) As Date
+Private Function lenParseDaytime(dTime As String) As Date
 On Error Resume Next
 lenParseDaytime = #12:00:00 AM#
-lenParseDaytime = CDate(dtime)
+lenParseDaytime = CDate(dTime)
 End Function
 
 
@@ -970,24 +970,29 @@ Exit Function
 End Function
 
 
-Private Function lenLoadLXPool(ByRef pool As Recordset, ByVal poolID As Long, ByRef nBanen As Integer, ByRef name As String) As Boolean
+Private Function lenLoadLXPool(ByRef pool As Recordset, ByVal poolID As Long, ByRef nBanen As Integer, ByRef iFirstBaan As Integer, ByRef name As String) As Boolean
 On Error GoTo fout
 lenLoadLXPool = False
+
 nBanen = 6
+iFirstBaan = 1
 name = ""
 
 If (poolID >= 0) Then
   pool.Seek "=", poolID
   If (Not pool.NoMatch) Then
     name = Nz(pool("LEN_NAME"))
-    Dim tpBanen As Integer
-    tpBanen = 1 + CInt(val(Nz(pool("LEN_LANEMAX")))) - CInt(val(Nz(pool("LEN_LANEMIN"))))
-    If (tpBanen < 2) Then tpBanen = 6
+    
+    nBanen = 1 + CInt(val(Nz(pool("LEN_LANEMAX")))) - CInt(val(Nz(pool("LEN_LANEMIN"))))
+    iFirstBaan = CInt(val(Nz(pool("LEN_LANEMIN"))))
+    If (nBanen < 2) Then
+      nBanen = 6
+    End If
+    If (iFirstBaan < 1) Then
+      iFirstBaan = 1
+    End If
   End If
 End If
-
-nBanen = tpBanen
-
 
 lenLoadLXPool = True
 Exit Function
@@ -996,14 +1001,19 @@ MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
 
-Private Function lenAppendLXPool(ByRef pool As Recordset, ByVal poolID As Long, ByVal nBanen As Integer, ByVal name As String) As Boolean
+Private Function lenAppendLXPool(ByRef pool As Recordset, ByVal poolID As Long, ByVal nBanen As Integer, ByVal iFirstBaan As Integer, ByVal name As String) As Boolean
 On Error GoTo fout
 lenAppendLXPool = False
+
+If (iFirstBaan < 1) Then
+  iFirstBaan = 1
+End If
+
 pool.AddNew
   pool("ID_Pool") = poolID
   
-  pool("LEN_LANEMIN") = 1
-  pool("LEN_LANEMAX") = nBanen
+  pool("LEN_LANEMIN") = 1 + (iFirstBaan - 1)
+  pool("LEN_LANEMAX") = nBanen + (iFirstBaan - 1)
   pool("LEN_NAME") = hzn(name)
 
 pool.Update
@@ -1362,13 +1372,15 @@ Do Until wed.EOF
       
       
       
-      Dim nBanen As Integer
+      Dim nBanen As Integer, iFirstBaan As Integer
       nBanen = Nz(wed("WE_AantalBanen"))
+      iFirstBaan = Nz(wed("WE_EersteBaan"), 1)
+      
       Dim zwbadNaam As String
       zwbadNaam = Nz(wed("WE_Zwembad"))
       
       maxUsedPoolID = maxUsedPoolID + 1
-      If (Not lenAppendLXPool(pools, maxUsedPoolID, nBanen, zwbadNaam)) Then Exit Function
+      If (Not lenAppendLXPool(pools, maxUsedPoolID, nBanen, iFirstBaan, zwbadNaam)) Then Exit Function
       mtOutp("SYS_REF_POOL") = maxUsedPoolID
       
       Dim qlfConv As String
@@ -1503,8 +1515,9 @@ Do Until wed.EOF
   
   maxUsedPoolID = maxUsedPoolID + 1
   nBanen = Nz(wed("WE_AantalBanen"))
+  iFirstBaan = Nz(wed("WE_EersteBaan"), 1)
   zwbadNaam = Nz(wed("WE_Zwembad"))
-  If Not lenAppendLXPool(pools, maxUsedPoolID, nBanen, zwbadNaam) Then Exit Function
+  If Not lenAppendLXPool(pools, maxUsedPoolID, nBanen, iFirstBaan, zwbadNaam) Then Exit Function
   ssOutp("SYS_REF_POOL") = maxUsedPoolID
   
   ssOutp.Update
@@ -1703,12 +1716,17 @@ Do Until ss.EOF
     ssPoolID = Nz(ss("LEN_MEET.SYS_REF_POOL"), -1)
   End If
   
-  Dim poolName As String, poolNBanen As Integer
-  If (Not lenLoadLXPool(pools, ssPoolID, poolNBanen, poolName)) Then
+  Dim poolName As String, poolNBanen As Integer, poolFirstBaan As Integer
+  If (Not lenLoadLXPool(pools, ssPoolID, poolNBanen, poolFirstBaan, poolName)) Then
     Exit Function
   End If
   
   wedOutp("WE_AantalBanen") = poolNBanen
+  If (poolFirstBaan > 1) Then
+    wedOutp("WE_EersteBaan") = poolFirstBaan
+  Else
+    wedOutp("WE_EersteBaan") = Null
+  End If
   wedOutp("WE_Zwembad") = hzn(poolName)
     
   wedOutp("WE_Plaats") = ss("LEN_CITY")
@@ -4555,7 +4573,7 @@ Do Until tma.EOF
   Dim blProcessTime As Boolean
   blProcessTime = True
   
-  Dim saf As String
+  Dim sAf As String
   Dim sSl As String
     
     
@@ -4568,7 +4586,7 @@ Do Until tma.EOF
     blProcessTime = False
   Else
     Dim sDummy As String
-    If Not lenLoadLXSwimStyle(swst, lSwstXID, saf, sSl, sDummy) Then
+    If Not lenLoadLXSwimStyle(swst, lSwstXID, sAf, sSl, sDummy) Then
       Exit Function
     End If
   End If
@@ -4658,7 +4676,7 @@ Do Until tma.EOF
     
       tmaOutp("TD_tijd") = swt
       
-      tmaOutp("TD_Afstand") = hzn(saf)
+      tmaOutp("TD_Afstand") = hzn(sAf)
       tmaOutp("TD_Slag") = hzn(sSl)
     
       Dim dis As String

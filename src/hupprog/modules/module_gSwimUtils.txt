@@ -31,7 +31,7 @@ End If
 End Function
 
 
-Public Function bnVolgorde(ByRef baanVolgorde() As Integer, ByVal nBanen As Integer) As Boolean
+Public Function bnVolgorde(ByRef baanVolgorde() As Integer, ByVal nBanen As Integer, ByVal iFirstBn As Integer) As Boolean
 On Error GoTo fout
 bnVolgorde = False
 Select Case nBanen
@@ -95,6 +95,14 @@ Select Case nBanen
     MsgBox "Ongeldig aantal banen!", 16
     Exit Function
 End Select
+
+If (iFirstBn > 1) Then
+  Dim i As Integer
+  For i = 0 To nBanen - 1
+    baanVolgorde(i) = baanVolgorde(i) + (iFirstBn - 1)
+  Next i
+End If
+
 
 bnVolgorde = True
 Exit Function
