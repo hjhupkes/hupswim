@@ -240,6 +240,92 @@ clnPrvYear = DateSerial(CInt(val(Format(Now(), "yyyy"))) - 1, 1, 1)
 End Function
 
 
+
+
+Private Function clnHandleInvalidVlinderTimes() As Boolean
+On Error GoTo fout
+clnHandleInvalidVlinderTimes = False
+
+'This procedure repairs unwanted vlinderslag tussentijden on wisselslag nummers
+'that appeared as a result of a bug in versions 5.0 through 5.07
+
+
+Dim sql As String
+
+sql = "SELECT dtTijden.* FROM dtWedstrijden INNER JOIN dtTijden ON dtWedstrijden.[Wedstrijd nummer] = dtTijden.[Wedstr nr] " & _
+   "WHERE (((dtWedstrijden.Datum)>=#8/1/2008# And (dtWedstrijden.Datum)<=#3/1/2009#) AND ((dtTijden.Slag)=""VLINDER"") AND ((dtTijden.IsTusTijd)=True));"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset(TNM_PR)
+skProg.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpAf As String, tpWed As Long, tpProg As String
+  tpAf = Nz(rs("Afstand"))
+  tpWed = Nz(rs("wedstr nr"))
+  tpProg = Nz(rs("programmanummer"))
+  
+  Dim blTimeInValid As Boolean
+  blTimeInValid = False
+  
+  If (tpProg <> "") Then
+    skProg.Seek "=", tpWed, tpProg
+    If (Not skProg.NoMatch) Then
+      Dim tpProgAf As String, tpProgSl As String
+      tpProgAf = Nz(skProg(FNM_PR_AF))
+      tpProgSl = Nz(skProg(FNM_PR_SL))
+      
+      If (tpProgSl = "WISSEL") Then
+        If (tpProgAf = "100") And (tpAf = "50") Then
+          blTimeInValid = True
+        ElseIf (tpProgAf = "200") And (tpAf = "100") Then
+          blTimeInValid = True
+        ElseIf (tpProgAf = "400") And (tpAf = "200") Then
+          blTimeInValid = True
+        ElseIf (tpProgAf = "400") And (tpAf = "300") Then
+          blTimeInValid = True
+        End If
+      End If
+    End If 'if not skProg.noMatch
+  End If 'if tpProg <> ""
+  
+  If (blTimeInValid) Then
+    rs.Delete
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skProg
+
+
+clnHandleInvalidVlinderTimes = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "clnHandleInvalidVlinderTimes", errInf
+
+appCleanRS rs
+appCleanRS skProg
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
 Public Function clnPerformMaintenance() As Boolean
 On Error GoTo fout
 
@@ -249,6 +335,9 @@ If Not clnUnusedEstafs() Then
   Exit Function
 End If
 
+If Not clnHandleInvalidVlinderTimes() Then
+  Exit Function
+End If
 
 clnPerformMaintenance = True
 Exit Function
