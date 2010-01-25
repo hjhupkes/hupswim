@@ -1534,10 +1534,68 @@ Exit Function
 End Function
 
 
+'to become obsoleted
 Private Function swmMergeDuplicates_performSQL_createSQL(ByVal tbName As String, ByVal stFieldName As String) As String
 On Error Resume Next
 swmMergeDuplicates_performSQL_createSQL = "Update [" & tbName & "] inner join [~duplicates_dupstarts] on [" & tbName & "].[" & stFieldName & "] = [~duplicates_dupStarts].VLS_Startnummer " & _
 "set [" & tbName & "].[" & stFieldName & "] = vls_int_newStartnummer;"
+End Function
+
+Private Function swmMergeDuplicates_performSQL_updateTable(ByVal tbName As String, ByVal stFieldName As String) As Boolean
+On Error GoTo fout
+swmMergeDuplicates_performSQL_updateTable = False
+
+Dim sql As String
+sql = "select [" & tbName & "].* , vls_int_newStartnummer " & _
+  " from [" & tbName & "] inner join [~duplicates_dupstarts] on [" & tbName & "].[" & stFieldName & "] = [~duplicates_dupStarts].VLS_Startnummer; "
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpNewStart As String
+  tpNewStart = Nz(rs("vls_int_newStartnummer"))
+  Dim tpCurStart As String
+  tpCurStart = Nz(rs(stFieldName))
+  
+  If (tpCurStart <> tpNewStart) Then
+    rs.Edit
+      rs(stFieldName) = hzn(tpNewStart)
+    rs.Update
+  End If
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+swmMergeDuplicates_performSQL_updateTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+'In case of duplicate key problems, simply delete the record and continue
+If (Err = 3399) Or (Err = 3022) Then
+  rs.Delete
+  Resume Next
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "swmMergeDuplicates_performSQL_updateTable", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
 End Function
 
 Private Function swmMergeDuplicates_performSQL() As Boolean
@@ -1545,54 +1603,58 @@ On Error GoTo fout
 swmMergeDuplicates_performSQL = False
 
 
-Dim sql As String
+If Not swmMergeDuplicates_performSQL_updateTable("dtDeelnemers", "startnummer") Then
+  appRaiseSilentError
+End If
 
-DoCmd.SetWarnings False
-
-'dtDeelnemers
-sql = swmMergeDuplicates_performSQL_createSQL("dtDeelnemers", "startnummer")
-DoCmd.RunSQL sql
 
 'dtEstafettes
-sql = swmMergeDuplicates_performSQL_createSQL("dtEstafettes", "EST_Startnummer")
-DoCmd.RunSQL sql
+If Not swmMergeDuplicates_performSQL_updateTable("dtEstafettes", "EST_Startnummer") Then
+  appRaiseSilentError
+End If
+
 
 
 'Records internal
-sql = swmMergeDuplicates_performSQL_createSQL("dtRecordsInternal", "RC_Startnummer")
-DoCmd.RunSQL sql
+If Not swmMergeDuplicates_performSQL_updateTable("dtRecordsInternal", "RC_Startnummer") Then
+  appRaiseSilentError
+End If
+
 
 'dtTijden
-sql = swmMergeDuplicates_performSQL_createSQL("dtTijden", "start nr")
-DoCmd.RunSQL sql
+If Not swmMergeDuplicates_performSQL_updateTable("dtTijden", "start nr") Then
+  appRaiseSilentError
+End If
+
 
 
 'dtUitslagenEst_start1
-sql = swmMergeDuplicates_performSQL_createSQL("dtUitslagenEst", "TY_Start1")
-DoCmd.RunSQL sql
+If Not swmMergeDuplicates_performSQL_updateTable("dtUitslagenEst", "TY_Start1") Then
+  appRaiseSilentError
+End If
+
 
 'dtUitslagenEst_start2
-sql = swmMergeDuplicates_performSQL_createSQL("dtUitslagenEst", "TY_Start2")
-DoCmd.RunSQL sql
+If Not swmMergeDuplicates_performSQL_updateTable("dtUitslagenEst", "TY_Start2") Then
+  appRaiseSilentError
+End If
+
 
 'dtUitslagenPers
-sql = swmMergeDuplicates_performSQL_createSQL("dtUitslagenPers", "TY_Startnummer")
-DoCmd.RunSQL sql
+If Not swmMergeDuplicates_performSQL_updateTable("dtUitslagenPers", "TY_Startnummer") Then
+  appRaiseSilentError
+End If
 
 
+Dim sql As String
+
+DoCmd.SetWarnings False
 
 'dtLeden
 sql = "DELETE dtLeden.* " & _
 "FROM dtLeden INNER JOIN [~duplicates_dupStarts] ON dtLeden.Startnummer = [~duplicates_dupStarts].VLS_Startnummer " & _
 "WHERE ((([~duplicates_dupStarts].VLS_Startnummer)<>[vls_int_newstartnummer])); "
 DoCmd.RunSQL sql
-
-
-
-
-
-
-
 
 DoCmd.SetWarnings True
 
@@ -1601,9 +1663,16 @@ swmMergeDuplicates_performSQL = True
 Exit Function
 
 fout:
+
+Dim errInf As ERR_INFO
+appRecordError "swmMergeDuplicates_performSQL", errInf
+
 DoCmd.SetWarnings True
-MsgBox Err & " swmMergeDuplicates_performSQL" & vbCrLf & Error$, 16
+
+
+appDisplayError errInf
 Exit Function
+
 End Function
 
 Public Function swmMergeDuplicates() As Boolean
@@ -1644,10 +1713,10 @@ Do Until rs.EOF
   
     If (sNewStart = "") Then
     
-      appCleanRS rs
-      appCleanRS skDups
+      Dim tpName As String
+      tpName = Nz(skDups("VAL_NewName"))
       
-      Err.Raise 1, , "U heeft bij " & Nz(skDups("VAL_Name")) & " geen nieuw startnummer gekozen."
+      Err.Raise 1, , "U heeft bij " & tpName & " geen nieuw startnummer gekozen."
     End If
   
     rs.Edit
@@ -1665,7 +1734,7 @@ appCleanRS skDups
 
 
 If Not swmMergeDuplicates_performSQL() Then
-  Exit Function
+  appRaiseSilentError
 End If
 
 
@@ -1674,15 +1743,78 @@ Exit Function
 
 fout:
 If (Err = 3021) Then Resume Next
-MsgBox Err & " swmMergeDuplicates" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "swmMergeDuplicates", errInf
+
+appCleanRS rs
+appCleanRS skDups
+
+appDisplayError errInf
 Exit Function
+
 End Function
 
 
+'to become obsolete
 Private Function swmMerge_buildSQL(tbName As String, sFldName As String, stnrSrc As String, stnrTgt As String) As String
 On Error Resume Next
 swmMerge_buildSQL = "update [" & tbName & "] set [" & sFldName & "] = """ & stnrTgt & """ where [" & sFldName & "] = """ & stnrSrc & """;"
 End Function
+
+
+Private Function swmMerge_updateTable(ByVal tbName As String, ByVal stFieldName As String, ByVal stnrSrc As String, ByVal stnrTgt As String) As Boolean
+On Error GoTo fout
+swmMerge_updateTable = False
+
+Dim sql As String
+sql = "select * from [" & tbName & "] where [" & stFieldName & "] = """ & stnrSrc & """;"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpNewStart As String
+  tpNewStart = stnrTgt
+  Dim tpCurStart As String
+  tpCurStart = Nz(rs(stFieldName))
+  
+  If (tpCurStart <> tpNewStart) Then
+    rs.Edit
+      rs(stFieldName) = hzn(tpNewStart)
+    rs.Update
+  End If
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+swmMerge_updateTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+'In case of duplicate key problems, simply delete the record and continue
+If (Err = 3399) Or (Err = 3022) Then
+  rs.Delete
+  Resume Next
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "swmMerge_updateTable", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
 
 Public Function swmMerge(stnrSrc As String, stnrTgt As String) As Boolean
 On Error GoTo fout
@@ -1692,56 +1824,68 @@ swmMerge = False
 notifyGlobalChange
 
 
-DoCmd.SetWarnings False
-
-Dim sql As String
-
 'dtDeelnemers
-sql = swmMerge_buildSQL("dtDeelnemers", "startnummer", stnrSrc, stnrTgt)
-DoCmd.RunSQL sql
+If Not swmMerge_updateTable("dtDeelnemers", "startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
 
 'dtEstafettes
-sql = swmMerge_buildSQL("dtEstafettes", "EST_Startnummer", stnrSrc, stnrTgt)
-DoCmd.RunSQL sql
+If Not swmMerge_updateTable("dtEstafettes", "EST_Startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
 
 
 'Records internal
-sql = swmMerge_buildSQL("dtRecordsInternal", "RC_Startnummer", stnrSrc, stnrTgt)
-DoCmd.RunSQL sql
+If Not swmMerge_updateTable("dtRecordsInternal", "RC_Startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
 
 'dtTijden
-sql = swmMerge_buildSQL("dtTijden", "start nr", stnrSrc, stnrTgt)
-DoCmd.RunSQL sql
+If Not swmMerge_updateTable("dtTijden", "start nr", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
 
 
 'dtUitslagenEst_start1
-sql = swmMerge_buildSQL("dtUitslagenEst", "TY_Start1", stnrSrc, stnrTgt)
-DoCmd.RunSQL sql
+If Not swmMerge_updateTable("dtUitslagenEst", "TY_Start1", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
 
 'dtUitslagenEst_start2
-sql = swmMerge_buildSQL("dtUitslagenEst", "TY_Start2", stnrSrc, stnrTgt)
-DoCmd.RunSQL sql
+If Not swmMerge_updateTable("dtUitslagenEst", "TY_Start2", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
 
 'dtUitslagenPers
-sql = swmMerge_buildSQL("dtUitslagenPers", "TY_Startnummer", stnrSrc, stnrTgt)
-DoCmd.RunSQL sql
+If Not swmMerge_updateTable("dtUitslagenPers", "TY_Startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
 
 
+Dim sql As String
+
+DoCmd.SetWarnings False
 
 sql = "Delete * from dtLeden where startnummer = """ & stnrSrc & """;"
 DoCmd.RunSQL sql
 
-
-
 DoCmd.SetWarnings True
+
 
 swmMerge = True
 Exit Function
 
 fout:
+
+Dim errInf As ERR_INFO
+appRecordError "swmMerge", errInf
+
 DoCmd.SetWarnings True
-MsgBox Err & " swmMerge" & vbCrLf & Error$, 16
+
+appDisplayError errInf
 Exit Function
+
 End Function
 
 
