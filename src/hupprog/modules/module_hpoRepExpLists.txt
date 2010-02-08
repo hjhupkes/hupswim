@@ -1,0 +1,2896 @@
+Option Compare Database
+Option Explicit
+
+
+'Only support 999 export lists
+Private Const MAX_N_EXP_LISTS = 9999
+
+Public Const RXL_PAR_TYPE_STRING = 1
+Public Const RXL_PAR_TYPE_BOOLEAN = 2
+Public Const RXL_PAR_TYPE_LONG = 3
+Public Const RXL_PAR_TYPE_DATE = 4
+
+
+Public Const RXL_VIS_GLOBAL = 0
+Public Const RXL_VIS_MEET = 1
+Public Const RXL_VIS_MATCH = 2
+
+
+
+'These constants should remain fixed, as they are used to store and retrieve export lists
+'from the directory server
+
+Public Const RXL_TYPE_LISTS As Long = 1
+  Private Const RXL_OBJ_LIST_START_ID = 10000
+  
+
+
+
+Public Const RXL_TYPE_EXP_FORMATS As Long = 2
+
+  Private Const RXL_OBJ_EXP_FMT_RTF  As Long = 1000 + 20 + 1
+  Private Const RXL_OBJ_EXP_FMT_XLS  As Long = 1000 + 20 + 2
+  Private Const RXL_OBJ_EXP_FMT_TXT  As Long = 1000 + 20 + 3
+  Private Const RXL_OBJ_EXP_FMT_HTM  As Long = 1000 + 20 + 4
+  Private Const RXL_OBJ_EXP_FMT_XML  As Long = 1000 + 20 + 5
+  Private Const RXL_OBJ_EXP_FMT_PDF As Long = 1000 + 20 + 6
+  Private Const RXL_OBJ_EXP_FMT_RTF_X  As Long = 1000 + 20 + 7
+  
+Public Const RXL_TYPE_PV_FMT = 3
+  Private Const RXL_OBJ_PV_FMT_START_ID = 20000
+  
+Private Const RXL_TYPE_PNT = 4
+  Private Const RXL_OBJ_PNT_START_ID = 30000
+  
+
+Public Const RXL_TYPE_WED_PV As Long = 10
+
+  Private Const RXL_OBJ_RPT_TYPE_UTL As Long = 1000 + 40 + 1
+    Private Const RXL_PAR_UTL_SPLIT_PAGES As Long = 2000 + 40 + 1
+    
+    
+
+Public Function rxlIsParOK(ByVal sValue As String, lParType As Long, blParReq As Boolean, ByRef sInvMsg As String) As Boolean
+On Error GoTo fout
+rxlIsParOK = False
+
+
+
+If (blParReq) And (sValue = "") Then
+  sInvMsg = "Parameter mag niet leeg zijn"
+  Exit Function
+End If
+
+Dim blConvFlag As Boolean
+
+
+'Need to check if the parameter is acceptable
+Select Case lParType
+  Case RXL_PAR_TYPE_STRING
+    
+  Case RXL_PAR_TYPE_BOOLEAN
+    If (LCase(sValue) <> "true") And (LCase(sValue) <> "false") Then
+      sInvMsg = "Keuze uit true / false"
+      Exit Function
+    End If
+  Case RXL_PAR_TYPE_DATE
+    If (sValue <> "") Then
+      Dim tpDat As Date
+      tpDat = rxlProcessExpList_resolveDatePar(sValue)
+      If (Not lenDateIsValid(tpDat)) Then
+        sInvMsg = "De volgende tekst kon niet als datum worden geinterpreteerd: " & sValue
+        Exit Function
+      End If
+    End If
+  Case RXL_PAR_TYPE_LONG
+    blConvFlag = False
+    Dim tpL As Long
+    tpL = CLng(sValue)
+    If (blConvFlag) Then
+      sInvMsg = "De volgende tekst kon niet als getal worden geinterpreteerd: " & sValue
+    End If
+End Select
+
+
+rxlIsParOK = True
+Exit Function
+
+fout:
+
+'Trap type conversion error
+If (Err = 13) Then
+  blConvFlag = True
+  Resume Next
+End If
+
+'Pass error up the chain
+sInvMsg = Err & " rxlIsParOK" & vbCrLf & Error$
+Exit Function
+End Function
+
+
+Public Function rxlGetExtension(ByVal expFmtObjID As Long) As String
+On Error Resume Next
+
+Select Case expFmtObjID
+  Case RXL_OBJ_EXP_FMT_RTF
+    rxlGetExtension = "rtf"
+  Case RXL_OBJ_EXP_FMT_XLS
+    rxlGetExtension = "xls"
+  Case RXL_OBJ_EXP_FMT_TXT
+    rxlGetExtension = "txt"
+  Case RXL_OBJ_EXP_FMT_HTM
+    rxlGetExtension = "htm"
+  Case RXL_OBJ_EXP_FMT_XML
+    rxlGetExtension = "xml"
+  Case RXL_OBJ_EXP_FMT_PDF
+    rxlGetExtension = "pdf"
+  Case RXL_OBJ_EXP_FMT_RTF_X
+    rxlGetExtension = "rtf"
+  Case Else
+    rxlGetExtension = ""
+End Select
+End Function
+
+
+
+Private Function rxlGetExportFormat(ByVal expFmtObjID As Long) As Integer
+On Error Resume Next
+
+Select Case expFmtObjID
+  Case RXL_OBJ_EXP_FMT_RTF
+    rxlGetExportFormat = RXP_FORMAT_RTF
+  Case RXL_OBJ_EXP_FMT_XLS
+    rxlGetExportFormat = RXP_FORMAT_XLS
+  Case RXL_OBJ_EXP_FMT_TXT
+    rxlGetExportFormat = RXP_FORMAT_TXT
+  Case RXL_OBJ_EXP_FMT_HTM
+    rxlGetExportFormat = RXP_FORMAT_HTM
+  Case RXL_OBJ_EXP_FMT_XML
+    rxlGetExportFormat = RXP_FORMAT_XML
+  Case RXL_OBJ_EXP_FMT_PDF
+    rxlGetExportFormat = RXP_FORMAT_PDF
+  Case RXL_OBJ_EXP_FMT_RTF_X
+    rxlGetExportFormat = RXP_FORMAT_RTF_X
+  Case Else
+    rxlGetExportFormat = -1
+End Select
+End Function
+
+
+
+
+
+Private Sub rxliGenerateStructure_addObject_perform(ByRef rsObjs As Recordset, ByVal objType As Long, ByVal objID As Long, ByVal objDes As String, ByVal lListWedNr As Long, ByVal sListName As String, ByVal lFmtWedNr As Long, ByVal sFmtName As String, ByVal lPntWedNr As Long, ByVal lPntOrderID As Long, ByVal iVisLevel As Integer, ByVal blNeedsPVFmt As Boolean, ByVal blNeedsPnt As Boolean)
+rsObjs.AddNew
+  rsObjs("RO_ID") = objID
+  rsObjs("RO_TYPE_ID") = objType
+  rsObjs("RO_Description") = hzn(objDes)
+  rsObjs("RO_LIST_Wedstrijdnummer") = lListWedNr
+  rsObjs("RO_LIST_Name") = hzn(sListName)
+  
+  rsObjs("RO_PV_FMT_Wedstrijdnummer") = Null
+  rsObjs("RO_PV_FMT_Name") = Null
+  If (sFmtName <> "") Then
+    rsObjs("RO_PV_FMT_Wedstrijdnummer") = lFmtWedNr
+    rsObjs("RO_PV_FMT_Name") = hzn(sFmtName)
+  End If
+  
+  rsObjs("RO_PNT_Wedstrijdnummer") = Null
+  rsObjs("RO_PNT_OrderID") = Null
+  If (lPntWedNr > 0) Then
+    rsObjs("RO_PNT_Wedstrijdnummer") = lPntWedNr
+    rsObjs("RO_PNT_OrderID") = lPntOrderID
+  End If
+  
+  rsObjs("RO_VisibilityLevel") = iVisLevel
+  rsObjs("RO_Needs_PNT") = blNeedsPnt
+  rsObjs("RO_Needs_PV_FMT") = blNeedsPVFmt
+rsObjs.Update
+End Sub
+
+
+
+Private Sub rxlGenerateStructure_addObject(ByRef rsObjs As Recordset, ByVal objType As Long, ByVal objID As Long, ByVal objDes As String, ByVal blNeedsPVFmt As Boolean, ByVal blNeedsPnt As Boolean)
+  rxliGenerateStructure_addObject_perform rsObjs, objType, objID, objDes, -1, "", -1, "", -1, -1, RXL_VIS_GLOBAL, blNeedsPVFmt, blNeedsPnt
+End Sub
+
+
+Private Sub rxlGenerateStructure_addPnt(ByRef rsObjs As Recordset, ByVal lPntObjID As Long, ByVal sPntDes As String, ByVal lPntWedNr As Long, ByVal lPntOrderID As Long, ByVal iVisLevel As Integer)
+  rxliGenerateStructure_addObject_perform rsObjs, RXL_TYPE_PNT, lPntObjID, sPntDes, -1, "", -1, "", lPntWedNr, lPntOrderID, iVisLevel, False, False
+End Sub
+
+
+Private Sub rxlGenerateStructure_addExpList(ByRef rsObjs As Recordset, ByVal lListObjID As Long, ByVal sListObjDes As String, ByVal lListWedNr As Long, ByVal sListName As String, ByVal iVisLevel As Integer)
+  rxliGenerateStructure_addObject_perform rsObjs, RXL_TYPE_LISTS, lListObjID, sListObjDes, lListWedNr, sListName, -1, "", -1, -1, iVisLevel, False, False
+End Sub
+
+
+Private Sub rxlGenerateStructure_addPVFmt(ByRef rsObjs As Recordset, ByVal lPVFmtObjID As Long, ByVal sPVFmtDes As String, ByVal lPVFmtWedNr As Long, ByVal sPVFmtName As String, ByVal iVisLevel As Integer)
+  rxliGenerateStructure_addObject_perform rsObjs, RXL_TYPE_PV_FMT, lPVFmtObjID, sPVFmtDes, -1, "", lPVFmtWedNr, sPVFmtName, -1, -1, iVisLevel, False, False
+End Sub
+
+Private Sub rxlGenerateStructure_addParam(ByRef rsPars As Recordset, ByVal lParID As Long, ByVal lParObjID As Long, ByVal lParType As Long, ByVal blParReq As Boolean, sParDefValue As String, lParOrder As Long, sParDes As String)
+rsPars.AddNew
+  rsPars("P_ID") = lParID
+  rsPars("P_OBJ_ID") = lParObjID
+  rsPars("P_Description") = hzn(sParDes)
+  rsPars("P_Type") = lParType
+  rsPars("P_Required") = blParReq
+  rsPars("P_DefaultValue") = hzn(sParDefValue)
+  rsPars("P_Order") = lParOrder
+rsPars.Update
+End Sub
+
+
+
+
+Private Function rxlGenerateStructure_addReportTypes(ByRef rsObjs As Recordset, ByRef rsPars As Recordset) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addReportTypes = False
+
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_WED_PV, RXL_OBJ_RPT_TYPE_UTL, "Uitslaglijst", True, False
+  rxlGenerateStructure_addParam rsPars, RXL_PAR_UTL_SPLIT_PAGES, RXL_OBJ_RPT_TYPE_UTL, RXL_PAR_TYPE_BOOLEAN, True, "false", -1, "Apart bestand per programmanummer (true/false)"
+  
+
+rxlGenerateStructure_addReportTypes = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addReportTypes" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function rxlGenerateStructure_addExportFormats(ByRef rsObjs As Recordset) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addExportFormats = False
+
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_RTF, "RTF", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_XLS, "XLS", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_TXT, "TXT", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_HTM, "HTM", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_XML, "XML", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_PDF, "PDF", False, False
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_EXP_FORMATS, RXL_OBJ_EXP_FMT_RTF_X, "RTF-X", False, False
+
+
+
+rxlGenerateStructure_addExportFormats = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addExportFormats" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+Private Function rxlGenerateStructure_addExpLists(ByRef ds As DIR_SERVER_DATA, ByRef rsObjs As Recordset, ByVal lWedNr As Long, ByVal lMeetMainNr As Long) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addExpLists = False
+
+
+Dim nLists As Integer
+Dim sOrdListDescriptions(0 To MAX_N_EXP_LISTS) As String
+Dim lListWedNrs(0 To MAX_N_EXP_LISTS) As Long
+Dim sListNames(0 To MAX_N_EXP_LISTS) As String
+Dim iListVisLevels(0 To MAX_N_EXP_LISTS) As Integer
+
+If Not rxliExpListLookup(ds, lWedNr, lMeetMainNr, nLists, sOrdListDescriptions, lListWedNrs, sListNames, iListVisLevels) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nLists - 1
+  rxlGenerateStructure_addExpList rsObjs, RXL_OBJ_LIST_START_ID + i + 1, sOrdListDescriptions(i), lListWedNrs(i), sListNames(i), iListVisLevels(i)
+Next i
+
+
+rxlGenerateStructure_addExpLists = True
+Exit Function
+
+fout:
+MsgBox Err & " rxlGenerateStructure_addExpLists" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+Private Function rxlGenerateStructure_addPVFmts(ByRef ds As DIR_SERVER_DATA, ByRef rsObjs As Recordset, ByVal lWedNr As Long, ByVal lMeetMainNr As Long) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addPVFmts = False
+
+
+Dim maxUsedID As Long
+maxUsedID = RXL_OBJ_PV_FMT_START_ID
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from dtProgrammaOpmaak order by po_naam")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpName As String
+  tpName = Nz(rs("PO_Naam"))
+  
+  Dim tpID As Long
+  tpID = maxUsedID + 1
+  maxUsedID = tpID
+   
+  rxlGenerateStructure_addPVFmt rsObjs, tpID, tpName, -1, tpName, False
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+rxlGenerateStructure_addPVFmts = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlGenerateStructure_addPVFmts", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function rxlGenerateStructure_addPnts(ByRef ds As DIR_SERVER_DATA, ByRef rsObjs As Recordset, ByVal lWedNr As Long, ByVal lMeetMainNr As Long) As Boolean
+On Error GoTo fout
+rxlGenerateStructure_addPnts = False
+
+
+
+Dim maxUsedID As Long
+maxUsedID = RXL_OBJ_PV_FMT_START_ID
+
+  
+
+
+Dim sql As String
+
+sql = "select * from dtgPuntentellingDefs where ptg_wedstrijdnummer = " & lWedNr & " or ptg_wedstrijdnummer = " & lMeetMainNr & ";"
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpPntWedNr As Long, tpPntOrderID As Long
+  
+  tpPntWedNr = Nz(rs("PTG_Wedstrijdnummer"))
+  tpPntOrderID = Nz(rs("PTG_OrderID"))
+  
+  Dim tpName As String
+  tpName = Nz(rs("PTG_ShortName"))
+  
+  Dim tpID As Long
+  tpID = maxUsedID + 1
+  maxUsedID = tpID
+  
+  Dim tpEntireMeet As Boolean
+  tpEntireMeet = Nz(rs("PTG_EntireMeet"))
+  
+  Dim tpIgnore As Boolean
+  tpIgnore = True
+  
+  Dim tpVisLevel As Integer
+  tpVisLevel = RXL_VIS_GLOBAL
+  
+  If (tpPntWedNr = lWedNr) Then
+    tpIgnore = False
+    tpVisLevel = RXL_VIS_MATCH
+  ElseIf (tpPntWedNr = lMeetMainNr) Then
+    tpVisLevel = RXL_VIS_MEET
+    If (tpEntireMeet) Then
+      tpIgnore = False
+    End If
+  End If
+  
+  If (Not tpIgnore) Then
+    rxlGenerateStructure_addPnt rsObjs, tpID, tpName, tpPntWedNr, tpPntOrderID, tpVisLevel
+  End If
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+rxlGenerateStructure_addPnts = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlGenerateStructure_addPnts", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+Public Function rxlGenerateStructure(ByVal lWedNr As Long) As Boolean
+  rxlGenerateStructure = rxliGenerateStructure(True, True, True, lWedNr)
+End Function
+
+
+
+Private Function rxliGenerateStructure(ByVal blAddExpLists As Boolean, ByVal blAddPVFmts As Boolean, ByVal blAddPnts As Boolean, ByVal lWedNr As Long) As Boolean
+On Error GoTo fout
+rxliGenerateStructure = False
+
+Dim sql As String
+sql = "delete * from hpoRptExpListObjects;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "delete * from hpoRptExpListPars;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rsObjs As Recordset
+Set rsObjs = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("hpoRptExpListPars")
+
+
+If Not rxlGenerateStructure_addReportTypes(rsObjs, rsPars) Then
+  Exit Function
+End If
+
+If Not rxlGenerateStructure_addExportFormats(rsObjs) Then
+  Exit Function
+End If
+
+
+
+
+Dim lMeetMainNr As Long
+lMeetMainNr = -1
+
+If (lWedNr <> -1) Then
+  Dim wedInf As WED_BASIC_INFO
+  Dim tpWedIsFnd As Boolean
+  If Not wedLookup(lWedNr, tpWedIsFnd, wedInf) Then
+    appRaiseSilentError
+  End If
+  If Not tpWedIsFnd Then
+    Err.Raise 1, , "Internal error. Could not find wedstrijd: " & lWedNr
+  End If
+  lMeetMainNr = wedInf.meetMainNr
+End If
+  
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+If blAddExpLists Then
+  If Not rxlGenerateStructure_addExpLists(dsData, rsObjs, lWedNr, lMeetMainNr) Then
+    Exit Function
+  End If
+End If
+
+If (blAddPVFmts) Then
+  If Not rxlGenerateStructure_addPVFmts(dsData, rsObjs, lWedNr, lMeetMainNr) Then
+    Exit Function
+  End If
+End If
+
+If (blAddPnts) Then
+  If Not rxlGenerateStructure_addPnts(dsData, rsObjs, lWedNr, lMeetMainNr) Then
+    Exit Function
+  End If
+End If
+
+
+dsClean dsData
+
+
+
+appCleanRS rsObjs
+appCleanRS rsPars
+
+rxliGenerateStructure = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rxliGenerateStructure", errInf
+
+dsClean dsData
+DoCmd.SetWarnings True
+
+appCleanRS rsObjs
+appCleanRS rsPars
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+Public Function rxlModifyParams(ByVal expID As Long, expRptObjID As Long)
+On Error GoTo fout
+rxlModifyParams = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from hpoRptExpListPars where p_obj_id = " & expRptObjID)
+
+Dim skPars As Recordset
+Set skPars = CurrentDb().OpenRecordset("hpoRptExpListCurPars")
+skPars.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpParID As Long, tpDefValue As String
+  tpParID = Nz(rs("P_ID"))
+  tpDefValue = Nz(rs("P_DefaultValue"))
+  
+  skPars.Seek "=", tpParID, expID
+  
+  If skPars.NoMatch Then
+    'have to add
+    skPars.AddNew
+      skPars("SP_P_ID") = tpParID
+      skPars("SP_EXP_ID") = expID
+      skPars("SP_Value") = hzn(tpDefValue)
+    skPars.Update
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skPars
+
+'Now the other way round
+Set rs = CurrentDb().OpenRecordset("select * from hpoRptExpListCurPars where sp_exp_id = " & expID)
+
+Set skPars = CurrentDb().OpenRecordset("hpoRptExpListPars")
+skPars.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  tpParID = Nz(rs("SP_P_ID"))
+  
+  skPars.Seek "=", tpParID
+  
+  Dim blIsOK As Boolean
+  blIsOK = True
+  
+  If (skPars.NoMatch) Then
+    blIsOK = False
+  Else
+    Dim tpParRptObjID As Long
+    tpParRptObjID = Nz(skPars("P_OBJ_ID"), -1)
+    
+    If (tpParRptObjID <> expRptObjID) Then
+      blIsOK = False
+    End If
+  End If
+  
+  If (Not blIsOK) Then
+    rs.Delete
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skPars
+
+DoCmd.OpenForm "RPT_EXP_LST_DLG_Pars", , , , , acDialog, expID
+
+
+rxlModifyParams = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlModifyParams", errInf
+
+appCleanRS rs
+appCleanRS skPars
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function rxlLoadExpList_clean() As Boolean
+On Error GoTo fout
+rxlLoadExpList_clean = False
+
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "delete * from hpoRptExpListCurGlbSettings;"
+DoCmd.RunSQL sql
+
+sql = "delete * from hpoRptExpListCurExports;"
+DoCmd.RunSQL sql
+
+sql = "delete * from hpoRptExpListCurPars;"
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+
+
+
+
+
+rxlLoadExpList_clean = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " rxlLoadExpList_clean" & vbCrLf & Error$
+
+DoCmd.SetWarnings True
+MsgBox msg, 16
+Exit Function
+
+End Function
+
+Private Function rxlLoadExpList_loadGlbSettings(ByVal lWedNr As Long, ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlLoadExpList_loadGlbSettings = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRptExpListCurGlbSettings")
+
+rs.AddNew
+
+  rs("EL_Name") = hzn(sExpListName)
+  rs("EL_Wedstrijdnummer") = lWedNr
+  rs("EL_CurSavedName") = hzn(sExpListName)
+
+  Dim blIsPresent As Boolean, sPropValue As String, lPropID As Long
+  
+  'read global configuration data
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\GLB\USE_ENTIRE_MEET", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  
+  rs("EL_EntireMeet") = rxpParseBoolean(sPropValue)
+  
+  
+  
+rs.Update
+
+appCleanRS rs
+
+
+rxlLoadExpList_loadGlbSettings = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlLoadExpList_loadGlbSettings", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+
+
+
+'Need to convert fmt_name, fmt_wedstrijdnummer and pnt_order_id, pnt_wedstrijdnummer into OBJ_IDs
+'Therefore need to build objID lookups for these quantities.
+'No; need to find a better way of storing.
+'Since wedstrijdnummers are prone to change
+'Therefore need to find wedstrijd invariant way of notating these things.
+'EG : is Own Match; is Meet Match; is Global (for PV FMT)
+Private Function rxlLoadExpList_loadExports(ByVal lWedNr As Long, ByVal lMeetMainNr As Long, ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlLoadExpList_loadExports = False
+
+
+
+Dim skPVFmts As Recordset
+Set skPVFmts = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+skPVFmts.Index = "idxPVFmt"
+
+
+Dim skPnts As Recordset
+Set skPnts = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+skPnts.Index = "idxPnt"
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRptExpListCurExports")
+
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("hpoRptExpListCurPars")
+
+Dim blIsPresent As Boolean, sPropValue As String, lPropID As Long
+
+If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\N_EXPORTS", blIsPresent, sPropValue, lPropID) Then
+  Exit Function
+End If
+
+Dim nExports As Long
+nExports = CLng(val(sPropValue))
+
+Dim i As Integer
+
+
+Dim maxUsedExpID As Long
+maxUsedExpID = 0
+
+For i = 0 To nExports - 1
+  Dim tpRptObjID As Long
+  Dim tpFmtObjID As Long
+  Dim tpPVFmtObjID As Long
+  Dim tpPntObjID As Long
+  
+  tpPVFmtObjID = -1
+  tpPntObjID = -1
+  
+  Dim tpFileName As String
+  
+  Dim tpNPars As String
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\RPT_OBJ_ID", blIsPresent, sPropValue, lPropID) Then
+    Exit Function
+  End If
+  
+  tpRptObjID = CLng(val(sPropValue))
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\FMT_OBJ_ID", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  
+  tpFmtObjID = CLng(val(sPropValue))
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\FileName", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  
+  tpFileName = sPropValue
+  
+  
+  
+  Dim tpPVFmtWedNr As Long, tpPVFmtName As String, tpPVFmtWedMode As String
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PV_FMT_Name", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  tpPVFmtName = sPropValue
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PV_FMT_WedMode", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  tpPVFmtWedMode = sPropValue
+  
+  If (tpPVFmtWedMode = "WED") Then
+    tpPVFmtWedNr = lWedNr
+  ElseIf (tpPVFmtWedMode = "MEET") Then
+    tpPVFmtWedNr = lMeetMainNr
+  Else
+    tpPVFmtWedNr = -1
+  End If
+  
+  skPVFmts.Seek "=", tpPVFmtWedNr, tpPVFmtName
+  
+  If Not skPVFmts.NoMatch Then
+    tpPVFmtObjID = Nz(skPVFmts("RO_ID"))
+  End If
+  
+  
+  
+  
+  Dim tpPntWedNr As Long, tpPntOrderID As String, tpPntWedMode As String
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PNT_OrderID", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  tpPntOrderID = -1
+  If (sPropValue <> "") Then
+    tpPntOrderID = CLng(val(sPropValue))
+  End If
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PNT_WedMode", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  tpPntWedMode = sPropValue
+  
+  If (tpPntWedMode = "WED") Then
+    tpPntWedNr = lWedNr
+  ElseIf (tpPntWedMode = "MEET") Then
+    tpPntWedNr = lMeetMainNr
+  Else
+    tpPntWedNr = -1
+  End If
+  
+  skPnts.Seek "=", tpPntWedNr, tpPntOrderID
+  
+  If Not skPnts.NoMatch Then
+    tpPntObjID = Nz(skPnts("RO_ID"))
+  End If
+  
+  
+  
+  
+  
+  
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\N_PARS", blIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  
+  tpNPars = CLng(val(sPropValue))
+  
+  
+ 
+   
+  rs.AddNew
+    
+    maxUsedExpID = maxUsedExpID + 1
+    
+    rs("EXP_ID") = maxUsedExpID
+    rs("EXP_RPT_OBJ_ID") = tpRptObjID
+    rs("EXP_FMT_OBJ_ID") = tpFmtObjID
+    rs("EXP_FileName") = hzn(tpFileName)
+    If (tpPVFmtObjID <> -1) Then
+      rs("EXP_PV_FMT_OBJ_ID") = tpPVFmtObjID
+    End If
+    If (tpPntObjID <> -1) Then
+      rs("EXP_PNT_OBJ_ID") = tpPntOrderID
+    End If
+    
+    
+    
+  rs.Update
+  
+  
+  Dim j As Integer
+  
+  For j = 0 To tpNPars - 1
+    Dim tpParID As Long
+    Dim tpParValue As String
+    
+    If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PAR_" & j & "\PAR_ID", blIsPresent, sPropValue, lPropID) Then
+      Exit Function
+    End If
+  
+    tpParID = CLng(val(sPropValue))
+    
+    
+    If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & i & "\PAR_" & j & "\PAR_VALUE", blIsPresent, sPropValue, lPropID) Then
+      Exit Function
+    End If
+  
+    tpParValue = sPropValue
+    
+    
+    rsPars.AddNew
+      rsPars("SP_P_ID") = tpParID
+      rsPars("SP_EXP_ID") = maxUsedExpID
+      rsPars("SP_Value") = hzn(tpParValue)
+    rsPars.Update
+    
+    
+  Next j ' loop over pars
+  
+  
+  
+Next i ' loop over exports
+
+
+
+appCleanRS rs
+appCleanRS rsPars
+appCleanRS skPVFmts
+appCleanRS skPnts
+
+
+  
+rxlLoadExpList_loadExports = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rxlLoadExpList_loadExports", errInf
+
+appCleanRS rs
+appCleanRS rsPars
+appCleanRS skPVFmts
+appCleanRS skPnts
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+'This function loads the specified export list from the directory server into the tables
+'Caller is required to ensure that rxlGenerateStructure has been called
+Public Function rxlLoadExpList(ByVal lWedNr As Long, ByVal sExpListName As String) As Boolean
+On Error GoTo fout
+rxlLoadExpList = False
+
+If Not rxlLoadExpList_clean() Then
+  appRaiseSilentError
+End If
+
+
+Dim wedInf As WED_BASIC_INFO, isFnd As Boolean
+If Not wedLookup(lWedNr, isFnd, wedInf) Then
+  appRaiseSilentError
+End If
+If Not isFnd Then
+  Err.Raise 1, , "Kon wedstrijd: " & lWedNr & " niet vinden."
+End If
+
+
+
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  appRaiseSilentError
+End If
+
+
+
+Dim blExists As Boolean
+If Not rxliExpListExists(lWedNr, sExpListName, dsData, blExists) Then
+  appRaiseSilentError
+End If
+
+If Not blExists Then
+  Err.Raise 1, , "Kon de volgende export-lijst niet vinden: " & vbCrLf & lWedNr & ", " & sExpListName
+End If
+
+If Not rxlLoadExpList_loadGlbSettings(lWedNr, sExpListName, dsData) Then
+  appRaiseSilentError
+End If
+
+If Not rxlLoadExpList_loadExports(lWedNr, wedInf.meetMainNr, sExpListName, dsData) Then
+  appRaiseSilentError
+End If
+
+
+dsClean dsData
+
+
+
+rxlLoadExpList = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlLoadExpList", errInf
+
+DoCmd.SetWarnings True
+
+dsClean dsData
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function rxliExpListExists(ByVal lWedNr As Long, ByVal expListName As String, ByRef dsData As DIR_SERVER_DATA, ByRef blExists As Boolean) As Boolean
+On Error GoTo fout
+rxliExpListExists = False
+
+Dim blIsPresent As Boolean, sDummy As String, lDummy As Long
+
+If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & expListName, blIsPresent, sDummy, lDummy) Then
+  appRaiseSilentError
+End If
+
+blExists = blIsPresent
+
+
+rxliExpListExists = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxliExpListExists", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function rxliExpListDelete(ByRef dsData As DIR_SERVER_DATA, ByVal lWedNr As Long, ByVal sExpListName As String) As Boolean
+On Error GoTo fout
+rxliExpListDelete = False
+
+
+Dim blDummy As Boolean, sDummy As String
+
+If Not dsDeletePropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+
+Dim nLists As Integer
+Dim sOrdListDescriptions(0 To MAX_N_EXP_LISTS) As String
+Dim sExpListNames(0 To MAX_N_EXP_LISTS) As String
+Dim lDummyA(0 To MAX_N_EXP_LISTS) As Long
+Dim iDummyA(0 To MAX_N_EXP_LISTS) As Integer
+
+If Not rxliExpListLookup_handleWed(dsData, lWedNr, lWedNr, -1, nLists, sOrdListDescriptions, lDummyA, sExpListNames, iDummyA) Then
+  appRaiseSilentError
+End If
+
+Dim tpExpListDescription As String
+tpExpListDescription = rxliGetExpListDescription(lWedNr, sExpListName)
+
+Dim lkpPos As Integer
+lkpPos = bSearchString(tpExpListDescription, nLists, sOrdListDescriptions)
+
+If (lkpPos >= 0) Then
+  
+  'destroy ordering of list, but this does not matter
+  sExpListNames(lkpPos) = sExpListNames(nLists - 1)
+  nLists = nLists - 1
+  
+  If Not rxliExpListSaveList(dsData, lWedNr, nLists, sExpListNames) Then
+    Exit Function
+  End If
+
+End If
+
+
+
+rxliExpListDelete = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxliExpListDelete", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function rxliExpListAdd(ByRef dsData As DIR_SERVER_DATA, ByVal lWedNr As Long, ByVal sExpListName As String) As Boolean
+On Error GoTo fout
+rxliExpListAdd = False
+
+
+Dim nLists As Integer
+Dim sOrdListDescriptions(0 To MAX_N_EXP_LISTS) As String
+Dim sExpListNames(0 To MAX_N_EXP_LISTS) As String
+Dim lDummyA(0 To MAX_N_EXP_LISTS) As Long
+Dim iDummyA(0 To MAX_N_EXP_LISTS) As Integer
+
+If Not rxliExpListLookup_handleWed(dsData, lWedNr, lWedNr, -1, nLists, sOrdListDescriptions, lDummyA, sExpListNames, iDummyA) Then
+  appRaiseSilentError
+End If
+
+
+
+Dim tpExpListDescription As String
+tpExpListDescription = rxliGetExpListDescription(lWedNr, sExpListName)
+
+Dim lkpPos As Integer
+lkpPos = bSearchString(tpExpListDescription, nLists, sOrdListDescriptions)
+
+If (lkpPos >= 0) Then
+  Err.Raise 1, , "Deze export-lijst bestaat reeds: ( " & lWedNr & ", " & sExpListName & " )"
+End If
+
+
+If (nLists = MAX_N_EXP_LISTS) Then
+  Err.Raise 1, , "Er zijn al teveel export-lijsten gedefinieerd."
+End If
+
+'just add to the end of the list
+sExpListNames(nLists) = sExpListName
+nLists = nLists + 1
+
+
+If Not rxliExpListSaveList(dsData, lWedNr, nLists, sExpListNames) Then
+  Exit Function
+End If
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsSetPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName, "", lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+rxliExpListAdd = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxliExpListAdd", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+'Save the list to the directory server.
+'sListNames does not have to be ordered.
+Private Function rxliExpListSaveList(ByRef dsData As DIR_SERVER_DATA, ByVal lWedNr As Long, ByVal nLists As Integer, ByRef sListNames() As String)
+On Error GoTo fout
+rxliExpListSaveList = False
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+If Not dsSetPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\N_LISTS", CStr(nLists), lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+Dim i As Integer
+
+For i = 0 To nLists - 1
+  If Not dsSetPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LIST_NAME_" & i, sListNames(i), lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+Next i
+
+rxliExpListSaveList = True
+
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxliExpListSaveList", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function rxliGetExpListDescription(ByVal lWedNr As Long, ByVal sExpListName As String) As String
+rxliGetExpListDescription = sExpListName & " (" & lWedNr & ")"
+End Function
+
+Private Function rxliExpListLookup_handleWed(ByRef ds As DIR_SERVER_DATA, ByVal lWedNr As Long, ByVal lRefWedNr As Long, ByVal lRefMeetNr As Long, ByRef nLists As Integer, ByRef sOrdListDescriptions() As String, ByRef lListWeds() As Long, ByRef sListNames() As String, ByRef iListVisLevels() As Integer) As Boolean
+On Error GoTo fout
+rxliExpListLookup_handleWed = False
+
+Dim blPropIsPresent As Boolean, sPropValue As String, lPropID As Long
+If Not dsLookupPropertyByName(ds, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\N_LISTS", blPropIsPresent, sPropValue, lPropID) Then
+  Exit Function
+End If
+
+Dim nLkpLists As Long
+
+nLkpLists = 0
+If (blPropIsPresent) Then
+  nLkpLists = CLng(val(sPropValue))
+End If
+
+
+'clip number of lists to maximum value
+If (nLists + nLkpLists > MAX_N_EXP_LISTS) Then
+  nLkpLists = MAX_N_EXP_LISTS - nLists
+End If
+
+If (nLkpLists < 0) Then
+  nLkpLists = 0
+End If
+
+Dim i As Integer
+
+For i = 0 To nLkpLists - 1
+
+  If Not dsLookupPropertyByName(ds, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LIST_NAME_" & i, blPropIsPresent, sPropValue, lPropID) Then
+    appRaiseSilentError
+  End If
+  
+  If (blPropIsPresent) And (sPropValue <> "") Then
+  
+    Dim tpListName As String
+    Dim tpListDescription As String
+    
+    tpListName = sPropValue
+    tpListDescription = rxliGetExpListDescription(lWedNr, tpListName)
+    
+    Dim tpVisLevel As Integer
+    tpVisLevel = RXL_VIS_GLOBAL
+    
+    If (lWedNr = lRefWedNr) Then
+      tpVisLevel = RXL_VIS_MATCH
+    ElseIf (lWedNr = lRefMeetNr) Then
+      'Need to check if this list is a multi-wed-list
+      If Not dsLookupPropertyByName(ds, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & tpListName & "\GLB\USE_ENTIRE_MEET", blPropIsPresent, sPropValue, lPropID) Then
+        appRaiseSilentError
+      End If
+      If rxpParseBoolean(sPropValue) Then
+        tpVisLevel = RXL_VIS_MEET
+      End If
+    End If
+    
+    Dim lkpPos As Integer
+    'Check if list is already present (this should not be the case)
+    lkpPos = bSearchString(tpListDescription, nLists, sOrdListDescriptions)
+    If (lkpPos < 0) Then
+      'add the list to the array
+      Dim insPos As Integer
+      insPos = insString(tpListDescription, nLists, sOrdListDescriptions)
+      
+      shiftRightLong insPos, 1, (nLists - 1), lListWeds
+      shiftRightString insPos, 1, (nLists - 1), sListNames
+      shiftRightInt insPos, 1, (nLists - 1), iListVisLevels
+      
+      lListWeds(insPos) = lWedNr
+      sListNames(insPos) = tpListName
+      iListVisLevels(insPos) = tpVisLevel
+    Else
+      Err.Raise 1, , "Internal error"
+    End If
+  End If
+Next i
+
+rxliExpListLookup_handleWed = True
+
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxliExpListLookup_handleWed", errInf
+
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+
+
+Private Function rxliExpListLookup(ByRef ds As DIR_SERVER_DATA, ByVal lWedNr As Long, ByVal lMeetMainNr As Long, ByRef nLists As Integer, ByRef sOrdListDescriptions() As String, ByRef lListWeds() As Long, ByRef sListNames() As String, ByRef iListVisLevels() As Integer)
+On Error GoTo fout
+rxliExpListLookup = False
+
+nLists = 0
+
+  
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtWedstrijdGegevens")
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpWed As Long
+  tpWed = Nz(rs("WE_Wedstrijdnummer"))
+  
+  If Not rxliExpListLookup_handleWed(ds, tpWed, lWedNr, lMeetMainNr, nLists, sOrdListDescriptions, lListWeds, sListNames, iListVisLevels) Then
+    appRaiseSilentError
+  End If
+  
+  rs.MoveNext
+Loop
+appCleanRS rs
+
+rxliExpListLookup = True
+
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxliExpListLookup", errInf
+
+
+appCleanRS rs
+
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+
+
+
+
+
+
+
+
+
+
+
+Private Function rxlSaveExpList_saveGlbSettings(ByVal lWedNr As Long, ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlSaveExpList_saveGlbSettings = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRptExpListCurGlbSettings")
+
+rs.MoveFirst
+
+If (rs.EOF) Then
+  Err.Raise 1, , "Internal error: table is empty"
+End If
+
+
+'Update the current saved name
+
+rs.Edit
+  rs("EL_Name") = hzn(sExpListName)
+  rs("EL_CurSavedName") = hzn(sExpListName)
+rs.Update
+
+
+rs.MoveFirst
+  
+Dim blDummy As Boolean, lDummy As Long, sDummy As String
+Dim sPropValue As String, sPropName As String
+
+Dim tpDat As Date
+
+
+Dim blEntireMeet As Boolean
+blEntireMeet = Nz(rs("EL_EntireMeet"))
+
+sPropValue = rxpFormatBoolean(blEntireMeet)
+sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\GLB\USE_ENTIRE_MEET"
+
+If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+appCleanRS rs
+
+
+rxlSaveExpList_saveGlbSettings = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlSaveExpList_saveGlbSettings", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function rxlSaveExpList_saveExports(ByVal lWedNr As Long, ByVal lMeetMainNr As Long, ByVal sExpListName As String, ByRef dsData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+rxlSaveExpList_saveExports = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from hpoRptExpListCurExports order by exp_id")
+
+Dim skObjs As Recordset
+Set skObjs = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("select * from hpoRptExpListCurPars order by SP_EXP_ID")
+
+
+Dim blDummy As Boolean, lDummy As Long, sDummy As String
+
+
+Dim nExports As Long
+nExports = 0
+
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpExpID As Long
+  Dim tpRptObjID As Long
+  Dim tpFmtObjID As Long
+  
+  Dim tpFileName As String
+  
+  Dim tpPVFmtObjID As Long
+  Dim tpPntObjID As Long
+  
+    
+  tpExpID = Nz(rs("EXP_ID"))
+  tpRptObjID = Nz(rs("EXP_RPT_OBJ_ID"))
+  tpFmtObjID = Nz(rs("EXP_FMT_OBJ_ID"))
+  tpFileName = Nz(rs("EXP_FileName"))
+  
+  tpPVFmtObjID = Nz(rs("EXP_PV_FMT_OBJ_ID"), -1)
+  tpPntObjID = Nz(rs("EXP_PNT_OBJ_ID"), -1)
+  
+    
+  Dim sPropValue As String, sPropName As String
+  
+  sPropValue = CStr(tpRptObjID)
+  sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\RPT_OBJ_ID"
+  If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  
+  sPropValue = CStr(tpFmtObjID)
+  sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\FMT_OBJ_ID"
+  If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  sPropValue = tpFileName
+  sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\FileName"
+  If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  
+  Dim sPVFmtName As String, sPVFmtWedMode As String
+  sPVFmtName = ""
+  sPVFmtWedMode = ""
+  
+  skObjs.Seek "=", tpPVFmtObjID
+  If (Not skObjs.NoMatch) Then
+    sPVFmtName = Nz(skObjs("RO_PV_FMT_Name"))
+    Dim tpPVFmtWedNr As Long
+    tpPVFmtWedNr = Nz(skObjs("RO_PV_FMT_Wedstrijdnummer"))
+    If (tpPVFmtWedNr = lWedNr) Then
+      sPVFmtWedMode = "WED"
+    ElseIf (tpPVFmtWedNr = lMeetMainNr) Then
+      sPVFmtWedMode = "MEET"
+    End If
+  End If
+  
+  sPropValue = sPVFmtName
+  sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PV_FMT_Name"
+  If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  
+  sPropValue = sPVFmtWedMode
+  sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PV_FMT_WedMode"
+  If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  
+  Dim sPntOrderID As Long, sPntWedMode As String
+  sPntOrderID = -1
+  sPntWedMode = ""
+  
+  skObjs.Seek "=", tpPntObjID
+  If (Not skObjs.NoMatch) Then
+    sPntOrderID = Nz(skObjs("RO_PNT_OrderID"))
+    Dim tpPntWedNr As Long
+    tpPntWedNr = Nz(skObjs("RO_PNT_Wedstrijdnummer"))
+    If (tpPntWedNr = lWedNr) Then
+      sPntWedMode = "WED"
+    ElseIf (tpPVFmtWedNr = lMeetMainNr) Then
+      sPntWedMode = "MEET"
+    End If
+  End If
+  
+  sPropValue = sPntOrderID
+  sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PNT_OrderID"
+  If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  
+  sPropValue = sPntWedMode
+  sPropName = "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PNT_WedMode"
+  If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  
+  
+    
+  Dim tpNPars As Long
+  
+  tpNPars = 0
+  
+  rsPars.FindFirst "SP_EXP_ID = " & tpExpID
+  
+  If (Not rsPars.NoMatch) Then
+    Dim blDone As Boolean
+    blDone = False
+    Do Until blDone
+    
+      Dim tpParID As Long
+      Dim tpParValue As String
+      
+      tpParID = Nz(rsPars("SP_P_ID"))
+      tpParValue = Nz(rsPars("SP_Value"))
+      
+      sPropValue = CStr(tpParID)
+      If Not dsSetPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PAR_" & tpNPars & "\PAR_ID", sPropValue, lDummy, blDummy, sDummy) Then
+        Exit Function
+      End If
+    
+      sPropValue = tpParValue
+      If Not dsSetPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\PAR_" & tpNPars & "\PAR_VALUE", sPropValue, lDummy, blDummy, sDummy) Then
+        Exit Function
+      End If
+      
+      tpNPars = tpNPars + 1
+  
+    
+      
+      rsPars.MoveNext
+      If (rsPars.EOF) Then
+        blDone = True
+      Else
+        If (Nz(rsPars("SP_EXP_ID")) <> tpExpID) Then
+          blDone = True
+        End If
+      End If
+    Loop
+  End If 'if not rsPars.nomatch
+  
+  
+  sPropValue = CStr(tpNPars)
+  
+  If Not dsSetPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\EXPORT_" & nExports & "\N_PARS", sPropValue, lDummy, blDummy, sDummy) Then
+    Exit Function
+  End If
+  
+  
+  
+  nExports = nExports + 1
+  
+  
+  rs.MoveNext
+Loop
+
+
+
+sPropValue = CStr(nExports)
+If Not dsSetPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & sExpListName & "\EXPORTS\N_EXPORTS", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
+
+appCleanRS rs
+appCleanRS skObjs
+appCleanRS rsPars
+
+  
+rxlSaveExpList_saveExports = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlSaveExpList_saveExports", errInf
+
+appCleanRS rs
+appCleanRS skObjs
+appCleanRS rsPars
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+'This function saves the export list currently in the hso* tables into the directory server.
+'Behaviour depends on the pair (EL_CurSavedName, EL_Name) in the hsoRptExpListCurGlbSettings table.
+'If (EL_CurSavedName <> EL_Name), then a failure will occur if EL_CurSavedName already exists
+'EL_CurSavedName will be updated to reflect the new name.
+Public Function rxlSaveExpList() As Boolean
+On Error GoTo fout
+rxlSaveExpList = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+Dim curWedNr As Long
+curWedNr = Nz(DLookup("EL_Wedstrijdnummer", "hpoRptExpListCurGlbSettings"), -1)
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+If Not wedLookup(curWedNr, isFnd, wedInf) Then
+  appRaiseSilentError
+End If
+If Not isFnd Then
+  Err.Raise 1, , "Kon wedstrijd: " & curWedNr & " niet vinden."
+End If
+
+Dim curSavedName As String
+curSavedName = Nz(DLookup("EL_CurSavedName", "hpoRptExpListCurGlbSettings"))
+
+Dim sExpListName As String
+sExpListName = Nz(DLookup("EL_Name", "hpoRptExpListCurGlbSettings"))
+
+If (sExpListName = "") Or (curWedNr <= 0) Then
+  Err.Raise 1, , "Naam voor export lijst: ( " & curWedNr & ", " & sExpListName & ") is ongeldig."
+End If
+
+If (sExpListName <> curSavedName) Then
+  'Need to check if there currently is a export list with the new name.
+  Dim blExists As Boolean
+  If Not rxliExpListExists(curWedNr, sExpListName, dsData, blExists) Then
+    Exit Function
+  End If
+  
+  If (blExists) Then
+    Err.Raise 1, , "Er bestaat al een export-lijst met de naam: " & sExpListName
+  End If
+  
+  
+End If
+
+If (curSavedName <> "") Then
+  'Delete the old list
+  If Not rxliExpListDelete(dsData, curWedNr, curSavedName) Then
+    Exit Function
+  End If
+End If
+
+
+'Now add this  list
+If Not rxliExpListAdd(dsData, curWedNr, sExpListName) Then
+  Exit Function
+End If
+
+
+
+If Not rxlSaveExpList_saveGlbSettings(curWedNr, sExpListName, dsData) Then
+  Exit Function
+End If
+
+If Not rxlSaveExpList_saveExports(curWedNr, wedInf.meetMainNr, sExpListName, dsData) Then
+  Exit Function
+End If
+
+
+
+dsClean dsData
+
+
+rxlSaveExpList = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlSaveExpList", errInf
+
+dsClean dsData
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Public Function rxlDeleteExpList() As Boolean
+On Error GoTo fout
+rxlDeleteExpList = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  appRaiseSilentError
+End If
+
+
+Dim curSavedName As String, curWedNr As Long
+curSavedName = Nz(DLookup("EL_CurSavedName", "hpoRptExpListCurGlbSettings"))
+curWedNr = Nz(DLookup("EL_Wedstrijdnummer", "hpoRptExpListCurGlbSettings"))
+
+If (curSavedName <> "") And (curWedNr > 0) Then
+  'Delete the old list
+  If Not rxliExpListDelete(dsData, curWedNr, curSavedName) Then
+    appRaiseSilentError
+  End If
+End If
+
+
+
+dsClean dsData
+
+
+rxlDeleteExpList = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlDeleteExpList", errInf
+
+dsClean dsData
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+
+
+
+
+
+Private Function rxliPromptUserObject(ByVal iMinVisLevel As Integer, ByRef isOK As Boolean, ByRef isNewName As Boolean, ByRef lObjID As Long, ByRef sObjDes As String, ByVal lObjTypeID, ByVal blAllowNew As Boolean, ByVal lCurObjID As Long, ByVal sCurObjDes As String, ByVal sDlgTitle As String) As Boolean
+On Error GoTo fout
+rxliPromptUserObject = False
+
+
+Dim sql As String
+sql = "Delete * from hpoRxlOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRxlOpzoek")
+
+rs.AddNew
+  rs("RXLO_ARG_AllowNewName") = blAllowNew
+  If (lCurObjID >= 0) Then
+    rs("RXLO_ARG_UseCurObjID") = True
+    rs("RXLO_ARG_UseCurObjID") = lCurObjID
+  Else
+    rs("RXLO_ARG_UseCurObjID") = False
+    If (sCurObjDes <> "") Then
+      rs("RXLO_ARG_UseCurObjDes") = True
+      rs("RXLO_ARG_CurObjDes") = hzn(sCurObjDes)
+    Else
+      rs("RXLO_ARG_UseCurObjDes") = False
+    End If
+  End If
+  rs("RXLO_ARG_DlgTitle") = hzn(sDlgTitle)
+  rs("RXLO_ARG_ObjTypeID") = lObjTypeID
+  rs("RXLO_ARG_MinVisibilityLevel") = iMinVisLevel
+  rs("RXLO_OK") = False
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "hpoRxlOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoRxlOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoRxlOpzoek is leeg."
+End If
+
+isOK = Nz(rs("RXLO_OK"))
+isNewName = Nz(rs("RXLO_IsNew"))
+lObjID = Nz(rs("RXLO_ObjID"))
+sObjDes = Nz(rs("RXLO_ObjDes"))
+
+appCleanRS rs
+
+rxliPromptUserObject = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+Dim errInf As ERR_INFO
+appRecordError "rxliPromptUserObject", errInf
+
+DoCmd.SetWarnings True
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function rxlPromptUser(ByVal iMinVisLevel As Integer, ByRef isOK As Boolean, ByRef lkpExpListName As String, ByRef lkpExpListWedNr As Long) As Boolean
+On Error GoTo fout
+rxlPromptUser = False
+
+Dim blDummy As Boolean, sDummy As String
+Dim lObjID As Long
+
+isOK = False
+lkpExpListName = ""
+lkpExpListWedNr = -1
+
+If Not rxliPromptUserObject(iMinVisLevel, isOK, blDummy, lObjID, sDummy, RXL_TYPE_LISTS, False, -1, "", "Kies export-lijst") Then
+  appRaiseSilentError
+End If
+
+Dim skObjs As Recordset
+Set skObjs = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+skObjs.Seek "=", lObjID
+
+If Not skObjs.NoMatch Then
+  lkpExpListName = Nz(skObjs("RO_LIST_Name"))
+  lkpExpListWedNr = Nz(skObjs("RO_LIST_Wedstrijdnummer"))
+End If
+
+
+
+rxlPromptUser = True
+Exit Function
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlPromptUser", errInf
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+
+Public Function rxlLookup(ByVal lWedNr As Long, ByVal sCurName As String, ByRef isFound As Boolean, ByRef sFndName As String, ByRef lFndWedNr As Long, ByRef lFndObjID As Long) As Boolean
+rxlLookup = rxlLookup_Perform(lWedNr, sCurName, RXL_VIS_GLOBAL, 0, isFound, sFndName, lFndWedNr, lFndObjID)
+End Function
+Public Function rxlLookupNext(ByVal lWedNr As Long, ByVal sCurName As String, ByVal iMinVisLevel As Integer, ByRef isFound As Boolean, ByRef sFndName As String, ByRef lFndWedNr As Long, ByRef lFndObjID As Long) As Boolean
+rxlLookupNext = rxlLookup_Perform(lWedNr, sCurName, iMinVisLevel, 1, isFound, sFndName, lFndWedNr, lFndObjID)
+End Function
+
+Public Function rxlLookupPrevious(ByVal lWedNr As Long, ByVal sCurName As String, ByVal iMinVisLevel As Integer, ByRef isFound As Boolean, ByRef sFndName As String, ByRef lFndWedNr As Long, lFndObjID As Long) As Boolean
+rxlLookupPrevious = rxlLookup_Perform(lWedNr, sCurName, iMinVisLevel, -1, isFound, sFndName, lFndWedNr, lFndObjID)
+End Function
+
+
+'Only allow lists to be found with matching wedstrijd nummer
+Private Function rxlLookup_Perform(ByVal lWedNr As Long, ByVal sCurName As String, ByVal iMinVisLevel As Integer, ByVal direction As Integer, ByRef isFnd As Boolean, ByRef sFndName As String, ByRef lFndWedNr As Long, ByRef lFndObjID As Long) As Boolean
+On Error GoTo fout
+rxlLookup_Perform = False
+
+isFnd = False
+sFndName = ""
+
+Dim rs As Recordset
+
+Dim sql As String
+
+
+If (direction = 0) Then
+  sql = "select * from hpoRptExpListObjects where ro_type_id = " & RXL_TYPE_LISTS & " and ro_list_name = """ & sCurName & """ and ro_list_wedstrijdnummer = " & lWedNr & " ;"
+Else
+  sql = "select * from hpoRptExpListObjects where ro_type_id = " & RXL_TYPE_LISTS & " and ro_visibilityLevel >= " & iMinVisLevel & " ;"
+End If
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+If (direction = 0) Then
+  rs.MoveFirst
+  If Not rs.EOF Then
+    sFndName = Nz(rs("RO_list_name"))
+    lFndWedNr = Nz(rs("RO_list_wedstrijdnummer"))
+    lFndObjID = Nz(rs("RO_ID"))
+    isFnd = True
+  End If
+Else
+  rs.FindFirst "ro_list_name = """ & sCurName & """ and ro_list_wedstrijdnummer = " & lWedNr
+  If Not rs.NoMatch Then
+    If (direction < 0) Then
+      rs.MovePrevious
+    Else
+      rs.MoveNext
+    End If
+    If (Not rs.BOF) And (Not rs.EOF) Then
+      sFndName = Nz(rs("RO_list_name"))
+      lFndWedNr = Nz(rs("RO_list_wedstrijdnummer"))
+      lFndObjID = Nz(rs("RO_ID"))
+      isFnd = True
+    End If
+  End If
+End If
+
+appCleanRS rs
+
+rxlLookup_Perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlLookup_Perform", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+
+Private Function rxlCreateNew_addStandardExports() As Boolean
+On Error GoTo fout
+rxlCreateNew_addStandardExports = False
+
+
+'Need to add standard exports
+Dim rsExps As Recordset, rsPars As Recordset
+Set rsExps = CurrentDb().OpenRecordset("hpoRptExpListCurExports")
+Set rsPars = CurrentDb().OpenRecordset("hpoRptExpListCurPars")
+
+Dim muID As Long
+muID = 0
+
+muID = muID + 1
+
+'rsExps.AddNew
+'  rsExps("EXP_ID") = muID
+'  rsExps("EXP_RPT_OBJ_ID") = RXL_OBJ_RPT_TYPE_REC_LIST
+'  rsExps("EXP_FMT_OBJ_ID") = RXL_OBJ_EXP_FMT_HTM
+'  rsExps("EXP_FileName") = dbdir_hp() & "\r1.htm"
+'  rsExps("EXP_Recordset") = "CR"
+'rsExps.Update
+
+'  rsPars.AddNew
+'    rsPars("SP_EXP_ID") = muID
+'    rsPars("SP_P_ID") = RXL_PAR_REC_LIST_START_DAT
+'    Dim curYear As Long
+'    curYear = CLng(val(Format(Now(), "yyyy")))
+'    rsPars("SP_Value") = rxpFormatDateNL(DateSerial(curYear, 1, 1))
+'  rsPars.Update
+  
+    
+    
+appCleanRS rsExps
+appCleanRS rsPars
+
+
+rxlCreateNew_addStandardExports = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlCreateNew_addStandardExports", errInf
+
+appCleanRS rsExps
+appCleanRS rsPars
+
+appDisplayError errInf
+Exit Function
+
+
+
+End Function
+
+Private Function rxlCreateNew_perform_duplicate(ByVal lCurWedNr As Long, ByVal lCurMeetMainNr As Long, ByRef ds As DIR_SERVER_DATA, ByVal sDupName As String, ByVal lDupWedNr As Long) As Boolean
+On Error GoTo fout
+rxlCreateNew_perform_duplicate = False
+
+If Not rxlLoadExpList(lDupWedNr, sDupName) Then
+  appRaiseSilentError
+End If
+
+Dim skObjs As Recordset
+Set skObjs = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRptExpListCurExports")
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpPntObjID As Long, tpPVFmtObjID As Long
+  
+  tpPntObjID = Nz(rs("EXP_PNT_OBJ_ID"), -1)
+  tpPVFmtObjID = Nz(rs("EXP_PV_FMT_OBJ_ID"), -1)
+  
+  
+  
+  Dim tpDiscardPnt As Boolean, tpDiscardPVFmt As Boolean
+  tpDiscardPnt = False
+  tpDiscardPVFmt = False
+  
+  skObjs.Seek "=", tpPntObjID
+  If skObjs.NoMatch Then
+    tpDiscardPnt = True
+  Else
+    Dim tpPntWed As Long
+    tpPntWed = Nz(skObjs("RO_PNT_Wedstrijdnummer"))
+    If (tpPntWed <> lCurMeetMainNr) And (tpPntWed <> lCurWedNr) Then
+      tpDiscardPnt = True
+    End If
+  End If
+  
+  
+  skObjs.Seek "=", tpPVFmtObjID
+  If skObjs.NoMatch Then
+    tpDiscardPVFmt = True
+  Else
+    Dim tpPVFmtWed As Long
+    tpPVFmtWed = Nz(skObjs("RO_PV_FMT_Wedstrijdnummer"))
+    If (tpPVFmtWed <> -1) And (tpPVFmtWed <> lCurMeetMainNr) And (tpPVFmtWed <> lCurWedNr) Then
+      tpDiscardPVFmt = True
+    End If
+  End If
+  
+  
+  If (tpDiscardPnt Or tpDiscardPVFmt) Then
+    rs.Edit
+      If (tpDiscardPnt) Then
+        rs("EXP_PNT_OBJ_ID") = Null
+      End If
+      If (tpDiscardPVFmt) Then
+        rs("EXP_PV_FMT_OBJ_ID") = Null
+      End If
+    rs.Update
+  End If
+  
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS skObjs
+appCleanRS rs
+
+rxlCreateNew_perform_duplicate = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlCreateNew_perform_duplicate", errInf
+
+appCleanRS skObjs
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function rxlCreateNew_perform(ByVal sNewName As String, ByVal lNewWedNr As Long, ByVal lNewMeetMainNr As Long, ByVal blCreateStandard As Boolean, ByVal blDuplicate As Boolean, ByVal sDupName As String, ByVal lDupWedNr As Long) As Boolean
+On Error GoTo fout
+rxlCreateNew_perform = False
+
+If (sNewName = "") Then
+  Err.Raise 1, , "Nieuwe naam is leeg"
+End If
+
+If (lNewWedNr <= 0) Then
+  Err.Raise 1, , "Wedstrijdnr: " & lNewWedNr & " is ongeldig"
+End If
+
+
+Dim wedInf As WED_BASIC_INFO
+Dim tpWedIsFnd As Boolean
+If Not wedLookup(lNewWedNr, tpWedIsFnd, wedInf) Then
+  appRaiseSilentError
+End If
+If Not tpWedIsFnd Then
+  Err.Raise 1, , "Internal error. Could not find wedstrijd: " & lNewWedNr
+End If
+  
+
+If (InStr(1, sNewName, "\") > 0) Then
+  Err.Raise 1, , "Naam mag geen \ bevatten"
+End If
+
+If (Len(sNewName) > 30) Then
+  Err.Raise 1, , "Naam is te lang"
+End If
+
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "") Then
+  appRaiseSilentError
+End If
+
+Dim blExists As Boolean
+If Not rxliExpListExists(lNewWedNr, sNewName, dsData, blExists) Then
+  appRaiseSilentError
+End If
+
+If (blExists) Then
+  Err.Raise 1, , "De naam: " & sNewName & " bestaat al"
+End If
+
+If (blDuplicate) Then
+  If Not rxlCreateNew_perform_duplicate(lNewWedNr, wedInf.meetMainNr, dsData, sDupName, lDupWedNr) Then
+    appRaiseSilentError
+  End If
+ElseIf (blCreateStandard) Then
+  If Not rxlLoadExpList_clean() Then
+    appRaiseSilentError
+  End If
+  If Not rxlCreateNew_addStandardExports() Then
+    appRaiseSilentError
+  End If
+Else
+  If Not rxlLoadExpList_clean() Then
+    Exit Function
+  End If
+End If
+  
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRptExpListCurGlbSettings")
+rs.MoveFirst
+
+If (rs.EOF) Then
+  rs.AddNew
+Else
+  rs.Edit
+End If
+
+rs("EL_Name") = hzn(sNewName)
+rs("EL_CurSavedName") = Null
+rs("EL_Wedstrijdnummer") = lNewWedNr
+
+rs.Update
+
+appCleanRS rs
+
+If Not rxlSaveExpList() Then
+  appRaiseSilentError
+End If
+
+
+rxlCreateNew_perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlCreateNew_perform", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Public Function rxlCreateNew(ByVal lWedNr As Long, ByRef isOK As Boolean, ByRef sNewName As String) As Boolean
+On Error GoTo fout
+rxlCreateNew = False
+
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+
+If Not wedLookup(lWedNr, isFnd, wedInf) Then
+  appRaiseSilentError
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Kon wedstrijd: " & lWedNr & " niet vinden."
+End If
+
+
+Dim sql As String
+sql = "Delete * from hpoRxlNew;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRxlNew")
+
+rs.AddNew
+  rs("RXLN_OK") = False
+rs.Update
+
+appCleanRS rs
+
+DoCmd.OpenForm "RPT_EXP_LST_DLG_NEW", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hpoRxlNew")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hpoRxlNew is leeg."
+End If
+
+Dim tpIsOK As Boolean
+tpIsOK = Nz(rs("RXLN_OK"))
+
+
+
+If (tpIsOK) Then
+
+  Dim tpNewName As String
+  Dim tpCreateStandard As Boolean
+  Dim tpDuplicate As Boolean
+  Dim tpDupListObjID As Long
+  
+  
+  tpNewName = Nz(rs("RXLN_Newname"))
+  tpCreateStandard = Nz(rs("RXLN_CreateStandard"))
+  tpDuplicate = Nz(rs("RXLN_Duplicate"))
+  tpDupListObjID = Nz(rs("RXLN_Duplicate_OBJ_ID"))
+  
+Else
+  isOK = False
+End If
+
+appCleanRS rs
+
+
+If (tpIsOK) Then
+ 
+  Dim tpDupListName As String, tpDupListWedNr As Long
+  tpDupListName = ""
+  tpDupListWedNr = -1
+  
+  If (tpDuplicate) Then
+    Dim skObjs As Recordset
+    Set skObjs = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+    skObjs.Index = "PrimaryKey"
+    
+    skObjs.Seek "=", tpDupListObjID
+    If Not skObjs.NoMatch Then
+      tpDupListName = Nz(skObjs("RO_LIST_Name"))
+      tpDupListWedNr = Nz(skObjs("RO_LIST_Wedstrijdnummer"))
+    End If
+    appCleanRS skObjs
+  End If
+    
+
+
+  If Not rxlCreateNew_perform(tpNewName, lWedNr, wedInf.meetMainNr, tpCreateStandard, tpDuplicate, tpDupListName, tpDupListWedNr) Then
+    appRaiseSilentError
+  End If
+  
+  isOK = True
+  sNewName = tpNewName
+
+End If
+
+rxlCreateNew = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+Dim errInf As ERR_INFO
+appRecordError "rxlCreateNew", errInf
+
+appCleanRS skObjs
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function rxlProcessExpList_handleExport(ByVal rptName As String, ByVal fName As String, iRXPFormat As Integer) As Boolean
+On Error GoTo fout
+rxlProcessExpList_handleExport = False
+
+
+Dim vDummy(0 To 0) As Variant
+If Not rptHandle(False, rptName, RPT_MODE_EXPORT, -1, iRXPFormat, 0, vDummy, True, fName) Then
+  Exit Function
+End If
+
+
+rxlProcessExpList_handleExport = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlProcessExpList_handleExport", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function rxlProcessExpList_resolveDatePar(ByVal sParValue) As Date
+If sParValue = "<Vandaag>" Then
+  rxlProcessExpList_resolveDatePar = Now()
+Else
+  rxlProcessExpList_resolveDatePar = rxpParseDateNL(sParValue)
+End If
+End Function
+
+
+Private Function rxlProcessExpList_getParam(ByVal lPID As Long, ByVal nPars As Integer, ByRef lParIDS() As Long, sParValues() As String) As String
+Dim fndPos As Integer
+fndPos = bSearchLong(lPID, nPars, lParIDS)
+If (fndPos < 0) Then
+  rxlProcessExpList_getParam = ""
+Else
+  rxlProcessExpList_getParam = sParValues(fndPos)
+End If
+End Function
+
+
+
+
+
+
+
+
+
+Private Function rxlProcessExpList_processExport(ByVal lRptObjID As Long, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+  ByVal lPVFmtWedNr As Long, ByVal sPVFmtName As String, ByVal lPntWedNr As Long, ByVal lPntOrderID As Long, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport = False
+
+
+Select Case lRptObjID
+  'Case RXL_OBJ_RPT_TYPE_REC_LIST
+  '  If Not rxlProcessExpList_processExport_RecList(sFileName, iRXPFormat, sRcsCode, nPars, lParIDS, sParValues) Then
+  '    Exit Function
+  '  End If
+  
+
+End Select
+
+rxlProcessExpList_processExport = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxlProcessExpList_processExport", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+Public Function rxlProcessExpList() As Boolean
+On Error GoTo fout
+rxlProcessExpList = False
+
+
+If Not rxlValidateExpList() Then
+  appRaiseSilentError
+End If
+
+
+If (MsgBox("Waarschuwing: Bij het exporteren van de rapporten in deze export-lijst kunnen er bestaande bestanden worden overschreven. " & vbCrLf & "Wilt u doorgaan?  ", vbOKCancel + vbQuestion) = vbCancel) Then
+  Exit Function
+End If
+
+
+
+'This function will process the stored export list.
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRptExpListCurExports")
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("select * from hpoRptExpListPars order by p_obj_id, p_id;")
+
+
+Dim skObjs As Recordset
+Dim skPars As Recordset
+
+Set skObjs = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+Set skPars = CurrentDb().OpenRecordset("hpoRptExpListCurPars")
+skPars.Index = "PrimaryKey"
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpExpID As Long
+  Dim tpRptObjID As Long
+  
+  Dim tpFmtObjID As Long, tpRXPFormat As Integer
+  
+  Dim tpPVFmtObjID As Long, tpPntObjID As Long
+  Dim tpPVFmtWedNr As Long, tpPVFmtName As String
+  Dim tpPntWedNr As Long, tpPntOrderID As Long
+  
+  
+  Dim tpFName As String
+  
+  tpExpID = Nz(rs("EXP_ID"))
+  tpRptObjID = Nz(rs("EXP_RPT_OBJ_ID"), -1)
+  tpFmtObjID = Nz(rs("EXP_FMT_OBJ_ID"), -1)
+  tpFName = Nz(rs("EXP_FileName"))
+  
+  
+  tpPVFmtObjID = Nz(rs("EXP_PV_FMT_OBJ_ID"))
+  tpPntObjID = Nz(rs("EXP_PNT_OBJ_ID"))
+  
+  tpPVFmtWedNr = -1
+  tpPVFmtName = ""
+  
+  tpPntWedNr = -1
+  tpPntOrderID = -1
+  
+  skObjs.Seek "=", tpPVFmtObjID
+  If Not skObjs.NoMatch Then
+    tpPVFmtWedNr = Nz(skObjs("RO_PV_FMT_Wedstrijdnummer"))
+    tpPVFmtName = Nz(skObjs("RO_PV_FMT_Name"))
+  End If
+  
+  skObjs.Seek "=", tpPntObjID
+  If Not skObjs.NoMatch Then
+    tpPntWedNr = Nz(skObjs("RO_PNT_Wedstrijdnummer"))
+    tpPntOrderID = Nz(skObjs("RO_PNT_OrderID"))
+  End If
+  
+  
+  Dim tpRptObjTypeID As Long
+  tpRptObjTypeID = -1
+  
+  skObjs.Seek "=", tpRptObjID
+  If (Not skObjs.NoMatch) Then
+    tpRptObjTypeID = Nz(skObjs("RO_TYPE_ID"))
+  End If
+  
+  
+  
+  tpRXPFormat = rxlGetExportFormat(tpFmtObjID)
+  
+  Dim tpExtension As String
+  tpExtension = rxlGetExtension(tpFmtObjID)
+  If (Right(tpFName, 4) <> "." & tpExtension) Then
+    tpFName = tpFName & "." & tpExtension
+  End If
+  
+    
+  
+  
+  Dim nPars As Integer
+  Dim lParIDS(0 To 100) As Long
+  Dim sParValues(0 To 100) As String
+  
+  nPars = 0
+  
+   
+  'Now check the parameters
+  rsPars.FindFirst "P_OBJ_ID = " & tpRptObjID
+  
+  If (Not rsPars.NoMatch) Then
+    Dim blDone As Boolean
+    blDone = False
+    Do Until blDone
+    
+      Dim tpParID As Long
+      Dim tpParDefValue As String
+           
+      
+      tpParID = Nz(rsPars("P_ID"))
+      tpParDefValue = Nz(rsPars("P_DefaultValue"))
+            
+      skPars.Seek "=", tpParID, tpExpID
+      
+      Dim tpParValue As String
+      tpParValue = tpParDefValue
+      
+      If (Not skPars.NoMatch) Then
+        tpParValue = Nz(skPars("SP_Value"))
+      End If
+      
+      lParIDS(nPars) = tpParID
+      sParValues(nPars) = tpParValue
+      nPars = nPars + 1
+      
+      rsPars.MoveNext
+      If (rsPars.EOF) Then
+        blDone = True
+      Else
+        If (Nz(rsPars("P_OBJ_ID")) <> tpRptObjID) Then
+          blDone = True
+        End If
+      End If
+    Loop
+  End If 'if not rsPars.nomatch
+  
+  
+  'We now have all the information to process the report
+  
+  
+  If Not rxlProcessExpList_processExport(tpRptObjID, tpFName, tpRXPFormat, _
+    tpPVFmtWedNr, tpPVFmtName, tpPntWedNr, tpPntOrderID, nPars, lParIDS, sParValues) Then
+    Exit Function
+  End If
+
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS skObjs
+appCleanRS skPars
+appCleanRS rsPars
+
+
+
+rxlProcessExpList = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlProcessExpList", errInf
+
+appCleanRS rs
+appCleanRS skObjs
+appCleanRS skPars
+appCleanRS rsPars
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function rxlValidateCheckFormat(ByVal rptObjID As Long, ByVal fmtObjID As Long, ByRef sInvMsg As String) As Boolean
+On Error GoTo fout
+rxlValidateCheckFormat = False
+Dim rxpFormat As Integer
+rxpFormat = rxlGetExportFormat(fmtObjID)
+
+Select Case rptObjID
+  'Case RXL_OBJ_RPT_TYPE_STAT_SO
+  '  If (rxpFormat = RXP_FORMAT_XML) Then
+   '   Err.Raise 1, , "Xml wordt niet ondersteund voor dit object"
+  '  End If
+
+End Select
+
+
+rxlValidateCheckFormat = True
+Exit Function
+
+fout:
+sInvMsg = Err & " rxlValidateCheckFormat" & vbCrLf & Error$
+Exit Function
+End Function
+
+
+Public Function rxlValidateExpList() As Boolean
+On Error GoTo fout
+rxlValidateExpList = False
+
+'This function will validate the stored export list.
+'It will check if all the arguments and parameters are present.
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hpoRptExpListCurExports")
+
+Dim rsPars As Recordset
+Set rsPars = CurrentDb().OpenRecordset("select * from hpoRptExpListPars order by p_obj_id;")
+
+
+Dim skObjs As Recordset
+Dim skPars As Recordset
+
+Set skObjs = CurrentDb().OpenRecordset("hpoRptExpListObjects")
+skObjs.Index = "PrimaryKey"
+
+Set skPars = CurrentDb().OpenRecordset("hpoRptExpListCurPars")
+skPars.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpExpID As Long
+  Dim tpRptObjID As Long
+  
+  Dim tpFmtObjID As Long, tpRXPFormat As Integer
+  
+  Dim tpPVFmtObjID As Long, tpPntObjID As Long
+  Dim tpPVFmtWedNr As Long, tpPVFmtName As String
+  Dim tpPntWedNr As Long, tpPntOrderID As Long
+  
+  
+  Dim tpFName As String
+  
+  tpExpID = Nz(rs("EXP_ID"))
+  tpRptObjID = Nz(rs("EXP_RPT_OBJ_ID"), -1)
+  tpFmtObjID = Nz(rs("EXP_FMT_OBJ_ID"), -1)
+  tpFName = Nz(rs("EXP_FileName"))
+  
+  
+  tpPVFmtObjID = Nz(rs("EXP_PV_FMT_OBJ_ID"))
+  tpPntObjID = Nz(rs("EXP_PNT_OBJ_ID"))
+  
+  tpPVFmtWedNr = -1
+  tpPVFmtName = ""
+  
+  tpPntWedNr = -1
+  tpPntOrderID = -2
+  
+  skObjs.Seek "=", tpPVFmtObjID
+  If Not skObjs.NoMatch Then
+    tpPVFmtWedNr = Nz(skObjs("RO_PV_FMT_Wedstrijdnummer"))
+    tpPVFmtName = Nz(skObjs("RO_PV_FMT_Name"))
+  End If
+  
+  skObjs.Seek "=", tpPntObjID
+  If Not skObjs.NoMatch Then
+    tpPntWedNr = Nz(skObjs("RO_PNT_Wedstrijdnummer"))
+    tpPntOrderID = Nz(skObjs("RO_PNT_OrderID"))
+  End If
+  
+  
+  
+  If (tpFName = "") Then
+    Err.Raise 1, , "Er is een export zonder bestandsnaam."
+  End If
+  
+  If tpFmtObjID <= 0 Then
+    Err.Raise 1, , "Er is een ongeldig export formaat gekozen voor export-bestand: " & vbCrLf & tpFName
+  End If
+  
+  Dim sInvMsg As String
+  If Not rxlValidateCheckFormat(tpRptObjID, tpFmtObjID, sInvMsg) Then
+    Err.Raise 1, , "Er is een probleem opgetreden bij het export-bestand: " & vbCrLf & tpFName & vbCrLf & vbCrLf & sInvMsg
+  End If
+  
+  skObjs.Seek "=", tpRptObjID
+  
+  If (skObjs.NoMatch) Then
+    Err.Raise 1, , "Er is een ongeldig rapport-type gevonden voor export-bestand: " & vbCrLf & tpFName
+  End If
+  
+  Dim tpRptTypeID As Long
+  Dim tpRptNeedsPVFmt As Boolean, tpRptNeedsPnt As Boolean
+  
+  tpRptNeedsPVFmt = Nz(skObjs("RO_Needs_PV_FMT"))
+  tpRptNeedsPnt = Nz(skObjs("RO_Needs_PNT"))
+  tpRptTypeID = Nz(skObjs("RO_TYPE_ID"))
+  
+  
+  
+  If (tpRptNeedsPVFmt) And (tpPVFmtName = "") Then
+    Err.Raise 1, , "Er is geen rapport opmaak geselecteerd voor export-bestand: " & vbCrLf & tpFName
+  End If
+  
+  If (tpRptNeedsPnt) Then
+    If (tpPntWedNr <= -1) Or (tpPntOrderID <= -1) Then
+      Err.Raise 1, , "Er is geen puntentelling aangetroffen voor export-bestand: " & vbCrLf & tpFName
+    End If
+  End If
+  
+  
+  'Now check the parameters
+  rsPars.FindFirst "P_OBJ_ID = " & tpRptObjID
+  
+  If (Not rsPars.NoMatch) Then
+    Dim blDone As Boolean
+    blDone = False
+    Do Until blDone
+    
+      Dim tpParID As Long
+      Dim tpParType As Long
+      Dim tpParReq As Boolean
+      Dim tpParDefValue As String
+      Dim tpParDes As String
+      
+      
+      tpParID = Nz(rsPars("P_ID"))
+      tpParType = Nz(rsPars("P_Type"))
+      tpParReq = Nz(rsPars("P_Required"))
+      tpParDefValue = Nz(rsPars("P_DefaultValue"))
+      tpParDes = Nz(rsPars("P_Description"))
+      
+      
+      Dim tpParValue As String
+      tpParValue = ""
+      
+      skPars.Seek "=", tpParID, tpExpID
+      
+      If (skPars.NoMatch) Then
+        If (tpParReq And tpParDefValue = "") Then
+          Err.Raise 1, , "Parameter: " & vbCrLf & tpParDes & vbCrLf & "werd niet aangetroffen voor export-bestand: " & vbCrLf & tpFName
+        End If
+        tpParValue = tpParDefValue
+      Else
+        tpParValue = Nz(skPars("SP_Value"))
+      End If
+      
+      
+      
+      
+      If Not rxlIsParOK(tpParValue, tpParType, tpParReq, sInvMsg) Then
+        Err.Raise 1, , "De parameter: " & vbCrLf & tpParDes & vbCrLf & "voor export-bestand:" & vbCrLf & tpFName & vbCrLf & "is ongeldig om onderstaande reden: " & vbCrLf & vbCrLf & sInvMsg
+      End If
+      
+      rsPars.MoveNext
+      If (rsPars.EOF) Then
+        blDone = True
+      Else
+        If (Nz(rsPars("P_OBJ_ID")) <> tpRptObjID) Then
+          blDone = True
+        End If
+      End If
+    Loop
+  End If 'if not rsPars.nomatch
+
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS rsPars
+
+appCleanRS skObjs
+appCleanRS skPars
+
+
+
+rxlValidateExpList = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlValidateExpList", errInf
+
+appCleanRS rs
+appCleanRS rsPars
+
+appCleanRS skObjs
+appCleanRS skPars
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+
+
+'todo - obsolete
+Private Function rxlProcessExpList_processExport_RecTableV(ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_RecTableV = False
+
+'Dim dMarkDate As Date
+'dMarkDate = rxlProcessExpList_resolveDatePar(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_MARK_DATE, nPars, lParIDS, sParValues))
+
+'Dim blIncludeMV As Boolean, blLandscape As Boolean, bl25And50 As Boolean
+
+'blIncludeMV = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_INC_MV, nPars, lParIDS, sParValues))
+'blLandscape = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_LANDSCAPE, nPars, lParIDS, sParValues))
+'bl25And50 = rxpParseBoolean(rxlProcessExpList_getParam(RXL_PAR_REC_TB_DAMES_COMBINE_25_50, nPars, lParIDS, sParValues))
+
+
+'If Not recBuildHolders(sRcsCode, dMarkDate) Then
+'  Exit Function
+'End If
+
+'If Not rxpSetRecHoldersOptions(False, True, blIncludeMV, blLandscape, bl25And50, False, False) Then
+'  Exit Function
+'End If
+    
+'Dim rptName As String
+
+'If (blLandscape) Then
+'  rptName = REP_REC_HLD_TAB_L
+'Else
+'  rptName = REP_REC_HLD_TAB
+'End If
+
+Dim rptName As String
+rptName = ""
+
+If Not rxlProcessExpList_handleExport(rptName, sFileName, iRXPFormat) Then
+  Exit Function
+End If
+
+
+
+rxlProcessExpList_processExport_RecTableV = True
+Exit Function
+fout:
+MsgBox Err & " rxlProcessExpList_processExport_RecTableV" & vbCrLf & Error$, 16
+Exit Function
+End Function
