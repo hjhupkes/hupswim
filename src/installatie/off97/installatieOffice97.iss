@@ -141,8 +141,8 @@ Name: restorebackups; Description: "&Restore data from current version of Hupswi
 
 [Run]
 FileName: "{app}\setupNieuw\setup.exe"; Parameters: "/q1"; StatusMsg: "Installing runtime version...";   Check: (not IsAcc97Present()) and PrepareAcmeSetup();
-Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"" /x gRestoreSetupBackup";  StatusMsg: "Restoring Hupswim data...";  Tasks: restorebackups; Check: ShouldRestore(ExpandConstant('{app}\database'));
-Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"" /x gRestoreSetupBackup"; StatusMsg: "Restoring Hupprog data...";  Tasks: restorebackups;  Check: ShouldRestore(ExpandConstant('{app}\database'));
+Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime /wrkgrp ""{app}\database\system.mdw"" ""{app}\database\hupsw97.mde"" /x gRestoreSetupBackup";  StatusMsg: "Restoring Hupswim data...";  Tasks: restorebackups; Check: ShouldRestore(ExpandConstant('{app}\database'));
+Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime /wrkgrp ""{app}\database\system.mdw"" ""{app}\database\wedstr97.mde"" /x gRestoreSetupBackup"; StatusMsg: "Restoring Hupprog data...";  Tasks: restorebackups;  Check: ShouldRestore(ExpandConstant('{app}\database'));
 
 
 [Icons]
@@ -157,16 +157,16 @@ Name: "{group}\Handleiding Printer Instellingen"; Filename: "{app}\prntinst.doc"
 
 ;Acc 97 hoofd-programma's
 ;Only install if acc97 is already present
-Name: "{group}\Hupswim (Tijden administratie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
-Name: "{group}\Hupprog (Wedstrijd organisatie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
-Name: "{group}\Hupswim [safe mode]"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"" /cmd ""SafeMode"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
-Name: "{group}\Hupprog [safe mode]"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"" /cmd ""SafeMode"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
-Name: "{group}\Huppay (Contributie administratie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime ""{app}\database\huppay.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Hupswim (Tijden administratie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime /wrkgrp ""{app}\database\system.mdw"" ""{app}\database\hupsw97.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Hupprog (Wedstrijd organisatie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime /wrkgrp ""{app}\database\system.mdw"" ""{app}\database\wedstr97.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Hupswim [safe mode]"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime /wrkgrp ""{app}\database\system.mdw"" ""{app}\database\hupsw97.mde"" /cmd ""SafeMode"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Hupprog [safe mode]"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime /wrkgrp ""{app}\database\system.mdw"" ""{app}\database\wedstr97.mde"" /cmd ""SafeMode"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Huppay (Contributie administratie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/runtime /wrkgrp ""{app}\database\system.mdw"" ""{app}\database\huppay.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
 ;Acc 97 support
 ;Only install if acc97 is already present
-Name: "{group}\Onderhoud Hupswim"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/repair ""{app}\database\hupsw97.mde"" /compact"; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
-Name: "{group}\Onderhoud Hupprog"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/repair ""{app}\database\wedstr97.mde"" /compact"; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
-Name: "{group}\Onderhoud Huppay"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/repair ""{app}\database\huppay.mde"" /compact" ; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Onderhoud Hupswim"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/wrkgrp ""{app}\database\system.mdw"" /repair ""{app}\database\hupsw97.mde"" /compact"; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Onderhoud Hupprog"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/wrkgrp ""{app}\database\system.mdw"" /repair ""{app}\database\wedstr97.mde"" /compact"; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
+Name: "{group}\Onderhoud Huppay"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot,OfficeBin}\msaccess.exe"; Parameters: "/wrkgrp ""{app}\database\system.mdw"" /repair ""{app}\database\huppay.mde"" /compact" ; IconFileName: "{app}\database\hzzian2.ico"; Check: IsAcc97Present();
 
 
 
