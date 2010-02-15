@@ -54,7 +54,7 @@ End If
 
 If (arCfg.sAresDir = "") Then
   Err.Raise 1, , "De ares-21 directory is nog niet ingesteld."
-ElseIf (Not DirectoryExists(arCfg.sAresDir)) Then
+ElseIf (Not lanDirectoryExists(arCfg.sAresDir, 500)) Then
   Err.Raise 1, , "De ares-21 directory: " & vbCrLf & arCfg.sAresDir & vbCrLf & "bestaat niet."
 End If
 
@@ -111,7 +111,11 @@ etwAres21WriteStartlist = True
 Exit Function
 
 fout:
-MsgBox Err & " etwAres21WriteStartlist" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "etwAres21WriteStartlist", errInf
+
+appDisplayError errInf
 Exit Function
 
 End Function
@@ -136,7 +140,7 @@ fNameToCheck = arCfg.sAresDir & "\LSTRSLT.TXT"
 If (arCfg.sAresDir = "") Then
   blIsProblem = True
   sErrMsg = "De ares-21 directory is nog niet ingesteld."
-ElseIf (Not FileExists(fNameToCheck)) Then
+ElseIf (Not lanFileExists(fNameToCheck, 500)) Then
   blIsProblem = True
   sErrMsg = "Het bestand met resultaten: " & vbCrLf & fNameToCheck & vbCrLf & "kon niet worden gevonden."
 End If
@@ -175,7 +179,11 @@ etwAres21ReadResults = True
 Exit Function
 
 fout:
-MsgBox Err & " etwAres21ReadResults" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "etwAres21ReadResults", errInf
+
+appDisplayError errInf
 Exit Function
 
 End Function
@@ -270,11 +278,13 @@ End If
 
 arReadInfo = True
 Exit Function
-fout:
-Dim msg As String
-msg = Err & " arReadInfo" & vbCrLf & Error$
 
-MsgBox msg, 16
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "arReadInfo", errInf
+
+appDisplayError errInf
 Exit Function
 
 End Function
@@ -311,9 +321,15 @@ End If
 
 arWriteInfo = True
 Exit Function
+
 fout:
-MsgBox Err & " arWriteInfo" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "arWriteInfo", errInf
+
+appDisplayError errInf
 Exit Function
+
 End Function
 
 
@@ -403,8 +419,13 @@ arExportMatch = True
 Exit Function
 
 fout:
-MsgBox Err & " arExportMatch" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "arExportMatch", errInf
+
+appDisplayError errInf
 Exit Function
+
 End Function
 
 
@@ -427,9 +448,9 @@ Select Case sSlag
 End Select
 End Function
 
-Private Function arGetStdDistanceID(ByVal sAf As String) As Long
+Private Function arGetStdDistanceID(ByVal saf As String) As Long
 On Error Resume Next
-Select Case sAf
+Select Case saf
   Case "25"
     arGetStdDistanceID = 9
   Case "50"
@@ -484,12 +505,13 @@ arExportMatch_writeStrokes = True
 Exit Function
 
 fout:
-Dim msg As String
-msg = Err & " arExportMatch_writeStrokes" & vbCrLf & Error$
+
+Dim errInf As ERR_INFO
+appRecordError "arExportMatch_writeStrokes", errInf
 
 Close
 
-MsgBox msg, 16
+appDisplayError errInf
 Exit Function
 
 End Function
@@ -1264,6 +1286,11 @@ Next i
 
 
 
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset(TNM_PR)
+skProg.Index = "PrimaryKey"
+
+
 Dim rs As Recordset
 Set rs = CurrentDb().OpenRecordset("hpoETWResTimes")
 
@@ -1336,6 +1363,58 @@ While Not EOF(fNr)
   dBckTime = swtFromSeconds(tpBckTimeThs * 0.001)
   dRctTime = swtFromSeconds(tpRctTimeThs * 0.001)
   
+  
+  Dim tpAf As Long
+  tpAf = tpLap
+  
+  Dim lkpPos As Integer
+  lkpPos = bSearchLong(tpProgArID, nOrdArIDs, lOrdArIDs)
+   
+  Dim tpWed As Long, tpProg As String, tpProgAf As String
+  
+  tpWed = wedInf.wednr
+  tpProg = ""
+  tpProgAf = ""
+  
+  If (lkpPos < 0) Then
+   'did not find prog in exported list, attempt to use normal programma nr.
+    tpProg = CStr(tpProgArID)
+    If (bSearchString(tpProg, opInf.nExpProgs, opInf.sExpProgs) >= 0) Then
+      'there is a conflict
+      tpProg = "?_" & tpProgArID
+    End If
+  Else
+    tpProg = opInf.sExpProgs(iOrdArIDsOrgIdx(lkpPos))
+  End If
+  
+  skProg.Seek "=", tpWed, tpProg
+  If Not skProg.NoMatch Then
+    tpProgAf = Nz(skProg("PR_Afstand"))
+  End If
+  
+  
+  Dim tpProgIsShortDist As Boolean
+  tpProgIsShortDist = False
+  
+  If (wedInf.baan = 25) And (tpProgAf = "25") Then
+    tpProgIsShortDist = True
+    If (tpAf > 25) Then
+      tpAf = 25
+    End If
+  End If
+  
+  If (wedInf.baan = 50) And (tpProgAf = "50") Then
+    tpProgIsShortDist = True
+    If (tpAf > 50) Then
+      tpAf = 50
+    End If
+  End If
+  
+  
+  
+  
+  
+  
   'Now check if the time needs processing
   Dim blOK As Boolean
   
@@ -1353,43 +1432,23 @@ While Not EOF(fNr)
     blOK = False
   End If
   
-  If (blOK) And (tpLap < 1) Then
+  If (blOK) And (tpAf < 1) Then
     blOK = False
   End If
   
-  If (blOK) And (tpLap Mod (2 * wedInf.baan) <> 0) Then
-    blOK = False
-  End If
-  
-  If (blOK) Then
-    Dim lWedNr As Long
-    lWedNr = wedInf.wednr
-    
-    Dim lkpPos As Integer
-    lkpPos = bSearchLong(tpProgArID, nOrdArIDs, lOrdArIDs)
-    
-    Dim sProg As String
-    
-    If (lkpPos < 0) Then
-      'did not find prog in exported list, attempt to use normal programma nr.
-      sProg = CStr(tpProgArID)
-      If (bSearchString(sProg, opInf.nExpProgs, opInf.sExpProgs) >= 0) Then
-        'there is a conflict
-        sProg = "?_" & tpProgArID
-      End If
-    Else
-      sProg = opInf.sExpProgs(iOrdArIDsOrgIdx(lkpPos))
+  If (blOK) And (Not tpProgIsShortDist) Then
+    If (tpAf Mod (2 * wedInf.baan) <> 0) Then
+      blOK = False
     End If
   End If
   
-  
   If (blOK) Then
     rs.AddNew
-      rs("ETWT_Wedstrijdnummer") = lWedNr
-      rs("ETWT_Programmanummer") = hzn(sProg)
+      rs("ETWT_Wedstrijdnummer") = tpWed
+      rs("ETWT_Programmanummer") = hzn(tpProg)
       rs("ETWT_Serienummer") = tpSerIdx + 1
       rs("ETWT_Baan") = tpLane
-      rs("ETWT_Afstand") = tpLap
+      rs("ETWT_Afstand") = tpAf
       rs("ETWT_Tijd") = dTime
       rs("ETWT_BackupTijd") = dBckTime
       rs("ETWT_ReactieTijd") = dRctTime
@@ -1402,6 +1461,7 @@ Wend
 
 
 appCleanRS rs
+appCleanRS skProg
 Close #fNr
 
 arImportResults = True
@@ -1409,17 +1469,14 @@ Exit Function
 
 fout:
 
-Dim msg As String
-msg = Err & " arImportResults" & vbCrLf & Error$
+Dim errInf As ERR_INFO
+appRecordError "arImportResults", errInf
 
 Close
 appCleanRS rs
-DoCmd.SetWarnings True
+appCleanRS skProg
 
-MsgBox msg, 16
+appDisplayError errInf
 Exit Function
 
-'debug
-On Error GoTo 0
-Resume
 End Function
