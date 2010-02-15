@@ -554,3 +554,34 @@ On Error GoTo 0
 Resume
     
 End Function
+
+Public Function sysRevertObject(ByVal iObjType As Integer, ByVal sObjName As String) As Boolean
+On Error GoTo fout
+sysRevertObject = False
+
+DoCmd.DeleteObject iObjType, sObjName
+
+Dim sBaseDir As String
+sBaseDir = extractFilePath(CurrentDb().name) & "\src\" & LCase(appGetName())
+
+Dim sFName As String
+
+Select Case iObjType
+  Case acForm
+    sFName = sBaseDir & "\forms\form_" & sObjName & ".txt"
+  Case acReport
+    sFName = sBaseDir & "\reports\report_" & sObjName & ".txt"
+  Case Else
+    Err.Raise 1, , "Unsupported object type"
+End Select
+
+Application.LoadFromText iObjType, sObjName, sFName
+
+
+sysRevertObject = True
+Exit Function
+fout:
+MsgBox Err & " sysRevertObject", vbCrLf & Error$, 16
+Exit Function
+
+End Function
