@@ -1,13 +1,13 @@
 Version =20
 VersionRequired =20
-Checksum =-1738593358
+Checksum =67340051
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
     GridX =60
     GridY =60
     Width =10563
-    ItemSuffix =232
+    ItemSuffix =233
     Left =930
     Top =1260
     Right =13755
@@ -3370,6 +3370,19 @@ Begin Report
                         0xee95fc3fe075854093d0638d51a3a249
                     End
                 End
+                Begin TextBox
+                    Visible = NotDefault
+                    IMESentenceMode =3
+                    Left =8418
+                    Top =28
+                    Width =516
+                    TabIndex =108
+                    Name ="TY_Dis"
+                    ControlSource ="TY_Dis"
+                    GUID = Begin
+                        0x66afd1a788d0374bb32e184cf3bb108e
+                    End
+                End
             End
         End
         Begin BreakFooter
@@ -3783,6 +3796,8 @@ Private blIsSLKlein As Boolean
 Private blIsSLCat As Boolean
 Private blIsVierTussen As Boolean
 Private fPO As TProgrammaOpmaak
+
+Private blProgHideNgAfm As Boolean
 
 Private estRS As Recordset
 Private Const szEmptyLineCM = 0.3
@@ -5228,7 +5243,7 @@ If (blIsUitslagLijst) Then
   End If
 End If
 
-
+blProgHideNgAfm = argProgHideNgAfm
 
 
 fPO = Vraag_ProgrammaOpmaak(argPVFmtWedstrijdnummer, argPVFmtName)
@@ -5292,8 +5307,14 @@ Else
   whereClause = whereClause & " AND ( val(nz([pr_programmanummer])) <= " & val(argSLastProg) & " ) AND (  val(nz([pr_programmanummer])) >= " & val(argSFirstProg) & " ) "
 End If
 
-If (blIsProgramma And argProgHideNgAfm) Then
-  whereClause = whereClause & " AND (nz([ty_dis]) <> """ & DIS_AFM & """ ) AND (nz([ty_dis]) <> """ & DIS_NG & """ ) "
+'If (blIsProgramma And argProgHideNgAfm) Then
+'  whereClause = whereClause & " AND (nz([ty_dis]) <> """ & DIS_AFM & """ ) AND (nz([ty_dis]) <> """ & DIS_NG & """ ) "
+'End If
+
+If (blIsUitslag And blIsOW) Then
+  'Do not move DIS_AFM and DIS_NG swimmers to the end of the list for OW matches.
+  'This is to ensure that  de_int_first will remain an accurate way of telling whether the current dln is the first.
+  Me.GroupLevel(5).ControlSource = "de_reserve"
 End If
 
 
@@ -5453,7 +5474,8 @@ Else
   blCapNrBijKleur = fPO.blOwCapNrBijKleur
   
   If (blIsUitslag Or blIsProgramma) Then
-    Me.Report.GroupLevel(5).KeepTogether = False
+    'modified: correct level corresponds to de_serienummer field.
+    Me.Report.GroupLevel(6).KeepTogether = False
   End If
   
   If (blIsProgramma Or blIsUitslag Or blIsUitslagLijst) Then
@@ -5898,7 +5920,7 @@ Else
 
   
   Dim curDisCode As String
-  If (blIsUitslagLijst Or blIsUitslag) Then
+  If (blIsUitslagLijst Or blIsUitslag Or blIsProgramma) Then
     curDisCode = Nz([ty_dis])
   End If
   
@@ -5959,8 +5981,18 @@ Else
       
       Me.Controls("cnt").Visible = deelnIsValid
     End If
+    
+    
+  ElseIf (blIsProgramma) Then
   
+    If (blProgHideNgAfm) Then
+    
+      If (curDisCode = DIS_AFM) Or (curDisCode = DIS_NG) Then
+        Cancel = True
+      End If
   
+    End If
+    
   End If
   
   
