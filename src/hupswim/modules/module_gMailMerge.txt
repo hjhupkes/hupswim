@@ -77,7 +77,7 @@ End Function
 
 
 Private Function mmPrepareLabels_output(ByRef curNOutput As Long, ByVal nHrz As Integer, ByVal nVert As Integer, ByVal blSkipTopBottom As Boolean, ByVal blSkipLeftRight As Boolean, ByRef rsOut As Recordset, ByRef rsOutDetails As Recordset, _
-  ByVal sName As String, ByVal sAd1 As String, ByVal sAd2 As String, ByVal sPostCode As String, ByVal sCity As String, ByVal sNation As String, _
+  ByVal sName As String, ByVal sAd1 As String, ByVal sAd2 As String, ByVal sPostcode As String, ByVal sCity As String, ByVal sNation As String, _
   ByVal lIdx As Long, ByVal blUseAuxData As Boolean, ByRef auxPropertyNames() As String, ByRef rsAuxData As Recordset) As Boolean
 On Error GoTo fout
 mmPrepareLabels_output = False
@@ -146,14 +146,14 @@ If (Not blUseAuxData) Then
     rsOutDetails("LB_Line3") = hzn(sAd2)
     
     Dim tpLn4 As String
-    tpLn4 = sPostCode & " " & sCity
+    tpLn4 = sPostcode & " " & sCity
     If (sNation <> "NED") And (sNation <> "") Then
       tpLn4 = tpLn4 & " " & sNation
     End If
     
     rsOutDetails("LB_Line4") = hzn(tpLn4)
   Else
-    rsOutDetails("LB_Line3") = hzn(sPostCode & " " & sCity)
+    rsOutDetails("LB_Line3") = hzn(sPostcode & " " & sCity)
     If (sNation <> "NED") And (sNation <> "") Then
       rsOutDetails("LB_Line4") = hzn(sNation)
     Else
@@ -379,7 +379,7 @@ End Function
 
 
 Private Function mmPrepareEnvelopes_output(ByRef curNOutput As Long, ByRef rsOut As Recordset, _
-  ByVal sName As String, ByVal sAd1 As String, ByVal sAd2 As String, ByVal sPostCode As String, ByVal sCity As String, ByVal sNation As String) As Boolean
+  ByVal sName As String, ByVal sAd1 As String, ByVal sAd2 As String, ByVal sPostcode As String, ByVal sCity As String, ByVal sNation As String) As Boolean
 On Error GoTo fout
 mmPrepareEnvelopes_output = False
 
@@ -395,14 +395,14 @@ If (sAd2 <> "") Then
   rsOut("EV_Line3") = hzn(sAd2)
   
   Dim tpLn4 As String
-  tpLn4 = sPostCode & " " & sCity
+  tpLn4 = sPostcode & " " & sCity
   If (sNation <> "NED") And (sNation <> "") Then
     tpLn4 = tpLn4 & " " & sNation
   End If
   
   rsOut("EV_Line4") = hzn(tpLn4)
 Else
-  rsOut("EV_Line3") = hzn(sPostCode & " " & sCity)
+  rsOut("EV_Line3") = hzn(sPostcode & " " & sCity)
   If (sNation <> "NED") And (sNation <> "") Then
     rsOut("EV_Line4") = hzn(sNation)
   Else

@@ -768,7 +768,7 @@ End Function
 
 
 
-Public Function lenHandleCompleteExportSequence(lxfDir As String, lxfFName As String, singleWedOnly As Boolean, wednr As Long, strictLenex As Boolean, lxVersion As Long, expDlns As Boolean, expTd As Boolean) As Boolean
+Public Function lenHandleCompleteExportSequence(lxfDir As String, lxfFName As String, singleWedOnly As Boolean, wednr As Long, strictLenex As Boolean, lxVersion As Long, expDlns As Boolean, expTd As Boolean, ByVal blSuppressFinalDlg As Boolean) As Boolean
 On Error GoTo fout
 lenHandleCompleteExportSequence = False
 
@@ -795,7 +795,9 @@ ElseIf (cntWeds = 1) Then
   msg = msg & vbCrLf & "Er is: " & cntWeds & " wedstrijd geexporteerd."
 End If
 
-MsgBox msg, 64
+If Not blSuppressFinalDlg Then
+  MsgBox msg, 64
+End If
 
 lenHandleCompleteExportSequence = True
 Exit Function

@@ -9,14 +9,18 @@ End Function
 
 
 
-Public Function Vraag_ProgrammaOpmaak() As TProgrammaOpmaak
+Public Function Vraag_ProgrammaOpmaak(ByVal lPVFmtWedstrijdnummer As Long, sPVFmtName As String) As TProgrammaOpmaak
 On Error Resume Next
+
+
 Dim tpNaam As String
-tpNaam = dbGetSettingString("ProgrammaOpmaakNaam")
+If (sPVFmtName = "") Then
+  tpNaam = dbGetSettingString("ProgrammaOpmaakNaam")
+Else
+  tpNaam = sPVFmtName
+End If
 
 Dim tpProgrammaOpmaak As TProgrammaOpmaak
-
-
 
 If ProgrammaOpmaakInlezen(tpNaam, tpProgrammaOpmaak) Then
   Vraag_ProgrammaOpmaak = tpProgrammaOpmaak

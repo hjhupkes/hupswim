@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1642628462
+Checksum =1601734636
 Begin Form
     AllowEditing = NotDefault
     MaxButton = NotDefault
@@ -17,9 +17,9 @@ Begin Form
     Width =9184
     ItemSuffix =53
     Left =9465
-    Top =2460
+    Top =1680
     Right =18930
-    Bottom =10860
+    Bottom =10080
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
         0xc3cf1c003e5fe340
@@ -904,7 +904,7 @@ Dim sStartProg As String, sEndProg As String
     blRestrictRnk = Nz(Me.alleen)
     lMaxRnk = Nz(Me.aantal)
     
-    If Not rxpSetPVOptions(waarde(), False, sStartProg, sEndProg, False, "", blRestrictRnk, lMaxRnk, False) Then
+    If Not rxpSetPVOptions(waarde(), False, sStartProg, sEndProg, False, "", blRestrictRnk, lMaxRnk, False, False, -1, "") Then
       Exit Function
     End If
 
@@ -1004,6 +1004,9 @@ End Sub
 
 Private Sub Form_Activate()
 On Error Resume Next
+rxlGenerateStructure (waarde())
+Me.cmbRptExpList.Requery
+
 DoCmd.Maximize
 End Sub
 
@@ -1016,9 +1019,7 @@ End Sub
 
 Private Sub Form_Load()
 On Error Resume Next
-
 initView
-
 End Sub
 
 

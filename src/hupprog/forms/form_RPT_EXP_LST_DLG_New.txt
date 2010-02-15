@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =349561652
+Checksum =2083327839
 Begin Form
     AllowFilters = NotDefault
     RecordSelectors = NotDefault
@@ -19,11 +19,11 @@ Begin Form
     GridY =10
     Width =5745
     DatasheetFontHeight =10
-    ItemSuffix =35
-    Left =4905
-    Top =1530
-    Right =12090
-    Bottom =7080
+    ItemSuffix =39
+    Left =1710
+    Top =120
+    Right =8895
+    Bottom =5670
     DatasheetGridlinesColor =12632256
     RecSrcDt = Begin
         0x9ff7c5f8d21ae340
@@ -191,7 +191,7 @@ Begin Form
             End
         End
         Begin Section
-            Height =2948
+            Height =3798
             BackColor =-2147483633
             Name ="Detail"
             Begin
@@ -201,7 +201,7 @@ Begin Form
                     Left =132
                     Top =1204
                     Width =5499
-                    Height =1684
+                    Height =2479
                     TabIndex =1
                     Name ="optAction"
                     AfterUpdate ="[Event Procedure]"
@@ -289,10 +289,10 @@ Begin Form
                                     OverlapFlags =87
                                     Left =705
                                     Top =2550
-                                    Width =3555
+                                    Width =2250
                                     Height =240
                                     Name ="Label34"
-                                    Caption ="Standaard lijst dupliceren ( CRs en snelste tijden )"
+                                    Caption ="Standaard lijst aanmaken"
                                     GUID = Begin
                                         0xa027c80690f0ba439ef5795d3b6e42ee
                                     End
@@ -365,6 +365,76 @@ Begin Form
                         End
                     End
                 End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =215
+                    IMESentenceMode =3
+                    Left =1700
+                    Top =2948
+                    Width =2721
+                    TabIndex =3
+                    Name ="fldNewDir"
+                    GUID = Begin
+                        0x38688d8414d23d4b94400c43028df385
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =215
+                            Left =793
+                            Top =2948
+                            Width =795
+                            Height =240
+                            Name ="Label36"
+                            Caption ="Directory: "
+                            GUID = Begin
+                                0x8db5f09d8a9c7c4e8a91732fa64258c6
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =215
+                    Left =793
+                    Top =3318
+                    TabIndex =4
+                    Name ="fldNewMinimal"
+                    DefaultValue ="False"
+                    GUID = Begin
+                        0x6eb3cca41e362443871b60ae3a84b5a8
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =1020
+                            Top =3285
+                            Width =3165
+                            Height =240
+                            Name ="Label38"
+                            Caption ="Minimale lijst (voor gebruik tijdens wedstrijd) "
+                            GUID = Begin
+                                0xda93cb553408264c98ab7ebfb95ade73
+                            End
+                        End
+                    End
+                End
+                Begin CommandButton
+                    TabStop = NotDefault
+                    OverlapFlags =215
+                    Left =4478
+                    Top =2948
+                    Width =470
+                    FontWeight =700
+                    TabIndex =5
+                    ForeColor =0
+                    Name ="btnFindDir"
+                    Caption ="- - -"
+                    OnClick ="[Event Procedure]"
+                    FontName ="System"
+                    GUID = Begin
+                        0x08960af813a9254bb28b566a8806b5a3
+                    End
+                End
             End
         End
         Begin FormFooter
@@ -424,6 +494,8 @@ End Sub
 Private Sub updateView()
 On Error Resume Next
 Me.cmbCurList.Enabled = (optAction.value = optDuplicate.OptionValue)
+Me.fldNewDir.Enabled = (optAction.value = optStd.OptionValue)
+Me.fldNewMinimal.Enabled = (optAction.value = optStd.OptionValue)
 End Sub
 
 
@@ -438,10 +510,16 @@ Dim blDuplicate As Boolean
 Dim lDupObjID As Long
 Dim blCreateStandard As Boolean
 
+Dim blNewIsMinimal As Boolean
+Dim sNewDir As String
+
 sNewName = Nz(Me.fldName)
 blDuplicate = (Nz(Me.optAction.value) = Me.optDuplicate.OptionValue)
 lDupObjID = Nz(Me.cmbCurList, -1)
 blCreateStandard = (Nz(Me.optAction.value) = Me.optStd.OptionValue)
+
+blNewIsMinimal = Nz(Me.fldNewMinimal)
+sNewDir = Nz(Me.fldNewDir)
 
 If (sNewName = "") Then
   Err.Raise 1, , "Kies een naam voor de nieuwe lijst."
@@ -453,6 +531,9 @@ If (blDuplicate) Then
   End If
 End If
 
+If (blCreateStandard) And (sNewDir = "") Then
+  Err.Raise 1, , "Kies een directory"
+End If
 
 If (InStr(1, sNewName, "\") > 0) Then
   Err.Raise 1, , "Naam mag geen \ bevatten"
@@ -477,6 +558,8 @@ rs.Edit
   rs("RXLN_CreateStandard") = blCreateStandard
   rs("RXLN_Duplicate") = blDuplicate
   rs("RXLN_Duplicate_OBJ_ID") = lDupObjID
+  rs("RXLN_STD_Directory") = hzn(sNewDir)
+  rs("RXLN_STD_LiveTiming") = blNewIsMinimal
   rs("RXLN_OK") = True
 
 rs.Update
@@ -499,6 +582,15 @@ Private Sub btnCancel_Click()
 On Error Resume Next
 DoCmd.Close
 
+End Sub
+
+Private Sub btnFindDir_Click()
+On Error Resume Next
+Dim sDir As String
+sDir = GetDir()
+If (sDir <> "") Then
+  Me.fldNewDir = sDir
+End If
 End Sub
 
 Private Sub btnOK_Click()

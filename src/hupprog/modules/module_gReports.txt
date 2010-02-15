@@ -791,9 +791,9 @@ On Error GoTo fout
 rptGetDimensions_perform = False
 
 ' Our Page properties
-Dim LM As Integer, RM As Integer, tm As Integer
-Dim BM As Integer, O As Byte, PS As Integer
-Dim UW As Integer, UH As Integer
+Dim iLM As Integer, iRM As Integer, iTM As Integer
+Dim iBM As Integer, bO As Byte, iPS As Integer
+Dim iUW As Integer, iUH As Integer
        
 
 Dim oDevString As str_DEVMODE
@@ -809,37 +809,37 @@ oDevString.RGB = rpt.PrtDevMode
 LSet oDM = oDevString
 
 Dim oPrtMipString As str_PRTMIP
-Dim opm As type_PRTMIP
+Dim oPrtOpm As type_PRTMIP
 
 oPrtMipString.strRGB = rpt.PrtMip
-LSet opm = oPrtMipString
+LSet oPrtOpm = oPrtMipString
 
 
 
 
-O = oDM.intOrientation
-PS = oDM.intPaperSize
-UW = oDM.intPaperWidth
-UH = oDM.intPaperLength
+bO = oDM.intOrientation
+iPS = oDM.intPaperSize
+iUW = oDM.intPaperWidth
+iUH = oDM.intPaperLength
 
-LM = opm.xLeftMargin
-RM = opm.xRightMargin
-tm = opm.yTopMargin
-BM = opm.yBotMargin
+iLM = oPrtOpm.xLeftMargin
+iRM = oPrtOpm.xRightMargin
+iTM = oPrtOpm.yTopMargin
+iBM = oPrtOpm.yBotMargin
 
     
     
 ' Copy values to our local Properties
 ' Must do orientation first!
 
-rptExpRTFX_setOrientation rtfX, O
-rptExpRTFX_setTopMargin rtfX, tm
-rptExpRTFX_setBottomMargin rtfX, BM
-rptExpRTFX_setRightMargin rtfX, RM
-rptExpRTFX_setLeftMargin rtfX, LM
-rptExpRTFX_setPaperSize rtfX, PS
-rptExpRTFX_setUserPaperWidth rtfX, UW
-rptExpRTFX_setUserPaperHeight rtfX, UH
+rptExpRTFX_setOrientation rtfX, bO
+rptExpRTFX_setTopMargin rtfX, iTM
+rptExpRTFX_setBottomMargin rtfX, iBM
+rptExpRTFX_setRightMargin rtfX, iRM
+rptExpRTFX_setLeftMargin rtfX, iLM
+rptExpRTFX_setPaperSize rtfX, iPS
+rptExpRTFX_setUserPaperWidth rtfX, iUW
+rptExpRTFX_setUserPaperHeight rtfX, iUH
 
 
 
@@ -1066,10 +1066,10 @@ If t > 32768 Then t = 0
 rtfX.mTopMargin = t
 End Sub
 
-Private Sub rptExpRTFX_setBottomMargin(ByRef rtfX As RTFX_INFO, ByVal B As Integer)
-If B < 0 Then B = 0
-If B > 32768 Then B = 0
-rtfX.mBottomMargin = B
+Private Sub rptExpRTFX_setBottomMargin(ByRef rtfX As RTFX_INFO, ByVal b As Integer)
+If b < 0 Then b = 0
+If b > 32768 Then b = 0
+rtfX.mBottomMargin = b
 End Sub
 
 

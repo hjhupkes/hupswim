@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =894125441
+Checksum =-897184918
 Begin Report
     LayoutForPrint = NotDefault
     DefaultView =0
@@ -12,10 +12,10 @@ Begin Report
     Width =10081
     DatasheetFontHeight =10
     ItemSuffix =3
-    Left =270
-    Top =600
-    Right =12135
-    Bottom =5085
+    Left =4980
+    Top =25305
+    Right =15210
+    Bottom =25455
     DatasheetBackColor =16776960
     DatasheetGridlinesColor =65280
     ShortcutMenuBar ="gShortcutRpt"
@@ -213,11 +213,22 @@ End Function
 Private Sub Report_Open(Cancel As Integer)
 On Error Resume Next
 
+Dim rxpPnt As RXP_Pointer
+
+Dim iDummy As Integer
+
+If Not expPV_getStats(iDummy, rxpPnt) Then
+  Exit Sub
+End If
 
 
+Dim argPVFmtWedstrijdnummer As Long, argPVFmtName As String
 
-apply_Programmaopmaak Vraag_ProgrammaOpmaak()
+argPVFmtWedstrijdnummer = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_WED_NR))
+argPVFmtName = rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_NAME)
 
+
+apply_Programmaopmaak Vraag_ProgrammaOpmaak(argPVFmtWedstrijdnummer, argPVFmtName)
 
 
 On Error Resume Next

@@ -482,8 +482,8 @@ rxpRS.Update
 
 End Sub
 
-Public Function rxpFormatBoolean(ByVal B As Boolean) As String
-If (B) Then
+Public Function rxpFormatBoolean(ByVal b As Boolean) As String
+If (b) Then
   rxpFormatBoolean = "true"
 Else
   rxpFormatBoolean = "false"
@@ -1974,4 +1974,55 @@ Exit Function
 'debug
 On Error GoTo 0
 Resume
+End Function
+
+
+
+Public Function rxpInsertFile(ByVal fNr As Integer, ByVal sFileToIns As String) As Boolean
+On Error GoTo fout
+rxpInsertFile = False
+
+If Not FileExists(sFileToIns) Then
+  Err.Raise 1, , "Het bestand: " & vbCrLf & sFileToIns & vbCrLf & "kon niet worden gevonden."
+End If
+
+
+
+Dim blInsFileOpen As Boolean
+blInsFileOpen = False
+
+Dim fInsNr As Integer
+fInsNr = FreeFile
+
+
+Open sFileToIns For Input As #fInsNr
+blInsFileOpen = True
+
+While Not EOF(fInsNr)
+  Dim tpS As String
+  Line Input #fInsNr, tpS
+  
+  Print #fNr, tpS
+
+Wend
+
+Close #fInsNr
+blInsFileOpen = False
+
+
+rxpInsertFile = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "rxpInsertFile", errInf
+
+If (blInsFileOpen) Then
+  Close #fInsNr
+End If
+
+appDisplayError errInf
+Exit Function
+
 End Function

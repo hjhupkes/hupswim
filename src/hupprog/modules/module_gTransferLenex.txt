@@ -222,9 +222,9 @@ If (s = "TRUE" Or s = "true" Or s = "yes" Or s = "-1") Then
   lenParseBoolean = True
 End If
 End Function
-Private Function lenFormatBoolean(B As Boolean) As String
+Private Function lenFormatBoolean(b As Boolean) As String
 On Error Resume Next
-If (B) Then
+If (b) Then
   lenFormatBoolean = "true"
 Else
   lenFormatBoolean = "false"
@@ -2726,14 +2726,14 @@ lenLoadLXContact = False
 'init contact
 cont.adres = ""
 cont.adres2 = ""
-cont.Email = ""
+cont.sEmail = ""
 cont.fax = ""
 cont.internet = ""
 cont.mobiel = ""
 cont.naam = ""
 cont.nation = ""
-cont.Plaats = ""
-cont.Postcode = ""
+cont.sPlaats = ""
+cont.sPostcode = ""
 cont.state = ""
 cont.tel = ""
 
@@ -2743,14 +2743,14 @@ If (cntID >= 0) Then
   If (Not cnt.NoMatch) Then
     cont.adres = Nz(cnt("LEN_STREET"))
     cont.adres2 = Nz(cnt("LEN_STREET2"))
-    cont.Email = Nz(cnt("LEN_EMAIL"))
+    cont.sEmail = Nz(cnt("LEN_EMAIL"))
     cont.fax = Nz(cnt("LEN_FAX"))
     cont.internet = Nz(cnt("LEN_INTERNET"))
     cont.mobiel = Nz(cnt("LEN_MOBILE"))
     cont.naam = Nz(cnt("LEN_NAME"))
     cont.nation = Nz(cnt("LEN_COUNTRY"))
-    cont.Plaats = Nz(cnt("LEN_CITY"))
-    cont.Postcode = Nz(cnt("LEN_ZIP"))
+    cont.sPlaats = Nz(cnt("LEN_CITY"))
+    cont.sPostcode = Nz(cnt("LEN_ZIP"))
     cont.state = Nz(cnt("LEN_STATE"))
     cont.tel = Nz(cnt("LEN_PHONE"))
   End If
@@ -2772,9 +2772,9 @@ lenAppendLXContact = False
 
 cnt.AddNew
   cnt("ID_CONTACT") = cntID
-  cnt("LEN_CITY") = hzn(cont.Plaats)
+  cnt("LEN_CITY") = hzn(cont.sPlaats)
   cnt("LEN_COUNTRY") = hzn(cont.nation)
-  cnt("LEN_EMAIL") = hzn(cont.Email)
+  cnt("LEN_EMAIL") = hzn(cont.sEmail)
   cnt("LEN_FAX") = hzn(cont.fax)
   cnt("LEN_INTERNET") = hzn(cont.internet)
   cnt("LEN_MOBILE") = hzn(cont.mobiel)
@@ -2783,7 +2783,7 @@ cnt.AddNew
   cnt("LEN_STATE") = hzn(cont.state)
   cnt("LEN_STREET") = hzn(cont.adres)
   cnt("LEN_STREET2") = hzn(cont.adres2)
-  cnt("LEN_ZIP") = hzn(cont.Postcode)
+  cnt("LEN_ZIP") = hzn(cont.sPostcode)
 cnt.Update
 
 lenAppendLXContact = True
@@ -4573,7 +4573,7 @@ Do Until tma.EOF
   Dim blProcessTime As Boolean
   blProcessTime = True
   
-  Dim sAf As String
+  Dim saf As String
   Dim sSl As String
     
     
@@ -4586,7 +4586,7 @@ Do Until tma.EOF
     blProcessTime = False
   Else
     Dim sDummy As String
-    If Not lenLoadLXSwimStyle(swst, lSwstXID, sAf, sSl, sDummy) Then
+    If Not lenLoadLXSwimStyle(swst, lSwstXID, saf, sSl, sDummy) Then
       Exit Function
     End If
   End If
@@ -4676,7 +4676,7 @@ Do Until tma.EOF
     
       tmaOutp("TD_tijd") = swt
       
-      tmaOutp("TD_Afstand") = hzn(sAf)
+      tmaOutp("TD_Afstand") = hzn(saf)
       tmaOutp("TD_Slag") = hzn(sSl)
     
       Dim dis As String
@@ -6370,14 +6370,14 @@ constructorContactID = maxUsedContID + 1
 
 contact.adres = "Kon. Emmaplantsoen 4"
 contact.adres2 = ""
-contact.Email = "hjhupkes@gmail.com"
+contact.sEmail = "hjhupkes@gmail.com"
 contact.fax = ""
 contact.internet = "http://home.kpn.nl/wimhupke/hupsoft"
 contact.mobiel = ""
 contact.naam = "Hermen Jan Hupkes"
 contact.nation = "NL"
-contact.Plaats = "Rijnsburg"
-contact.Postcode = "2231 TZ"
+contact.sPlaats = "Rijnsburg"
+contact.sPostcode = "2231 TZ"
 contact.state = ""
 contact.tel = "071-5801854"
 
