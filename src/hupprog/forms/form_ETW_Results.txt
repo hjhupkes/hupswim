@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-184068101
+Checksum =-829334877
 Begin Form
     AllowFilters = NotDefault
     Modal = NotDefault
@@ -26,16 +26,17 @@ Begin Form
     DatasheetBackColor =16776960
     DatasheetGridlinesColor =65280
     RecSrcDt = Begin
-        0x778df99aaf9ee340
+        0x8a497eaf91a3e340
     End
     RecordSource ="SELECT hpoETWResSeries.*, [pr_afstand] & \" \" & [pr_slag] & \" \" & [pr_categor"
         "ie] AS progDes, fmtETWValStatus(nz([etws_val_status])) AS fmtValStatus, IIf([etw"
         "s_isNew],\"Nieuwe resultaten\",\"Reeds geimporteerd\") AS fmtSerStatus, fmtETWVa"
         "lIsComplete(nz([etws_val_isComplete],True)) AS fmtCompleteStatus FROM hpoETWResS"
-        "eries LEFT JOIN dtProgramma ON (hpoETWResSeries.ETWS_Wedstrijdnummer = dtProgram"
-        "ma.PR_Wedstrijdnummer) AND (hpoETWResSeries.ETWS_Programmanummer = dtProgramma.P"
-        "R_Programmanummer) ORDER BY hpoETWResSeries.ETWS_Wedstrijdnummer, Val(nz([ETWS_P"
-        "rogrammanummer])), hpoETWResSeries.ETWS_Programmanummer;"
+        "eries LEFT JOIN dtProgramma ON (hpoETWResSeries.ETWS_Programmanummer = dtProgram"
+        "ma.PR_Programmanummer) AND (hpoETWResSeries.ETWS_Wedstrijdnummer = dtProgramma.P"
+        "R_Wedstrijdnummer) ORDER BY hpoETWResSeries.ETWS_Wedstrijdnummer, Val(nz([ETWS_P"
+        "rogrammanummer])), hpoETWResSeries.ETWS_Programmanummer, hpoETWResSeries.ETWS_Se"
+        "rienummer;"
     OnOpen ="[Event Procedure]"
     DatasheetFontName ="Arial"
     PrtMip = Begin
@@ -393,7 +394,7 @@ If (blIsUnimportedSeriesMode) Then
   sql = sql & " Where not etws_isImported "
 End If
 
-sql = sql & "ORDER BY ETWS_Wedstrijdnummer, Val(nz([ETWS_Programmanummer])), ETWS_Programmanummer; "
+sql = sql & "ORDER BY ETWS_Wedstrijdnummer, Val(nz([ETWS_Programmanummer])), ETWS_Programmanummer, ETWS_Serienummer; "
 
 
 Me.RecordSource = sql

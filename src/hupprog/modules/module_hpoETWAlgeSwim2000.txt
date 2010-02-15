@@ -1,0 +1,1992 @@
+Option Compare Database
+Option Explicit
+
+
+
+Public Type ALGE_CFG_INFO
+  sDBFName As String
+  blUseTurnPlates As Boolean
+End Type
+
+Private Type ALGE_OP_INFO
+  sExpProgs() As String
+  lExpProgAlgIDs() As Long
+  nExpProgs As Integer
+End Type
+
+
+     
+
+
+
+Public Function etwAlge2000PrepWriteStartlist(ByRef wedInf As WED_BASIC_INFO, ByRef blIsCancelled) As Boolean
+On Error GoTo fout
+etwAlge2000PrepWriteStartlist = False
+
+blIsCancelled = False
+
+Dim algCfg As ALGE_CFG_INFO
+If Not etwAlge2000ReadInfo(algCfg, wedInf.wednr) Then
+ appRaiseSilentError
+End If
+
+If (algCfg.sDBFName = "") Then
+  Err.Raise 1, , "Er is nog geen Alge-Swim2000 wedstrijd ingesteld."
+ElseIf (Not lanFileExists(algCfg.sDBFName, 500)) Then
+  Err.Raise 1, , "De Alge-Swim2000 wedstrijd: " & vbCrLf & algCfg.sDBFName & vbCrLf & "kon niet worden gevonden."
+End If
+
+Dim msg As String
+msg = "De deelnemers en programmagegevens zullen worden weggeschreven naar de directory: " & _
+  vbCrLf & algCfg.sDBFName & vbCrLf & vbCrLf & "Zorg ervoor dat het Alge Swim2000 Timing-Manager programma op de ETW computer is afgesloten." & _
+  vbCrLf & vbCrLf & "Start na de export het Alge Swim2000 Timing-Manager programma weer op om de nieuwe gegevens in te laden." & _
+  vbCrLf & vbCrLf & "Wilt u doorgaan?"
+  
+If (MsgBox(msg, vbOKCancel + vbQuestion) = vbCancel) Then
+  blIsCancelled = True
+End If
+  
+
+
+etwAlge2000PrepWriteStartlist = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "etwAlge2000PrepWriteStartlist", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+Public Function etwAlge2000WriteStartlist(ByRef wedInf As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+etwAlge2000WriteStartlist = False
+
+Dim cfgInf As ALGE_CFG_INFO, opInf As ALGE_OP_INFO
+
+'Do not need to read operating info; it will be rewritten
+If Not algReadInfo(cfgInf, False, opInf, wedInf.wednr) Then
+  Exit Function
+End If
+
+If Not algExportMatch(cfgInf.sDBFName, wedInf, opInf) Then
+  Exit Function
+End If
+
+'Now store the operating info.
+If Not algWriteInfo(False, cfgInf, True, opInf, wedInf.wednr) Then
+  Exit Function
+End If
+
+
+etwAlge2000WriteStartlist = True
+Exit Function
+
+fout:
+MsgBox Err & " etwAlge2000WriteStartlist" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Function etwAlge2000CheckResInterface(ByRef wedInf As WED_BASIC_INFO, ByRef blIsProblem As Boolean, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+etwAlge2000CheckResInterface = False
+
+
+blIsProblem = False
+sErrMsg = ""
+
+'Check to see if the file lstrslt.txt can be found in the ares-directory.
+Dim algCfg As ALGE_CFG_INFO
+If Not etwAlge2000ReadInfo(algCfg, wedInf.wednr) Then
+ appRaiseSilentError
+End If
+
+Dim fNameToCheck As String
+fNameToCheck = algCfg.sDBFName
+
+If (algCfg.sDBFName = "") Then
+  blIsProblem = True
+  sErrMsg = "Er is nog geen Alge-Swim2000 wedstrijd ingesteld."
+ElseIf (Not lanFileExists(fNameToCheck, 500)) Then
+  blIsProblem = True
+  sErrMsg = "De Alge-Swim2000 wedstrijd: " & vbCrLf & algCfg.sDBFName & vbCrLf & "kon niet worden gevonden."
+End If
+
+
+etwAlge2000CheckResInterface = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "etwAlge2000CheckResInterface", errInf
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+Public Function etwAlge2000ReadResults(ByRef wedInf As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+etwAlge2000ReadResults = False
+
+Dim cfgInf As ALGE_CFG_INFO, opInf As ALGE_OP_INFO
+
+If Not algReadInfo(cfgInf, True, opInf, wedInf.wednr) Then
+  Exit Function
+End If
+
+If Not algImportResults(wedInf, cfgInf, opInf) Then
+  Exit Function
+End If
+
+
+etwAlge2000ReadResults = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "etwAlge2000ReadResults", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Public Function etwAlge2000ReadInfo(ByRef algCfgInfo As ALGE_CFG_INFO, ByVal lWedNr As Long) As Boolean
+Dim opInfo As ALGE_OP_INFO
+etwAlge2000ReadInfo = algReadInfo(algCfgInfo, False, opInfo, lWedNr)
+End Function
+
+Public Function etwAlge2000WriteInfo(ByRef algCfgInfo As ALGE_CFG_INFO, ByVal lWedNr As Long) As Boolean
+Dim opInfo As ALGE_OP_INFO
+etwAlge2000WriteInfo = algWriteInfo(True, algCfgInfo, False, opInfo, lWedNr)
+End Function
+
+
+Public Function etwAlge2000ClearAllResultsFromETW(ByVal lWedNr As Long) As Boolean
+On Error GoTo fout
+etwAlge2000ClearAllResultsFromETW = False
+
+Dim cfgInf As ALGE_CFG_INFO, opInf As ALGE_OP_INFO
+
+If Not algReadInfo(cfgInf, True, opInf, lWedNr) Then
+  appRaiseSilentError
+End If
+
+Dim sDBFileName As String
+sDBFileName = cfgInf.sDBFName
+
+If Not FileExists(sDBFileName) Then
+  Err.Raise 1, , "Kon de Alge Swim 2000 wedstrijd: " & vbCrLf & sDBFileName & vbCrLf & "niet vinden."
+End If
+
+
+If Not algLink(sDBFileName, False, True) Then
+  appRaiseSilentError
+End If
+
+DoCmd.SetWarnings False
+
+Dim sql As String
+sql = "delete * from __etw__alge__times"
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+algCleanLinks
+
+
+etwAlge2000ClearAllResultsFromETW = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "etwAlge2000ClearAllResultsFromETW", errInf
+
+DoCmd.SetWarnings True
+algCleanLinks
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function algReadInfo(ByRef cfgInfo As ALGE_CFG_INFO, ByVal blReadOpInfo As Boolean, ByRef opInfo As ALGE_OP_INFO, ByVal wednr As Long) As Boolean
+On Error GoTo fout
+algReadInfo = False
+
+cfgInfo.sDBFName = ""
+
+If (blReadOpInfo) Then
+  opInfo.nExpProgs = 0
+End If
+
+
+Dim dsData As DIR_SERVER_DATA
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+
+Dim blDummy As Boolean, lDummy As Long
+If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\CFG\ALGE_SWIM2000_DB", blDummy, cfgInfo.sDBFName, lDummy) Then
+  appRaiseSilentError
+End If
+
+Dim sPropName As String, sPropValue As String
+sPropName = "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\CFG\USE_TURN_PLATES"
+
+If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropValue, lDummy) Then
+  appRaiseSilentError
+End If
+cfgInfo.blUseTurnPlates = rxpParseBoolean(sPropValue)
+
+
+If (blReadOpInfo) Then
+  Dim sVal As String
+  
+  sVal = ""
+  If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\OP\EXP_PROGS\N_EXP_PROGS", blDummy, sVal, lDummy) Then
+    Exit Function
+  End If
+  
+  If (sVal <> "") Then
+    Dim nExpProgs As Integer
+    nExpProgs = CInt(sVal)
+    
+    
+    ReDim opInfo.sExpProgs(nExpProgs)
+    ReDim opInfo.lExpProgAlgIDs(nExpProgs)
+    
+    Dim i As Integer
+    For i = 0 To nExpProgs - 1
+      Dim tpProg As String, tpProgAlgID As Long
+      sVal = ""
+      If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\OP\EXP_PROGS\PROG_" & i, blDummy, sVal, lDummy) Then
+        Exit Function
+      End If
+      tpProg = sVal
+      
+      sVal = ""
+      If Not dsLookupPropertyByName(dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\OP\EXP_PROGS\PROG_ALGE_ID_" & i, blDummy, sVal, lDummy) Then
+        Exit Function
+      End If
+      tpProgAlgID = CLng(val(sVal))
+      
+      Dim insPos As Integer
+      insPos = insString(tpProg, opInfo.nExpProgs, opInfo.sExpProgs)
+      shiftRightLong insPos, 1, opInfo.nExpProgs - 1, opInfo.lExpProgAlgIDs
+      opInfo.lExpProgAlgIDs(insPos) = tpProgAlgID
+      
+    Next i
+  
+  End If
+  
+End If 'if blReadOpInfo
+
+dsClean dsData
+
+algReadInfo = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "algReadInfo", errInf
+
+dsClean dsData
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function algWriteInfo(ByVal blWriteCfgInfo As Boolean, ByRef cfgInfo As ALGE_CFG_INFO, ByVal blWriteOpInfo As Boolean, ByRef opInfo As ALGE_OP_INFO, ByVal wednr As Long) As Boolean
+On Error GoTo fout
+algWriteInfo = False
+
+Dim dsData As DIR_SERVER_DATA
+If Not dsInit(dsData, False, "") Then
+  appRaiseSilentError
+End If
+
+Dim blDummy As Boolean, lDummy As Long
+
+If (blWriteCfgInfo) Then
+  dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\CFG\ALGE_SWIM2000_DB", cfgInfo.sDBFName
+  dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\CFG\USE_TURN_PLATES", rxpFormatBoolean(cfgInfo.blUseTurnPlates)
+End If
+
+If (blWriteOpInfo) Then
+  dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\OP\EXP_PROGS\N_EXP_PROGS", opInfo.nExpProgs
+  Dim i As Integer
+  For i = 0 To opInfo.nExpProgs - 1
+    dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\OP\EXP_PROGS\PROG_" & i, opInfo.sExpProgs(i)
+    dsSetString dsData, "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\ALGE2000\OP\EXP_PROGS\PROG_ALGE_ID_" & i, opInfo.lExpProgAlgIDs(i)
+  Next i
+End If
+
+dsClean dsData
+
+algWriteInfo = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "algWriteInfo", errInf
+
+dsClean dsData
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+'For the id codes in ares:
+'Individual swimmers: ares_bibID =  4* swimmer_id
+'Relay teams: ares_bibID = 4* relay_id + 1
+
+
+'routines for interfacing with the alge swim2000 meets.
+
+Private Sub algCleanLinks()
+On Error Resume Next
+DoCmd.DeleteObject acTable, "__etw__alge__meet"
+DoCmd.DeleteObject acTable, "__etw__alge__sessions"
+DoCmd.DeleteObject acTable, "__etw__alge__prog"
+DoCmd.DeleteObject acTable, "__etw__alge__class"
+DoCmd.DeleteObject acTable, "__etw__alge__prog_class"
+DoCmd.DeleteObject acTable, "__etw__alge__swimmers"
+DoCmd.DeleteObject acTable, "__etw__alge__entries"
+DoCmd.DeleteObject acTable, "__etw__alge__times"
+
+DoCmd.DeleteObject acTable, "__etw__alge__toclear__bewtoanschlage"
+DoCmd.DeleteObject acTable, "__etw__alge__toclear__kombi"
+DoCmd.DeleteObject acTable, "__etw__alge__toclear__rekorde"
+DoCmd.DeleteObject acTable, "__etw__alge__toclear__ranking"
+DoCmd.DeleteObject acTable, "__etw__alge__toclear__punktecup"
+DoCmd.DeleteObject acTable, "__etw__alge__toclear__team"
+DoCmd.DeleteObject acTable, "__etw__alge__toclear__zwischenzeiten"
+
+End Sub
+
+
+Private Function algLink(ByVal sDBFName As String, ByVal blLinkDlns As Boolean, ByVal blLinkTimes As Boolean) As Boolean
+On Error GoTo fout
+algLink = False
+
+algCleanLinks
+
+If (blLinkDlns) Then
+  appSafeLinkTable sDBFName, "Allgemein", "__etw__alge__meet"
+  appSafeLinkTable sDBFName, "Wettkampfgericht", "__etw__alge__sessions"
+  appSafeLinkTable sDBFName, "Klassen", "__etw__alge__class"
+  appSafeLinkTable sDBFName, "BewToKlassen", "__etw__alge__prog_class"
+  appSafeLinkTable sDBFName, "Teilnehmer", "__etw__alge__swimmers"
+  appSafeLinkTable sDBFName, "Meldeliste", "__etw__alge__entries"
+  
+  appSafeLinkTable sDBFName, "bewToAnschlage", "__etw__alge__toclear__bewtoanschlage"
+  appSafeLinkTable sDBFName, "kombi", "__etw__alge__toclear__kombi"
+  appSafeLinkTable sDBFName, "rekorde", "__etw__alge__toclear__rekorde"
+  appSafeLinkTable sDBFName, "punktecup", "__etw__alge__toclear__punktecup"
+  appSafeLinkTable sDBFName, "team", "__etw__alge__toclear__team"
+  appSafeLinkTable sDBFName, "zwischenzeiten", "__etw__alge__toclear__zwischenzeiten"
+  
+  'Note: table ranking is not always present, therefore ignore it
+End If
+
+If (blLinkDlns Or blLinkTimes) Then
+  appSafeLinkTable sDBFName, "Bewerbe", "__etw__alge__prog"
+End If
+
+If (blLinkTimes) Then
+  appSafeLinkTable sDBFName, "Timing", "__etw__alge__times"
+End If
+
+algLink = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "algLink", errInf
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function algClearAllDlns() As Boolean
+On Error GoTo fout
+algClearAllDlns = False
+
+DoCmd.SetWarnings False
+
+Dim sql As String
+
+sql = "delete * from __etw__alge__meet"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__sessions"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__prog"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__class"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__prog_class"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__swimmers"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__entries"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__toclear__bewtoanschlage"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__toclear__kombi"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__toclear__rekorde"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__toclear__punktecup"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__toclear__team"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__toclear__zwischenzeiten"
+DoCmd.RunSQL sql
+
+
+
+DoCmd.SetWarnings True
+
+algClearAllDlns = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "algClearAllDlns", errInf
+
+DoCmd.SetWarnings True
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function algExportMatch_writeBasicInfo(ByRef wedInf As WED_BASIC_INFO, ByRef lClassID As Long) As Boolean
+On Error GoTo fout
+algExportMatch_writeBasicInfo = False
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset(TNM_WED)
+skWed.Index = "PrimaryKey"
+
+skWed.Seek "=", wedInf.wednr
+If skWed.NoMatch Then
+  Err.Raise 1, , "Wedstrijd nr: " & wedInf.wednr & " werd niet gevonden."
+End If
+
+
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset("__etw__alge__meet")
+rs.AddNew
+  rs("Bahnen") = skWed("WE_Aantal_Banen")
+  rs("Lange") = wedInf.baan
+  rs("WK_Name") = hzn(Left(wedInf.des, 100))
+  rs("Ort") = hzn(Left(wedInf.Plaats, 100))
+  rs("Bad") = hzn(Left(Nz(skWed("WE_Zwembad")), 30))
+rs.Update
+appCleanRS rs
+
+Set rs = CurrentDb().OpenRecordset("__etw__alge__sessions")
+rs.AddNew
+  rs("WK_Abschnitt") = 1
+  If (lenDateIsValid(wedInf.date)) Then
+    rs("Datum") = wedInf.date
+  End If
+rs.Update
+appCleanRS rs
+
+Set rs = CurrentDb().OpenRecordset("__etw__alge__class")
+rs.AddNew
+  rs("Klassenname") = "Algemeen"
+  rs("Anfang") = 1900
+  rs("Ende") = 2100
+  lClassID = Nz(rs("Klassennr"))
+rs.Update
+appCleanRS rs
+
+
+
+algExportMatch_writeBasicInfo = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "algExportMatch_writeBasicInfo", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+'write the match in the transfer tables to the ares21 directory
+Private Function algExportMatch(ByVal sDBFileName As String, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ALGE_OP_INFO) As Boolean
+On Error GoTo fout
+algExportMatch = False
+
+
+If Not FileExists(sDBFileName) Then
+  Err.Raise 1, , "De Alge Swim2000 wedstrijd: " & vbCrLf & sDBFileName & vbCrLf & "bestaat niet." & vbCrLf & "Kies een geldige Alge Swim2000 wedstrijd."
+End If
+
+If Not algLink(sDBFileName, True, False) Then
+  appRaiseSilentError
+End If
+
+If Not algClearAllDlns() Then
+  appRaiseSilentError
+End If
+
+
+Dim lClassAlgID As Long
+
+If Not algExportMatch_writeBasicInfo(wedInf, lClassAlgID) Then
+  appRaiseSilentError
+End If
+
+Dim dsTmp As DIR_SERVER_DATA
+
+If Not dsInit(dsTmp, True, "__etw__alge_xid_conv_table") Then
+  appRaiseSilentError
+End If
+
+
+If Not algExportMatch_writeCompetitors(dsTmp) Then
+  appRaiseSilentError
+End If
+
+
+Dim lProgXIDs(0 To MAX_N_PROGS) As Long
+
+If Not algExportMatch_scanProgs(opInf, lProgXIDs) Then
+  appRaiseSilentError
+End If
+
+If Not algExportMatch_writeDeelnemers(lClassAlgID, dsTmp, opInf, lProgXIDs) Then
+  appRaiseSilentError
+End If
+
+If Not algExportMatch_writeProgramma(lClassAlgID, wedInf, opInf, lProgXIDs) Then
+  appRaiseSilentError
+End If
+
+algCleanLinks
+dsClean dsTmp
+
+algExportMatch = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "algExportMatch", errInf
+
+algCleanLinks
+dsClean dsTmp
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+
+Private Function algGetGesCode(ByVal sGes As String) As Integer
+If (sGes = "M") Then
+  algGetGesCode = 1
+Else
+  algGetGesCode = 0
+End If
+End Function
+
+
+
+
+
+Private Function algExportMatch_writeCompetitors(ByRef dsTmp As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+algExportMatch_writeCompetitors = False
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+skVer.Index = "PrimaryKey"
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("__etw__alge__swimmers")
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpLastName As String, tpVerID As Long
+  Dim tpFirstName As String, tpYOB As Long, tpVer As String, tpCat As String
+  Dim tpNation As String
+  
+  tpVerID = Nz(rs("ZW_VER_ID"))
+  
+  skVer.Seek "=", tpVerID
+  If skVer.NoMatch Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  tpVer = Nz(skVer("V_Naam"))
+  
+  tpLastName = Nz(rs("ZW_Achternaam"))
+  tpFirstName = Nz(rs("ZW_Voornaam"))
+  
+  tpNation = Nz(rs("ZW_Nation"))
+  
+  Dim tpVg As String
+  tpVg = Nz(rs("ZW_Voegsel"))
+  If (tpVg <> "") Then
+    tpFirstName = tpFirstName & " " & tpVg
+  End If
+  
+  tpYOB = Nz(rs("ZW_Jaartal"))
+  
+  Dim tpGes As String
+  tpGes = Nz(rs("ZW_Geslacht"))
+  
+  
+  
+  'Clip to maximum lengths
+  tpLastName = Left(tpLastName, 30)
+  tpFirstName = Left(tpFirstName, 20)
+  tpVer = Left(tpVer, 30)
+  tpNation = Left(tpNation, 3)
+  
+  
+  Dim tpAlgID As Long
+  
+  rsOut.AddNew
+    rsOut("Nachname") = hzn(tpLastName)
+    rsOut("Vorname") = hzn(tpFirstName)
+    rsOut("JG") = tpYOB
+    rsOut("Verein") = hzn(tpVer)
+    rsOut("GE") = algGetGesCode(tpGes)
+    
+    rsOut("Nation") = hzn(tpNation)
+    
+    tpAlgID = Nz(rsOut("Teilnehmernr"))
+  rsOut.Update
+  
+  
+  Dim lDummy As Long, blDummy As Boolean, sDummy As String
+  
+  Dim sPropName As String
+  Dim sPropValue As String
+  
+  Dim tpZwmID As Long
+  tpZwmID = Nz(rs("ZW_ID"))
+  
+  sPropName = "ZWM\AlgIDS\" & tpZwmID
+  sPropValue = tpAlgID
+    
+  
+  If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+
+  tpVerID = Nz(rs("PL_VER_ID"))
+  
+  skVer.Seek "=", tpVerID
+  If skVer.NoMatch Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  tpVer = Nz(skVer("V_Naam"))
+  
+  tpLastName = Nz(rs("PL_Naam"))
+  tpFirstName = " "
+  
+    
+  tpYOB = 0
+  
+  tpGes = Nz(rs("PL_Geslacht"))
+  
+  rsOut.AddNew
+    rsOut("Nachname") = hzn(tpLastName)
+    rsOut("Vorname") = hzn(tpFirstName)
+    rsOut("JG") = tpYOB
+    rsOut("Verein") = hzn(tpVer)
+    rsOut("GE") = algGetGesCode(tpGes)
+    rsOut("Staffel") = True
+    
+    tpAlgID = Nz(rsOut("Teilnehmernr"))
+  rsOut.Update
+  
+  
+  Dim tpPlgID As Long
+  tpPlgID = Nz(rs("PL_ID"))
+  
+  sPropName = "PLG\AlgIDS\" & tpPlgID
+  sPropValue = tpAlgID
+    
+  
+  If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skVer
+appCleanRS rsOut
+
+
+
+algExportMatch_writeCompetitors = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algExportMatch_writeCompetitors", errInf
+
+appCleanRS rs
+appCleanRS skVer
+appCleanRS rsOut
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+
+Private Function algExportMatch_scanProgs(ByRef opInfo As ALGE_OP_INFO, ByRef lProgXIDs() As Long) As Boolean
+On Error GoTo fout
+algExportMatch_scanProgs = False
+
+Dim blHasCollisions As Boolean
+blHasCollisions = False
+
+Dim lMaxUsedProgAlgID As Long
+lMaxUsedProgAlgID = -1
+
+opInfo.nExpProgs = 0
+ReDim opInfo.sExpProgs(MAX_N_PROGS)
+ReDim opInfo.lExpProgAlgIDs(MAX_N_PROGS)
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma order by val(nz([pr_programmanummer])) , [pr_programmanummer];")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpProg As String
+  tpProg = Nz(rs("pr_programmanummer"))
+  
+  Dim tpProgXID As Long
+  tpProgXID = Nz(rs("pr_id"))
+  
+  Dim tpProgNumNr As Long
+  tpProgNumNr = CLng(val(tpProg))
+  
+  Dim tpProgAlgID As Long
+  tpProgAlgID = 100 * tpProgNumNr
+  If (tpProgAlgID <= lMaxUsedProgAlgID) Then
+    tpProgAlgID = lMaxUsedProgAlgID + 1
+  End If
+  lMaxUsedProgAlgID = tpProgAlgID
+  
+  Dim insPos As Integer
+  insPos = insString(tpProg, opInfo.nExpProgs, opInfo.sExpProgs)
+  
+  shiftRightLong insPos, 1, (opInfo.nExpProgs - 1), opInfo.lExpProgAlgIDs
+  shiftRightLong insPos, 1, (opInfo.nExpProgs - 1), lProgXIDs
+    
+  opInfo.lExpProgAlgIDs(insPos) = tpProgAlgID
+  lProgXIDs(insPos) = tpProgXID
+  
+  If (CStr(tpProgNumNr) <> tpProg) Then
+    blHasCollisions = True
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+If (Not blHasCollisions) Then
+  'can make aresIDs easier
+  Dim i As Integer
+  For i = 0 To opInfo.nExpProgs - 1
+    opInfo.lExpProgAlgIDs(i) = CLng(val(opInfo.sExpProgs(i)))
+  Next i
+End If
+
+
+
+
+
+algExportMatch_scanProgs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algExportMatch_scanProgs", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function algExportMatch_writeDeelnemers_getExclusions(ByRef dsTmpData As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+algExportMatch_writeDeelnemers_getExclusions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Tijden where nz([ty_dis] ) <> """";")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpDis As String
+  tpDis = Nz(rs("ty_dis"))
+  If (tpDis = DIS_AFM) Or (tpDis = DIS_ZK) Or (tpDis = DIS_NG) Or (tpDis = DIS_VV) Then
+    Dim tpIsEstaf As Boolean
+    Dim tpProgXID As Long
+    Dim tpExclXID As Long
+    
+    tpIsEstaf = Nz(rs("TY_IsEstaf"))
+    tpProgXID = Nz(rs("TY_Prog_ID"))
+       
+    If (Not tpIsEstaf) Then
+      tpExclXID = Nz(rs("TY_Zwemmer_ID"))
+    Else
+      tpExclXID = Nz(rs("TY_Ploeg_ID"))
+    End If
+    
+    dsSetString dsTmpData, "EXCL\" & tpProgXID & "\" & tpExclXID, ""
+    
+  End If
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+algExportMatch_writeDeelnemers_getExclusions = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algExportMatch_writeDeelnemers_getExclusions", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Sub algExportMatch_writeDeelnemers_handleOutput(ByVal lClassAlgID As Long, ByRef rsDln As Recordset, ByRef rsDlnOut As Recordset, ByRef dsTmp As DIR_SERVER_DATA, ByRef opInf As ALGE_OP_INFO, lOrdProgXIDs() As Long, iOrdProgXIDsOrgIdx() As Integer)
+
+Dim tpProgXID As Long
+Dim tpIsEstaf As Boolean
+Dim tpDlnAlgID As Long
+Dim tpSer As Integer, tpBn As Integer
+
+tpProgXID = Nz(rsDln("de_prog_id"))
+tpIsEstaf = Nz(rsDln("de_isEstaf"))
+
+Dim blDummy As Boolean, lDummy As Long, sDummy As String
+Dim sPropName As String, sPropValue As String
+
+Dim tpPlgID As Long, tpZwmID As Long
+
+If (tpIsEstaf) Then
+  tpPlgID = Nz(rsDln("de_ploeg_id"))
+  
+  sPropName = "PLG\AlgIDS\" & tpPlgID
+  If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  If (sPropValue = "") Then
+    Err.Raise 1, , "internal error"
+  End If
+  tpDlnAlgID = CLng(val(sPropValue))
+Else
+  tpZwmID = Nz(rsDln("de_zwemmer_id"))
+  
+  sPropName = "ZWM\AlgIDS\" & tpZwmID
+  If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  If (sPropValue = "") Then
+    Err.Raise 1, , "internal error"
+  End If
+  tpDlnAlgID = CLng(val(sPropValue))
+End If
+
+
+tpSer = Nz(rsDln("de_serienummer"))
+tpBn = Nz(rsDln("de_baan"))
+
+Dim lkpProgPos As Integer
+lkpProgPos = bSearchLong(tpProgXID, opInf.nExpProgs, lOrdProgXIDs)
+
+If (lkpProgPos < 0) Then
+  Err.Raise 1, , "internal error"
+End If
+
+ 
+Dim tpProgAlgID As Long
+tpProgAlgID = opInf.lExpProgAlgIDs(iOrdProgXIDsOrgIdx(lkpProgPos))
+ 
+
+'check exlusions
+Dim blExcluded As Boolean
+
+If (tpIsEstaf) Then
+  sPropName = "EXCL\" & tpProgXID & "\" & tpPlgID
+Else
+  sPropName = "EXCL\" & tpProgXID & "\" & tpZwmID
+End If
+
+If Not dsLookupPropertyByName(dsTmp, sPropName, blExcluded, sDummy, lDummy) Then
+  appRaiseSilentError
+End If
+
+If (Not blExcluded) And (tpSer > 0) And (tpBn > 0) Then
+    
+  rsDlnOut.AddNew
+    rsDlnOut("BEW_NR") = tpProgAlgID
+    rsDlnOut("BewTyp") = 0
+    rsDlnOut("Teilnehmernr") = tpDlnAlgID
+    rsDlnOut("Lauf") = tpSer
+    rsDlnOut("Bahn") = tpBn
+    rsDlnOut("klassennr") = lClassAlgID
+  rsDlnOut.Update
+  
+End If
+
+
+End Sub
+
+
+Private Function algExportMatch_writeDeelnemers(ByVal lClassAlgID As Long, ByRef dsTmp As DIR_SERVER_DATA, ByRef opInf As ALGE_OP_INFO, ByRef lProgXIDs() As Long) As Boolean
+On Error GoTo fout
+algExportMatch_writeDeelnemers = False
+
+
+If Not algExportMatch_writeDeelnemers_getExclusions(dsTmp) Then
+  appRaiseSilentError
+End If
+
+Dim lOrdXIDs(0 To MAX_N_PROGS) As Long
+Dim iOrdXIDsOrgIdx(0 To MAX_N_PROGS) As Integer
+Dim nOrdXIDs As Integer
+
+nOrdXIDs = 0
+Dim i As Integer
+For i = 0 To opInf.nExpProgs - 1
+  Dim insPos As Integer
+  insPos = insLong(lProgXIDs(i), nOrdXIDs, lOrdXIDs)
+  shiftRightInt insPos, 1, (nOrdXIDs - 1), iOrdXIDsOrgIdx
+  iOrdXIDsOrgIdx(insPos) = i
+Next i
+
+'write all entries
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("__etw__alge__entries")
+
+rs.MoveFirst
+Do Until rs.EOF
+  algExportMatch_writeDeelnemers_handleOutput lClassAlgID, rs, rsOut, dsTmp, opInf, lOrdXIDs, iOrdXIDsOrgIdx
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsOut
+
+algExportMatch_writeDeelnemers = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algExportMatch_writeDeelnemers", errInf
+
+appCleanRS rs
+appCleanRS rsOut
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+Private Function algExportMatch_writeProgramma(ByVal lClassAlgID As Long, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ALGE_OP_INFO, ByRef lProgXIDs() As Long) As Boolean
+On Error GoTo fout
+algExportMatch_writeProgramma = False
+
+
+Dim rsProgOut As Recordset, rsProgClassOut As Recordset
+Set rsProgOut = CurrentDb().OpenRecordset("__etw__alge__prog")
+Set rsProgClassOut = CurrentDb().OpenRecordset("__etw__alge__prog_class")
+
+Dim skProgs As Recordset
+Set skProgs = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
+skProgs.Index = "PrimaryKey"
+
+Dim i As Integer
+
+For i = 0 To opInf.nExpProgs - 1
+    
+  Dim tpProg As String
+  tpProg = opInf.sExpProgs(i)
+  
+  Dim tpProgAlgID As Long
+  tpProgAlgID = opInf.lExpProgAlgIDs(i)
+  
+  Dim tpProgXID As Long
+  tpProgXID = lProgXIDs(i)
+  
+  
+  skProgs.Seek "=", tpProgXID
+  If skProgs.NoMatch Then
+    Err.Raise 1, , "internal error"
+  End If
+    
+  Dim tpSl As String, tpCat As String, tpGes As String
+  
+  tpSl = Nz(skProgs("pr_slag"))
+  tpCat = Nz(skProgs("pr_categorie"))
+  tpGes = m_of_v(tpCat)
+  
+  Dim tpAf As String
+  tpAf = Nz(skProgs("pr_afstand"))
+  
+  Dim tpAlgFmtAf As String, tpAlgTotAf As Long
+  
+  Dim tpIsEstaf As Boolean
+  tpIsEstaf = tpAf Like "*x*"
+  
+  tpAlgTotAf = afstand_tot_distance(tpAf)
+  If (tpIsEstaf) Then
+    tpAlgFmtAf = afstand_n_zwemmers(tpAf) & "*" & afstand_ind_part(tpAf) & "m"
+  Else
+    tpAlgFmtAf = tpAf & "m"
+  End If
+  
+  rsProgOut.AddNew
+    rsProgOut("Bew_nr") = tpProgAlgID
+    rsProgOut("BewTyp") = 0
+    rsProgOut("Bew_Sort") = tpProgAlgID
+    
+    rsProgOut("Lange") = tpAlgTotAf
+    rsProgOut("Bew_Distanz") = hzn(tpAlgFmtAf)
+    rsProgOut("Bew_Name") = hzn(fmtSlag(tpSl))
+    rsProgOut("Ge") = algGetGesCode(tpGes)
+    rsProgOut("Staffel") = tpIsEstaf
+    rsProgOut("team") = True
+  rsProgOut.Update
+  
+  rsProgClassOut.AddNew
+    rsProgClassOut("bew_nr") = tpProgAlgID
+    rsProgClassOut("klassennr") = lClassAlgID
+    rsProgClassOut("klassen_sort") = 1
+  rsProgClassOut.Update
+
+Next i
+
+appCleanRS skProgs
+appCleanRS rsProgOut
+appCleanRS rsProgClassOut
+
+algExportMatch_writeProgramma = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algExportMatch_writeProgramma", errInf
+
+appCleanRS skProgs
+appCleanRS rsProgOut
+appCleanRS rsProgClassOut
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function algImportResults_prepareProgs(ByRef dsTmp As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+algImportResults_prepareProgs = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("__etw__alge__prog")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpProgAlgID As Long, tpProgAlgTypeID As Long, tpProgSortID As Long
+  
+  tpProgAlgID = Nz(rs("bew_nr"))
+  tpProgAlgTypeID = Nz(rs("bewTyp"))
+  tpProgSortID = Nz(rs("bew_sort"))
+  
+  Dim lDummy As Long, blDummy As Boolean, sDummy As String
+  Dim sPropName As String, sPropValue As String
+  
+  sPropName = tpProgAlgID & "\" & tpProgAlgTypeID & "\SORT_ID"
+  sPropValue = CStr(tpProgSortID)
+  
+  If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+algImportResults_prepareProgs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algImportResults_prepareProgs", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function algImportResults_getProgSortID(ByRef dsTmp As DIR_SERVER_DATA, ByVal lProgAlgID As Long, ByVal lProgAlgTypeID As Long) As Long
+
+algImportResults_getProgSortID = -1
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+Dim sPropName As String, sPropValue As String
+
+sPropName = lProgAlgID & "\" & lProgAlgTypeID & "\SORT_ID"
+sPropValue = ""
+
+If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+  appRaiseSilentError
+End If
+
+If sPropValue <> "" Then
+  algImportResults_getProgSortID = CLng(sPropValue)
+End If
+
+End Function
+
+
+Private Function algImportResults_prepareBackupTimes(ByRef dsTmp As DIR_SERVER_DATA) As Boolean
+On Error GoTo fout
+algImportResults_prepareBackupTimes = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [__etw__alge__times] where (not [wende] ) and ([typ] >=1) and ([typ] <= 3);")
+
+
+Dim tpProgAlgID As Long, tpProgAlgTypeID As Long
+Dim tpSer As Long
+Dim tpLane As Long
+Dim tpTimeHds As Long
+Dim tpLapIdx As Long
+
+rs.MoveFirst
+Do Until rs.EOF
+  tpProgAlgID = Nz(rs("bew_nr"))
+  tpProgAlgTypeID = Nz(rs("bewtyp"))
+  
+  tpSer = Nz(rs("lauf"))
+  tpLane = Nz(rs("bahn"))
+  
+  tpLapIdx = Nz(rs("zw_nr"))
+  
+  tpTimeHds = CLng(Nz(rs("sngZeit"), 0) * 100000) \ 1000
+  
+  Dim sPropName As String, sPropValue As String
+  Dim blDummy As Boolean, sDummy As String, lDummy As Long
+  
+  Dim sPropBaseNameLkpByTime As String
+  sPropBaseNameLkpByTime = tpProgAlgID & "\" & tpProgAlgTypeID & "\" & tpSer & "\" & tpLane
+  
+  Dim sPropBaseNameLkpByLap As String
+  sPropBaseNameLkpByLap = tpProgAlgID & "\" & tpProgAlgTypeID & "\" & tpSer & "\" & tpLane & "\" & tpLapIdx
+  
+  
+  Dim dBckTime As Double
+  dBckTime = swtFromSeconds(tpTimeHds * 0.01)
+  
+  'Store the backup time
+  If swtIsValid(dBckTime) Then
+  
+    Dim nCurBckTimesLkpByTime As Integer, nCurBckTimesLkpByLap As Integer
+    
+    sPropName = sPropBaseNameLkpByTime & "\N_BCK_TIMES"
+    If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+      appRaiseSilentError
+    End If
+    If (sPropValue = "") Then
+      nCurBckTimesLkpByTime = 0
+    Else
+      nCurBckTimesLkpByTime = CInt(sPropValue)
+    End If
+    
+    sPropName = sPropBaseNameLkpByLap & "\N_BCK_TIMES"
+    If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+      appRaiseSilentError
+    End If
+    If (sPropValue = "") Then
+      nCurBckTimesLkpByLap = 0
+    Else
+      nCurBckTimesLkpByLap = CInt(sPropValue)
+    End If
+  
+  
+    Dim tpIdxInLap As Integer
+  
+  
+    'store new time for lkpByLap mode
+    sPropName = sPropBaseNameLkpByLap & "\BCK_TIME_HDS_" & nCurBckTimesLkpByLap
+    sPropValue = CStr(tpTimeHds)
+    If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+      appRaiseSilentError
+    End If
+    
+    tpIdxInLap = nCurBckTimesLkpByLap
+  
+    nCurBckTimesLkpByLap = nCurBckTimesLkpByLap + 1
+    
+    sPropName = sPropBaseNameLkpByLap & "\N_BCK_TIMES"
+    sPropValue = CStr(nCurBckTimesLkpByLap)
+    If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+      appRaiseSilentError
+    End If
+  
+    
+    'store new time for lkpByTime mode
+    sPropName = sPropBaseNameLkpByTime & "\BCK_TIME_HDS_" & nCurBckTimesLkpByTime
+    sPropValue = CStr(tpTimeHds)
+    If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+      appRaiseSilentError
+    End If
+    
+    sPropName = sPropBaseNameLkpByTime & "\BCK_TIME_LAP_" & nCurBckTimesLkpByTime
+    sPropValue = CStr(tpLapIdx)
+    If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+      appRaiseSilentError
+    End If
+    
+    sPropName = sPropBaseNameLkpByTime & "\BCK_TIME_IDX_IN_LAP_" & nCurBckTimesLkpByTime
+    sPropValue = CStr(tpIdxInLap)
+    If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+      appRaiseSilentError
+    End If
+  
+    nCurBckTimesLkpByTime = nCurBckTimesLkpByTime + 1
+    
+    sPropName = sPropBaseNameLkpByTime & "\N_BCK_TIMES"
+    sPropValue = CStr(nCurBckTimesLkpByTime)
+    If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+      appRaiseSilentError
+    End If
+    
+    
+    
+    
+    
+  End If 'if time is valid
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+algImportResults_prepareBackupTimes = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algImportResults_prepareBackupTimes", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function algImportResults_findBckTime(ByRef dsTmp As DIR_SERVER_DATA, ByVal lProgAlgID As Long, lProgAlgTypeID As Long, ByVal lSer As Long, ByVal lLane As Long, ByVal blSearchByLapIdx As Boolean, ByVal lRefLapIdx As Long, ByVal lRefTimeHds As Long, ByRef lBckTimeHds As Long) As Boolean
+On Error GoTo fout
+algImportResults_findBckTime = False
+
+lBckTimeHds = 0
+
+
+
+Dim nValBckTimes As Integer
+nValBckTimes = 0
+
+Dim lValBckHds(0 To 2) As Long
+
+
+
+'This extra lap scan feature may be removed,
+'if it is deemed to be obsolete
+Dim minDeltaLap As Integer, maxDeltaLap As Integer
+If (blSearchByLapIdx) Then
+  minDeltaLap = 0
+  maxDeltaLap = 0
+Else
+  minDeltaLap = 0
+  maxDeltaLap = 0
+End If
+
+Dim idl As Integer
+
+For idl = minDeltaLap To maxDeltaLap
+
+
+  Dim sPropBaseName As String
+  If (blSearchByLapIdx) Then
+    sPropBaseName = lProgAlgID & "\" & lProgAlgTypeID & "\" & lSer & "\" & lLane & "\" & (lRefLapIdx + idl)
+  Else
+    sPropBaseName = lProgAlgID & "\" & lProgAlgTypeID & "\" & lSer & "\" & lLane
+  End If
+
+  Dim nTotBckTimes As Integer
+  
+  Dim sPropName As String, sPropValue As String
+  Dim blDummy As Boolean, sDummy As String, lDummy As Long
+    
+  sPropName = sPropBaseName & "\N_BCK_TIMES"
+  If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+
+  If (sPropValue = "") Then
+    nTotBckTimes = 0
+  Else
+    nTotBckTimes = CInt(sPropValue)
+  End If
+
+
+  Dim i As Integer
+  For i = 0 To nTotBckTimes - 1
+    Dim tpBckTimeHds As Long
+    tpBckTimeHds = 0
+    
+    sPropName = sPropBaseName & "\BCK_TIME_HDS_" & i
+    
+    If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+      appRaiseSilentError
+    End If
+    
+    If (sPropValue <> "") Then
+      tpBckTimeHds = CLng(sPropValue)
+    End If
+    
+    Dim tpIsValid As Boolean
+    tpIsValid = False
+    
+    If blSearchByLapIdx Then
+      'Need to check if the time is not marked as being in use.
+      sPropName = sPropBaseName & "\BCK_TIME_IN_USE_" & i
+      If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+        appRaiseSilentError
+      End If
+      If (sPropValue = "") Or (Not (rxpParseBoolean(sPropValue))) Then
+        tpIsValid = True
+      End If
+    Else
+      If (Abs(tpBckTimeHds - lRefTimeHds) < 300) Then
+        tpIsValid = True
+      End If
+    End If 'if blSearchByLapIdx
+    
+    If (tpIsValid) Then
+      
+      If (Not blSearchByLapIdx) Then
+        'Mark that time is in use
+        Dim tpBckTimeLap As Long, tpBckTimeIdxInLap As Long
+        sPropName = sPropBaseName & "\BCK_TIME_LAP_" & i
+        If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+          appRaiseSilentError
+        End If
+        If sPropValue = "" Then
+          Err.Raise 1, , "internal error"
+        End If
+        tpBckTimeLap = CLng(sPropValue)
+        
+        sPropName = sPropBaseName & "\BCK_TIME_IDX_IN_LAP_" & i
+        If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+          appRaiseSilentError
+        End If
+        If sPropValue = "" Then
+          Err.Raise 1, , "internal error"
+        End If
+        tpBckTimeIdxInLap = CLng(sPropValue)
+        
+        sPropName = lProgAlgID & "\" & lProgAlgTypeID & "\" & lSer & "\" & lLane & "\" & tpBckTimeLap & "\BCK_TIME_IN_USE_" & tpBckTimeIdxInLap
+        sPropValue = rxpFormatBoolean(True)
+        If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+          appRaiseSilentError
+        End If
+        
+      End If
+    
+      If (nValBckTimes < 3) Then
+        insLong tpBckTimeHds, nValBckTimes, lValBckHds
+      End If
+    End If
+    
+  Next i
+
+Next idl
+
+Dim tpAvgBckHds As Long
+tpAvgBckHds = 0
+
+If (nValBckTimes > 0) Then
+  For i = 0 To nValBckTimes - 1
+    tpAvgBckHds = tpAvgBckHds + lValBckHds(i)
+  Next i
+  tpAvgBckHds = tpAvgBckHds \ nValBckTimes
+End If
+
+
+If (nValBckTimes = 1) Then
+  lBckTimeHds = lValBckHds(0)
+ElseIf (nValBckTimes = 2) Then
+  lBckTimeHds = (lValBckHds(0) + lValBckHds(1)) \ 2
+ElseIf (nValBckTimes = 3) Then
+  lBckTimeHds = lValBckHds(1)
+End If
+
+If Abs(lBckTimeHds - tpAvgBckHds) > 300 Then
+  'invalidate
+  lBckTimeHds = 0
+End If
+
+
+
+algImportResults_findBckTime = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "algImportResults_findBckTime", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function algImportResults_outputTime(ByRef rsOut As Recordset, ByVal lWedNr As Long, ByVal sProg As String, ByVal lSerie As Integer, ByVal iBaan As Integer, ByVal lAfstand As Long, ByVal dTime As Double, dBckTime As Double, dReactTime As Double)
+On Error GoTo fout
+algImportResults_outputTime = False
+
+rsOut.AddNew
+  rsOut("ETWT_Wedstrijdnummer") = lWedNr
+  rsOut("ETWT_Programmanummer") = hzn(sProg)
+  rsOut("ETWT_Serienummer") = lSerie
+  rsOut("ETWT_Baan") = iBaan
+  rsOut("ETWT_Afstand") = lAfstand
+  rsOut("ETWT_Tijd") = dTime
+  rsOut("ETWT_BackupTijd") = dBckTime
+  rsOut("ETWT_ReactieTijd") = dReactTime
+rsOut.Update
+
+
+algImportResults_outputTime = True
+Exit Function
+
+fout:
+
+'duplicate distances may occur.
+'by our ordering, we ensure that only the fastest is taken into account.
+If (Err = 3022) Then
+  rsOut.CancelUpdate
+  Resume Next
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "algImportResults_outputTime", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function algImportResults(ByRef wedInf As WED_BASIC_INFO, ByRef cfgInf As ALGE_CFG_INFO, ByRef opInf As ALGE_OP_INFO) As Boolean
+On Error GoTo fout
+algImportResults = False
+
+If Not FileExists(cfgInf.sDBFName) Then
+  Err.Raise 1, , "Het alge swim2000 wedstrijdbestand: " & vbCrLf & cfgInf.sDBFName & vbCrLf & "kon niet worden gevonden."
+End If
+
+If Not algLink(cfgInf.sDBFName, False, True) Then
+  appRaiseSilentError
+End If
+
+Dim lOrdAlgIDs(0 To MAX_N_PROGS) As Long
+Dim iOrdAlgIDsOrgIdx(0 To MAX_N_PROGS) As Integer
+Dim nOrdAlgIDs As Integer
+
+nOrdAlgIDs = 0
+Dim i As Integer
+For i = 0 To opInf.nExpProgs - 1
+  Dim insPos As Integer
+  insPos = insLong(opInf.lExpProgAlgIDs(i), nOrdAlgIDs, lOrdAlgIDs)
+  shiftRightInt insPos, 1, (nOrdAlgIDs - 1), iOrdAlgIDsOrgIdx
+  iOrdAlgIDsOrgIdx(insPos) = i
+Next i
+
+
+Dim dsTmp As DIR_SERVER_DATA
+If Not dsInit(dsTmp, True, "__etw__alge__bck_times") Then
+  appRaiseSilentError
+End If
+
+If Not algImportResults_prepareBackupTimes(dsTmp) Then
+  appRaiseSilentError
+End If
+
+If Not algImportResults_prepareProgs(dsTmp) Then
+  appRaiseSilentError
+End If
+
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("hpoETWResTimes")
+
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset(TNM_PR)
+skProg.Index = "PrimaryKey"
+
+
+'Process only the automatic times
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from [__etw__alge__times] where [typ] = 0 and not [wende] order by bew_nr, bewTyp, lauf, bahn, sngZeit ")
+
+Dim curProgAlgID As Long, curProgAlgTypeID As Long, curSer As Long, curLane As Long
+
+Dim curProgRefWed As Long, curProgRefProg As String
+Dim curProgRefAf As String, curProgRefIsShortDistance As Boolean
+Dim curProgRefNExpAfs As Integer
+Dim curProgRefExpAfs(0 To MAX_N_TUSSENTIJDEN) As Long
+
+
+Dim curDlnIsValid As Boolean
+Dim curDlnNFndAfs As Integer
+Dim curDlnFndAfs(0 To MAX_N_TUSSENTIJDEN) As Long
+
+
+
+curProgAlgID = -1
+curProgAlgTypeID = -1
+curSer = -1
+curLane = -1
+
+curDlnIsValid = False
+
+
+rs.MoveFirst
+
+ 
+Dim blDone As Boolean
+blDone = rs.EOF
+
+Do Until blDone
+  
+  Dim tpProgAlgID As Long, tpProgAlgTypeID As Long, tpSer As Long, tpLane As Long
+  Dim blIsNewProg As Boolean, blIsNewDln As Boolean
+  
+  If (rs.EOF) Then
+    tpProgAlgID = -1
+    tpProgAlgTypeID = -1
+    tpSer = -1
+    tpLane = -1
+  Else
+    tpProgAlgID = Nz(rs("bew_nr"))
+    tpProgAlgTypeID = Nz(rs("bewTyp"))
+      
+    tpSer = Nz(rs("lauf"))
+    tpLane = Nz(rs("bahn"))
+  End If
+  
+  blIsNewProg = False
+  blIsNewDln = False
+  
+  If (tpProgAlgID <> curProgAlgID) Or (tpProgAlgTypeID <> curProgAlgTypeID) Then
+    blIsNewProg = True
+    blIsNewDln = True
+  ElseIf (tpSer <> curSer) Or (tpLane <> curLane) Then
+    blIsNewDln = True
+  End If
+  
+  'clean up of old data
+  If (blIsNewDln) Then
+    If (curDlnIsValid) Then
+    
+      'need to check if we missed any required afs
+      For i = 0 To curProgRefNExpAfs - 1
+        Dim tpExpAf As Long
+        tpExpAf = curProgRefExpAfs(i)
+        If bSearchLong(curProgRefExpAfs(i), curDlnNFndAfs, curDlnFndAfs) < 0 Then
+          'need to find manual times for this distance
+          Dim tpExpLapIdx As Long
+          If (curProgRefIsShortDistance) Then
+            tpExpLapIdx = 1
+          ElseIf (cfgInf.blUseTurnPlates) Then
+            tpExpLapIdx = tpExpAf \ wedInf.baan
+          Else
+            tpExpLapIdx = tpExpAf \ (2 * wedInf.baan)
+          End If
+          
+          Dim tpExpBckTimeHds As Long, dExpBckTime As Double, blExpBckTimeValid As Boolean
+    
+          tpExpBckTimeHds = 0
+          dExpBckTime = 0
+          blExpBckTimeValid = False
+    
+          If Not algImportResults_findBckTime(dsTmp, curProgAlgID, curProgAlgTypeID, curSer, curLane, True, tpExpLapIdx, 0, tpExpBckTimeHds) Then
+            appRaiseSilentError
+          End If
+          dExpBckTime = swtFromSeconds(tpExpBckTimeHds * 0.01)
+          blExpBckTimeValid = swtIsValid(dExpBckTime)
+          
+          If (blExpBckTimeValid) Then
+            If Not algImportResults_outputTime(rsOut, curProgRefWed, curProgRefProg, curSer, curLane, tpExpAf, 0, dExpBckTime, 0) Then
+              appRaiseSilentError
+            End If
+          End If
+          
+        End If 'if distance i smissing
+      Next i
+    End If 'if curDlnIsValid
+  End If 'if blIsNewDln
+  
+  'initializations
+  
+  If (blIsNewProg) Then
+  
+  
+    Dim lkpPos As Integer
+    lkpPos = bSearchLong(tpProgAlgID, nOrdAlgIDs, lOrdAlgIDs)
+   
+    
+  
+    curProgRefWed = wedInf.wednr
+    curProgRefProg = ""
+    curProgRefAf = ""
+    curProgRefNExpAfs = 0
+  
+    If (lkpPos < 0) Then
+      'did not find prog in exported list, attempt to use normal programma nr.
+   
+      Dim curProgSortID As Long
+      curProgSortID = algImportResults_getProgSortID(dsTmp, tpProgAlgID, tpProgAlgTypeID)
+   
+      If (curProgSortID <> -1) Then
+        curProgRefProg = CStr(curProgSortID)
+      Else
+        curProgRefProg = CStr(tpProgAlgID)
+      End If
+      If (bSearchString(curProgRefProg, opInf.nExpProgs, opInf.sExpProgs) >= 0) Then
+        'there is a conflict
+        curProgRefProg = "?_" & tpProgAlgID
+      End If
+    Else
+      curProgRefProg = opInf.sExpProgs(iOrdAlgIDsOrgIdx(lkpPos))
+    End If
+  
+    skProg.Seek "=", curProgRefWed, curProgRefProg
+    If Not skProg.NoMatch Then
+      curProgRefAf = Nz(skProg("PR_Afstand"))
+      
+      If (wedInf.baan = 25) And (curProgRefAf = "25") Then
+        curProgRefIsShortDistance = True
+      End If
+          
+      If (wedInf.baan = 50) And (curProgRefAf = "50") Then
+        curProgRefIsShortDistance = True
+      End If
+      
+      Dim tpTotDist As Long
+      tpTotDist = afstand_tot_distance(curProgRefAf)
+      Dim tpNTst As Long
+      tpNTst = (tpTotDist - 1) \ (2 * wedInf.baan)
+      curProgRefNExpAfs = 1 + tpNTst
+      For i = 0 To tpNTst - 1
+        curProgRefExpAfs(i) = (i + 1) * 2 * wedInf.baan
+      Next i
+      curProgRefExpAfs(tpNTst) = tpTotDist
+    End If
+  
+  
+    curProgAlgID = tpProgAlgID
+    curProgAlgTypeID = tpProgAlgTypeID
+  End If
+  
+  
+  If (blIsNewDln) Then
+    curDlnIsValid = True
+    curDlnNFndAfs = 0
+    
+    curSer = tpSer
+    curLane = tpLane
+  End If
+  
+  
+  If Not rs.EOF Then
+  
+    Dim tpLapIdx As Long
+    Dim tpTimeHds As Long
+    
+    tpLapIdx = Nz(rs("zw_nr"))
+    
+    'make sure we do not accidentally round; just throw away any digits that we do not want
+    tpTimeHds = CLng(Nz(rs("sngZeit"), 0) * 100000) \ 1000
+    
+    
+    
+    
+    
+    Dim tpAf As Long
+    
+    If cfgInf.blUseTurnPlates Then
+      tpAf = tpLapIdx * wedInf.baan
+    Else
+      tpAf = tpLapIdx * 2 * wedInf.baan
+    End If
+    
+    If (curProgRefIsShortDistance) Then
+      If (tpAf > wedInf.baan) And (tpLapIdx = 1) Then
+        tpAf = wedInf.baan
+      End If
+    End If
+    
+    Dim tpProgIsShortDist As Boolean
+    tpProgIsShortDist = False
+    
+   
+    
+    Dim dTime As Double
+    
+    dTime = swtFromSeconds(tpTimeHds * 0.01)
+    
+    'Now check if the time needs processing
+    Dim blOK As Boolean
+    
+    blOK = True
+    
+    Dim blTimeValid As Boolean
+    blTimeValid = swtIsValid(dTime)
+    
+    
+    If (Not (blTimeValid)) Then
+      blOK = False
+    End If
+    
+    If (blOK) And (tpLane <= 0) Then
+      blOK = False
+    End If
+    
+    If (blOK) And (tpAf < 1) Then
+      blOK = False
+    End If
+    
+    
+    
+    If blOK And (Not curProgRefIsShortDistance) Then
+      If (tpAf Mod (2 * wedInf.baan) <> 0) Then
+        blOK = False
+      End If
+    End If
+    
+    
+    Dim tpBckTimeHds As Long, dBckTime As Double, blBckTimeValid As Boolean
+    
+    tpBckTimeHds = 0
+    dBckTime = 0
+    blBckTimeValid = False
+    
+    If (blOK) Then
+      If Not algImportResults_findBckTime(dsTmp, tpProgAlgID, tpProgAlgTypeID, tpSer, tpLane, False, -1, tpTimeHds, tpBckTimeHds) Then
+        appRaiseSilentError
+      End If
+      dBckTime = swtFromSeconds(tpBckTimeHds * 0.01)
+      blBckTimeValid = swtIsValid(dBckTime)
+      If Not blBckTimeValid Then
+        dBckTime = 0
+      End If
+    End If
+    
+    
+    
+    
+    If (blOK) Then
+         
+      'add this distance to the list of found distances.
+      insLong tpAf, curDlnNFndAfs, curDlnFndAfs
+      
+      If Not algImportResults_outputTime(rsOut, curProgRefWed, curProgRefProg, curSer, curLane, tpAf, dTime, dBckTime, 0) Then
+        appRaiseSilentError
+      End If
+    
+    End If 'if blOK
+    
+  End If 'if not rs.eof
+  
+  If Not rs.EOF Then
+    rs.MoveNext
+  Else
+    blDone = True
+  End If
+Loop
+
+appCleanRS rs
+appCleanRS rsOut
+appCleanRS skProg
+
+dsClean dsTmp
+
+algCleanLinks
+
+algImportResults = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "algImportResults", errInf
+
+appCleanRS rs
+appCleanRS rsOut
+appCleanRS skProg
+
+dsClean dsTmp
+
+algCleanLinks
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function

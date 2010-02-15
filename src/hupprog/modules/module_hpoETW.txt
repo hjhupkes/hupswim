@@ -2,14 +2,16 @@ Option Compare Database
 Option Explicit
 
 
-Public Const ETW_VAL_STATUS_BOTH_TIMES_BLOCKED_NO_MANUAL_TIME = 5
-Public Const ETW_VAL_STATUS_TIME_CONFLICT = 4
-Public Const ETW_VAL_STATUS_UNMATCHED = 3
-Public Const ETW_VAL_STATUS_TIMES_DIFFER = 2
-Public Const ETW_VAL_STATUS_TIMES_NEW = 1
-Public Const ETW_VAL_STATUS_FULL_IMPORTED = 0
+Public Const ETW_VAL_STATUS_BOTH_TIMES_BLOCKED_NO_MANUAL_TIME = 6
+Public Const ETW_VAL_STATUS_TIME_CONFLICT = 5
+Public Const ETW_VAL_STATUS_UNMATCHED = 4
+Public Const ETW_VAL_STATUS_TIMES_DIFFER = 3
+Public Const ETW_VAL_STATUS_TIMES_NEW = 2
+Public Const ETW_VAL_STATUS_FULL_IMPORTED = 1
+Public Const ETW_VAL_STATUS_NO_TIMES_SELECTED = 0
 
 Public Const ETW_TYPE_ARES21 = "ARES21"
+Public Const ETW_TYPE_ALGE2000 = "ALGE2000"
 
 Public Type ETW_GLOBAL_INFO
   sType As String
@@ -22,7 +24,9 @@ End Type
 Private Function etwiEqpPrepWriteStartlist(ByVal sEqpType As String, ByRef wedInf As WED_BASIC_INFO, ByRef blIsCancelled As Boolean) As Boolean
 Select Case sEqpType
   Case ETW_TYPE_ARES21
-   etwiEqpPrepWriteStartlist = etwAres21PrepWriteStartlist(wedInf, blIsCancelled)
+    etwiEqpPrepWriteStartlist = etwAres21PrepWriteStartlist(wedInf, blIsCancelled)
+  Case ETW_TYPE_ALGE2000
+    etwiEqpPrepWriteStartlist = etwAlge2000PrepWriteStartlist(wedInf, blIsCancelled)
 End Select
 End Function
 
@@ -30,6 +34,8 @@ Private Function etwiEqpWriteStartlist(ByVal sEqpType As String, ByRef wedInf As
 Select Case sEqpType
   Case ETW_TYPE_ARES21
    etwiEqpWriteStartlist = etwAres21WriteStartlist(wedInf)
+ Case ETW_TYPE_ALGE2000
+   etwiEqpWriteStartlist = etwAlge2000WriteStartlist(wedInf)
 End Select
 
 End Function
@@ -37,7 +43,9 @@ End Function
 Private Function etwiEqpCheckResInterface(ByVal sEqpType As String, ByRef wedInf As WED_BASIC_INFO, ByRef blIsProblem As Boolean, ByRef sErrMsg As String) As Boolean
 Select Case sEqpType
   Case ETW_TYPE_ARES21
-   etwiEqpCheckResInterface = etwAres21CheckResInterface(wedInf, blIsProblem, sErrMsg)
+    etwiEqpCheckResInterface = etwAres21CheckResInterface(wedInf, blIsProblem, sErrMsg)
+  Case ETW_TYPE_ALGE2000
+    etwiEqpCheckResInterface = etwAlge2000CheckResInterface(wedInf, blIsProblem, sErrMsg)
 End Select
 
 End Function
@@ -45,7 +53,9 @@ End Function
 Private Function etwiEqpReadResults(ByVal sEqpType As String, ByRef wedInf As WED_BASIC_INFO) As Boolean
 Select Case sEqpType
   Case ETW_TYPE_ARES21
-   etwiEqpReadResults = etwAres21ReadResults(wedInf)
+    etwiEqpReadResults = etwAres21ReadResults(wedInf)
+  Case ETW_TYPE_ALGE2000
+    etwiEqpReadResults = etwAlge2000ReadResults(wedInf)
 End Select
 
 End Function
@@ -59,7 +69,7 @@ Select Case iValStatus
   Case ETW_VAL_STATUS_BOTH_TIMES_BLOCKED_NO_MANUAL_TIME
      fmtETWValStatus = "Geen handtijd beschikbaar"
   Case ETW_VAL_STATUS_TIME_CONFLICT
-     fmtETWValStatus = "Afwijking backup <-> normale tijd"
+     fmtETWValStatus = "Afwijking backup <-> plaat tijd"
   Case ETW_VAL_STATUS_UNMATCHED
      fmtETWValStatus = "Uitslag niet aan zwemmer gekoppeld"
   Case ETW_VAL_STATUS_TIMES_DIFFER
@@ -68,6 +78,8 @@ Select Case iValStatus
      fmtETWValStatus = "Nieuwe resultaten beschikbaar"
   Case ETW_VAL_STATUS_FULL_IMPORTED
      fmtETWValStatus = "Resultaten volledig verwerkt"
+  Case ETW_VAL_STATUS_NO_TIMES_SELECTED
+     fmtETWValStatus = "Geen tijden geselecteerd"
 End Select
 End Function
 
@@ -80,13 +92,13 @@ Select Case iValStatus
   Case ETW_VAL_STATUS_TIME_CONFLICT
      fmtETWValStatusSingle = "Afw. backup tijd"
   Case ETW_VAL_STATUS_UNMATCHED
-     fmtETWValStatusSingle = "Ongekoppelde zwemmer"
+     fmtETWValStatusSingle = "Zwm. ontkoppeld"
   Case ETW_VAL_STATUS_TIMES_DIFFER
      fmtETWValStatusSingle = "Afw. nieuwe tijd"
   Case ETW_VAL_STATUS_TIMES_NEW
      fmtETWValStatusSingle = "Nieuwe tijd"
   Case ETW_VAL_STATUS_FULL_IMPORTED
-     fmtETWValStatusSingle = "Tijd reeds verwerkt"
+     fmtETWValStatusSingle = "Tijd al verwerkt"
 End Select
 End Function
 
@@ -257,7 +269,7 @@ End Function
 
 
 
-Private Function etwiReadTimes(ByVal sProgAf As String, ByRef rsTd As Recordset, ByRef tstAf() As Integer, ByRef tstTd() As Double, ByRef nTst As Integer) As Boolean
+Private Function etwiReadTimes(ByRef rsTd As Recordset, ByRef tstAf() As Integer, ByRef tstTd() As Double, ByRef nTst As Integer) As Boolean
 On Error GoTo fout
 etwiReadTimes = False
 
@@ -271,10 +283,11 @@ If Not tstExtractTussenTijden(tpTstS, nTst, tstAf, tstTd) Then
   appRaiseSilentError
 End If
 
-Dim tpET As Double
+Dim tpET As Double, tpEAf As String
 tpET = Nz(rsTd("TY_Eindtijd"))
+tpEAf = Nz(rsTd("TY_Eindafstand"))
 
-If Not tstSetTussenTijd(afstand_tot_distance(sProgAf), tpET, nTst, tstAf, tstTd) Then
+If Not tstSetTussenTijd(afstand_tot_distance(tpEAf), tpET, nTst, tstAf, tstTd) Then
   appRaiseSilentError
 End If
 
@@ -592,7 +605,7 @@ End If
 
 Dim curWed As Long, curProg As String, curSer As Long, curBn As Integer, curIsValid As Boolean
 
-Dim sProgAfstand As String, sProgSlag As String, blProgIsEstaf As Boolean, lProgIndDist As Long, lProgTotDist As Long
+Dim blProgIsMatched As Boolean, sProgAfstand As String, sProgSlag As String, blProgIsEstaf As Boolean, lProgIndDist As Long, lProgTotDist As Long
 Dim lProgTsAf(0 To MAX_N_TUSSENTIJDEN) As Long
 
 
@@ -669,11 +682,35 @@ Do Until blDone
       If (sVal <> "") Then
         blDlnImport = rxpParseBoolean(sVal)
       
-        sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & curProg & "\" & curSer & "\" & curBn & "\ACT_LINKED_DLN_INDEX"
+      
+      
+        Dim tpLinkedDlnProg As String, tpLinkedDlnSer As Long, tpLinkedDlnBn As Long
+        
+        sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & curProg & "\" & curSer & "\" & curBn & "\ACT_LINKED_DLN_PROG"
         If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
           appRaiseSilentError
         End If
-        lDlnIdx = CLng(val(sVal))
+        tpLinkedDlnProg = sVal
+        
+        sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & curProg & "\" & curSer & "\" & curBn & "\ACT_LINKED_DLN_SER"
+        If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
+          appRaiseSilentError
+        End If
+        tpLinkedDlnSer = CLng(val(sVal))
+        
+        sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & curProg & "\" & curSer & "\" & curBn & "\ACT_LINKED_DLN_BAAN"
+        If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
+          appRaiseSilentError
+        End If
+        tpLinkedDlnBn = CLng(val(sVal))
+        
+        
+        lDlnIdx = -1
+        skCurDlns.Seek "=", curWed, tpLinkedDlnProg, tpLinkedDlnSer, tpLinkedDlnBn
+        If (Not skCurDlns.NoMatch) Then
+          lDlnIdx = skCurDlns("CD_DlnIdx")
+        End If
+
         
         sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & curProg & "\" & curSer & "\" & curBn & "\ACT_DIS"
         If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
@@ -689,6 +726,8 @@ Do Until blDone
         End If
       End If
       
+     
+      
       rsETWDlns.AddNew
         rsETWDlns("ETWD_Wedstrijdnummer") = curWed
         rsETWDlns("ETWD_Programmanummer") = hzn(curProg)
@@ -701,7 +740,7 @@ Do Until blDone
           rsETWDlns("ETWD_ACT_DlnIdx") = Null
         End If
         rsETWDlns("ETWD_ACT_Dis") = hzn(sDlnDis)
-        rsETWDlns("ETWD_VAL_Status") = ETW_VAL_STATUS_FULL_IMPORTED
+        rsETWDlns("ETWD_VAL_Status") = ETW_VAL_STATUS_NO_TIMES_SELECTED
         rsETWDlns("ETWD_VAL_IsComplete") = True
       rsETWDlns.Update
       
@@ -749,7 +788,7 @@ Do Until blDone
         
         rsETWSers("ETWS_ACT_Import") = blSerIsNew
         
-        rsETWSers("ETWS_VAL_Status") = ETW_VAL_STATUS_FULL_IMPORTED
+        rsETWSers("ETWS_VAL_Status") = ETW_VAL_STATUS_NO_TIMES_SELECTED
         rsETWSers("ETWS_VAL_IsComplete") = True
       rsETWSers.Update
       
@@ -765,17 +804,25 @@ Do Until blDone
       curWed = tpWed
       curProg = tpProg
       
+      blProgIsMatched = False
+      sProgAfstand = ""
+      sProgSlag = ""
+      blProgIsEstaf = False
+      lProgIndDist = 0
+      lProgTotDist = 0
+            
       'lookup data for this prog.
       skProg.Seek "=", curWed, curProg
-      If skProg.NoMatch Then
-        Err.Raise 1, , "Internal error"
-      End If
+      If Not skProg.NoMatch Then
+        blProgIsMatched = True
     
-      sProgAfstand = Nz(skProg("PR_Afstand"))
-      sProgSlag = Nz(skProg("PR_Slag"))
-      blProgIsEstaf = (sProgAfstand Like "*x*")
-      lProgIndDist = CLng(val(afstand_ind_part(sProgAfstand)))
-      lProgTotDist = CLng(val(afstand_tot_distance(sProgAfstand)))
+        sProgAfstand = Nz(skProg("PR_Afstand"))
+        sProgSlag = Nz(skProg("PR_Slag"))
+        blProgIsEstaf = (sProgAfstand Like "*x*")
+        lProgIndDist = CLng(val(afstand_ind_part(sProgAfstand)))
+        lProgTotDist = CLng(val(afstand_tot_distance(sProgAfstand)))
+        
+      End If
       
       If Not tstLookupTussenAfstanden(sProgAfstand, sProgSlag, wedInf.baan, lProgTsAf) Then
         appRaiseSilentError
@@ -805,32 +852,36 @@ Do Until blDone
     Dim blAfIsPrimaryTst As Boolean
     blAfIsPrimaryTst = False
     
-    If (tpAf = lProgTotDist) Then
-      blAfIsPrimaryTst = True
-    End If
+    If (blProgIsMatched) Then
+      If (tpAf = lProgTotDist) Then
+        blAfIsPrimaryTst = True
+      End If
     
-    If (Not blAfIsPrimaryTst) Then
-      Dim i As Integer
-      For i = 0 To 3
-        If (tpAf = lProgTsAf(i)) Then
-          blAfIsPrimaryTst = True
-          Exit For
-        End If
-      Next i
-    End If
+      If (Not blAfIsPrimaryTst) Then
+        Dim i As Integer
+        For i = 0 To 3
+          If (tpAf = lProgTsAf(i)) Then
+            blAfIsPrimaryTst = True
+            Exit For
+          End If
+        Next i
+      End If
     
-    If (Not blAfIsPrimaryTst) And (blProgIsEstaf) Then
-      If (tpAf > 0) And (lProgIndDist > 0) Then
-        If (tpAf Mod lProgIndDist = 0) Then
-          blAfIsPrimaryTst = True
+    
+      If (Not blAfIsPrimaryTst) And (blProgIsEstaf) Then
+        If (tpAf > 0) And (lProgIndDist > 0) Then
+          If (tpAf Mod lProgIndDist = 0) Then
+            blAfIsPrimaryTst = True
+          End If
         End If
       End If
-    End If
+    End If 'if blProgIsMatched
   
     
     'Check to see if this afstand was previously matched
-    Dim blAfImport As Boolean, blAfSuppressTime As Boolean, blAfSuppressBckTime As Boolean, dAfManTime As Double
+    Dim blAfImport As Boolean, blAfSuppressTime As Boolean, blAfSuppressBckTime As Boolean, dAfManTime As Double, lAfActAfstand As Long
     
+    lAfActAfstand = 0
     blAfImport = True
     blAfSuppressTime = False
     blAfSuppressBckTime = False
@@ -840,6 +891,12 @@ Do Until blDone
       blAfImport = False
     End If
     
+    If blAfImport And blProgIsMatched Then
+      If (tpAf > lProgTotDist) Then
+        blAfImport = False
+      End If
+    End If
+    
     
     sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\" & tpAf & "\ACT_IMPORT"
     If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
@@ -847,6 +904,18 @@ Do Until blDone
     End If
     If (sVal <> "") Then
       blAfImport = rxpParseBoolean(sVal)
+      
+      sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\" & tpAf & "\ACT_AFSTAND"
+      If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
+        appRaiseSilentError
+      End If
+      If (sVal <> "") Then
+        lAfActAfstand = CLng(sVal)
+      Else
+        lAfActAfstand = 0
+      End If
+      
+      
       
       sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\" & tpAf & "\ACT_SUPPRESS_TIME"
       If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
@@ -873,6 +942,10 @@ Do Until blDone
     
     rs.Edit
       rs("ETWT_ACT_Import") = blAfImport
+      rs("ETWT_ACT_Afstand") = Null
+      If (lAfActAfstand > 0) Then
+        rs("ETWT_ACT_Afstand") = lAfActAfstand
+      End If
       rs("ETWT_ACT_SuppressTime") = blAfSuppressTime
       rs("ETWT_ACT_SuppressBckTime") = blAfSuppressBckTime
       rs("ETWT_ACT_HandTijd") = dAfManTime
@@ -881,7 +954,7 @@ Do Until blDone
       rs("ETWT_AUX_CurTime") = Null
       rs("ETWT_AUX_Import") = False
       rs("ETWT_AUX_IsPrimaryTst") = blAfIsPrimaryTst
-      rs("ETWT_VAL_STATUS") = ETW_VAL_STATUS_FULL_IMPORTED
+      rs("ETWT_VAL_STATUS") = ETW_VAL_STATUS_NO_TIMES_SELECTED
     rs.Update
       
   End If
@@ -921,6 +994,10 @@ dsClean dsData
 appDisplayError errInf
 Exit Function
 
+'debug
+On Error GoTo 0
+Resume
+
 End Function
 
 
@@ -936,7 +1013,7 @@ Dim sql As String
 
 DoCmd.SetWarnings False
 
-sql = "update hpoETWResDlns set etwd_val_status = " & ETW_VAL_STATUS_FULL_IMPORTED & ", etwd_val_isComplete = true"
+sql = "update hpoETWResDlns set etwd_val_status = " & ETW_VAL_STATUS_NO_TIMES_SELECTED & ", etwd_val_isComplete = true"
 
 If (blSingleSerie) Then
   sql = sql & " where etwd_wedstrijdnummer = " & wedInf.wednr & " and etwd_programmanummer = """ & sSingleProgNr & """ and etwd_serienummer = " & lSingleSerieNr
@@ -944,7 +1021,7 @@ End If
 
 DoCmd.RunSQL sql
 
-sql = "update hpoETWResSeries set etws_val_status = " & ETW_VAL_STATUS_FULL_IMPORTED & ", etws_val_isComplete = true"
+sql = "update hpoETWResSeries set etws_val_status = " & ETW_VAL_STATUS_NO_TIMES_SELECTED & ", etws_val_isComplete = true"
 
 If (blSingleSerie) Then
   sql = sql & " where etws_wedstrijdnummer = " & wedInf.wednr & " and etws_programmanummer = """ & sSingleProgNr & """ and etws_serienummer = " & lSingleSerieNr
@@ -978,10 +1055,6 @@ Dim skTd As Recordset
 Set skTd = CurrentDb().OpenRecordset("dtTijden")
 skTd.Index = "TY_Index"
 
-Dim skProg As Recordset
-Set skProg = CurrentDb().OpenRecordset("dtProgramma")
-skProg.Index = "PrimaryKey"
-
 Dim skDlns As Recordset
 Set skDlns = CurrentDb().OpenRecordset("dtDeelnemers")
 skDlns.Index = "PrimaryKey"
@@ -1000,8 +1073,6 @@ Dim iDlnCurAf(0 To MAX_N_TUSSENTIJDEN) As Integer
 Dim nDlnCurTimes As Integer
 
 
-
-Dim sProgAfstand As String, sProgSlag As String
 
 Dim blSerValIsComplete As Boolean
 Dim iSerValStatus As Long
@@ -1045,18 +1116,8 @@ Do Until rs.EOF
   
   
   If (blIsNewProg) Then
-    skProg.Seek "=", tpWed, tpProg
-    If skProg.NoMatch Then
-      Err.Raise 1, , "Internal error"
-    End If
-    
     curWed = tpWed
     curProg = tpProg
-
-    
-    sProgAfstand = Nz(skProg("PR_Afstand"))
-    sProgSlag = Nz(skProg("PR_Slag"))
-    
   End If
     
   If blIsNewSer Then
@@ -1103,7 +1164,7 @@ Do Until rs.EOF
         blDlnHasTimes = True
         
         'now extract all times.
-        If Not etwiReadTimes(sProgAfstand, skTd, iDlnCurAf, dDlnCurTimes, nDlnCurTimes) Then
+        If Not etwiReadTimes(skTd, iDlnCurAf, dDlnCurTimes, nDlnCurTimes) Then
           appRaiseSilentError
         End If
         
@@ -1117,7 +1178,21 @@ Do Until rs.EOF
   'Now compute the status of this time,
   'by subsequently checking higher error conditions
   Dim iTimeValStatus As Integer
-  iTimeValStatus = ETW_VAL_STATUS_FULL_IMPORTED
+  iTimeValStatus = ETW_VAL_STATUS_NO_TIMES_SELECTED
+  
+  If (blDlnMatched) Then
+    iTimeValStatus = ETW_VAL_STATUS_FULL_IMPORTED
+  End If
+  
+  
+  Dim tpAfToUse As Long, tpActAf As Long
+  tpAfToUse = tpAf
+  
+  tpActAf = Nz(rs("ETWT_ACT_Afstand"), 0)
+  If (tpActAf > 0) Then
+    tpAfToUse = tpActAf
+  End If
+  
   
   
   Dim dMatchedTime As Double, blMatchedTimeValid As Boolean
@@ -1126,7 +1201,7 @@ Do Until rs.EOF
   
   If (blDlnHasTimes) Then
     Dim afPos As Integer
-    afPos = tstFindTussenTijd(tpAf, nDlnCurTimes, iDlnCurAf)
+    afPos = tstFindTussenTijd(tpAfToUse, nDlnCurTimes, iDlnCurAf)
   
     If (afPos >= 0) Then
       dMatchedTime = dDlnCurTimes(afPos)
@@ -1267,6 +1342,9 @@ Do Until rs.EOF
       rs("ETWT_AUX_TimeToUseIsBackup") = False
       rs("ETWT_AUX_TimeToUseIsManual") = False
     End If
+    
+    rs("ETWT_AUX_AfstandToUse") = tpAfToUse
+    
     rs("ETWT_VAL_Status") = iTimeValStatus
   rs.Update
   
@@ -1279,7 +1357,6 @@ appCleanRS rs
 appCleanRS skETWDlns
 appCleanRS skETWSers
 appCleanRS skTd
-appCleanRS skProg
 appCleanRS skDlns
 
 etwiProcessResImpSettings = True
@@ -1295,7 +1372,6 @@ appCleanRS rs
 appCleanRS skETWDlns
 appCleanRS skETWSers
 appCleanRS skTd
-appCleanRS skProg
 appCleanRS skDlns
 
 DoCmd.SetWarnings True
@@ -1355,11 +1431,13 @@ rs.MoveFirst
 Do Until rs.EOF
   
   Dim tpWed As Long, tpProg As String, tpSer As Long, tpActImp As Boolean
+  Dim tpWasAlreadyImported As Boolean
   
   tpWed = Nz(rs("ETWS_Wedstrijdnummer"))
   tpProg = Nz(rs("ETWS_Programmanummer"))
   tpSer = Nz(rs("ETWS_Serienummer"))
   tpActImp = Nz(rs("ETWS_ACT_Import"))
+  tpWasAlreadyImported = Nz(rs("ETWS_IsImported"))
   
   
 
@@ -1371,8 +1449,11 @@ Do Until rs.EOF
     appRaiseSilentError
   End If
   
+  Dim tpIsImported As Boolean
+  tpIsImported = tpActImp Or tpWasAlreadyImported
+  
   sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\IS_IMPORTED"
-  sPropVal = rxpFormatBoolean(tpActImp)
+  sPropVal = rxpFormatBoolean(tpIsImported)
   
   If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
     appRaiseSilentError
@@ -1408,6 +1489,12 @@ etwiTransferResults_processDlns = False
 Dim rs As Recordset
 Set rs = CurrentDb().OpenRecordset("hpoETWResDlns")
 
+
+Dim skCurDlns As Recordset
+Set skCurDlns = CurrentDb().OpenRecordset("hpoETWCurDlns")
+skCurDlns.Index = "PrimaryKey"
+
+
 Dim sPropName As String, sPropVal As String
 Dim blDummy As Boolean, lDummy As Long, sDummy As String
 
@@ -1433,17 +1520,41 @@ Do Until rs.EOF
     appRaiseSilentError
   End If
   
-  sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\ACT_LINKED_DLN_INDEX"
-  If (lDlnIdx < 0) Then
-    sPropVal = ""
-  Else
-    sPropVal = CStr(lDlnIdx)
+  
+  
+  Dim tpLinkedDlnProg As String, tpLinkedDlnSerAsString As String, tpLinkedDlnBnAsString As String
+  tpLinkedDlnProg = ""
+  tpLinkedDlnSerAsString = ""
+  tpLinkedDlnBnAsString = ""
+  
+  skCurDlns.Seek "=", lDlnIdx
+  
+  If (Not skCurDlns.NoMatch) Then
+    tpLinkedDlnProg = Nz(skCurDlns("CD_Programmanummer"))
+    tpLinkedDlnSerAsString = CStr(Nz(skCurDlns("CD_Serienummer")))
+    tpLinkedDlnBnAsString = CStr(Nz(skCurDlns("CD_Baan")))
   End If
   
+  
+  
+  sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\ACT_LINKED_DLN_PROG"
+  sPropVal = tpLinkedDlnProg
   If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
     appRaiseSilentError
   End If
-    
+        
+  sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\ACT_LINKED_DLN_SER"
+  sPropVal = tpLinkedDlnSerAsString
+  If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\ACT_LINKED_DLN_BAAN"
+  sPropVal = tpLinkedDlnBnAsString
+  If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+        
     
   sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\ACT_DIS"
   sPropVal = sDlnDis
@@ -1456,6 +1567,7 @@ Do Until rs.EOF
 Loop
 
 appCleanRS rs
+appCleanRS skCurDlns
 
 etwiTransferResults_processDlns = True
 Exit Function
@@ -1466,6 +1578,7 @@ Dim errInf As ERR_INFO
 appRecordError "etwiTransferResults_processDlns", errInf
 
 appCleanRS rs
+appCleanRS skCurDlns
 
 appDisplayError errInf
 Exit Function
@@ -1512,8 +1625,11 @@ Dim nDlnBckAf As Integer
 Dim iDlnManAf(0 To MAX_N_TUSSENTIJDEN) As Integer
 Dim nDlnManAf As Integer
 
-Dim sProgAfstand As String, sProgSlag As String
-Dim lProgTsAf(0 To MAX_N_TUSSENTIJDEN) As Long
+
+
+Dim curExpWed As Long, curExpProg As String
+Dim sExpProgAfstand As String, sExpProgSlag As String
+Dim lExpProgTsAf(0 To MAX_N_TUSSENTIJDEN) As Long
 
 Dim curDlnValid As Boolean, curDlnLinkedIdx As Long, curDlnDis As String
 
@@ -1572,8 +1688,31 @@ Do Until blDone
           Err.Raise 1, , "Internal error"
         End If
         
+        Dim tpExpWed As Long, tpExpProg As String
+        tpExpProg = Nz(skTd(FNM_TY_PROG))
+        tpExpWed = Nz(skTd(FNM_TY_WED))
+        
+        If (tpExpProg <> curExpProg) Or (tpExpWed <> curExpWed) Then
+          'need to get new data
+          skProg.Seek "=", tpExpWed, tpExpProg
+          If skProg.NoMatch Then
+            Err.Raise 1, , "Internal error"
+          End If
+      
+          'Initializations for new prog
+          curExpWed = tpExpWed
+          curExpProg = tpExpProg
+      
+          sExpProgAfstand = Nz(skProg("PR_Afstand"))
+          sExpProgSlag = Nz(skProg("PR_Slag"))
+      
+          If Not tstLookupTussenAfstanden(sExpProgAfstand, sExpProgSlag, wedInf.baan, lExpProgTsAf) Then
+            appRaiseSilentError
+          End If
+        End If
+        
         skTd.Edit
-          If Not etwiWriteTimes(skTd, etwGlbInf, sProgAfstand, lProgTsAf, iDlnImpAf, dDlnImpTimes, nDlnImpTimes, iDlnBckAf, nDlnBckAf, iDlnManAf, nDlnManAf, curDlnDis) Then
+          If Not etwiWriteTimes(skTd, etwGlbInf, sExpProgAfstand, lExpProgTsAf, iDlnImpAf, dDlnImpTimes, nDlnImpTimes, iDlnBckAf, nDlnBckAf, iDlnManAf, nDlnManAf, curDlnDis) Then
             appRaiseSilentError
           End If
         skTd.Update
@@ -1589,21 +1728,10 @@ Do Until blDone
   
     'Initializations for new prog
     If (blIsNewProg) Then
-      skProg.Seek "=", tpWed, tpProg
-      If skProg.NoMatch Then
-        Err.Raise 1, , "Internal error"
-      End If
-      
+     
       'Initializations for new prog
       curWed = tpWed
       curProg = tpProg
-      
-      sProgAfstand = Nz(skProg("PR_Afstand"))
-      sProgSlag = Nz(skProg("PR_Slag"))
-      
-      If Not tstLookupTussenAfstanden(sProgAfstand, sProgSlag, wedInf.baan, lProgTsAf) Then
-        appRaiseSilentError
-      End If
       
     End If
   
@@ -1631,23 +1759,36 @@ Do Until blDone
   If (Not rs.EOF) Then
   
     Dim tpAf As Long
-    tpAf = Nz(rs("etwt_afstand"))
+    tpAf = Nz(rs("ETWT_Afstand"))
     
     
     'First write user chosen actions to memory
     
     Dim tpActImport As Boolean
+    Dim tpActAfstand As Long
     Dim tpActSuppressTime As Boolean
     Dim tpActSuppressBckTime As Boolean
     Dim tpActManualTime As Double
     
-    tpActImport = Nz(rs("ETWT_Act_Import"))
+    tpActImport = Nz(rs("ETWT_ACT_Import"))
+    tpActAfstand = Nz(rs("ETWT_ACT_Afstand"))
     tpActSuppressTime = Nz(rs("ETWT_ACT_SuppressTime"))
     tpActSuppressBckTime = Nz(rs("ETWT_ACT_SuppressBckTime"))
     tpActManualTime = Nz(rs("ETWT_ACT_HandTijd"))
     
+    
     sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\" & tpAf & "\ACT_IMPORT"
     sPropVal = rxpFormatBoolean(tpActImport)
+    
+    If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+      appRaiseSilentError
+    End If
+    
+    sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\" & tpAf & "\ACT_AFSTAND"
+    sPropVal = ""
+    If (tpActAfstand <> 0) Then
+      sPropVal = CStr(tpActAfstand)
+    End If
     
     If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
       appRaiseSilentError
@@ -1681,20 +1822,23 @@ Do Until blDone
     tpAuxImport = Nz(rs("ETWT_AUX_Import"))
     
     If (tpAuxImport) Then
+      Dim tpAfToUse As Long
       Dim tpTimeToUse As Double, tpTimeToUseIsBackup As Boolean, tpTimeToUseIsManual As Boolean
+      
+      tpAfToUse = Nz(rs("ETWT_AUX_AfstandToUse"))
       tpTimeToUse = Nz(rs("ETWT_AUX_TimeToUse"))
       tpTimeToUseIsBackup = Nz(rs("ETWT_AUX_TimeToUseIsBackup"))
       tpTimeToUseIsManual = Nz(rs("ETWT_AUX_TimeToUseIsManual"))
       
       If (swtIsValid(tpTimeToUse)) Then
-        If Not tstSetTussenTijd(tpAf, tpTimeToUse, nDlnImpTimes, iDlnImpAf, dDlnImpTimes) Then
+        If Not tstSetTussenTijd(tpAfToUse, tpTimeToUse, nDlnImpTimes, iDlnImpAf, dDlnImpTimes) Then
           appRaiseSilentError
         End If
         
         If (tpTimeToUseIsBackup) Then
-          insInt tpAf, nDlnBckAf, iDlnBckAf
+          insInt tpAfToUse, nDlnBckAf, iDlnBckAf
         ElseIf (tpTimeToUseIsManual) Then
-          insInt tpAf, nDlnManAf, iDlnManAf
+          insInt tpAfToUse, nDlnManAf, iDlnManAf
         End If
       End If
     End If
@@ -1865,6 +2009,10 @@ End If
 If (Not blIsCancelled) Then
 
   If Not lnhExportWedstrijd(lWedNr, True, True, False, False, False, True) Then
+    appRaiseSilentError
+  End If
+  
+  If Not lenApplyCorrectionsUsingAuxData(True, True, True) Then
     appRaiseSilentError
   End If
 

@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =2103440167
+Checksum =-649123203
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -19,12 +19,13 @@ Begin Form
     Left =6015
     Top =30
     Right =17520
-    Bottom =6660
+    Bottom =6840
     DatasheetGridlinesColor =12632256
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
         0x355d0020ff2be340
     End
+    Caption ="Elektronische tijdwaarneming"
     OnOpen ="[Event Procedure]"
     MenuBar ="gMnBasic"
     DatasheetFontName ="Arial"
@@ -436,6 +437,8 @@ If (lGlbWedNr > 0) Then
   Select Case sEqpType
     Case ETW_TYPE_ARES21
       Me.optEqp.Caption = "Ares 21 Instellingen"
+    Case ETW_TYPE_ALGE2000
+      Me.optEqp.Caption = "Alge Swim 2000 Instellingen"
   End Select
   
   
@@ -597,6 +600,8 @@ Select Case curPage
     Case PAGE_EQP_SET
       If (sEqpType = ETW_TYPE_ARES21) Then
         pName = "ETW_ARES21_Settings"
+      ElseIf (sEqpType = ETW_TYPE_ALGE2000) Then
+        pName = "ETW_ALGE2000_Settings"
       End If
     Case PAGE_RES_NEW
       pName = "ETW_Results"
@@ -851,8 +856,8 @@ End Sub
 Private Sub btnDelHistory_Click()
 On Error Resume Next
 Dim msg As String
-msg = "Na deze operatie zullen alle beschikbare series uit de tijdmeetapparatuur als nieuw worden aangeduid, ook al heeft u ze reeds ingelezen." & _
-  vbCrLf & vbCrLf & "Wilt u doorgaan?"
+msg = "Deze operatie zal: " & vbCrLf & vbCrLf & "* Al uw gemaakte keuzes wissen" & vbCrLf & "* Alle beschikbare series uit de tijdmeetapparatuur als nieuw aanduiden, ook al heeft u ze reeds ingelezen" & vbCrLf & vbCrLf & _
+  "Wilt u doorgaan?"
   
 If MsgBox(msg, vbOKCancel + vbQuestion) = vbCancel Then
   Exit Sub
@@ -895,11 +900,7 @@ Dim nSelSeries As Long
 
 nSelSeries = Nz(DCount("etws_wedstrijdnummer", "hpoETWResSeries", "etws_act_import"))
 
-If (nSelSeries = 0) Then
-  Err.Raise 1, , "Er zijn geen series geselecteerd."
-End If
-
-If MsgBox("Tijden van de " & nSelSeries & " geselecteerde serie(s) importeren?", vbOKCancel + vbQuestion) = vbCancel Then
+If MsgBox("Deze aktie zal: " & vbCrLf & vbCrLf & "* Uw keuzes opslaan" & vbCrLf & "* Tijden van de " & nSelSeries & " geselecteerde serie(s) importeren." & vbCrLf & vbCrLf & "Wilt u doorgaan?", vbOKCancel + vbQuestion) = vbCancel Then
   appRaiseSilentError
 End If
 
@@ -924,6 +925,9 @@ appRecordError "btnImport_click", errInf
 appDisplayError errInf
 Exit Sub
 
+'debug
+On Error GoTo 0
+Resume
 
 End Sub
 
