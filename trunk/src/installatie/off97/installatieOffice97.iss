@@ -94,6 +94,8 @@ Source: "..\..\..\bin\dll\hupswim_zip32.dll" ; DestDir: "{sys}"; Flags: ignoreve
 
 ;Dll file for database folder
 Source: "..\..\..\bin_priv\dll\dynapdf.dll"; DestDir: "{app}\database"; Flags: ignoreversion recursesubdirs ; Check: MakeBackup(ExpandConstant('{app}\database'));
+;Exe file for database folder
+Source: "..\..\..\bin_priv\exe\winscp425.exe"; DestDir: "{app}\database"; Flags: ignoreversion recursesubdirs ; Check: MakeBackup(ExpandConstant('{app}\database'));
 
 ;Icon for database folder
 Source: "..\..\..\bin\img\hzzian2.ico"; DestDir: "{app}\database"; Flags: ignoreversion recursesubdirs ; Check: MakeBackup(ExpandConstant('{app}\database'));
