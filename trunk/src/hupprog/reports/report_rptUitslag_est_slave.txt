@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-166085431
+Checksum =971157721
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -8,10 +8,10 @@ Begin Report
     GridY =30
     Width =8086
     ItemSuffix =68
-    Left =4875
-    Top =375
-    Right =11625
-    Bottom =5385
+    Left =4980
+    Top =25950
+    Right =15360
+    Bottom =28425
     ShortcutMenuBar ="gShortcutRpt"
     Toolbar ="gRptToolbar"
     RecSrcDt = Begin
@@ -34,7 +34,7 @@ Begin Report
     OnOpen ="[Event Procedure]"
     MenuBar ="gMnBasic"
     PrtMip = Begin
-        0xdc000000dc000000c80000000802000000000000ef130000f000000000000000 ,
+        0x0000000000000000000000000000000000000000ef130000f000000000000000 ,
         0x02000000ac01000000000000a10700000100000000000000
     End
     PrtDevMode = Begin
@@ -1309,7 +1309,25 @@ End Function
 
 Private Sub Report_Open(Cancel As Integer)
 On Error Resume Next
-apply_Programmaopmaak Vraag_ProgrammaOpmaak()
+
+Dim rxpPnt As RXP_Pointer
+
+Dim iDummy As Integer
+
+If Not expPV_getStats(iDummy, rxpPnt) Then
+  Exit Sub
+End If
+
+
+Dim argPVFmtWedstrijdnummer As Long, argPVFmtName As String
+
+argPVFmtWedstrijdnummer = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_WED_NR))
+argPVFmtName = rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_NAME)
+
+
+
+
+apply_Programmaopmaak Vraag_ProgrammaOpmaak(argPVFmtWedstrijdnummer, argPVFmtName)
 
 
 

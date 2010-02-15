@@ -151,8 +151,11 @@ appCleanRS rs
 
 
 If (blEstIsDirty) Then
-  'Reanalyze estafettes.
-  If Not analyzeEstafs(Not blEntireMeet, wedInf.wednr, wedInf.meetMainNr, "~AN_Estafs") Then
+  'Reanalyze the estafettes for entire meet
+  Dim blEstEntireMeet As Boolean
+  blEstEntireMeet = wedInf.isMeet
+  
+  If Not analyzeEstafs(Not blEstEntireMeet, wedInf.wednr, wedInf.meetMainNr, "~AN_Estafs") Then
     Exit Function
   End If
 End If
@@ -639,8 +642,6 @@ End Function
 
 '----------------------------------
 'Uitslag puntentellingen
-
-'Prerequisite: analyzeEstafs must have been performed and uitslagTransferSettings must have been called
 Public Function uitslagPunten_Handle(ByVal wednr As Long, ByVal blEntireMeet As Boolean, ByVal pntCalcMode As Integer) As Boolean
 On Error GoTo fout
 uitslagPunten_Handle = False
@@ -1188,7 +1189,7 @@ sql = "SELECT dtTijden.TY_Wedstrijdnummer, dtTijden.TY_Programmanummer, nz([TY_A
     "FROM dtTijden INNER JOIN dtProgramma ON (dtTijden.TY_Programmanummer = dtProgramma.PR_Programmanummer) AND " & _
     "(dtTijden.TY_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) " & _
     "WHERE dtTijden.TY_Wedstrijdnummer = " & wednr & " " & _
-    "ORDER BY dtTijden.TY_Wedstrijdnummer, dtTijden.TY_Programmanummer, nz([TY_A/B/C],""""), nz([TY_Categorie],""""), dtTijden.TY_Eindtijd, dtTijden.TY_ab, dtTijden.TY_EindPunten;"
+    "ORDER BY dtTijden.TY_Wedstrijdnummer, dtTijden.TY_Programmanummer, nz([TY_A/B/C],""""), nz([TY_Categorie],""""), dtTijden.TY_Eindtijd, dtTijden.TY_ab, dtTijden.TY_EindPunten, dtTijden.ty_counter;"
 
 
 Set rs = CurrentDb().OpenRecordset(sql)
@@ -1497,7 +1498,9 @@ DoCmd.SetWarnings True
 
 If (blIsForUitslag) Then
 
-  If Not uitslagTransferSettings(wednr, False) Then
+  'uitslag transfer settings must be called on all weds in meet, since uitslagRanglijsten may
+  'use any result in the meet.
+  If Not uitslagTransferSettings(wednr, True) Then
     Exit Function
   End If
 
@@ -1761,10 +1764,10 @@ End If
 'Note that (reserve, bm) is deliberately in this order; to keep the same ordering as the programma / uitslagblad.
 Dim sql25 As String, sql50 As String
 If (Not blIsOW) Then
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  swtOrder(nz([de_inschrijftijd]));"
-  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  swtOrder(nz([de_inschrijftijd]));"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  swtOrder(nz([de_inschrijftijd])), de_index;"
+  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  swtOrder(nz([de_inschrijftijd])), de_index;"
 Else
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  de_ow_capnummer;"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  de_ow_capnummer, de_index;"
   sql50 = "select * from dtDeelnemers where false;"
 End If
 
@@ -1782,10 +1785,10 @@ appCleanRS dlns50
 
 
 If (Not blIsOW) Then
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, swtOrder(nz([de_inschrijftijd]));"
-  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, swtOrder(nz([de_inschrijftijd]));"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, swtOrder(nz([de_inschrijftijd])), de_index;"
+  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, swtOrder(nz([de_inschrijftijd])), de_index;"
 Else
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, de_ow_capnummer;"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, de_ow_capnummer, de_index;"
   sql50 = "select * from dtDeelnemers where false;"
 End If
 
@@ -2136,7 +2139,7 @@ If Not uitslagSetCounters(wednr) Then
   Exit Function
 End If
 
-If Not uitslagCalcDis(wednr) Then Exit Function
+If Not uitslagCalcDis(wednr, True) Then Exit Function
 
 Dim blIsOW As Boolean
 blIsOW = wedLkpIsOW(wednr)
@@ -2197,11 +2200,13 @@ End Function
 
 
 
-Private Function uitslagCalcDis(wednr As Long) As Boolean
+Private Function uitslagCalcDis(wednr As Long, ByVal blCreateTables As Boolean) As Boolean
 On Error GoTo fout
 uitslagCalcDis = False
 
-If Not uitslagCreateTables("~UIT_DIS") Then Exit Function
+If (blCreateTables) Then
+  If Not uitslagCreateTables("~UIT_DIS") Then Exit Function
+End If
 
 Dim pers As Recordset
 Set pers = CurrentDb().OpenRecordset("Select * from dtTijden where [ty_wedstrijdnummer]=" & wednr & " " & _
@@ -2283,4 +2288,197 @@ Exit Function
 fout:
 MsgBox Err & " " & Error$, 16
 Exit Function
+End Function
+
+
+
+
+'Eventually, progCreate and uitslagCreate need to be obsoleted and absorbed into this function
+Public Function uitslagCreateForMeet(ByVal lWedNr As Long, ByVal blEntireMeet) As Boolean
+On Error GoTo fout
+uitslagCreateForMeet = False
+
+Dim blIsForUitslag As Boolean
+blIsForUitslag = True
+
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+
+If Not wedLookup(lWedNr, isFnd, wedInf) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Could not find wedstrijd: " & lWedNr
+End If
+
+
+If Not (wedInf.isMeet) Then
+  blEntireMeet = False
+End If
+
+Dim lWedNrs(0 To 1000) As Long
+Dim oWedInfs(0 To 1000) As WED_BASIC_INFO
+Dim nWeds As Integer
+nWeds = 0
+
+If blEntireMeet Then
+  Dim rs As Recordset
+  Set rs = CurrentDb().OpenRecordset("select * from [" & TNM_WED & "] where [" & FNM_WED_MAIN_NR & "] = " & wedInf.meetMainNr)
+  rs.MoveFirst
+  Do Until rs.EOF
+    Dim tpWed As Long
+    tpWed = Nz(rs(FNM_WED_NR))
+    lWedNrs(nWeds) = tpWed
+    If Not wedLookup(tpWed, isFnd, oWedInfs(nWeds)) Then
+      appRaiseSilentError
+    End If
+    If Not isFnd Then
+      Err.Raise 1, , "Could not find wedstrijd: " & tpWed
+    End If
+    nWeds = nWeds + 1
+    rs.MoveNext
+  Loop
+  appCleanRS rs
+Else
+  nWeds = 1
+  lWedNrs(0) = lWedNr
+  oWedInfs(0) = wedInf
+End If
+
+
+Dim iw As Integer
+
+For iw = 0 To nWeds - 1
+  If Not progSetTussenAfstanden(lWedNrs(iw)) Then
+    appRaiseSilentError
+  End If
+Next iw
+
+'analyze estaf should be performed for all data in meet, even if the result need only be created for a single wed.
+'This is because uitslagRanglijsten may depend on estafettes from other matches in meet.
+
+Dim blEstForEntireMeet As Boolean
+blEstForEntireMeet = wedInf.isMeet
+
+
+If Not analyzeEstafs(Not blEstForEntireMeet, lWedNr, wedInf.meetMainNr, "~AN_Estafs") Then
+  appRaiseSilentError
+End If
+
+'Make sure that RNK programmas are not shown in programmaboekje and startlijsten.
+Dim sql As String
+
+For iw = 0 To nWeds - 1
+
+  sql = "update dtProgramma set PR_ProgNietLatenZien = true where pr_wedstrijdnummer = " & lWedNrs(iw) & " and pr_type=""" & PROG_TYPE_RANKING & """"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+  
+  'Make sure that PNT programmas are not shown in programmaboekje and startlijsten.
+  sql = "update dtProgramma set PR_ProgNietLatenZien = true where pr_wedstrijdnummer = " & lWedNrs(iw) & " and pr_type=""" & PROG_TYPE_PUNT & """"
+  DoCmd.SetWarnings False
+  DoCmd.RunSQL sql
+  DoCmd.SetWarnings True
+  
+Next iw
+
+
+
+If (blIsForUitslag) Then
+
+  'uitslag transfer settings should be performed for all data in meet, even if the result need only be created for a single wed.
+  'This is because uitslagRanglijsten may depend on results from other matches in meet.
+  
+  If Not uitslagTransferSettings(lWedNr, True) Then
+    Exit Function
+  End If
+
+  If Not uitslagRanglijsten(lWedNr, blEntireMeet, PNT_CALC_MODE_RESULT) Then
+    Exit Function
+  End If
+  If Not uitslagPunten(lWedNr, blEntireMeet, PNT_CALC_MODE_RESULT) Then
+    Exit Function
+  End If
+  
+End If
+
+
+For iw = 0 To nWeds - 1
+  If Not deelnemerCategorie(lWedNrs(iw)) Then
+    appRaiseSilentError
+  End If
+
+  If Not deelnemerFindSecondEstafs(lWedNrs(iw)) Then
+    appRaiseSilentError
+  End If
+
+  Dim blIsOW As Boolean
+  blIsOW = wedLkpIsOW(lWedNrs(iw))
+
+  If Not progSetCounters(oWedInfs(iw), blIsOW) Then Exit Function
+
+  If (blIsOW) Then
+    If Not owCalcStats(lWedNrs(iw), Not blIsForUitslag) Then
+      Exit Function
+    End If
+  End If
+Next iw
+  
+
+
+
+
+If (blIsForUitslag) Then
+
+  For iw = 0 To nWeds - 1
+    If Not uitslagApplyRanking(lWedNrs(iw)) Then
+      appRaiseSilentError
+    End If
+  
+    If Not uitslagSetCounters(lWedNrs(iw)) Then
+      appRaiseSilentError
+    End If
+  
+    Dim tpCreateDisTable As Boolean
+    tpCreateDisTable = (iw = 0)
+    If Not uitslagCalcDis(lWedNrs(iw), tpCreateDisTable) Then
+      appRaiseSilentError
+    End If
+  
+  
+    blIsOW = wedLkpIsOW(lWedNrs(iw))
+  
+    If (blIsOW) Then
+      If Not owCalcStats(lWedNrs(iw), False) Then
+        Exit Function
+      End If
+    End If
+    
+    
+  Next iw
+  
+End If
+
+
+
+
+uitslagCreateForMeet = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "uitslagCreateForMeet", errInf
+
+appCleanRS rs
+
+DoCmd.SetWarnings True
+
+appDisplayError errInf
+Exit Function
+
 End Function

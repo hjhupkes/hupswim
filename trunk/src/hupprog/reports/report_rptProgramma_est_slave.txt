@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =582570580
+Checksum =-582329902
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -8,10 +8,10 @@ Begin Report
     GridY =30
     Width =8049
     ItemSuffix =20
-    Left =3630
-    Top =75
-    Right =10110
-    Bottom =5130
+    Left =1350
+    Top =18615
+    Right =11625
+    Bottom =21090
     ShortcutMenuBar ="gShortcutRpt"
     Toolbar ="gRptToolbar"
     RecSrcDt = Begin
@@ -927,7 +927,26 @@ End Function
 
 Private Sub Report_Open(Cancel As Integer)
 On Error Resume Next
-apply_Programmaopmaak Vraag_ProgrammaOpmaak()
+
+
+Dim rxpPnt As RXP_Pointer
+
+Dim iDummy As Integer
+
+If Not expPV_getStats(iDummy, rxpPnt) Then
+  Exit Sub
+End If
+
+
+Dim argPVFmtWedstrijdnummer As Long, argPVFmtName As String
+
+argPVFmtWedstrijdnummer = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_WED_NR))
+argPVFmtName = rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_NAME)
+
+
+
+
+apply_Programmaopmaak Vraag_ProgrammaOpmaak(argPVFmtWedstrijdnummer, argPVFmtName)
 
 
 On Error Resume Next

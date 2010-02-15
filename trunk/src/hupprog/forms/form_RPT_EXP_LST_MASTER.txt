@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =514926473
+Checksum =431302851
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -15,11 +15,11 @@ Begin Form
     GridX =15
     GridY =15
     Width =11910
-    ItemSuffix =181
-    Left =8370
-    Top =1380
-    Right =20280
-    Bottom =8340
+    ItemSuffix =185
+    Left =4215
+    Top =1860
+    Right =17145
+    Bottom =10950
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
         0xd4d8e8f09d6de340
@@ -288,15 +288,54 @@ Begin Form
                         End
                         Begin ToggleButton
                             OverlapFlags =87
-                            Left =1290
+                            Left =1209
+                            Top =1215
+                            Width =1425
+                            Height =300
+                            OptionValue =1
+                            Name ="optFTP"
+                            Caption ="FTP Instellingen"
+                            GUID = Begin
+                                0x22f1a2089667ae46bb27cb45d35d2deb
+                            End
+                        End
+                        Begin ToggleButton
+                            OverlapFlags =87
+                            Left =2948
+                            Top =1215
+                            Width =1950
+                            Height =300
+                            OptionValue =2
+                            Name ="optNav"
+                            Caption ="Navigatie-html-bestand "
+                            GUID = Begin
+                                0x3f80fca84762f8428a4e96dc0580fa25
+                            End
+                        End
+                        Begin ToggleButton
+                            OverlapFlags =87
+                            Left =5026
                             Top =1215
                             Width =2100
                             Height =300
-                            OptionValue =1
+                            OptionValue =3
                             Name ="optPV"
                             Caption ="Programma / Uitslag"
                             GUID = Begin
                                 0x1a7dbedb1a04394e9127502a4c752b95
+                            End
+                        End
+                        Begin ToggleButton
+                            OverlapFlags =87
+                            Left =7218
+                            Top =1215
+                            Width =1440
+                            Height =300
+                            OptionValue =4
+                            Name ="optPnt"
+                            Caption ="Puntentellingen"
+                            GUID = Begin
+                                0xd8aa6a3a3bbe884b88933ebcafb2c921
                             End
                         End
                     End
@@ -450,7 +489,7 @@ Begin Form
             End
         End
         Begin FormFooter
-            Height =566
+            Height =529
             BackColor =65280
             Name ="FormFooter"
             Begin
@@ -485,6 +524,23 @@ Begin Form
                     End
                     UnicodeAccessKey =69
                 End
+                Begin CommandButton
+                    OverlapFlags =85
+                    TextFontFamily =34
+                    Left =3975
+                    Top =120
+                    Width =2376
+                    Height =343
+                    FontWeight =400
+                    TabIndex =2
+                    ForeColor =-2147483630
+                    Name ="btnDelHistory"
+                    Caption ="Geschiedenis wissen"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xfc4ecc366988f5468c74095226a6115f
+                    End
+                End
             End
         End
     End
@@ -499,12 +555,15 @@ Option Explicit
 
 
 Private Const PAGE_GLB = 0
-Private Const PAGE_PV = 1
+Private Const PAGE_FTP = 1
+Private Const PAGE_NAV = 2
+Private Const PAGE_PV = 3
+Private Const PAGE_PNT = 4
 
 
 
 Private Const PAGE_MIN = PAGE_GLB
-Private Const PAGE_MAX = PAGE_PV
+Private Const PAGE_MAX = PAGE_PNT
 
 Private gExpListWedNr As Long
 Private gExpListName As String
@@ -563,6 +622,21 @@ End Sub
 
 
 
+
+Private Sub btnDelHistory_Click()
+On Error Resume Next
+DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
+
+If MsgBox("Deze operatie zal alle informatie verwijderen die hupprog gebruikt om te bepalen of een export-bestand opnieuw aangemaakt dient te worden. " & _
+  vbCrLf & "Alle export-bestanden zullen bij een volgende exporteer-operatie opnieuw worden aangemaakt" & vbCrLf & vbCrLf & "Wilt u doorgaan?", vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Sub
+End If
+  
+If Not rxlClearCacheExportList() Then
+  Exit Sub
+End If
+
+End Sub
 
 Private Sub btnExport_Click()
 On Error Resume Next
@@ -698,11 +772,11 @@ End If
 
 Dim isFnd As Boolean, sFndName As String, lFndWedNr As Long, lFndObjID As Long
 If (direction < 0) Then
-  If Not rxlLookupPrevious(waarde(), gExpListName, RXL_VIS_MATCH, isFnd, sFndName, lFndWedNr, lFndObjID) Then
+  If Not rxlLookupPrevious(gExpListWedNr, gExpListName, RXL_VIS_MATCH, isFnd, sFndName, lFndWedNr, lFndObjID) Then
     Exit Sub
   End If
 Else
-  If Not rxlLookupNext(waarde(), gExpListName, RXL_VIS_MATCH, isFnd, sFndName, lFndWedNr, lFndObjID) Then
+  If Not rxlLookupNext(gExpListWedNr, gExpListName, RXL_VIS_MATCH, isFnd, sFndName, lFndWedNr, lFndObjID) Then
     Exit Sub
   End If
 End If
@@ -813,11 +887,11 @@ Me.fldRptSetDes = ""
 
 
 If (gExpListName <> "") Then
-  If Not rxlLoadExpList(waarde(), gExpListName) Then
+  If Not rxlLoadExpList(gExpListWedNr, gExpListName) Then
     Exit Sub
   End If
   
-  Me.fldRptSetDes = gExpListName & " ( wednr: " & waarde() & " )"
+  Me.fldRptSetDes = gExpListName & " ( wednr: " & gExpListWedNr & " )"
 Else
   Me.fldRptSetDes = "Geen lijst geselecteerd"
 End If
@@ -849,8 +923,14 @@ For i = PAGE_MIN To PAGE_MAX
   Select Case i
     Case PAGE_GLB
       Set cntrl = Me.optGlb
+    Case PAGE_FTP
+      Set cntrl = Me.optFTP
+    Case PAGE_NAV
+      Set cntrl = Me.optNav
     Case PAGE_PV
       Set cntrl = Me.optPV
+    Case PAGE_PNT
+      Set cntrl = Me.optPnt
   End Select
   
 
@@ -925,9 +1005,18 @@ If (gExpListName <> "") Then
     Case PAGE_GLB
       isSub = True
       subName = "RPT_EXP_LST_Settings"
+    Case PAGE_FTP
+      isSub = True
+      subName = "RPT_EXP_LST_FTP"
+    Case PAGE_NAV
+      isSub = True
+      subName = "RPT_EXP_LST_Navigation"
     Case PAGE_PV
       isSub = True
       subName = "RPT_EXP_LST_PVs"
+    Case PAGE_PNT
+      isSub = True
+      subName = "RPT_EXP_LST_Pnts"
   End Select
   
   If (isSub) Then

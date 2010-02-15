@@ -56,6 +56,8 @@ Public Const RXP_CB_ID_PV_UTL = 0
 Public Const RXP_CB_ID_PV_UTB = 1
 Public Const RXP_CB_ID_PV_STL = 2
 
+Public Const RXP_CB_ID_RXL_SWB = 10
+
 
 
 
@@ -70,6 +72,8 @@ Select Case cbID
     rxpExportCbMaster_TxtRegDefaultFormat = cbExpPV_UTB_TxtRegDefaultFormat(bandName, bndNCols, bndColWidths, bndColMultiLine, bndColFields, bndColFixedText, blIgnoreBand, rxpPnt)
   Case RXP_CB_ID_PV_STL
     rxpExportCbMaster_TxtRegDefaultFormat = cbExpPV_STL_TxtRegDefaultFormat(bandName, bndNCols, bndColWidths, bndColMultiLine, bndColFields, bndColFixedText, blIgnoreBand, rxpPnt)
+  Case RXP_CB_ID_RXL_SWB
+    rxpExportCbMaster_TxtRegDefaultFormat = cbRXL_SW_TxtRegDefaultFormat(bandName, bndNCols, bndColWidths, bndColMultiLine, bndColFields, bndColFixedText, blIgnoreBand, rxpPnt)
 End Select
 
 End Function
@@ -83,7 +87,8 @@ Select Case cbID
     rxpExportCbMaster_TxtProcess = cbExpPV_UTB_TxtProcess(fNr, bndName, bndIsFirst, bndIsLast, nCols, colWidths, colMultiLine, fldValues, fldColSpans, blSkipDefaultOutput, rxpPnt)
   Case RXP_CB_ID_PV_STL
     rxpExportCbMaster_TxtProcess = cbExpPV_STL_TxtProcess(fNr, bndName, bndIsFirst, bndIsLast, nCols, colWidths, colMultiLine, fldValues, fldColSpans, blSkipDefaultOutput, rxpPnt)
-  
+  Case RXP_CB_ID_RXL_SWB
+    rxpExportCbMaster_TxtProcess = cbRXL_SW_TxtProcess(fNr, bndName, bndIsFirst, bndIsLast, nCols, colWidths, colMultiLine, fldValues, fldColSpans, blSkipDefaultOutput, rxpPnt)
 End Select
 
 End Function
@@ -96,6 +101,8 @@ Select Case cbID
     rxpExportCbMaster_TxtPostProcess = cbExpPV_UTB_TxtPostProcess(fNr, bndName, bndIsFirst, bndIsLast, rxpPnt)
   Case RXP_CB_ID_PV_STL
     rxpExportCbMaster_TxtPostProcess = cbExpPV_STL_TxtPostProcess(fNr, bndName, bndIsFirst, bndIsLast, rxpPnt)
+  Case RXP_CB_ID_RXL_SWB
+    rxpExportCbMaster_TxtPostProcess = cbRXL_SW_TxtPostProcess(fNr, bndName, bndIsFirst, bndIsLast, rxpPnt)
 End Select
 End Function
 
@@ -392,12 +399,16 @@ If (isHandled) Then
     
     
     If (isExp) Then
-      MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & fName, vbInformation
+      If Not blUseSuppFName Then
+        MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & fName, vbInformation
+      End If
     Else
       If Not rptHandleDefaultExport(rptName, rxpFormat, fName) Then
         Exit Function
       End If
-      MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & fName, vbInformation
+      If Not blUseSuppFName Then
+        MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & fName, vbInformation
+      End If
     End If
   End If 'if blOK
 End If 'if isHandled

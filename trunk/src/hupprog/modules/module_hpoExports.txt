@@ -33,7 +33,8 @@ MsgBox Err & " rxpSetVerPntUitslagOptions" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
-Public Function rxpSetPVOptions(ByVal wednr As Long, ByVal blEntireMeet As Boolean, ByVal sFirstProg As String, ByVal sLastProg As String, ByVal blSingleProg As Boolean, ByVal sSingleProg As String, ByVal blRestrictRnk As Boolean, ByVal lMaxRnk As Long, ByVal blProgHideNgAfm As Boolean) As Boolean
+Public Function rxpSetPVOptions(ByVal wednr As Long, ByVal blEntireMeet As Boolean, ByVal sFirstProg As String, ByVal sLastProg As String, ByVal blSingleProg As Boolean, ByVal sSingleProg As String, _
+  ByVal blRestrictRnk As Boolean, ByVal lMaxRnk As Long, ByVal blProgHideNgAfm As Boolean, ByVal blUseCustomPVFmt As String, ByVal lPVFmtWedstrijdnummer, sPVFmtName As String) As Boolean
 On Error GoTo fout
 rxpSetPVOptions = False
 
@@ -46,6 +47,7 @@ If Not rs.EOF Then
 Else
   rs.AddNew
 End If
+  
   rs("PV_Wedstrijdnummer") = wednr
   rs("PV_EntireMeet") = blEntireMeet
   rs("PV_FirstProgrammanummer") = hzn(sFirstProg)
@@ -55,6 +57,15 @@ End If
   rs("PV_IsSingleProg") = blSingleProg
   rs("PV_SingleProg") = hzn(sSingleProg)
   rs("PV_Prog_HideNgAfm") = blProgHideNgAfm
+  
+  If (blUseCustomPVFmt) Then
+    rs("PV_FMT_Wedstrijdnummer") = lPVFmtWedstrijdnummer
+    rs("PV_FMT_Name") = hzn(sPVFmtName)
+  Else
+    rs("PV_FMT_Wedstrijdnummer") = Null
+    rs("PV_FMT_Name") = Null
+  End If
+  
 rs.Update
 
 

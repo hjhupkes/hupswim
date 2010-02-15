@@ -48,7 +48,6 @@ tb.Fields.Append tb.CreateField("DIR_PARENT_ID", dbLong)
 tb.Fields.Append tb.CreateField("DIR_Name", dbText, 50)
 tb.Fields.Append tb.CreateField("DIR_Value", dbText, 255)
 
-
 Dim idx As Index
 
 Set idx = tb.CreateIndex("PrimaryKey")
@@ -576,6 +575,7 @@ dsIntLookupPropertyByName = False
 
 lPropID = -1
 isPresent = False
+sPropValue = ""
 
 Dim lDummy As Long, sDummy As String
 
@@ -604,7 +604,7 @@ Private Function dsIntLookupPropertyByID(ByRef dsData As DIR_SERVER_DATA, ByVal 
 On Error GoTo fout
 dsIntLookupPropertyByID = False
 
-
+sPropValue = ""
 
 dsData.skDSIdx.Seek "=", lPropID
 If (dsData.skDSIdx.NoMatch) Then
@@ -1563,6 +1563,257 @@ End Function
 
 
 
+
+
+Private Function dsIntComparePropertyByName(ByRef dsSrcData As DIR_SERVER_DATA, ByVal sSrcPropFullName As String, ByRef dsTgtData As DIR_SERVER_DATA, ByVal sTgtPropFullName As String, ByRef isMatch As Boolean) As Boolean
+On Error GoTo fout
+dsIntComparePropertyByName = False
+
+Dim blDummy As Boolean
+Dim lSrcPropID As Long, blSrcIsFnd As Boolean
+Dim lTgtPropID As Long, blTgtIsFnd As Boolean
+Dim lDummy As Long, sDummy As String
+
+If Not dsIntFindPropertyID(dsSrcData, sSrcPropFullName, lSrcPropID, blSrcIsFnd, lDummy, sDummy) Then
+  Exit Function
+End If
+
+If Not dsIntFindPropertyID(dsTgtData, sTgtPropFullName, lTgtPropID, blTgtIsFnd, lDummy, sDummy) Then
+  Exit Function
+End If
+
+If (Not blSrcIsFnd) And (Not blTgtIsFnd) Then
+  isMatch = True
+ElseIf (blSrcIsFnd) And (Not blTgtIsFnd) Then
+  isMatch = False
+ElseIf (blTgtIsFnd) And (Not blSrcIsFnd) Then
+  isMatch = False
+ElseIf (blSrcIsFnd) And (blTgtIsFnd) Then
+  If Not dsIntComparePropertyByID(dsSrcData, lSrcPropID, dsTgtData, lTgtPropID, isMatch) Then
+    Exit Function
+  End If
+End If
+
+
+
+dsIntComparePropertyByName = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntComparePropertyByName" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+
+'This compares everything in the directory specified by srcRootID (including subdirectories) to the directory tgtRootID.
+'The elements srcRootID and tgtRootID must both exist and srcRootID itself is not compare with tgtRootID
+Private Function dsIntComparePropertyByID_compareSubTree(dsSrcData As DIR_SERVER_DATA, lSrcRootID As Long, dsTgtData As DIR_SERVER_DATA, lTgtRootID As Long, ByRef isMatch As Boolean) As Boolean
+On Error GoTo fout
+dsIntComparePropertyByID_compareSubTree = False
+
+isMatch = True
+
+'We will perform a depth first search, comparing everything as we go.
+
+Dim dirSrcIDs(0 To MAX_N_DIR_TREE_DEPTH) As Long
+Dim dirSrcIDCurPos(0 To MAX_N_DIR_TREE_DEPTH) As Long
+Dim dirSrcIDCnt(0 To MAX_N_DIR_TREE_DEPTH) As Long
+Dim dirSrcIDListID(0 To MAX_N_DIR_TREE_DEPTH) As Long
+Dim dirTgtIDs(0 To MAX_N_DIR_TREE_DEPTH) As Long
+
+Dim curDepth As Integer
+curDepth = 0
+
+dirSrcIDs(0) = lSrcRootID
+dirSrcIDCurPos(0) = -1
+dirTgtIDs(0) = lTgtRootID
+
+Do While (curDepth >= 0)
+  
+  
+  If (dirSrcIDCurPos(curDepth) = -1) Then
+    'need to initialize count
+    dirSrcIDCnt(curDepth) = 0
+    dirSrcIDListID(curDepth) = -1
+    
+    
+    
+    dsSrcData.skDSNP.Seek "=", "_int_ds_listing", dirSrcIDs(curDepth)
+    
+    If (Not dsSrcData.skDSNP.NoMatch) Then
+      dirSrcIDListID(curDepth) = Nz(dsSrcData.skDSNP("DIR_ID"))
+     
+      'look for the count node
+      dsSrcData.skDSNP.Seek "=", "_int_ds_counter", dirSrcIDListID(curDepth)
+      
+      If (Not dsSrcData.skDSNP.NoMatch) Then
+        dirSrcIDCnt(curDepth) = CLng(Nz(dsSrcData.skDSNP("DIR_VALUE")))
+      End If
+      
+    End If
+    
+    Dim tpTgtIDCnt As Long, tpTgtIDListID As Long
+    
+    tpTgtIDCnt = 0
+    tpTgtIDListID = -1
+    
+    dsTgtData.skDSNP.Seek "=", "_int_ds_listing", dirTgtIDs(curDepth)
+    
+    If (Not dsTgtData.skDSNP.NoMatch) Then
+      tpTgtIDListID = Nz(dsTgtData.skDSNP("DIR_ID"))
+     
+      'look for the count node
+      dsTgtData.skDSNP.Seek "=", "_int_ds_counter", tpTgtIDListID
+      
+      If (Not dsTgtData.skDSNP.NoMatch) Then
+        tpTgtIDCnt = CLng(Nz(dsTgtData.skDSNP("DIR_VALUE")))
+      End If
+      
+    End If
+    
+    If (dirSrcIDCnt(curDepth) <> tpTgtIDCnt) Then
+      isMatch = False
+      Exit Do
+    End If
+    
+    
+  End If
+  
+  'advance the current position
+  dirSrcIDCurPos(curDepth) = dirSrcIDCurPos(curDepth) + 1
+  
+  'Check if we are done in the current subdirectory.
+  
+  If (dirSrcIDCurPos(curDepth) >= dirSrcIDCnt(curDepth)) Then
+    'we are done with this directory
+    curDepth = curDepth - 1
+  Else
+  
+    'need to process the current position.
+    
+    Dim lSrcChildID As Long
+    dsSrcData.skDSNP.Seek "=", "_int_ds_id_for_pos_" & dirSrcIDCurPos(curDepth), dirSrcIDListID(curDepth)
+    
+    If (dsSrcData.skDSNP.NoMatch) Then
+      Err.Raise 1, , "internal error"
+    End If
+    
+    lSrcChildID = CLng(Nz(dsSrcData.skDSNP("DIR_Value")))
+    
+    
+    'get child data
+    dsSrcData.skDSIdx.Seek "=", lSrcChildID
+    If dsSrcData.skDSIdx.NoMatch Then
+      Err.Raise 1, , "internal error"
+    End If
+    
+    Dim sChildPartName As String, sChildValue As String
+    sChildPartName = Nz(dsSrcData.skDSIdx("DIR_Name"))
+    sChildValue = Nz(dsSrcData.skDSIdx("DIR_Value"))
+    
+    If (sChildPartName = "") Then
+      Err.Raise 1, , "Internal error"
+    End If
+    
+    
+    Dim lTgtChildID As Long
+    
+    'check if target contains a similar node.
+    dsTgtData.skDSNP.Seek "=", sChildPartName, dirTgtIDs(curDepth)
+    If dsTgtData.skDSNP.NoMatch Then
+      isMatch = False
+      Exit Do
+    End If
+    
+    lTgtChildID = dsTgtData.skDSNP("DIR_ID")
+    If Nz(dsTgtData.skDSNP("DIR_Value")) <> sChildValue Then
+      isMatch = False
+      Exit Do
+    End If
+    
+  
+    dirSrcIDs(curDepth + 1) = lSrcChildID
+    dirSrcIDCurPos(curDepth + 1) = -1
+    dirTgtIDs(curDepth + 1) = lTgtChildID
+    
+    
+    'move on to this new directory
+    
+    curDepth = curDepth + 1
+  
+  End If
+
+Loop
+
+
+
+
+dsIntComparePropertyByID_compareSubTree = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntComparePropertyByID_compareSubTree" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+Private Function dsIntComparePropertyByID(ByRef dsSrcData As DIR_SERVER_DATA, ByVal lSrcPropID As Long, ByRef dsTgtData As DIR_SERVER_DATA, ByVal lTgtPropID As Long, ByRef isMatch As Boolean) As Boolean
+On Error GoTo fout
+dsIntComparePropertyByID = False
+
+isMatch = True
+
+dsSrcData.skDSIdx.Seek "=", lSrcPropID
+
+If (dsSrcData.skDSIdx.NoMatch) Then
+  Err.Raise 1, , "Internal error. Property not found"
+End If
+
+
+Dim sSrcValue As String
+sSrcValue = Nz(dsSrcData.skDSIdx("DIR_Value"))
+
+
+dsTgtData.skDSIdx.Seek "=", lTgtPropID
+
+If (dsTgtData.skDSIdx.NoMatch) Then
+  Err.Raise 1, , "Internal error. Property not found"
+End If
+
+
+Dim sTgtValue As String
+sTgtValue = Nz(dsTgtData.skDSIdx("DIR_Value"))
+
+
+If (sTgtValue <> sSrcValue) Then
+  isMatch = False
+Else
+  'Now need to compare entire subtree
+  If Not dsIntComparePropertyByID_compareSubTree(dsSrcData, lSrcPropID, dsTgtData, lTgtPropID, isMatch) Then
+    Exit Function
+  End If
+End If
+
+dsIntComparePropertyByID = True
+Exit Function
+
+fout:
+MsgBox Err & " dsIntComparePropertyByID" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+
 Public Sub dsSetString(ByRef dsData As DIR_SERVER_DATA, ByVal sPropFullName As String, ByVal sPropValue As String)
 Dim lDummy As Long, blDummy As Boolean, sDummy As String
 If Not dsIntSetPropertyByName(dsData, sPropFullName, sPropValue, lDummy, blDummy, sDummy) Then
@@ -1685,6 +1936,15 @@ Public Function dsCopyPropertyByID(ByRef dsSrcData As DIR_SERVER_DATA, ByVal lSr
 dsCopyPropertyByID = dsIntCopyPropertyByID(dsSrcData, lSrcPropID, dsTgtData, sTgtPropFullName)
 End Function
 
+Public Function dsComparePropertyByName(ByRef dsSrcData As DIR_SERVER_DATA, ByVal sSrcPropFullName As String, ByRef dsTgtData As DIR_SERVER_DATA, ByVal sTgtPropFullName As String, ByRef isMatch As Boolean) As Boolean
+dsComparePropertyByName = dsIntComparePropertyByName(dsSrcData, sSrcPropFullName, dsTgtData, sTgtPropFullName, isMatch)
+End Function
+
+Public Function dsComparePropertyByID(ByRef dsSrcData As DIR_SERVER_DATA, ByVal lSrcPropID As Long, ByRef dsTgtData As DIR_SERVER_DATA, ByVal sTgtPropFullName As String, ByRef isMatch As Boolean) As Boolean
+dsComparePropertyByID = dsIntComparePropertyByID(dsSrcData, lSrcPropID, dsTgtData, sTgtPropFullName, isMatch)
+End Function
+
+
 
 
 
@@ -1740,6 +2000,24 @@ dsIntCopyPropertyByName dsData, sSrcName, dsData, sTgtName
 
 dsClean dsData
 End Sub
+
+Public Function dsTestCompare(ByVal sSrcName As String, sTgtName As String) As Boolean
+Dim dsData As DIR_SERVER_DATA
+
+dsInit dsData, False, ""
+
+Dim isMatch As Boolean
+
+If Not dsIntComparePropertyByName(dsData, sSrcName, dsData, sTgtName, isMatch) Then
+  Debug.Print "error"
+End If
+
+dsTestCompare = isMatch
+
+
+dsClean dsData
+End Function
+
 
 Public Function dsTestTransactional() As Boolean
 
