@@ -1669,7 +1669,7 @@ For i = 0 To nLkpLists - 1
       tpVisLevel = RXL_VIS_MATCH
     ElseIf (lWedNr = lRefMeetNr) Then
       'Need to check if this list is a multi-wed-list
-      If Not dsLookupPropertyByName(ds, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & tpListName & "\GLB\USE_ENTIRE_MEET", blPropIsPresent, sPropValue, lPropID) Then
+      If Not dsLookupPropertyByName(ds, "HUPPROG\WED_AUX_DATA\" & lWedNr & "\EXP_LISTS\LISTS\" & tpListName & "\DEF\GLB\USE_ENTIRE_MEET", blPropIsPresent, sPropValue, lPropID) Then
         appRaiseSilentError
       End If
       If rxpParseBoolean(sPropValue) Then
@@ -3703,6 +3703,7 @@ Do Until rs.EOF
   tpWed = Nz(rs(FNM_PR_WED))
   tpProg = Nz(rs(FNM_PR_PROG))
   
+  
   Dim sPropName As String, sPropValue As String
   Dim blDummy As Boolean, lDummy As Long, sDummy As String
   
@@ -4170,7 +4171,7 @@ Do Until blDone
       End If
       
       sPropName = "AN_MATCH\WEDS\" & curWed & "\PROGS\" & curProg & "\N_DISPLAYABLE_RESULTS"
-      sPropValue = CStr(curProgNNonEmpty)
+      sPropValue = CStr(curProgNDisplayable)
       If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
         appRaiseSilentError
       End If
@@ -4193,20 +4194,22 @@ Do Until blDone
   
   If (Not rs.EOF) Then
   
-    Dim tpDis As String, tpTd As Double
+    Dim tpDis As String, tpTd As Double, tpPnt As Double
     If (blIsPersMode) Then
       tpDis = Nz(rs(FNM_TY_PERS_DIS))
       tpTd = Nz(rs(FNM_TY_PERS_EINDTIJD))
+      tpPnt = Nz(rs("TY_EindPunten"))
     Else
       tpDis = Nz(rs(FNM_TY_EST_DIS))
       tpTd = Nz(rs(FNM_TY_EST_EINDTIJD))
+      tpPnt = Nz(rs("TY_EindPunten"))
     End If
     
     Dim tpIsDisplayable As Boolean, tpIsNonEmpty As Boolean
     tpIsDisplayable = False
     tpIsNonEmpty = False
     
-    If (swtIsValid(tpTd)) Then
+    If (swtIsValid(tpTd) Or (Abs(tpPnt) > 0.1)) Then
       tpIsDisplayable = True
       tpIsNonEmpty = True
     End If
@@ -4221,6 +4224,8 @@ Do Until blDone
     
     If (tpIsNonEmpty) Then
       curProgNNonEmpty = curProgNNonEmpty + 1
+    End If
+    If (tpIsDisplayable) Then
       curProgNDisplayable = curProgNDisplayable + 1
     End If
   
@@ -4992,9 +4997,11 @@ For i = 0 To nPVPerProgExports - 1
         Dim blMayUseCached As Boolean
         blMayUseCached = True
         
-        If (Not blCacheMatchGlobalDef) Then
-          blMayUseCached = False
-        End If
+        'global def changes do not affect the current export,
+        'so omit this check
+        'If (Not blCacheMatchGlobalDef) Then
+        '  blMayUseCached = False
+        'End If
         
         If (blMayUseCached) Then
           If (Not tpCacheMatchExportDef) Then
