@@ -3755,48 +3755,65 @@ Do Until rs.EOF
   tpHideUtl = Nz(rs("PR_UitNietLatenZien"))
   
   
-  Dim blProcessAsPrg As Boolean, blProcessAsUtl As Boolean
+  
+  Dim tpBlockResults As Boolean
+  tpBlockResults = Nz(rs("PR_RXL_BlockResults"))
+  
+  Dim tpNDlns As Long
+    
+  sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_DLNS"
+  If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  tpNDlns = CLng(val(sPropValue))
+  
+  
+  Dim tpNDisplayableRes As Long, tpNNonEmptyRes As Long, tpNNonResDlns As Long
+            
+  sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_DISPLAYABLE_RESULTS"
+  If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  tpNDisplayableRes = CLng(val(sPropValue))
+    
+  sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_NON_EMPTY_RESULTS"
+  If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  tpNNonEmptyRes = CLng(val(sPropValue))
+  
+  sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_NON_RES_DLNS"
+  If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  tpNNonResDlns = CLng(val(sPropValue))
+  
+  
+  Dim blProcessAsPrg As Boolean, blProcessAsUtb As Boolean, blProcessAsUtl As Boolean
   blProcessAsPrg = False
+  blProcessAsUtb = False
   blProcessAsUtl = False
   
   If (Not tpHidePrg) Then
-    Dim tpNDlns As Long
-    
-    sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_DLNS"
-    If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
-      appRaiseSilentError
-    End If
-    tpNDlns = CLng(val(sPropValue))
     
     If (tpNDlns > 0) Then
       blProcessAsPrg = True
     End If
+    
+    If (tpNDisplayableRes > 0) Or ((tpNNonEmptyRes >= tpNNonResDlns) And (tpNNonResDlns > 0)) Then
+      If Not (tpBlockResults) Then
+        blProcessAsUtb = True
+      End If
+    End If
+    
   End If
   
   If (Not tpHideUtl) Then
-    Dim tpNDisplayableRes As Long, tpNNonEmptyRes As Long, tpNNonResDlns As Long
-            
-    sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_DISPLAYABLE_RESULTS"
-    If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
-      appRaiseSilentError
-    End If
-    tpNDisplayableRes = CLng(val(sPropValue))
-      
-    sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_NON_EMPTY_RESULTS"
-    If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
-      appRaiseSilentError
-    End If
-    tpNNonEmptyRes = CLng(val(sPropValue))
-    
-    sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\N_NON_RES_DLNS"
-    If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
-      appRaiseSilentError
-    End If
-    tpNNonResDlns = CLng(val(sPropValue))
-      
     
     If (tpNDisplayableRes > 0) Or ((tpNNonEmptyRes >= tpNNonResDlns) And (tpNNonResDlns > 0)) Then
-      blProcessAsUtl = True
+      If Not (tpBlockResults) Then
+        blProcessAsUtl = True
+      End If
     End If
     
   End If
@@ -3815,6 +3832,12 @@ Do Until rs.EOF
   
   sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\PROCESS_AS_UTL"
   sPropValue = rxpFormatBoolean(blProcessAsUtl)
+  If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  sPropName = "AN_MATCH\WEDS\" & tpWed & "\PROGS\" & tpProg & "\PROCESS_AS_UTB"
+  sPropValue = rxpFormatBoolean(blProcessAsUtb)
   If Not dsSetPropertyByName(dsTmp, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
     appRaiseSilentError
   End If
@@ -4544,12 +4567,12 @@ End Function
 
 
 
-Private Function rxlProcessExpList_mayProcessProg(ByRef dsTmp As DIR_SERVER_DATA, ByVal lWedNr As Long, ByVal sProg As String, ByVal blCheckLinkSTL As Boolean, ByVal blCheckLinkUTL As Boolean, ByRef blAllowSTL As Boolean, ByRef blAllowUTL As Boolean, ByRef blHide As Boolean) As Boolean
+Private Function rxlProcessExpList_mayProcessProg(ByRef dsTmp As DIR_SERVER_DATA, ByVal lWedNr As Long, ByVal sProg As String, ByVal blCheckLinkSTL As Boolean, ByVal blCheckLinkUTB As Boolean, ByVal blCheckLinkUTL As Boolean, ByRef blAllowSTL As Boolean, ByRef blAllowUTB As Boolean, ByRef blAllowUTL As Boolean, ByRef blHide As Boolean) As Boolean
 On Error GoTo fout
 rxlProcessExpList_mayProcessProg = False
 
 
-Dim tpMayProcessAsPrg As Boolean, tpMayProcessAsUtl As Boolean
+Dim tpMayProcessAsPrg As Boolean, tpMayProcessAsUtb As Boolean, tpMayProcessAsUtl As Boolean
 Dim tpHiddenAsPrg As Boolean, tpHiddenAsUTL As Boolean
   
     
@@ -4569,6 +4592,15 @@ End If
 tpHiddenAsPrg = rxpParseBoolean(sPropValue)
 
 
+sPropName = "AN_MATCH\WEDS\" & lWedNr & "\PROGS\" & sProg & "\PROCESS_AS_UTB"
+If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
+  appRaiseSilentError
+End If
+tpMayProcessAsUtb = rxpParseBoolean(sPropValue)
+
+
+
+
 sPropName = "AN_MATCH\WEDS\" & lWedNr & "\PROGS\" & sProg & "\PROCESS_AS_UTL"
 If Not dsLookupPropertyByName(dsTmp, sPropName, blDummy, sPropValue, lDummy) Then
   appRaiseSilentError
@@ -4582,19 +4614,28 @@ End If
 tpHiddenAsUTL = rxpParseBoolean(sPropValue)
 
 blAllowSTL = False
+blAllowUTB = False
 blAllowUTL = False
 blHide = False
 
-If (Not blCheckLinkUTL) And (tpHiddenAsPrg) Then
+If (tpHiddenAsPrg) And (tpHiddenAsUTL) Then
   blHide = True
-End If
-
-If (Not blCheckLinkSTL) And (tpHiddenAsUTL) Then
-  blHide = True
+ElseIf (tpHiddenAsPrg) Then
+  If (Not blCheckLinkUTL) Then
+    blHide = True
+  End If
+ElseIf (tpHiddenAsUTL) Then
+  If (Not blCheckLinkSTL) And (Not blCheckLinkUTB) Then
+    blHide = True
+  End If
 End If
 
 If (blCheckLinkSTL) Then
   blAllowSTL = tpMayProcessAsPrg
+End If
+
+If (blCheckLinkUTB) Then
+  blAllowUTB = tpMayProcessAsUtb
 End If
 
 If (blCheckLinkUTL) Then
@@ -4961,8 +5002,8 @@ For i = 0 To nPVPerProgExports - 1
         tpCachedResHashCode = "NO_HASH_VALUE"
       End If
       
-      Dim tpAllowSTL As Boolean, tpAllowUTL As Boolean, tpHide As Boolean
-      If Not rxlProcessExpList_mayProcessProg(dsTmp, tpWed, tpProg, True, True, tpAllowSTL, tpAllowUTL, tpHide) Then
+      Dim tpAllowSTL As Boolean, tpAllowUTB As Boolean, tpAllowUTL As Boolean, tpHide As Boolean
+      If Not rxlProcessExpList_mayProcessProg(dsTmp, tpWed, tpProg, True, True, True, tpAllowSTL, tpAllowUTB, tpAllowUTL, tpHide) Then
         appRaiseSilentError
       End If
       
@@ -4984,12 +5025,14 @@ For i = 0 To nPVPerProgExports - 1
             blProcess = False
           End If
           tpRptIsResultType = True
-        Case RXL_OBJ_RPT_TYPE_STL, RXL_OBJ_RPT_TYPE_UTB, RXL_OBJ_RPT_TYPE_PRG
-          If (Not tpAllowSTL) Then
+        Case RXL_OBJ_RPT_TYPE_UTB
+          If Not tpAllowUTB Then
             blProcess = False
           End If
-          If (tpRptObjID = RXL_OBJ_RPT_TYPE_UTB) Then
-            tpRptIsResultType = True
+          tpRptIsResultType = True
+        Case RXL_OBJ_RPT_TYPE_STL, RXL_OBJ_RPT_TYPE_PRG
+          If (Not tpAllowSTL) Then
+            blProcess = False
           End If
       End Select
       
@@ -6802,9 +6845,9 @@ Do Until blDone
   
   If (blProcess) Then
   
-    Dim tpProcessAsPrg As Boolean, tpProcessAsUtl As Boolean, tpHide As Boolean
+    Dim tpProcessAsPrg As Boolean, tpProcessAsUtb As Boolean, tpProcessAsUtl As Boolean, tpHide As Boolean
     
-    If Not rxlProcessExpList_mayProcessProg(dsTmp, tpWed, tpProg, blLinkSTL, blLinkUTL, tpProcessAsPrg, tpProcessAsUtl, tpHide) Then
+    If Not rxlProcessExpList_mayProcessProg(dsTmp, tpWed, tpProg, blLinkSTL, False, blLinkUTL, tpProcessAsPrg, tpProcessAsUtb, tpProcessAsUtl, tpHide) Then
       appRaiseSilentError
     End If
     
@@ -7130,9 +7173,9 @@ Do Until blDone
   Dim blProcess As Boolean
   blProcess = True
   
-  Dim tpProcessAsPrg As Boolean, tpProcessAsUtl As Boolean, tpHide As Boolean
+  Dim tpProcessAsPrg As Boolean, tpProcessAsUtb As Boolean, tpProcessAsUtl As Boolean, tpHide As Boolean
     
-  If Not rxlProcessExpList_mayProcessProg(dsTmp, tpWed, tpProg, blLinkSTL, blLinkUTL, tpProcessAsPrg, tpProcessAsUtl, tpHide) Then
+  If Not rxlProcessExpList_mayProcessProg(dsTmp, tpWed, tpProg, blLinkSTL, False, blLinkUTL, tpProcessAsPrg, tpProcessAsUtb, tpProcessAsUtl, tpHide) Then
     appRaiseSilentError
   End If
   
