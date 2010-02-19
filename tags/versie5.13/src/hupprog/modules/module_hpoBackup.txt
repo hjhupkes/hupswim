@@ -1,0 +1,2086 @@
+Option Compare Database
+Option Explicit
+
+Const IMP_IDX_WEDGEG = 1
+Const IMP_IDX_PROG = 2
+Const IMP_IDX_DLNVER = 3
+Const IMP_IDX_DLN = 4
+Const IMP_IDX_PLG = 5
+Const IMP_IDX_TD = 6
+Const IMP_IDX_JDLN = 7
+Const IMP_IDX_CODE = 8
+Const IMP_IDX_SAMEN = 9
+Const IMP_IDX_SMELT = 10
+Const IMP_IDX_PRLFT = 11
+Const IMP_IDX_DLNNM = 12
+Const IMP_IDX_PLGNM = 13
+Const IMP_IDX_RCX = 14
+Const IMP_IDX_WIN = 15
+Const IMP_IDX_PNT_GLB = 16
+Const IMP_IDX_PNT_CAT = 17
+Const IMP_IDX_PNT_OND = 18
+Const IMP_IDX_PNT_ONDCAT = 19
+Const IMP_IDX_PNT_DLV = 20
+Const IMP_IDX_PNT_PLP = 21
+Const IMP_IDX_PNT_PRG = 22
+Const IMP_IDX_PNT_TST_IND = 23
+Const IMP_IDX_PNT_TST_VER = 24
+Const IMP_IDX_VER_CNT = 25
+Const IMP_IDX_PNT_VER_GRP = 26
+Const IMP_IDX_WZ = 27
+Const IMP_IDX_DIR_SERVER = 28
+
+Const IMP_N_TABLES = 28
+
+
+
+Const GB_IDX_HUPGEG = 0
+Const GB_IDX_LIDCAT = 1
+Const GB_IDX_PRG_OPMAAK = 2
+Const GB_IDX_BEV = 3
+
+Const GB_IDX_VER = 4
+Const GB_IDX_VER_CNT = 5
+Const GB_IDX_LEDEN = 6
+
+Const GB_IDX_OFF = 7
+
+Const GB_IDX_WED = 8
+Const GB_IDX_DLV = 9
+Const GB_IDX_PROG = 10
+Const GB_IDX_PROG_LFT = 11
+Const GB_IDX_PROG_EXTRA_REC = 12
+Const GB_IDX_PROG_PRV_WIN = 13
+
+Const GB_IDX_WEDCAT = 14
+Const GB_IDX_CODE_OMS = 15
+
+Const GB_IDX_SMVG = 16
+Const GB_IDX_SMLT = 17
+
+
+Const GB_IDX_DLN = 18
+Const GB_IDX_PL = 19
+Const GB_IDX_TY = 20
+
+
+Const GB_IDX_JURY_DLN = 21
+
+Const GB_IDX_VV = 22
+
+
+
+Const GB_IDX_PNT_DEFS = 23
+Const GB_IDX_PNT_CATS = 24
+Const GB_IDX_PNT_OND = 25
+Const GB_IDX_PNT_ONDCAT = 26
+Const GB_IDX_PNT_VER_GRP = 27
+Const GB_IDX_PNT_DLV = 28
+Const GB_IDX_PNT_PLT_PNT = 29
+Const GB_IDX_PNT_PROG = 30
+Const GB_IDX_PNT_TST_IND = 31
+Const GB_IDX_PNT_TST_VER = 32
+
+Const GB_IDX_DIR_SERVER = 33
+
+
+Const GB_N_TABLES = 34
+
+
+Const BCK_TYPE_NAME_WED = "Hupprog/WedstrijdBackup"
+
+
+
+
+
+
+
+Public Function bckGlobal_preDelete_perform(ByVal impTbIdx As Integer, impTbName As String) As Boolean
+On Error GoTo fout
+bckGlobal_preDelete_perform = False
+
+bckGlobal_preDelete_perform = True
+Exit Function
+
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " bckGlobal_preDelete_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function bckGlobal_SetupTables_perform(ByRef impTbNames() As String, ByRef impTbClearConditional() As Boolean, ByRef impTbFullImport() As Boolean, ByRef impTbExtraSQL() As String, ByRef impTbNamesSecondary() As String, ByRef impTbNamesTertiary() As String, ByRef nImpTables As Integer) As Boolean
+On Error GoTo fout
+bckGlobal_SetupTables_perform = False
+
+
+impTbNames(GB_IDX_HUPGEG) = "dtSettings"
+impTbNames(GB_IDX_LIDCAT) = "dtContactGroepen"
+impTbNames(GB_IDX_PRG_OPMAAK) = "dtProgrammaOpmaak"
+impTbNames(GB_IDX_BEV) = "dtBevoegdheden"
+
+impTbNames(GB_IDX_VER) = "dtVerenigingen"
+impTbNames(GB_IDX_VER_CNT) = "dtContactpersonen"
+impTbNames(GB_IDX_LEDEN) = "dtNamen"
+
+
+impTbNames(GB_IDX_OFF) = "dtOfficials"
+
+impTbNames(GB_IDX_WED) = "dtWedstrijdGegevens"
+impTbNames(GB_IDX_DLV) = "dtDeelnemendeVerenigingen"
+impTbNames(GB_IDX_PROG) = "dtProgramma"
+impTbNames(GB_IDX_PROG_LFT) = "dtProgrammaLeeftijdsgroepen"
+impTbNames(GB_IDX_PROG_EXTRA_REC) = "dtProgrammaExtraRecords"
+impTbNames(GB_IDX_PROG_PRV_WIN) = "dtProgrammaPreviousWinners"
+
+impTbNames(GB_IDX_WEDCAT) = "dtgCatCodes"
+impTbNames(GB_IDX_CODE_OMS) = "dtCodeDescriptions"
+
+impTbNames(GB_IDX_SMVG) = "dtSamenvoegen"
+impTbNames(GB_IDX_SMLT) = "dtSmeltenGeavanceerd"
+
+
+impTbNames(GB_IDX_DLN) = "dtDeelnemers"
+impTbNames(GB_IDX_PL) = "dtPloegen"
+impTbNames(GB_IDX_TY) = "dtTijden"
+
+
+impTbNames(GB_IDX_JURY_DLN) = "dtWedstrijdJury"
+
+impTbNames(GB_IDX_VV) = "dtVervangingen"
+
+
+
+impTbNames(GB_IDX_PNT_DEFS) = "dtgPuntentellingDefs"
+impTbNames(GB_IDX_PNT_CATS) = "dtgPuntentellingCats"
+impTbNames(GB_IDX_PNT_OND) = "dtgPuntentellingOnderdelen"
+impTbNames(GB_IDX_PNT_ONDCAT) = "dtgPuntentellingOndCatDetails"
+impTbNames(GB_IDX_PNT_VER_GRP) = "dtgPuntentellingVerGroups"
+
+impTbNames(GB_IDX_PNT_DLV) = "dtgPuntentellingDlnVers"
+impTbNames(GB_IDX_PNT_PLT_PNT) = "dtgPuntentellingPlaatsPunt"
+impTbNames(GB_IDX_PNT_PROG) = "dtgPuntentellingProgs"
+impTbNames(GB_IDX_PNT_TST_IND) = "dtgPuntentellingTussenstandInd"
+
+impTbNames(GB_IDX_PNT_TST_VER) = "dtgPuntentellingTussenstandVer"
+
+impTbNames(GB_IDX_DIR_SERVER) = "dtgDirectoryServer"
+
+
+nImpTables = GB_N_TABLES
+
+Dim i As Integer
+For i = 0 To nImpTables - 1
+  impTbNamesSecondary(i) = ""
+  impTbNamesTertiary(i) = ""
+  impTbClearConditional(i) = False
+  impTbFullImport(i) = False
+  impTbExtraSQL(i) = ""
+Next i
+
+
+'setup secondary tableNames ( = table Names before version 5.0 )
+
+impTbNamesSecondary(GB_IDX_HUPGEG) = "#hupgegevens"
+impTbNamesSecondary(GB_IDX_LIDCAT) = "leden_categorien tbl"
+impTbNamesSecondary(GB_IDX_PRG_OPMAAK) = "ProgrammaOpmaak tbl"
+impTbNamesSecondary(GB_IDX_BEV) = "Bevoegdheden tbl"
+
+impTbNamesSecondary(GB_IDX_VER) = "verenigingen tbl"
+impTbNamesSecondary(GB_IDX_VER_CNT) = "verenigingen_gegevens tbl"
+impTbNamesSecondary(GB_IDX_LEDEN) = "namen"
+
+
+impTbNamesSecondary(GB_IDX_OFF) = "jury"
+
+impTbNamesSecondary(GB_IDX_WED) = "wedstrijdgegevens"
+impTbNamesSecondary(GB_IDX_DLV) = "deelnemende verenigingen"
+impTbNamesSecondary(GB_IDX_PROG) = "programma"
+impTbNamesSecondary(GB_IDX_PROG_LFT) = "programma_leeftijdsgroepen"
+impTbNamesSecondary(GB_IDX_PROG_EXTRA_REC) = "Programma_extraRecords"
+impTbNamesSecondary(GB_IDX_PROG_PRV_WIN) = "Programma_previousWinners"
+
+impTbNamesSecondary(GB_IDX_WEDCAT) = "~Cat"
+impTbNamesSecondary(GB_IDX_CODE_OMS) = "Code omschrijvingen tbl"
+
+impTbNamesSecondary(GB_IDX_SMVG) = "samenvoeg informatie tbl"
+impTbNamesSecondary(GB_IDX_SMLT) = "smeltenGeavanceerd"
+
+
+impTbNamesSecondary(GB_IDX_DLN) = "deelnemers"
+impTbNamesSecondary(GB_IDX_PL) = "ploegen"
+impTbNamesSecondary(GB_IDX_TY) = "tijden"
+
+
+impTbNamesSecondary(GB_IDX_JURY_DLN) = "jury_deelnemers"
+
+impTbNamesSecondary(GB_IDX_VV) = "vervangingen tbl"
+
+
+
+impTbNamesSecondary(GB_IDX_PNT_DEFS) = "gPuntentellingDefs"
+impTbNamesSecondary(GB_IDX_PNT_CATS) = "gPuntentellingCats"
+impTbNamesSecondary(GB_IDX_PNT_OND) = "gPuntentellingOnderdelen"
+impTbNamesSecondary(GB_IDX_PNT_ONDCAT) = "gPuntentellingOndCatDetails"
+impTbNamesSecondary(GB_IDX_PNT_VER_GRP) = "gPuntentellingVerGroups"
+
+impTbNamesSecondary(GB_IDX_PNT_DLV) = "gPuntentellingDlnVers"
+impTbNamesSecondary(GB_IDX_PNT_PLT_PNT) = "gPuntentellingPlaatsPunt"
+impTbNamesSecondary(GB_IDX_PNT_PROG) = "gPuntentellingProgs"
+impTbNamesSecondary(GB_IDX_PNT_TST_IND) = "gPuntentellingTussenstandInd"
+
+impTbNamesSecondary(GB_IDX_PNT_TST_VER) = "gPuntentellingTussenstandVer"
+
+
+
+
+'setup tertiary tableNames ( = table names before version 4.24? )
+
+impTbNamesTertiary(GB_IDX_PNT_DEFS) = "PuntentellingDefs"
+impTbNamesTertiary(GB_IDX_PNT_CATS) = "PuntentellingCats"
+impTbNamesTertiary(GB_IDX_PNT_OND) = "PuntentellingOnderdelen"
+impTbNamesTertiary(GB_IDX_PNT_ONDCAT) = "PuntentellingOndCatDetails"
+impTbNamesTertiary(GB_IDX_PNT_VER_GRP) = "PuntentellingVerGroups"
+
+impTbNamesTertiary(GB_IDX_PNT_DLV) = "PuntentellingDlnVers"
+impTbNamesTertiary(GB_IDX_PNT_PLT_PNT) = "PuntentellingPlaatsPunt"
+impTbNamesTertiary(GB_IDX_PNT_PROG) = "PuntentellingProgs"
+impTbNamesTertiary(GB_IDX_PNT_TST_IND) = "PuntentellingTussenstandInd"
+
+impTbNamesTertiary(GB_IDX_PNT_TST_VER) = "PuntentellingTussenstandVer"
+
+'end setup table names
+
+
+impTbClearConditional(GB_IDX_PRG_OPMAAK) = True
+impTbClearConditional(GB_IDX_BEV) = True
+impTbClearConditional(GB_IDX_LIDCAT) = True
+
+
+impTbFullImport(GB_IDX_WED) = True
+impTbExtraSQL(GB_IDX_WED) = " order by [we_wedstrijdnummer]"
+
+bckGlobal_SetupTables_perform = True
+Exit Function
+fout:
+MsgBox Err & " bckGlobal_SetupTables_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function bckGlobal_preTransfer_perform(ByVal fName As String, ByVal impTbIdx As Integer, ByVal impTbSrcName As String, ByVal impTbTgtName As String, ByRef blShouldProcess As Boolean) As Boolean
+On Error GoTo fout
+bckGlobal_preTransfer_perform = False
+
+If impTbIdx = GB_IDX_WED Then
+
+  Dim db As Database, tb As TableDef
+
+  'Need to correct MainWedstrijdNummer field.
+  Set db = CurrentDb()
+  Set tb = db.TableDefs(impTbSrcName)
+  If (fieldExistsInTD(tb, "WE_MainWedstrijdnummer")) Then
+  
+  
+    'We may need to convert the main wedstrijdnummers in order to ensure that the main wedstrijdnummer
+    'has the smallest number
+    Dim wedConvSrc(0 To 1000) As Long
+    Dim wedConvTgt(0 To 1000) As Long
+    Dim nWedConv As Integer
+    nWedConv = 0
+  
+  
+    Dim rs As Recordset
+    Set rs = CurrentDb().OpenRecordset("select * from [" & impTbSrcName & "] order by [we_wedstrijdnummer]")
+  
+    Dim skWed As Recordset
+    Set skWed = CurrentDb().OpenRecordset(impTbSrcName)
+    skWed.Index = "PrimaryKey"
+  
+    rs.MoveFirst
+    Do Until rs.EOF
+      Dim tpIsPartOfMeet As Boolean
+      Dim tpMainWedNr As Long
+      tpMainWedNr = Nz(rs("WE_MainWedstrijdnummer"))
+      tpIsPartOfMeet = Nz(rs("WE_IsPartOfMeet"))
+      If tpMainWedNr > 0 Then
+        Dim actWedNr As Long
+        actWedNr = Nz(rs("WE_Wedstrijdnummer"))
+        If Not tpIsPartOfMeet Then
+          rs.Edit
+            rs("WE_MainWedstrijdnummer") = Null
+          rs.Update
+        Else
+          Dim lkpPos As Integer
+          lkpPos = bSearchLong(tpMainWedNr, nWedConv, wedConvSrc)
+          If (lkpPos < 0) Then
+            If (tpMainWedNr > actWedNr) Then
+              'Have to add conversion
+              Dim insPos As Integer, oldWedConvCnt As Integer
+              oldWedConvCnt = nWedConv
+              insPos = insLong(tpMainWedNr, nWedConv, wedConvSrc)
+              shiftRightLong insPos, 1, oldWedConvCnt, wedConvTgt
+              wedConvTgt(insPos) = actWedNr
+              rs.Edit
+                rs("WE_MainWedstrijdNummer") = actWedNr
+              rs.Update
+            Else
+              'Check and update
+              skWed.Seek "=", tpMainWedNr
+              If (skWed.NoMatch) Then
+                rs.Edit
+                rs("WE_MainWedstrijdnummer") = Null
+                rs("WE_IsPartOfMeet") = False
+                rs.Update
+              End If
+            End If
+            
+          Else
+            'Conversion found
+            rs.Edit
+              rs("WE_MainWedstrijdNummer") = wedConvTgt(lkpPos)
+            rs.Update
+          End If
+        End If 'if tpIsPartOfMeet
+      End If 'if tpMainWedNr > 0
+  
+      rs.MoveNext
+    Loop
+  End If ' if FieldExists WE_MainWedstrijdNummer
+  
+  Set db = Nothing
+  Set tb = Nothing
+End If 'if tbIdx =GB_IDX_WED
+
+
+bckGlobal_preTransfer_perform = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " bckGlobal_preTransfer_perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Public Function bckGlobal_postTransfer_perform(ByVal fName As String, ByVal impTbIdx As Integer, ByVal impTbSrcName As String, ByVal impTbTgtName As String) As Boolean
+On Error GoTo fout
+bckGlobal_postTransfer_perform = False
+
+
+If impTbIdx = GB_IDX_HUPGEG Then
+  Dim db As Database, tb As TableDef
+  
+  Set db = CurrentDb()
+  Set tb = db.TableDefs(impTbSrcName)
+  If Not fieldExistsInTD(tb, "blBlockAutoVerCheck") Then
+    DoCmd.SetWarnings False
+    DoCmd.RunSQL "update dtSettings set blBlockAutoVerCheck = true;"
+    DoCmd.SetWarnings True
+  End If
+  
+  Set tb = Nothing
+  Set db = Nothing
+  
+End If
+  
+
+
+
+bckGlobal_postTransfer_perform = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " bckGlobal_postTransfer_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Public Function bckGlobal_handleAbsent_perform(ByVal fName, ByVal impTbIdx As Integer, ByVal impTbTgtName As String) As Boolean
+On Error GoTo fout
+bckGlobal_handleAbsent_perform = False
+
+
+
+bckGlobal_handleAbsent_perform = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+MsgBox Err & " bckGlobal_handleAbsent_perform" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Public Function bckGlobal_postProcess_perform(ByVal fName As String) As Boolean
+On Error GoTo fout
+bckGlobal_postProcess_perform = False
+
+
+
+'wijziging dd januari 2004 ivm foute geslachten
+swmSetGeslacht
+
+
+
+'wijziging dd oktober 2006 om estafette opmaak te behouden.
+Dim sql As String
+sql = "INSERT INTO [dtProgrammaOpmaak] " & _
+      "SELECT [fdtProgrammaOpmaak_backup].* " & _
+      "FROM [fdtProgrammaOpmaak_backup];"
+      
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+If Not tstRestoreAllStoredTimes() Then
+  Exit Function
+End If
+
+
+
+dbSetUsed (True)
+
+
+bckGlobal_postProcess_perform = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " bckGlobal_postProcess_perform" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+
+
+Public Sub wedstrijdOpslaan()
+On Error GoTo fout
+
+'Dim bckFName As String
+'bckFName = dbdir_backup() & "\" & "backswim.hup"
+
+'backup_perform bckFName, "", ""
+
+
+DoCmd.OpenForm "WEDBCK_Create", , , , , acDialog
+
+
+
+Exit Sub
+fout:
+MsgBox Err & " " & Error$, 16
+End Sub
+
+
+Public Function wedstrijdOpslaan_perform(file As String, ByRef nExpWeds As Integer, ByVal sNameCreator As String, ByVal sDescription As String) As Boolean
+On Error GoTo fout
+wedstrijdOpslaan_perform = False
+
+Dim bckMDBFileName As String
+
+
+Dim zipData As ZIP_INTERNAL
+
+If Not zipWrite(file, "wed", "zip", bckMDBFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+Dim isOK As Boolean
+
+isOK = wedstrijdOpslaan_perform_writeFile(bckMDBFileName, nExpWeds, sNameCreator, sDescription)
+
+
+
+On Error GoTo fout
+
+
+Dim sDummy As String, isPackedOK As Boolean
+
+If (Not isOK) Then
+  If Not zipWrite_finish(False, isPackedOK, False, sDummy, zipData) Then
+    Exit Function
+  End If
+Else
+  If Not zipWrite_finish(True, isPackedOK, True, sDummy, zipData) Then
+    Exit Function
+  End If
+  If Not isPackedOK Then
+    Exit Function
+  End If
+End If
+
+
+  
+If (Not isOK) Then
+  Exit Function
+End If
+
+If (nExpWeds > 1) Then
+  MsgBox "Van deze meerdaagse wedstrijden zijn er: " & nExpWeds & " wedstrijd(en) opgeslagen." & vbCrLf & "Wedstrijdgegevens opgeslagen als bestand:" & Chr$(13) & file, 64
+Else
+  MsgBox "Wedstrijdgegevens opgeslagen als bestand:" & Chr$(13) & file, 64
+End If
+
+
+
+wedstrijdOpslaan_perform = True
+
+Exit Function
+fout:
+MsgBox Err & " wedstrijdOpslaan_perform" & vbCrLf & Error$, 16
+Exit Function
+
+fout_cleanup:
+Dim msg As String
+msg = Err & " wedstrijdOpslaan_perform" & vbCrLf & Error$
+
+zipWrite_finish False, isPackedOK, False, sDummy, zipData
+
+MsgBox msg, 16
+Exit Function
+
+
+End Function
+
+
+Private Function wedstrijdOpslaan_perform_writeFile(file As String, ByRef nExpWeds As Integer, ByVal sNameCreator As String, ByVal sDescription As String) As Boolean
+On Error GoTo fout
+
+
+wedstrijdOpslaan_perform_writeFile = False
+
+nExpWeds = 0
+Dim firstWedDateS As String
+Dim firstWedNameS As String
+
+firstWedDateS = ""
+firstWedNameS = ""
+
+
+Dim uitvoer As Database
+
+'Allowed:
+Dim mydb As Database
+
+Set mydb = CurrentDb()
+Set uitvoer = DBEngine.Workspaces(0).CreateDatabase(file, DB_LANG_GENERAL, dbVersion30)
+
+
+
+
+'Major nuisance!!!
+
+
+'Need to include programma minus open water terms
+'and tijden minus TY_Opmerking
+'Also need to include namen!
+
+
+
+Dim qry As QueryDef
+
+Dim i As Integer
+For i = 1 To 35
+  If (i = 35) Then
+    DoCmd.DeleteObject acTable, "~~wedexp~" & CStr(i)
+  Else
+    DoCmd.DeleteObject acQuery, "~~wedexp~" & CStr(i)
+  End If
+Next i
+
+
+
+Dim blIsMeet As Boolean
+Dim wednr As Long
+
+blIsMeet = wed_IsMeet
+If (blIsMeet) Then
+  wednr = wed_MeetMainNr
+Else
+  wednr = waarde()
+End If
+
+Dim nWeds As Integer
+nWeds = Nz(DCount("we_wedstrijdnummer", "dtWedstrijdGegevens", "[we_wedstrijdnummer]=" & wednr & " or [we_mainWedstrijdNummer]=" & wednr))
+firstWedDateS = Format(Nz(DFirst("we_datum", "dtWedstrijdGegevens", "[we_wedstrijdnummer]=" & wednr & " or [we_mainWedstrijdNummer]=" & wednr), #1/1/1900#), "dd\-mm\-yyyy")
+firstWedNameS = Nz(DFirst("we_beschrijving", "dtWedstrijdGegevens", "[we_wedstrijdnummer]=" & wednr & " or [we_mainWedstrijdNummer]=" & wednr))
+
+
+Dim sql As String
+
+
+'modification dd may 2007; do not include all fields ; see nr 16
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~1"
+
+qry.sql = "SELECT dtWedstrijdGegevens.WE_Wedstrijdnummer, dtWedstrijdGegevens.WE_Beschrijving, dtWedstrijdGegevens.WE_Datum, " & _
+ "dtWedstrijdGegevens.WE_Zwembad , dtWedstrijdGegevens.WE_Adres, dtWedstrijdGegevens.WE_Plaats, dtWedstrijdGegevens.WE_Inzwemmen, " & _
+ "dtWedstrijdGegevens.WE_Aanvang, dtWedstrijdGegevens.[WE_Organ ver], dtWedstrijdGegevens.WE_Seizoen, dtWedstrijdGegevens.WE_Baanlengte, " & _
+ "dtWedstrijdGegevens.WE_Aantal_banen, dtWedstrijdGegevens.WE_Vervangende_tijd, dtWedstrijdGegevens.WE_Meetellende_deelnemers, " & _
+ "dtWedstrijdGegevens.WE_Kosten1, dtWedstrijdGegevens.WE_kosten1_spec, dtWedstrijdGegevens.WE_kosten2, dtWedstrijdGegevens.WE_Kosten2_spec, " & _
+ "dtWedstrijdGegevens.WE_Kosten_Estaf, dtWedstrijdGegevens.WE_Prijzen, dtWedstrijdGegevens.WE_aantalstarts, " & _
+ "dtWedstrijdGegevens.we_puntentelling, dtWedstrijdGegevens.we_elektronisch, dtWedstrijdGegevens.WE_Opmerkingen_Scheidsrechter, " & _
+ "dtWedstrijdGegevens.WE_MetKennisGevingAfwezig, dtWedstrijdGegevens.WE_ZonderKennisGevingAfwezig, " & _
+ "dtWedstrijdGegevens.WE_AantalZiekmeldingen, dtWedstrijdGegevens.WE_JuryWissel, dtWedstrijdGegevens.WE_AanvangJuryVergadering , " & _
+ "dtWedstrijdGegevens.WE_ApartKosten, dtWedstrijdGegevens.WE_ApartKostenString, dtWedstrijdGegevens.WE_Einde, " & _
+ "dtWedstrijdGegevens.WE_AantalDagStartVg, dtWedstrijdGegevens.WE_WaterTemp, dtWedstrijdGegevens.WE_PuntenTerugRekenen, " & _
+ "dtWedstrijdGegevens.WE_Kosten_est, dtWedstrijdGegevens.WE_Kosten_Currency, dtWedstrijdGegevens.WE_BulkKostenVer, " & _
+ "dtWedstrijdGegevens.WE_BulkKostenZwemmer, dtWedstrijdGegevens.WE_KostenTeltVoorReserve, dtWedstrijdGegevens.WE_Kosten_ProgBoekje, " & _
+ "dtWedstrijdGegevens.WE_Leeftijdsbepaling, dtWedstrijdGegevens.WE_MainWedstrijdnummer, dtWedstrijdGegevens.WE_IsPartOfMeet " & _
+ "from [dtWedstrijdGegevens] where ([we_wedstrijdnummer]=" & wednr & " or [we_MainWedstrijdNummer]=" & wednr & ");"
+'qry.sql = "Select * from [dtWedstrijdGegevens] where ([we_wedstrijdnummer]=" & wednr & " or [we_MainWedstrijdNummer]=" & wednr & ");"
+'end modification
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+Dim sqlWhereClause As String
+sqlWhereClause = " WHERE (((dtWedstrijdGegevens.WE_MainWedstrijdnummer)=" & wednr & ") or ((dtWedstrijdGegevens.WE_Wedstrijdnummer)=" & wednr & "));"
+
+
+'do not include everything; see 18.
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~2"
+'qry.sql = "SELECT dtProgramma.* FROM dtWedstrijdGegevens INNER join dtProgramma ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer " & sqlWhereClause
+qry.sql = "SELECT dtProgramma.PR_Wedstrijdnummer, dtProgramma.PR_Programmanummer, dtProgramma.PR_Afstand, " & _
+"dtProgramma.PR_Slag, dtProgramma.PR_Categorie, " & _
+"dtProgramma.[PR_Beschrijving categorie], dtProgramma.[PR_Vervangende tijd], " & _
+"dtProgramma.PR_Opmerking, dtProgramma.PR_BM, dtProgramma.PR_Aantmeetel, " & _
+"dtProgramma.PR_ProgNietLatenZien, dtProgramma.PR_UitNietLatenZien, " & _
+"dtProgramma.PR_DisTeltMee, dtProgramma.PR_Limiet, dtProgramma.PR_Res_Marge, " & _
+"dtProgramma.PR_Record_Omschrijving, dtProgramma.PR_Record_Tijd, " & _
+"dtProgramma.PR_Record_Naam, dtProgramma.PR_Record_Datum, " & _
+"dtProgramma.PR_Record_Plaats, dtProgramma.PR_Record_Tussentijden, " & _
+"dtProgramma.PR_Type, dtProgramma.PR_Beschrijving_Afwijkend, " & _
+"dtProgramma.PR_Kosten, dtProgramma.PR_Vorig_programmanummer, " & _
+"dtProgramma.PR_Aanvangstijd, dtProgramma.INT_LEN_ID, dtProgramma.INT_LEN_NR_ID " & _
+"FROM dtWedstrijdGegevens INNER join dtProgramma ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer " & sqlWhereClause
+
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~3"
+
+'modification dd may 2007
+'do not include everything yet, see also qry number 14
+qry.sql = "SELECT dtDeelnemers.DE_Index, dtDeelnemers.DE_Wedstrijdnummer, dtDeelnemers.DE_Programmanummer, " & _
+"dtDeelnemers.DE_Serienummer, dtDeelnemers.DE_Startnummer, dtDeelnemers.DE_Inschrijftijd, dtDeelnemers.DE_Reserve, " & _
+"dtDeelnemers.DE_Estafettenummer, dtDeelnemers.DE_Buitenmededinging, dtDeelnemers.DE_Vereniging, " & _
+"dtDeelnemers.DE_Baan, dtDeelnemers.DE_Naam, dtDeelnemers.[DE_A/B/C], dtDeelnemers.DE_OorspronkelijkProgrammaNummer, " & _
+"dtDeelnemers.DE_Categorie, dtDeelnemers.DE_CatIdx, dtDeelnemers.DE_CatCode FROM dtWedstrijdGegevens INNER JOIN " & _
+"dtDeelnemers ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer " & sqlWhereClause
+
+'qry.sql = "SELECT deelnemers.* FROM dtWedstrijdGegevens INNER JOIN deelnemers ON dtWedstrijdGegevens.WE_Wedstrijdnummer = deelnemers.DE_Wedstrijdnummer " & sqlWhereClause
+
+'end modification dd may 2007
+
+
+'qry.sql = "select * from [deelnemers] where [de_wedstrijdnummer]=waarde();"
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~4"
+'modification dd may 2007; do not write out all of dtPloegen; see also nr 15.
+qry.sql = "SELECT dtPloegen.PL_Index, dtPloegen.PL_Vereniging, dtPloegen.PL_Estafettenummer, dtPloegen.PL_Wedstrijdnummer, " & _
+"dtPloegen.PL_Programmanummer, dtPloegen.PL_Volgorde, dtPloegen.PL_Startnummer, dtPloegen.PL_Naam, dtPloegen.PL_Reserve, dtPloegen.PL_Opm " & _
+"FROM dtWedstrijdGegevens INNER JOIN dtPloegen ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtPloegen.PL_Wedstrijdnummer " & sqlWhereClause
+'qry.sql = "SELECT dtPloegen.* FROM dtWedstrijdGegevens INNER JOIN dtPloegen ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtPloegen.PL_Wedstrijdnummer " & sqlWhereClause
+'end modification
+
+'qry.sql = "Select * from [dtPloegen] where [pl_wedstrijdnummer]=waarde();"
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+'do not include everything from dtTijden ; see 17
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~5"
+qry.sql = "SELECT dtTijden.ty_counter, dtTijden.TY_Index, dtTijden.TY_Wedstrijdnummer, dtTijden.TY_Programmanummer, " & _
+"dtTijden.TY_Startnummer, dtTijden.TY_Vereniging, dtTijden.TY_Estafettenummer, " & _
+"dtTijden.TY_Tijd1, dtTijden.TY_Tijd2, dtTijden.TY_Tijd3, dtTijden.TY_Tijd4, " & _
+"dtTijden.TY_Eindtijd, dtTijden.TY_Afstand1, dtTijden.TY_Afstand2, dtTijden.TY_Afstand3, " & _
+"dtTijden.TY_Afstand4, dtTijden.TY_Eindafstand, dtTijden.TY_Dis, dtTijden.TY_Punten, " & _
+"dtTijden.TY_ab, dtTijden.TY_plaats, dtTijden.TY_BM, dtTijden.[TY_A/B/C], dtTijden.TY_pos, " & _
+"dtTijden.TY_echtePlaats, dtTijden.TY_Categorie, dtTijden.TY_ExtraTussenTijden, " & _
+"dtTijden.TY_Tussentijden " & _
+"FROM dtWedstrijdGegevens INNER JOIN dtTijden ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtTijden.TY_Wedstrijdnummer " & sqlWhereClause
+
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~6"
+sql = "SELECT dtWedstrijdJury.*, dtOfficials.JU_Voorletters, dtOfficials.JU_Voorvoegsel, dtOfficials.JU_Achternaam, dtOfficials.[JU_Hr/Mw], dtOfficials.JU_Adres, dtOfficials.JU_Postcode, dtOfficials.JU_Plaats, " & _
+"dtOfficials.JU_Telefoon, dtOfficials.JU_Bevoegdheid, dtOfficials.JU_Email, dtOfficials.JU_Vereniging, " & _
+"dtOfficials.JU_BevNr, dtOfficials.JU_Oorsprong " & _
+"FROM dtWedstrijdGegevens INNER JOIN (dtOfficials INNER JOIN dtWedstrijdJury ON " & _
+"dtOfficials.JU_index = dtWedstrijdJury.JD_Index) ON " & _
+"dtWedstrijdGegevens.WE_Wedstrijdnummer = dtWedstrijdJury.JD_Wedstrijdnummer " & _
+sqlWhereClause
+
+'sql = "SELECT dtWedstrijdJury.*, Jury.JU_Voorletters, Jury.JU_Voorvoegsel, Jury.JU_Achternaam, Jury.[JU_Hr/Mw], Jury.JU_Adres, Jury.JU_Postcode, Jury.JU_Plaats, Jury.JU_Telefoon, Jury.JU_Bevoegdheid, Jury.JU_Email, Jury.JU_Vereniging, Jury.JU_BevNr, Jury.JU_Oorsprong " & _
+'    "FROM Jury INNER JOIN dtWedstrijdJury ON Jury.JU_index = dtWedstrijdJury.JD_Index " & _
+'    "WHERE (((dtWedstrijdJury.JD_Wedstrijdnummer)=waarde()));"
+'qry.sql = "select * from [dtWedstrijdJury] where [jd_wedstrijdnummer]=waarde();"
+qry.sql = sql
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~7"
+
+sql = "SELECT [dtDeelnemendeVerenigingen].* FROM dtWedstrijdGegevens INNER JOIN [dtDeelnemendeVerenigingen] ON dtWedstrijdGegevens.WE_Wedstrijdnummer = [dtDeelnemendeVerenigingen].DV_Wedstrijdnummer " & sqlWhereClause
+'sql = "Select * from [dtDeelnemendeVerenigingen] where [dv_wedstrijdnummer]=waarde();"
+    
+qry.sql = sql
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~8"
+qry.sql = "SELECT [dtCodeDescriptions].* FROM dtWedstrijdGegevens INNER JOIN [dtCodeDescriptions] ON dtWedstrijdGegevens.WE_Wedstrijdnummer = [dtCodeDescriptions].CT_Wedstrijdnummer " & sqlWhereClause
+'qry.sql = "select * from [dtCodeDescriptions] where [ct_Wedstrijdnummer]=waarde();"
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~9"
+qry.sql = "SELECT [dtSamenvoegen].* FROM dtWedstrijdGegevens INNER JOIN [dtSamenvoegen] ON dtWedstrijdGegevens.WE_Wedstrijdnummer = [dtSamenvoegen].SA_Wedstrijdnummer " & sqlWhereClause
+'qry.sql = "Select * from [dtSamenvoegen] where [sa_wedstrijdnummer]=waarde();"
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~10"
+qry.sql = "SELECT [dtSmeltenGeavanceerd].* FROM dtWedstrijdGegevens INNER JOIN [dtSmeltenGeavanceerd] ON dtWedstrijdGegevens.WE_Wedstrijdnummer = [dtSmeltenGeavanceerd].SM_Wedstrijdnummer " & sqlWhereClause
+'qry.sql = "Select * from [dtSmeltenGeavanceerd] where [sm_wedstrijdnummer]=waarde();"
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~11"
+
+'modification dd april 2007: do not include DV_Tussenstand yet. See also export tabel #13
+sql = "SELECT [dtDeelnemendeVerenigingen].DV_Naam,[dtDeelnemendeVerenigingen].DV_Wedstrijdnummer," & _
+       "[dtDeelnemendeVerenigingen].DV_Plaats,[dtDeelnemendeVerenigingen].DV_BM,[dtDeelnemendeVerenigingen].DV_Label, [dtVerenigingen].V_DEPOT " & _
+      "FROM dtWedstrijdGegevens INNER JOIN ([dtVerenigingen] " & _
+      "INNER JOIN [dtDeelnemendeVerenigingen] ON [dtVerenigingen].V_NAAM " & _
+      "= [dtDeelnemendeVerenigingen].DV_Naam) ON dtWedstrijdGegevens.WE_Wedstrijdnummer " & _
+      "= [dtDeelnemendeVerenigingen].DV_Wedstrijdnummer " & sqlWhereClause
+
+'sql = "SELECT [dtDeelnemendeVerenigingen].*, [dtVerenigingen].V_DEPOT " & _
+'    "FROM [dtVerenigingen] INNER JOIN [dtDeelnemendeVerenigingen] ON [dtVerenigingen].V_NAAM = [dtDeelnemendeVerenigingen].DV_Naam " & _
+'    "WHERE ((([dtDeelnemendeVerenigingen].DV_Wedstrijdnummer)=waarde()));"
+    
+qry.sql = sql
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~12"
+
+sql = "SELECT [dtProgrammaLeeftijdsgroepen].* FROM dtWedstrijdGegevens INNER JOIN [dtProgrammaLeeftijdsgroepen] ON dtWedstrijdGegevens.WE_Wedstrijdnummer = [dtProgrammaLeeftijdsgroepen].PRL_Wedstrijdnummer " & sqlWhereClause
+'sql = "SELECT [dtProgrammaLeeftijdsgroepen].* " & _
+'    "FROM [dtProgrammaLeeftijdsgroepen]  " & _
+'    "WHERE ((([dtProgrammaLeeftijdsgroepen].PRL_Wedstrijdnummer)=waarde()));"
+    
+qry.sql = sql
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~13"
+'modification dd april 2007: now DO include DV_Tussenstand.
+sql = "SELECT [dtDeelnemendeVerenigingen].*, [dtVerenigingen].V_DEPOT " & _
+      "FROM dtWedstrijdGegevens INNER JOIN ([dtVerenigingen] " & _
+      "INNER JOIN [dtDeelnemendeVerenigingen] ON [dtVerenigingen].V_NAAM " & _
+      "= [dtDeelnemendeVerenigingen].DV_Naam) ON dtWedstrijdGegevens.WE_Wedstrijdnummer " & _
+      "= [dtDeelnemendeVerenigingen].DV_Wedstrijdnummer " & sqlWhereClause
+
+qry.sql = sql
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'modification dd may 2007; now DO include all fields from deelnemers
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~14"
+qry.sql = "SELECT dtDeelnemers.* FROM dtWedstrijdGegevens INNER JOIN dtDeelnemers ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+'modification dd may 2007; now DO include all fields from dtPloegen
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~15"
+qry.sql = "SELECT dtPloegen.* FROM dtWedstrijdGegevens INNER JOIN dtPloegen ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtPloegen.PL_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+'modification dd may 2007; now DO include all fields from dtWedstrijdGegevens
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~16"
+qry.sql = "Select * from [dtWedstrijdGegevens] where ([we_wedstrijdnummer]=" & wednr & " or [we_MainWedstrijdNummer]=" & wednr & ");"
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+
+
+'include everything from dtTijden ; nr 17.
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~17"
+qry.sql = "SELECT dtTijden.* FROM dtWedstrijdGegevens INNER JOIN dtTijden ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtTijden.TY_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'include everything from dtProgramma; nr 18.
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~18"
+qry.sql = "SELECT dtProgramma.* FROM dtWedstrijdGegevens INNER join dtProgramma ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'modification dd june 2007; include NAMEN for dtPloegen and deelnemers.
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~19"
+qry.sql = "SELECT distinct dtNamen.* " & _
+        "FROM (dtDeelnemers INNER JOIN dtWedstrijdGegevens ON " & _
+        "dtDeelnemers.DE_Wedstrijdnummer = dtWedstrijdGegevens.WE_Wedstrijdnummer) " & _
+        "INNER JOIN dtNamen ON (dtDeelnemers.DE_Startnummer = " & _
+        "dtNamen.NA_Startnummer) AND (dtDeelnemers.DE_Vereniging = " & _
+        "dtNamen.NA_Vereniging) " & _
+        sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~20"
+qry.sql = "SELECT Distinct dtNamen.* " & _
+        "FROM (dtPloegen INNER JOIN dtWedstrijdGegevens ON " & _
+        "dtPloegen.PL_Wedstrijdnummer = dtWedstrijdGegevens.WE_Wedstrijdnummer) " & _
+        "INNER JOIN dtNamen ON (dtPloegen.PL_Startnummer = " & _
+        "dtNamen.NA_Startnummer) AND (dtPloegen.PL_Vereniging = " & _
+        "dtNamen.NA_Vereniging) " & _
+        sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+'21: extra records
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~21"
+qry.sql = "SELECT dtProgrammaExtraRecords.* FROM dtWedstrijdGegevens INNER JOIN dtProgrammaExtraRecords ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgrammaExtraRecords.PRR_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'22: previous winners
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~22"
+qry.sql = "SELECT dtProgrammaPreviousWinners.* FROM dtWedstrijdGegevens INNER JOIN dtProgrammaPreviousWinners ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgrammaPreviousWinners.PRW_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'23: pnt global
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~23"
+qry.sql = "SELECT dtgPuntentellingDefs.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingDefs ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingDefs.PTG_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+'24: pnt cat
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~24"
+qry.sql = "SELECT dtgPuntentellingCats.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingCats ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingCats.PTC_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'25: pnt ond
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~25"
+qry.sql = "SELECT dtgPuntentellingOnderdelen.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingOnderdelen ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingOnderdelen.PTO_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'26: pnt ond cat details
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~26"
+qry.sql = "SELECT dtgPuntentellingOndCatDetails.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingOndCatDetails ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingOndCatDetails.PTTM_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'27: pnt dln vers
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~27"
+qry.sql = "SELECT dtgPuntentellingDlnVers.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingDlnVers ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingDlnVers.PTV_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'28: pnt dln plaats punt
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~28"
+qry.sql = "SELECT dtgPuntentellingPlaatsPunt.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingPlaatsPunt ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingPlaatsPunt.PTP_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'29: pnt prog
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~29"
+qry.sql = "SELECT dtgPuntentellingProgs.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingProgs ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingProgs.PTPR_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'30: pnt tst ind
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~30"
+qry.sql = "SELECT dtgPuntentellingTussenstandInd.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingTussenstandInd ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingTussenstandInd.PTT_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+'31: pnt tst ver
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~31"
+qry.sql = "SELECT dtgPuntentellingTussenstandVer.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingTussenstandVer ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingTussenstandVer.PTT_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+
+
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~32"
+'modification dd oct 2007: now DO include contact data for ver
+qry.sql = "SELECT [dtContactpersonen].* FROM [dtContactpersonen] INNER JOIN " & _
+     "(dtWedstrijdGegevens INNER JOIN [dtDeelnemendeVerenigingen] ON dtWedstrijdGegevens.WE_Wedstrijdnummer = " & _
+     "[dtDeelnemendeVerenigingen].DV_Wedstrijdnummer) ON ([dtContactpersonen].cont_naam = " & _
+     "[dtDeelnemendeVerenigingen].DV_Cont_Naam) AND ([dtContactpersonen].V_NAAM = " & _
+     "[dtDeelnemendeVerenigingen].DV_Naam) " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+'33: pnt ver grps
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~33"
+qry.sql = "SELECT dtgPuntentellingVerGroups.* FROM dtWedstrijdGegevens INNER JOIN dtgPuntentellingVerGroups ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtgPuntentellingVerGroups.PTVG_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+
+'34: wijzigingen
+Set qry = mydb.CreateQueryDef()
+qry.name = "~~wedexp~34"
+qry.sql = "SELECT [dtVervangingen].* FROM dtWedstrijdGegevens INNER JOIN [dtVervangingen] ON dtWedstrijdGegevens.WE_Wedstrijdnummer = [dtVervangingen].WZ_Wedstrijdnummer " & sqlWhereClause
+mydb.QueryDefs.Append qry
+Set qry = Nothing
+
+
+'35: directory server
+Dim dsMainData As DIR_SERVER_DATA
+Dim dsTmpData As DIR_SERVER_DATA
+
+dsInit dsMainData, False, ""
+dsInit dsTmpData, True, "~~wedexp~35"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select we_wedstrijdnummer from dtWedstrijdGegevens where [we_wedstrijdnummer]=" & wednr & " or [we_mainWedstrijdNummer]=" & wednr & ";", dbOpenDynaset)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim lWedNr As Long
+  lWedNr = Nz(rs("we_wedstrijdnummer"))
+  If Not dsCopyPropertyByName(dsMainData, "HUPPROG\WED_AUX_DATA\" & lWedNr, dsTmpData, "HUPPROG\WED_AUX_DATA\" & lWedNr) Then
+    Exit Function
+  End If
+  rs.MoveNext
+Loop
+appCleanRS rs
+
+
+
+
+For i = 1 To 35
+    DoCmd.TransferDatabase acExport, "Microsoft Access", file, acTable, "~~wedexp~" & CStr(i), "~~wedexp~" & CStr(i)
+    If (i = 35) Then
+      'do nothing; object will be clean up by dsClean
+    Else
+      DoCmd.DeleteObject acQuery, "~~wedexp~" & CStr(i)
+    End If
+Next i
+
+dsClean dsMainData
+dsClean dsTmpData
+
+
+
+Set mydb = Nothing
+
+
+
+nExpWeds = nWeds
+
+
+'Now output extra information to the backup.
+
+Dim extPropNames(0 To 2) As String
+Dim extPropValues(0 To 2) As String
+Dim nExtProps As Integer
+
+
+extPropNames(0) = "WedDatum"
+extPropNames(1) = "WedBeschrijving"
+extPropNames(2) = "WedAantal"
+
+extPropValues(0) = firstWedDateS
+extPropValues(1) = firstWedNameS
+extPropValues(2) = CStr(nExpWeds)
+
+nExtProps = 3
+
+
+
+If Not bckAddInfo(uitvoer, sNameCreator, sDescription, extPropNames, extPropValues, nExtProps, BCK_TYPE_NAME_WED) Then
+  Exit Function
+End If
+
+uitvoer.Close
+
+
+
+
+
+
+
+wedstrijdOpslaan_perform_writeFile = True
+
+Exit Function
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+If Err = 3011 Or Err = 7874 Or Err = 7874 Then Resume Next 'could not find object to detel
+If Err = 3204 Then
+    If MsgBox("Dit bestand bestaat al." & Chr$(13) & "Wilt u het overschrijven?", 33) = 2 Then Exit Function
+    Kill file
+    Resume 0
+End If
+MsgBox Error$, 16
+
+If Not mydb Is Nothing Then
+  Set mydb = Nothing
+End If
+
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Private Function wedstrijdTeruglezenTranslateWedNr(ByRef lOrgWedNrs() As Long, ByRef lNewWedNrs() As Long, ByVal nWeds As Integer, ByVal oldWedNr As Long, ByRef newWedNr As Long) As Boolean
+On Error GoTo fout
+wedstrijdTeruglezenTranslateWedNr = False
+
+Dim pos As Integer
+pos = bSearchLong(oldWedNr, nWeds, lOrgWedNrs)
+
+If (pos = -1) Then
+  newWedNr = -1
+  Exit Function
+End If
+
+newWedNr = lNewWedNrs(pos)
+
+
+wedstrijdTeruglezenTranslateWedNr = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function wedstrijdTeruglezen_driver(ByVal wedBckFile As String) As Boolean
+On Error GoTo fout
+wedstrijdTeruglezen_driver = False
+
+
+
+Dim extPropNames(0 To 2) As String
+Dim extPropValues(0 To 2) As String
+Dim nExtProps As Integer
+nExtProps = 3
+
+extPropNames(0) = "WedDatum"
+extPropNames(1) = "WedBeschrijving"
+extPropNames(2) = "WedAantal"
+
+
+
+Dim bckMDBFileName As String
+
+Dim zipData As ZIP_INTERNAL
+
+Dim bckValid As Boolean, bckInvalidReason As Integer, bckInvalidString As String, bckHasInfo As Boolean, bckVersion As String, bckTimeS As String, bckDateS As String, bckNameCreator As String, bckDescription As String, wedDateS As String, wedNameS As String, wedNWedS As String, bckVersionOK As Boolean
+
+If Not bckAnalyze_perform(wedBckFile, BCK_TYPE_NAME_WED, "wed", "zip", False, True, bckValid, bckVersionOK, bckInvalidReason, bckInvalidString, bckHasInfo, bckDateS, bckTimeS, bckVersion, bckNameCreator, bckDescription, extPropNames, extPropValues, nExtProps, False, bckMDBFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+
+Dim isOK As Boolean
+isOK = True
+
+wedDateS = extPropValues(0)
+wedNameS = extPropValues(1)
+wedNWedS = extPropValues(2)
+
+
+If (Not bckValid) Then
+  Select Case bckInvalidReason
+    Case BCK_UNKNOWN_FILE
+      Err.Raise 1, , "Backup bestand: " & Chr(13) & wedBckFile & Chr(13) & "kon niet worden gevonden." & Chr(13) & "Controleer of de <Diskette> directory in het <Instellingen> scherm goed staat ingesteld."
+    Case BCK_INVALID_FILEFORMAT
+      Err.Raise 1, , "Backup bestand: " & Chr(13) & wedBckFile & Chr(13) & "is geen geldig wedstrijd backup-bestand en kon niet worden geopend."
+    Case BCK_INVALID_APP
+      Err.Raise 1, , "Backup bestand: " & Chr(13) & wedBckFile & Chr(13) & "is geen wedstrijd backup van Hupprog."
+    Case BCK_UZIP_FAILURE
+      Err.Raise 1, , "Probleem met zip bestand: " & vbCrLf & wedBckFile
+    Case BCK_INVALID_VERSION
+      Err.Raise 1, , "Backup bestand: " & Chr(13) & wedBckFile & Chr(13) & "is gemaakt met een nieuwe versie van Hupprog." & Chr(13) & "Om problemen te voorkomen kan deze niet worden ingelezen." & Chr(13) & "Download de laatste versie van Hupprog."
+  End Select
+End If
+
+
+Dim antwoord As Integer
+
+
+Dim newWedNr As Double
+newWedNr = nieuw_wedstrijd_nummer(Now())
+
+
+
+
+If (bckVersionOK) Then
+  If MsgBox("Bestand:" & Chr$(13) & wedBckFile & Chr$(13) & "Inlezen als nieuwe wedstrijd(en) met nummer(s): " & newWedNr & " en hoger?", vbQuestion + vbOKCancel) = vbCancel Then
+    isOK = False
+  End If
+Else
+  'Need to prompt that backup version is too new.
+  If MsgBox("Waarschuwing: het bestand:" & Chr$(13) & wedBckFile & Chr$(13) & "is aangemaakt met een latere versie van Hupprog dan de huidige versie. " & Chr(13) & "Dit kan mogelijk problemen geven." & Chr(13) & "Wilt u de wedstrijd toch inlezen als nieuwe wedstrijd(en) met nummer(s): " & newWedNr & " en hoger?", vbExclamation + vbYesNo) = vbNo Then
+    isOK = False
+  End If
+End If
+
+If (isOK) Then
+
+  'Hier teruglezen.
+  
+  Dim nImpWeds As Integer
+  
+  isOK = WedstrijdTerugLezen_perform(bckMDBFileName, newWedNr, nImpWeds)
+  
+  
+
+
+End If
+
+
+
+On Error GoTo fout
+
+If Not bckAnalyze_cleanup(zipData) Then
+  Exit Function
+End If
+
+If (Not isOK) Then
+  Exit Function
+End If
+    
+
+
+If (nImpWeds <= 1) Then
+  MsgBox "Wedstrijdgegevens ingelezen als nieuwe wedstrijd." & Chr(13) & "Nieuwe wedstrijdnummer: " & newWedNr, 64
+Else
+  MsgBox "Er zijn: " & nImpWeds & " wedstrijden ingelezen." & vbCrLf & "Nieuwe wedstrijdnummers: " & newWedNr & " en hoger.", 64
+End If
+
+
+
+wedstrijdTeruglezen_driver = True
+Exit Function
+
+fout:
+MsgBox Err & " wedstrijdTeruglezen_driver" & Error$, 16
+Exit Function
+
+fout_cleanup:
+Dim msg As String
+msg = Err & " wedstrijdTeruglezen_driver" & vbCrLf & Error$
+bckAnalyze_cleanup zipData
+
+MsgBox msg, 16
+Exit Function
+
+
+
+End Function
+
+
+Private Function WedstrijdBackup_SetupTables(ByRef impTbNames() As String, ByRef impTbFullImport() As Boolean, ByRef impTbIdxPrimary() As Integer, ByRef impTbIdxSecondary() As Integer, ByRef impTbIdxTertiary() As Integer, ByRef nImpTables As Integer) As Boolean
+On Error GoTo fout
+WedstrijdBackup_SetupTables = False
+
+impTbNames(IMP_IDX_WEDGEG) = "dtWedstrijdGegevens"
+impTbNames(IMP_IDX_PROG) = "dtProgramma"
+impTbNames(IMP_IDX_DLNVER) = "dtDeelnemendeVerenigingen"
+impTbNames(IMP_IDX_DLN) = "dtDeelnemers"
+impTbNames(IMP_IDX_PLG) = "dtPloegen"
+impTbNames(IMP_IDX_TD) = "dtTijden"
+impTbNames(IMP_IDX_JDLN) = "dtWedstrijdJury"
+impTbNames(IMP_IDX_CODE) = "dtCodeDescriptions"
+impTbNames(IMP_IDX_SAMEN) = "dtSamenvoegen"
+impTbNames(IMP_IDX_SMELT) = "dtSmeltenGeavanceerd"
+impTbNames(IMP_IDX_PRLFT) = "dtProgrammaLeeftijdsgroepen"
+impTbNames(IMP_IDX_DLNNM) = ""
+impTbNames(IMP_IDX_PLGNM) = ""
+impTbNames(IMP_IDX_RCX) = "dtProgrammaExtraRecords"
+impTbNames(IMP_IDX_WIN) = "dtProgrammaPreviousWinners"
+impTbNames(IMP_IDX_PNT_GLB) = "dtgPuntentellingDefs"
+impTbNames(IMP_IDX_PNT_CAT) = "dtgPuntentellingCats"
+impTbNames(IMP_IDX_PNT_OND) = "dtgPuntentellingOnderdelen"
+impTbNames(IMP_IDX_PNT_ONDCAT) = "dtgPuntentellingOndCatDetails"
+impTbNames(IMP_IDX_PNT_DLV) = "dtgPuntentellingDlnVers"
+impTbNames(IMP_IDX_PNT_PLP) = "dtgPuntentellingPlaatsPunt"
+impTbNames(IMP_IDX_PNT_PRG) = "dtgPuntentellingProgs"
+impTbNames(IMP_IDX_PNT_TST_IND) = "dtgPuntentellingTussenstandInd"
+impTbNames(IMP_IDX_PNT_TST_VER) = "dtgPuntentellingTussenstandVer"
+impTbNames(IMP_IDX_VER_CNT) = ""
+impTbNames(IMP_IDX_PNT_VER_GRP) = "dtgPuntentellingVerGroups"
+impTbNames(IMP_IDX_WZ) = "dtVervangingen"
+impTbNames(IMP_IDX_DIR_SERVER) = ""
+
+nImpTables = IMP_N_TABLES
+
+Dim i As Integer
+For i = 1 To nImpTables
+  impTbFullImport(i) = False
+  impTbIdxSecondary(i) = -1
+  impTbIdxTertiary(i) = -1
+Next i
+
+impTbIdxPrimary(IMP_IDX_WEDGEG) = 1
+impTbIdxSecondary(IMP_IDX_WEDGEG) = 16
+
+impTbIdxPrimary(IMP_IDX_PROG) = 2
+impTbIdxSecondary(IMP_IDX_PROG) = 18
+
+impTbIdxPrimary(IMP_IDX_DLNVER) = 7
+impTbIdxSecondary(IMP_IDX_DLNVER) = 11
+impTbIdxTertiary(IMP_IDX_DLNVER) = 13
+
+impTbIdxPrimary(IMP_IDX_DLN) = 3
+impTbIdxSecondary(IMP_IDX_DLN) = 14
+
+impTbIdxPrimary(IMP_IDX_PLG) = 4
+impTbIdxSecondary(IMP_IDX_PLG) = 15
+
+impTbIdxPrimary(IMP_IDX_TD) = 5
+impTbIdxSecondary(IMP_IDX_TD) = 17
+
+impTbIdxPrimary(IMP_IDX_JDLN) = 6
+
+impTbIdxPrimary(IMP_IDX_CODE) = 8
+
+impTbIdxPrimary(IMP_IDX_SAMEN) = 9
+
+impTbIdxPrimary(IMP_IDX_SMELT) = 10
+
+impTbIdxPrimary(IMP_IDX_PRLFT) = 12
+
+impTbIdxPrimary(IMP_IDX_DLNNM) = 19
+
+impTbIdxPrimary(IMP_IDX_PLGNM) = 20
+
+impTbIdxPrimary(IMP_IDX_RCX) = 21
+impTbIdxPrimary(IMP_IDX_WIN) = 22
+impTbIdxPrimary(IMP_IDX_PNT_GLB) = 23
+impTbIdxPrimary(IMP_IDX_PNT_CAT) = 24
+impTbIdxPrimary(IMP_IDX_PNT_OND) = 25
+impTbIdxPrimary(IMP_IDX_PNT_ONDCAT) = 26
+impTbIdxPrimary(IMP_IDX_PNT_DLV) = 27
+impTbIdxPrimary(IMP_IDX_PNT_PLP) = 28
+impTbIdxPrimary(IMP_IDX_PNT_PRG) = 29
+impTbIdxPrimary(IMP_IDX_PNT_TST_IND) = 30
+impTbIdxPrimary(IMP_IDX_PNT_TST_VER) = 31
+
+impTbIdxPrimary(IMP_IDX_VER_CNT) = 32
+
+impTbIdxPrimary(IMP_IDX_PNT_VER_GRP) = 33
+
+impTbIdxPrimary(IMP_IDX_WZ) = 34
+
+impTbIdxPrimary(IMP_IDX_DIR_SERVER) = 35
+impTbFullImport(IMP_IDX_DIR_SERVER) = True
+
+
+
+WedstrijdBackup_SetupTables = True
+Exit Function
+fout:
+MsgBox Err & " WedstrijdBackup_SetupTables" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function WedstrijdTerugLezen_ReadTable(file As String, ByVal blFullImport As Boolean, ByVal primIdx As Integer, ByVal secIdx As Integer, ByVal tertIdx As Integer, ByRef blImported As Boolean) As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_ReadTable = False
+
+
+blImported = False
+
+Dim iImpMode As Integer
+If (blFullImport) Then
+  iImpMode = acImport
+Else
+  iImpMode = acLink
+End If
+  
+
+
+  If (tertIdx <> -1) Then
+    DoCmd.TransferDatabase iImpMode, "Microsoft Access", file, acTable, "~~wedexp~" & tertIdx, "~~wedimp~~"
+    If (tableExists("~~wedimp~~")) Then
+      blImported = True
+    End If
+  End If
+  If (Not blImported) And (secIdx <> -1) Then
+    DoCmd.TransferDatabase iImpMode, "Microsoft Access", file, acTable, "~~wedexp~" & secIdx, "~~wedimp~~"
+    If (tableExists("~~wedimp~~")) Then
+      blImported = True
+    End If
+  End If
+  If (Not blImported) And (primIdx <> -1) Then
+    DoCmd.TransferDatabase iImpMode, "Microsoft Access", file, acTable, "~~wedexp~" & primIdx, "~~wedimp~~"
+    If (tableExists("~~wedimp~~")) Then
+      blImported = True
+    End If
+  End If
+  
+
+
+
+
+
+WedstrijdTerugLezen_ReadTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next ' could not find object to import / delete
+MsgBox Err & " WedstrijdTerugLezen_ReadTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function WedstrijdTerugLezen_processVerContacts() As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processVerContacts = False
+
+
+Dim geg As Recordset
+Dim tbDef As TableDef
+Dim cnts As Recordset
+Dim fld As Field
+
+Dim mydb As Database
+Set mydb = CurrentDb()
+
+Set geg = CurrentDb().OpenRecordset("~~wedimp~~")
+Set tbDef = mydb.TableDefs("~~wedimp~~")
+If fieldExistsInTD(tbDef, "cont_naam") Then
+  Set cnts = CurrentDb().OpenRecordset("dtContactpersonen")
+  cnts.Index = "PrimaryKey"
+  geg.MoveFirst
+  Do Until geg.EOF
+    Dim vName As String, cntName As String
+    vName = Nz(geg("V_Naam"))
+    cntName = Nz(geg("cont_naam"))
+    
+    If (vName <> "" And cntName <> "") Then
+      cnts.Seek "=", Nz(geg("V_Naam")), Nz(geg("cont_naam"))
+        If cnts.NoMatch Then
+          cnts.AddNew
+            For Each fld In cnts.Fields
+              'If fld.name <> "JU_index" Then
+                If fieldExistsInTD(tbDef, fld.name) Then
+                  cnts(fld.name) = geg(fld.name)
+                End If
+              'End If
+            Next fld
+          cnts.Update
+          
+          
+        Else
+          cnts.Edit
+            For Each fld In cnts.Fields
+              'If fld.name <> "JU_index" Then
+                If fieldExistsInTD(tbDef, fld.name) Then
+                  cnts(fld.name) = geg(fld.name)
+                End If
+              'End If
+            Next fld
+          
+          
+          cnts.Update
+          
+          
+        End If
+        
+    End If
+    geg.MoveNext
+  Loop
+End If 'if field exists
+
+
+WedstrijdTerugLezen_processVerContacts = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " WedstrijdTerugLezen_processVerContacts" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function WedstrijdTerugLezen_processDlnVer() As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processDlnVer = False
+
+
+Dim sqlstr As String
+'We moeten kijken of er nieuwe verenigingen zijn en zo ja, deze toevoegen aan het verenigingen bestand.
+        'We kunnen ze dus het beste allemaal toevoegen met een query-> dubbele worden er wel weggehaald door de Key
+If fieldExistsInTD(CurrentDb().TableDefs("~~wedimp~~"), "V_Depot") Then
+  sqlstr = "INSERT INTO [dtVerenigingen] ( V_NAAM, V_Depot ) SELECT [~~wedimp~~].DV_Naam, [~~wedimp~~].V_Depot FROM [~~wedimp~~] GROUP BY [~~wedimp~~].DV_Naam, [~~wedimp~~].V_Depot;"
+Else
+  sqlstr = "INSERT INTO [dtVerenigingen] ( V_NAAM ) SELECT [~~wedimp~~].DV_Naam FROM [~~wedimp~~] GROUP BY [~~wedimp~~].DV_Naam;"
+End If
+DoCmd.SetWarnings False
+DoCmd.RunSQL sqlstr
+DoCmd.SetWarnings True
+
+
+WedstrijdTerugLezen_processDlnVer = True
+Exit Function
+fout:
+MsgBox Err & " WedstrijdTerugLezen_processDlnVer" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function WedstrijdTerugLezen_processTd(ByRef lOrgWedNrs() As Long, ByRef lNewWedNrs() As Long, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processTd = False
+
+Dim geg As Recordset
+
+Set geg = CurrentDb().OpenRecordset("select * from [~~wedimp~~] order by [ty_wedstrijdnummer]")
+        
+        
+Dim curOldWedNr As Long
+Dim tpOldWedNr As Long
+
+curOldWedNr = -1
+
+Dim lNewWedNr As Long
+
+Dim deeln As Recordset
+
+
+
+geg.MoveFirst
+Do Until geg.EOF
+
+    tpOldWedNr = CLng(Nz(geg("TY_Wedstrijdnummer")))
+    If (tpOldWedNr <> curOldWedNr) Then
+          
+      If Not wedstrijdTeruglezenTranslateWedNr(lOrgWedNrs, lNewWedNrs, nWeds, tpOldWedNr, lNewWedNr) Then
+        Err.Raise 1, , "Error translating wednr: " & tpOldWedNr
+      End If
+      
+                    
+      Set deeln = CurrentDb().OpenRecordset("SElect * from [dtDeelnemers] where [de_wedstrijdnummer]=" & lNewWedNr & ";", dbOpenDynaset)
+      curOldWedNr = tpOldWedNr
+    End If
+
+    
+    
+    If Nz(geg("TY_Startnummer"), "") = "" Then
+        deeln.FindFirst "[DE_Programmanummer]=""" & geg("TY_PRogrammanummer") & """ and [de_vereniging] = """ & geg("TY_Vereniging") & """ and [de_Estafettenummer] = " & geg("TY_Estafettenummer")
+    Else
+        deeln.FindFirst "[DE_Programmanummer]=""" & geg("TY_PRogrammanummer") & """ and [de_vereniging] = """ & geg("TY_Vereniging") & """ and [de_startnummer] = """ & Nz(geg("TY_STartnummer"), "") & """ and [de_Estafettenummer] = " & geg("TY_Estafettenummer")
+    End If
+    If Not deeln.NoMatch Then
+        geg.Edit
+        geg("TY_Index") = deeln("DE_INdex")
+        geg.Update
+    Else
+        Err.Raise 1, , "Grondige fout opgetreden."
+    End If
+    geg.MoveNext
+Loop
+
+
+appCleanRS geg
+appCleanRS deeln
+
+WedstrijdTerugLezen_processTd = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " WedstrijdTerugLezen_processTd" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function WedstrijdTerugLezen_processPloegen(ByRef lOrgWedNrs() As Long, ByRef lNewWedNrs() As Long, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processPloegen = False
+
+Dim geg As Recordset
+Dim deeln As Recordset
+
+Set geg = CurrentDb().OpenRecordset("select * from [~~wedimp~~] order by [pl_wedstrijdnummer];")
+
+
+Dim curOldWedNr As Long
+Dim tpOldWedNr As Long
+
+Dim lNewWedNr As Long
+         
+curOldWedNr = -1
+
+geg.MoveFirst
+Do Until geg.EOF
+
+  tpOldWedNr = CLng(Nz(geg("PL_Wedstrijdnummer")))
+  If (tpOldWedNr <> curOldWedNr) Then
+        
+    If Not wedstrijdTeruglezenTranslateWedNr(lOrgWedNrs, lNewWedNrs, nWeds, tpOldWedNr, lNewWedNr) Then
+      Err.Raise 1, , "Error translating wednr: " & tpOldWedNr
+    End If
+    
+                  
+    Set deeln = CurrentDb().OpenRecordset("SElect * from [dtDeelnemers] where [de_wedstrijdnummer]=" & lNewWedNr & ";", dbOpenDynaset)
+    curOldWedNr = tpOldWedNr
+  End If
+
+
+
+  deeln.FindFirst "[de_programmanummer]=""" & geg("PL_Programmanummer") & """ and [de_vereniging]=""" & geg("PL_Vereniging") & """ and [de_Estafettenummer]=" & geg("PL_Estafettenummer")
+  If Not deeln.NoMatch Then
+      geg.Edit
+      geg("PL_Index") = deeln("DE_Index")
+      geg.Update
+  Else
+      Err.Raise 1, , "Grondig fout opgetreden."
+  End If
+  geg.MoveNext
+Loop
+
+ 'Bijgewerkt...
+ 
+appCleanRS geg
+appCleanRS deeln
+ 
+
+WedstrijdTerugLezen_processPloegen = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " WedstrijdTerugLezen_processPloegen" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function WedstrijdTerugLezen_processJuryDln() As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processJuryDln = False
+
+Dim geg As Recordset
+Dim tbDef As TableDef
+Dim jury As Recordset
+Dim fld As Field
+
+Dim mydb As Database
+Set mydb = CurrentDb()
+
+Set geg = CurrentDb().OpenRecordset("~~wedimp~~")
+Set tbDef = mydb.TableDefs("~~wedimp~~")
+If fieldExistsInTD(tbDef, "JU_Achternaam") Then
+  Set jury = CurrentDb().OpenRecordset("select * from dtOfficials", dbOpenDynaset)
+  geg.MoveFirst
+  Do Until geg.EOF
+    jury.FindFirst "[JU_Achternaam] = """ & geg("JU_Achternaam") & """ AND [JU_Voorletters] = """ & _
+      geg("JU_Voorletters") & """ AND [JU_Hr/Mw] = """ & geg("JU_Hr/Mw") & """ AND [JU_Plaats] = """ & _
+      geg("JU_Plaats") & """"
+    If jury.NoMatch Then
+      jury.AddNew
+      For Each fld In jury.Fields
+        If fld.name <> "JU_index" Then
+          If fieldExistsInTD(tbDef, fld.name) Then
+            jury(fld.name) = geg(fld.name)
+          End If
+        End If
+      Next fld
+      geg.Edit
+      geg("JD_Index") = jury("JU_index")
+      geg.Update
+      jury.Update
+      
+      
+    Else
+      jury.Edit
+      For Each fld In jury.Fields
+        If fld.name <> "JU_index" Then
+          If fieldExistsInTD(tbDef, fld.name) Then
+            jury(fld.name) = geg(fld.name)
+          End If
+        End If
+      Next fld
+      geg.Edit
+      geg("JD_Index") = jury("JU_index")
+      geg.Update
+      
+      jury.Update
+      
+      
+    End If
+    geg.MoveNext
+  Loop
+End If 'if field exists
+
+
+
+WedstrijdTerugLezen_processJuryDln = True
+Exit Function
+fout:
+If (Err = 3316) Then Resume Next ' validation rule violation in acc97
+If (Err = 3021) Then Resume Next
+MsgBox Err & " WedstrijdTerugLezen_processJuryDln" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+Private Function WedstrijdTerugLezen_processNamen() As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processNamen = False
+
+Dim geg As Recordset
+Dim tbDef As TableDef
+Dim nm As Recordset
+Dim fld As Field
+
+Dim mydb As Database
+Set mydb = CurrentDb()
+
+Set geg = CurrentDb().OpenRecordset("~~wedimp~~")
+Set tbDef = mydb.TableDefs("~~wedimp~~")
+  
+Set nm = CurrentDb().OpenRecordset("dtNamen")
+nm.Index = "PrimaryKey"
+
+
+geg.MoveFirst
+Do Until geg.EOF
+  If (Nz(geg("NA_Startnummer")) <> "") And (Nz(geg("NA_Vereniging")) <> "") Then
+    nm.Seek "=", geg("NA_Startnummer"), geg("NA_Vereniging")
+    If nm.NoMatch Then
+      nm.AddNew
+    Else
+      nm.Edit
+    End If
+    
+    For Each fld In nm.Fields
+      If fieldExistsInTD(tbDef, fld.name) Then
+         nm(fld.name) = geg(fld.name)
+      End If
+    Next fld
+    
+    nm.Update
+    
+  End If 'if start <> "" and ver <> ""
+  
+  geg.MoveNext
+Loop
+
+
+appCleanRS nm
+appCleanRS geg
+
+
+WedstrijdTerugLezen_processNamen = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " WedstrijdTerugLezen_processNamen: " & Chr(13) & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Function WedstrijdTerugLezen_processWedGeg(ByVal wednr As Long, ByRef lOrgWedNrs() As Long, ByRef lNewWedNrs() As Long, ByRef nWeds As Long) As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processWedGeg = False
+
+Dim inpWed As Recordset
+Set inpWed = CurrentDb().OpenRecordset("select * from [~~wedimp~~] order by we_wedstrijdnummer;")
+inpWed.MoveFirst
+Do Until inpWed.EOF
+  Dim orgWedNr As Long
+  Dim newWedNr As Long
+  orgWedNr = CLng(Nz(inpWed("WE_Wedstrijdnummer")))
+  newWedNr = wednr + nWeds
+  lOrgWedNrs(nWeds) = orgWedNr
+  lNewWedNrs(nWeds) = newWedNr
+  nWeds = nWeds + 1
+  inpWed.MoveNext
+Loop
+
+
+WedstrijdTerugLezen_processWedGeg = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " WedstrijdTerugLezen_processWedGeg " & Chr(13) & Error$, 16
+Exit Function
+End Function
+
+Private Function WedstrijdTerugLezen_processDirServer(ByRef lOrgWedNrs() As Long, ByRef lNewWedNrs() As Long, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+WedstrijdTerugLezen_processDirServer = False
+
+
+Dim dsImpData As DIR_SERVER_DATA, dsGlbData As DIR_SERVER_DATA
+
+
+If Not dsInit(dsImpData, False, "~~wedimp~~") Then
+  Exit Function
+End If
+
+If Not dsInit(dsGlbData, False, "") Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nWeds - 1
+  Dim blDummy As Boolean, sDummy As String
+  If Not dsDeletePropertyByName(dsGlbData, "HUPPROG\WED_AUX_DATA\" & lNewWedNrs(i), blDummy, sDummy) Then
+    Exit Function
+  End If
+  If Not dsCopyPropertyByName(dsImpData, "HUPPROG\WED_AUX_DATA\" & lOrgWedNrs(i), dsGlbData, "HUPPROG\WED_AUX_DATA\" & lNewWedNrs(i)) Then
+    Exit Function
+  End If
+Next i
+
+dsClean dsImpData
+dsClean dsGlbData
+
+
+WedstrijdTerugLezen_processDirServer = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " WedstrijdTerugLezen_processDirServer" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Private Function WedstrijdTerugLezen_perform(file As String, wednr As Double, ByRef nImpWeds As Integer) As Boolean
+On Error GoTo fout
+
+WedstrijdTerugLezen_perform = False
+
+
+Dim nImpTables As Integer
+Dim impTbNames(1 To IMP_N_TABLES) As String
+Dim impTbFullImport(1 To IMP_N_TABLES) As Boolean
+Dim impTbIdxPrimary(1 To IMP_N_TABLES) As Integer
+Dim impTbIdxSecondary(1 To IMP_N_TABLES) As Integer
+Dim impTbIdxTertiary(1 To IMP_N_TABLES) As Integer
+
+If Not WedstrijdBackup_SetupTables(impTbNames, impTbFullImport, impTbIdxPrimary, impTbIdxSecondary, impTbIdxTertiary, nImpTables) Then
+  Exit Function
+End If
+
+
+'Pas op : Hiermee verwijderen we een hele wedstrijd, inclusief alles...
+
+Dim sql
+sql = "Delete * from [dtWedstrijdGegevens] where [we_wedstrijdnummer]=" & wednr & ";"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+'Eerst alle tabellen leeg maken (ter voorbereiding)
+
+
+DoCmd.DeleteObject acTable, "~~wedimp~~"
+DoCmd.DeleteObject acTable, "~~wedimp~~1"
+DoCmd.DeleteObject acTable, "~~wedimp~~2"
+
+
+
+
+Dim i As Integer
+
+Dim lOrgWedNrs(10000) As Long
+Dim lNewWedNrs(10000) As Long
+Dim nWeds As Long
+
+nWeds = 0
+
+For i = 1 To nImpTables
+  DoCmd.DeleteObject acTable, "~~wedimp~~"
+  
+  Dim blImp As Boolean
+  blImp = False
+  
+  If Not WedstrijdTerugLezen_ReadTable(file, impTbFullImport(i), impTbIdxPrimary(i), impTbIdxSecondary(i), impTbIdxTertiary(i), blImp) Then
+    Exit Function
+  End If
+  
+  'An attempt was made to import the table.
+   
+  'Verwerk de tabel, dwz voeg gegevens toe aan bron tabellen...
+  If (blImp) Then
+    Dim blNeedsTransfer As Boolean
+    blNeedsTransfer = True
+    
+    If (i = IMP_IDX_WEDGEG) Then
+      If Not WedstrijdTerugLezen_processWedGeg(wednr, lOrgWedNrs, lNewWedNrs, nWeds) Then
+        Exit Function
+      End If
+       
+    ElseIf i = IMP_IDX_DLNVER Then 'deelnemende dtVerenigingen
+      If Not WedstrijdTerugLezen_processDlnVer() Then
+        Exit Function
+      End If
+        
+    ElseIf i = IMP_IDX_PLG Then 'ploegen tbl -> Veld INDEX bijwerken
+      If Not WedstrijdTerugLezen_processPloegen(lOrgWedNrs, lNewWedNrs, nWeds) Then
+        Exit Function
+      End If
+    
+    ElseIf i = IMP_IDX_TD Then 'dtTijden tbl -> Veld INDEX bijwerken
+      If Not WedstrijdTerugLezen_processTd(lOrgWedNrs, lNewWedNrs, nWeds) Then
+        Exit Function
+      End If
+    ElseIf i = IMP_IDX_JDLN Then
+      'We moeten evt Jury mensen toevoegen...
+      If Not WedstrijdTerugLezen_processJuryDln() Then
+        Exit Function
+      End If
+    ElseIf i = IMP_IDX_PLGNM Or i = IMP_IDX_DLNNM Then
+      If Not WedstrijdTerugLezen_processNamen() Then
+        Exit Function
+      End If
+      blNeedsTransfer = False
+    ElseIf i = IMP_IDX_VER_CNT Then
+      If Not WedstrijdTerugLezen_processVerContacts() Then
+        Exit Function
+      End If
+      blNeedsTransfer = False
+    ElseIf i = IMP_IDX_DIR_SERVER Then
+      If Not WedstrijdTerugLezen_processDirServer(lOrgWedNrs, lNewWedNrs, nWeds) Then
+        Exit Function
+      End If
+      blNeedsTransfer = False
+    End If
+    
+    
+    If (blNeedsTransfer) Then
+      VerwerkTabel impTbNames(i), lOrgWedNrs, lNewWedNrs, nWeds
+    End If
+  End If 'if blImp
+    
+Next i
+
+DoCmd.DeleteObject acTable, "~~wedimp~~"
+
+
+'Even wat nieuwe startnummers inlezen (indien nodig)
+If Not swmAddAllOrphanedSwimmers() Then
+  Exit Function
+End If
+
+swmSetGeslacht
+
+nImpWeds = nWeds
+
+WedstrijdTerugLezen_perform = True
+
+
+Exit Function
+
+fout:
+If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to import / delete
+If Err = 3021 Then Resume Next '-> no current record...
+
+
+MsgBox Err & " WedstrijdTerugLezen_perform" & Chr(13) & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function wedBackup_analyze(ByVal fName As String, ByRef bckValid As Boolean, ByRef bckInvalidReason As Integer, ByRef bckInvalidString As String, ByRef bckHasInfo As Boolean, ByRef bckDateS As String, ByRef bckTimeS As String, ByRef bckVersion As String, ByRef bckNameCreator As String, ByRef bckDescription As String, ByRef wedDateS As String, ByRef wedNameS As String, ByRef wedNWedS As String, ByRef bckVersionOK As Boolean) As Boolean
+On Error GoTo fout
+wedBackup_analyze = False
+
+
+Dim extPropNames(0 To 2) As String
+Dim extPropValues(0 To 2) As String
+Dim nExtProps As Integer
+nExtProps = 3
+
+extPropNames(0) = "WedDatum"
+extPropNames(1) = "WedBeschrijving"
+extPropNames(2) = "WedAantal"
+
+
+
+Dim blDummy As Boolean
+Dim dummyFName As String
+
+Dim zipData As ZIP_INTERNAL
+
+If Not bckAnalyze_perform(fName, BCK_TYPE_NAME_WED, "wed", "zip", False, True, bckValid, bckVersionOK, bckInvalidReason, bckInvalidString, bckHasInfo, bckDateS, bckTimeS, bckVersion, bckNameCreator, bckDescription, extPropNames, extPropValues, nExtProps, True, dummyFName, zipData) Then
+  Exit Function
+End If
+
+
+wedDateS = extPropValues(0)
+wedNameS = extPropValues(1)
+wedNWedS = extPropValues(2)
+
+
+wedBackup_analyze = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Private Function VerwerkTabel(tabelnaam As String, ByRef lOrgWedNrs() As Long, ByRef lNewWedNrs() As Long, ByVal nWeds As Integer) As Boolean
+On Error GoTo fout
+VerwerkTabel = False
+
+Dim uit As Recordset, geg As Recordset
+
+Set uit = CurrentDb().OpenRecordset(tabelnaam, dbOpenDynaset)
+
+Set geg = CurrentDb().OpenRecordset("~~wedimp~~", dbOpenDynaset)
+
+Dim fld As Field
+Dim tbDef As TableDef
+
+Dim mydb As Database
+Set mydb = CurrentDb()
+Set tbDef = mydb.TableDefs("~~wedimp~~")
+
+
+geg.MoveFirst
+
+
+Do Until geg.EOF
+    
+    uit.AddNew
+    For Each fld In uit.Fields
+      If (fieldExistsInTD(tbDef, fld.name)) Then
+        If Not (fld.name Like "JU_*") Then
+          If Not (fld.name Like "*Wedstrijdnummer*" Or fld.name = "DE_Index" Or fld.name = "TY_COunter" Or fld.name = "JD_teller" Or fld.name = "V_Depot") Then
+              uit(fld.name) = geg(fld.name)
+          ElseIf fld.name <> "DE_Index" And fld.name <> "TY_Counter" And fld.name <> "JD_Index" And fld.name <> "JD_Teller" And fld.name <> "V_Depot" Then
+             Dim lOld As Long, lNew As Long
+             lOld = CLng(Nz(geg(fld.name)))
+             lNew = 0
+             If Not wedstrijdTeruglezenTranslateWedNr(lOrgWedNrs, lNewWedNrs, nWeds, lOld, lNew) Then
+               lNew = 0
+             End If
+             uit(fld.name) = lNew
+          End If
+        End If
+      End If 'if fieldExists
+    Next fld
+    uit.Update
+    
+    geg.MoveNext
+Loop
+
+appCleanRS uit
+appCleanRS geg
+
+Set mydb = Nothing
+
+VerwerkTabel = True
+Exit Function
+fout:
+If Err = 3021 Then Resume Next 'no current record
+
+If (Err = 3163) Then Resume Next 'field too small
+
+Dim msg As String
+msg = Err & " VerwerkTabel" & vbCrLf & Error$
+
+appCleanRS uit
+appCleanRS geg
+
+Set mydb = Nothing
+
+
+MsgBox msg, 16
+
+'debug
+'On Error GoTo 0
+'Resume
+    
+    
+    
+Exit Function
+
+End Function

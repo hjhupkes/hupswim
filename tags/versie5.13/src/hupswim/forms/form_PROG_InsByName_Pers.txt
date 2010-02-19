@@ -1,0 +1,428 @@
+Version =20
+VersionRequired =20
+Checksum =-1805068859
+Begin Form
+    RecordSelectors = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =7483
+    DatasheetFontHeight =10
+    ItemSuffix =50
+    Left =3870
+    Top =105
+    Right =11775
+    Bottom =2745
+    DatasheetGridlinesColor =12632256
+    RecSrcDt = Begin
+        0x467e9b114665e340
+    End
+    RecordSource ="SELECT [~InsByName].*, dtProgrammanummers.*, fmtProgDes_Kort(nz([type]),\"\",nz("
+        "[afstand]),nz([slag]),nz([beschrijving categorie])) AS progdes FROM [~InsByName]"
+        " INNER JOIN dtProgrammanummers ON ([~InsByName].PC_Programmanummer = dtProgramma"
+        "nummers.Programmanummer) AND ([~InsByName].PC_Wedstrijdnummer = dtProgrammanumme"
+        "rs.Wedstrijdnr) WHERE (((dtProgrammanummers.Afstand) Not Like \"*x*\") AND (([~I"
+        "nsByName].PC_IsOK)=True)) OR (((dtProgrammanummers.Afstand) Not Like \"*x*\") AN"
+        "D (([~InsByName].PC_IsError)=True)) ORDER BY [~InsByName].PC_Wedstrijdnummer, Va"
+        "l([PC_Programmanummer]), [~InsByName].PC_Programmanummer;"
+    OnCurrent ="[Event Procedure]"
+    AfterUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnActivate ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =806
+            BackColor =16776960
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =56
+                    Top =566
+                    Width =630
+                    Height =240
+                    Name ="Label15"
+                    Caption ="Prog nr:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =4931
+                    Top =566
+                    Width =810
+                    Height =240
+                    Name ="Label16"
+                    Caption ="Inschrijftijd"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =6062
+                    Top =566
+                    Width =540
+                    Height =240
+                    Name ="abclabel"
+                    Caption ="A/B/C"
+                    GUID = Begin
+                        0x32adff9043b05a4cb09ea206b9ad0b70
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =6693
+                    Top =566
+                    Width =360
+                    Height =240
+                    Name ="Label22"
+                    Caption ="Res"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =7139
+                    Top =566
+                    Width =315
+                    Height =240
+                    Name ="bmlabel"
+                    Caption ="BM"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    BackStyle =0
+                    Left =60
+                    Top =113
+                    Width =7371
+                    Height =285
+                    FontSize =10
+                    FontWeight =700
+                    Name ="Text28"
+                    ControlSource ="=[parent]![naamlijst].[column](1) & \": mogelijke persoonlijke starts\""
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =3737
+                    Top =566
+                    Width =1050
+                    Height =240
+                    Name ="Label40"
+                    Caption ="Ingeschreven"
+                    GUID = Begin
+                        0xb4b93fae5d8a9c4988bee5730b77277e
+                    End
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =16776960
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =6069
+                    Width =381
+                    TabIndex =1
+                    Name ="PC_INT_ABC"
+                    ControlSource ="PC_INT_ABC"
+                    Format =">"
+                    InputMask =">C;; \" \""
+                End
+                Begin ComboBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    ColumnCount =5
+                    ListWidth =2835
+                    Left =4932
+                    Width =1026
+                    ColumnInfo ="\"\";\"\";\"\";\"dd/mm/yyyy\";\"\";\"\";\"\";\"0000-00\";\"\";\"\";\"7\";\"8\""
+                    Name ="PC_INT_InsTime"
+                    ControlSource ="PC_INT_InsTime"
+                    RowSourceType ="Table/Query"
+                    RowSource ="SELECT DISTINCTROW [dtTijden].Tijd, [dtWedstrijden].Datum, [dtWedstrijden].Seizo"
+                        "en, [dtTijden].[Wedstr nr], [dtWedstrijden].Baanlengte FROM [dtWedstrijden] INNE"
+                        "R JOIN [dtTijden] ON [dtWedstrijden].[Wedstrijd nummer] = [dtTijden].[Wedstr nr]"
+                        " ORDER BY [dtTijden].Tijd;"
+                    ColumnWidths ="657;1441;0;0;165"
+                    ValidationRule ="Is Not Null"
+                    ValidationText ="Vul een waarde in."
+                    AfterUpdate ="[Event Procedure]"
+                    Format ="# 00.0#"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =56
+                    Width =456
+                    TabIndex =2
+                    Name ="PC_Programmanummer"
+                    ControlSource ="PC_Programmanummer"
+                    GUID = Begin
+                        0x62968b43870ff844a0935b32a35c41b6
+                    End
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =93
+                    IMESentenceMode =3
+                    Left =566
+                    Width =3066
+                    TabIndex =3
+                    Name ="progdes"
+                    ControlSource ="progdes"
+                    GUID = Begin
+                        0xc35ffa0c1fac0c49bf250f3add785a82
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3798
+                    Top =29
+                    Height =195
+                    TabIndex =4
+                    Name ="PC_INT_IsPresent"
+                    ControlSource ="PC_INT_IsPresent"
+                    AfterUpdate ="[Event Procedure]"
+                    GUID = Begin
+                        0xee04b54d39a5b14a93565af9392e3f63
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =6689
+                    Top =29
+                    Height =195
+                    TabIndex =5
+                    Name ="PC_INT_IsReserve"
+                    ControlSource ="PC_INT_IsReserve"
+                    GUID = Begin
+                        0xc5f0d0eae7e675489e375afb4eeeab13
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =7143
+                    Top =29
+                    Height =195
+                    TabIndex =6
+                    Name ="PC_Int_IsBM"
+                    ControlSource ="PC_Int_IsBM"
+                    GUID = Begin
+                        0x2bd9cd17b3899046970756a19c15a6b2
+                    End
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    Enabled = NotDefault
+                    OverlapFlags =247
+                    IMESentenceMode =3
+                    Left =1700
+                    Width =441
+                    TabIndex =7
+                    Name ="PC_Startnummer"
+                    ControlSource ="PC_Startnummer"
+                    GUID = Begin
+                        0x329d1c6c97a18e439404fc9e12cb7146
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =0
+            BackColor =16776960
+            Name ="FormFooter"
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+Private Sub updateInsTijden()
+On Error Resume Next
+
+Dim startnr As String
+startnr = Nz([Parent]![naamlijst].Column(0))
+
+Dim af As String, prAf As String
+Dim sl As String, prSl As String
+prAf = Nz([Afstand])
+prSl = Nz([slag])
+
+af = prAf
+sl = prSl
+
+
+If prAf Like "*x*" Then
+  af = afstand_ind_part(prAf)
+  If (prSl = "WISSEL") Then
+    sl = Null
+    Dim vg As Integer
+    vg = Nz([PC_INT_Volg])
+    If (vg >= 1 And vg <= 4) Then
+      sl = slWisselVolg(vg)
+    End If
+  End If
+End If
+
+Dim sql As String
+sql = "SELECT DISTINCTROW [dtTijden].Tijd, [dtWedstrijden].Datum, [dtWedstrijden].Seizoen, " & _
+"[dtTijden].[Wedstr nr], [dtWedstrijden].Baanlengte " & _
+"FROM [dtWedstrijden] INNER JOIN [dtTijden] ON [dtWedstrijden].[Wedstrijd nummer] = " & _
+"[dtTijden].[Wedstr nr] " & _
+"WHERE ((([dtTijden].Afstand) = """ & af & """) " & _
+"And (([dtTijden].Slag) = """ & sl & """) And " & _
+"(([dtTijden].[Start nr]) = """ & startnr & """ )) " & _
+"ORDER BY [dtTijden].Tijd;"
+
+Me.PC_INT_InsTime.RowSource = sql
+
+
+End Sub
+
+
+Private Sub updateInsTime()
+On Error Resume Next
+
+  Dim prAf As String, prSl As String
+  prAf = Nz([Afstand])
+  prSl = Nz([slag])
+  Dim prIsEstaf As Boolean
+  prIsEstaf = prAf Like "*x*"
+
+  
+  Dim tpInsTd As Double
+  Dim tpInsWed As Long
+  tpInsTd = 0
+  tpInsWed = 0
+  
+  If (prIsEstaf) And (prSl = "WISSEL") Then
+    Dim vg As Integer
+    vg = Nz([PC_INT_Volg])
+    Select Case vg
+      Case 1
+        tpInsTd = Nz([PC_InsTimeRUG])
+        tpInsWed = Nz([PC_InsWedNrRUG])
+      Case 2
+        tpInsTd = Nz([PC_InsTimeSCHOOL])
+        tpInsWed = Nz([PC_InsWedNrSCHOOL])
+      Case 3
+        tpInsTd = Nz([PC_InsTimeVLINDER])
+        tpInsWed = Nz([PC_InsWedNrVLINDER])
+      Case 4
+        tpInsTd = Nz([PC_InsTimeVRIJ])
+        tpInsWed = Nz([PC_InsWedNrVRIJ])
+    End Select
+  Else
+    tpInsTd = Nz([PC_InsTime])
+    tpInsWed = Nz([PC_InsWedNr])
+  End If
+
+
+  If (swtIsValid(tpInsTd)) Then
+    Me.PC_INT_InsTime = tpInsTd
+    [PC_INT_InsWedNr] = tpInsWed
+  Else
+    Me.PC_INT_InsTime = 9999.99
+    [PC_INT_InsWedNr] = 0
+  End If
+
+
+
+
+End Sub
+
+
+
+Private Sub Form_Activate()
+On Error Resume Next
+Me.OrderBy = ""
+End Sub
+
+
+
+
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+notifyWedOpstellingChange
+End Sub
+
+Private Sub Form_Current()
+On Error Resume Next
+updateInsTijden
+End Sub
+
+
+
+
+
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
+
+
+
+Private Sub PC_INT_InsTime_AfterUpdate()
+On Error Resume Next
+[PC_INT_InsWedNr] = PC_INT_InsTime.Column(3)
+End Sub
+
+Private Sub PC_INT_IsPresent_AfterUpdate()
+On Error Resume Next
+If (Nz(Me.PC_INT_IsPresent)) Then
+  
+  Me.PC_INT_IsReserve = False
+  Me.PC_Int_IsBM = False
+  
+  If ([Afstand] Like "*x*") Then
+    [PC_INT_Est] = 1
+    [PC_INT_Volg] = 1
+    If ([slag] = "WISSEL") Then
+      [PC_INT_Slag] = "RUG"
+    End If
+  End If
+  
+  updateInsTime
+  
+Else
+  Me.PC_INT_InsTime = Null
+  Me.PC_INT_IsReserve = Null
+  Me.PC_Int_IsBM = Null
+  Me.PC_INT_ABC = Null
+End If
+End Sub

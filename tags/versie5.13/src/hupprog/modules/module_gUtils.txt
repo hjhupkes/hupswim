@@ -1,0 +1,794 @@
+Option Compare Database
+Option Explicit
+
+
+
+Private Const PING_SOCKET_ERROR = 0
+Private Const PING_MAX_IP = 10
+
+Private Type PING_WSADATA
+  wVersion As Integer
+  wHighVersion As Integer
+  szDescription(0 To 255) As Byte
+  szSystemStatus(0 To 128) As Byte
+  iMaxSockets As Integer
+  iMaxUdpDg As Integer
+  lpVendorInfo As Long
+End Type
+
+Private Type PING_HOSTENT
+  h_name As Long
+  h_aliases As Long
+  h_addrtype As Integer
+  h_length As Integer
+  h_addr_list As Long
+End Type
+
+Private Type PING_IP_OPTION_INFORMATION
+    bTTL As Byte
+    bTos As Byte
+    bFlags As Byte
+    lOptionsSize As Long
+    sOptionsData As String * 128
+End Type
+
+Private Type PING_IP_ECHO_REPLY
+    bAddress(0 To 3) As Byte
+    lStatus As Long
+    lRoundTripTime As Long
+    iDataSize As Integer
+    iReserved As Integer
+    lData As Long
+    lpOptions As PING_IP_OPTION_INFORMATION
+End Type
+
+Private Declare Function pingGetHostByName Lib "wsock32.dll" Alias "gethostbyname" (ByVal sHostName As String) As Long
+Private Declare Function pingWSAStartup Lib "wsock32.dll" Alias "WSAStartup" (ByVal wVersionRequired&, lpWSAdata As PING_WSADATA) As Long
+Private Declare Function pingWSACleanup Lib "wsock32.dll" Alias "WSACleanup" () As Long
+Private Declare Sub pingCopyMemory Lib "kernel32" Alias "RtlMoveMemory" (hpvDest As Any, hpvSource As Any, ByVal cbCopy As Long)
+Private Declare Function pingIcmpCreateFile Lib "icmp.dll" Alias "IcmpCreateFile" () As Long
+Private Declare Function pingIcmpCloseHandle Lib "icmp.dll" Alias "IcmpCloseHandle" (ByVal hHandle As Long) As Boolean
+Private Declare Function pingIcmpSendEcho Lib "icmp.dll" Alias "IcmpSendEcho" (ByVal IcmpHandle As Long, ByVal DestAddress As Long, _
+  ByVal RequestData As String, ByVal RequestSize As Integer, RequestOptns As PING_IP_OPTION_INFORMATION, _
+  ReplyBuffer As PING_IP_ECHO_REPLY, ByVal ReplySize As Long, ByVal Timeout As Long) As Boolean
+
+
+
+
+Declare Function GetDirNaam Lib "hupswim.dll" Alias "#1" (ByVal dir As String) As Integer
+Declare Function GetPictureNaam Lib "huptel.dll" Alias "#4" (ByRef picture As T_Picture) As Integer
+Declare Function GetFileName Lib "huptel.dll" Alias "#5" (ByRef file As T_OpenSaveGegevens) As Integer
+
+
+Declare Function countZip Lib "hupswim.dll" Alias "#2" (ByVal zipFName As String) As Integer
+Declare Function unzipAll Lib "hupswim.dll" Alias "#3" (ByVal zipFName As String, ByVal unpackDir As String) As Boolean
+Declare Function unzipFile Lib "hupswim.dll" Alias "#4" (ByVal zipFName As String, ByVal unpackDir As String, ByVal fName As String) As Boolean
+
+Declare Function zipFile Lib "hupswim.dll" Alias "#5" (ByVal zipFName As String, ByVal fName As String) As Boolean
+
+
+Global Const FILE_DLG_OPEN As Integer = 0
+Global Const FILE_DLG_SAVE As Integer = 1
+
+Type T_OpenSaveGegevens
+  gegevens(0 To 767) As Byte
+End Type
+
+Type T_Picture
+    gegevens(0 To 512) As Byte
+End Type
+
+
+
+
+Public Sub appCleanRS(ByRef rs As Recordset)
+On Error Resume Next
+
+If Not rs Is Nothing Then
+  rs.Close
+  Set rs = Nothing
+End If
+
+End Sub
+
+Public Function changeProperty(strPropName As String, varPropType As Variant, varPropValue As Variant) As Boolean
+On Error GoTo fout
+
+changeProperty = False
+
+Dim dbs As Database, prp As Property
+
+Const conPropNotFoundError = 3270
+
+Set dbs = CurrentDb
+    
+dbs.Properties(strPropName) = varPropValue
+    
+changeProperty = True
+
+Exit Function
+
+fout:
+If Err = conPropNotFoundError Then  ' Property not found.
+  Set prp = dbs.CreateProperty(strPropName, varPropType, varPropValue)
+  dbs.Properties.Append prp
+  Resume Next
+Else
+  MsgBox Err & " changeProperty" & vbCrLf & Error$, 16
+  Exit Function
+End If
+End Function
+
+
+
+Public Function tableExists(tableName As String) As Boolean
+On Error GoTo fout
+Dim db As Database
+Dim tbl As TableDef
+Set db = CurrentDb()
+Set tbl = db.TableDefs(tableName)
+tableExists = True
+Exit Function
+fout:
+tableExists = False
+Exit Function
+End Function
+
+Public Function fieldExistsInTD(ByRef tbDef As TableDef, fName As String) As Boolean
+On Error GoTo fout
+fieldExistsInTD = False
+Dim fld As Field
+Set fld = tbDef.Fields(fName)
+fieldExistsInTD = True
+Exit Function
+fout:
+Exit Function
+End Function
+
+
+
+
+Public Function extractFilePath(ByVal fName As String) As String
+On Error Resume Next
+Dim path As String, file As String
+fileNameSplit fName, path, file
+
+extractFilePath = path
+
+End Function
+
+Public Function extractFileName(ByVal fName As String) As String
+On Error Resume Next
+Dim path As String, file As String
+fileNameSplit fName, path, file
+
+extractFileName = file
+
+End Function
+
+Private Sub fileNameSplit(ByVal fName As String, ByRef dir As String, ByRef file As String)
+On Error Resume Next
+dir = ""
+file = fName
+
+Dim curPos As Long
+curPos = Len(fName)
+Dim curChar As String
+Do Until curPos <= 0
+  curChar = Mid(fName, curPos, 1)
+  If (curChar = "\") Then
+    dir = Left(fName, curPos - 1)
+    file = Right(fName, Len(fName) - curPos)
+    Exit Sub
+  End If
+  
+  curPos = curPos - 1
+Loop
+
+Exit Sub
+
+
+End Sub
+
+Public Function DirectoryExists(sDirName As String) As Boolean
+On Error Resume Next
+If (sDirName = "") Then
+  DirectoryExists = False
+  Exit Function
+End If
+If dir(directory_goedmaak(sDirName), vbDirectory) = "" Then
+  DirectoryExists = False
+Else
+  DirectoryExists = True
+End If
+End Function
+
+Public Function FileExists(sFileName As String) As Boolean
+On Error Resume Next
+If (sFileName = "") Then
+  FileExists = False
+  Exit Function
+End If
+If dir(sFileName) = "" Then
+  FileExists = False
+Else
+  FileExists = True
+End If
+End Function
+
+Public Function FileDateStr(sFileName As String) As String
+On Error Resume Next
+FileDateStr = Format(Nz(FileDateTime(sFileName), #1/1/1900#), "dd\-mm\-yyyy")
+End Function
+Public Function FileTimeStr(sFileName As String) As String
+On Error Resume Next
+FileTimeStr = Format(Nz(FileDateTime(sFileName), #1/1/1900#), "hh\:nn")
+End Function
+
+Public Function directory_goedmaak(ByVal directory As String) As String
+On Error Resume Next
+directory = Trim(directory)
+If Right(directory, 1) = "\" Then
+    directory_goedmaak = Left(directory, Len(directory) - 1)
+Else
+    directory_goedmaak = directory
+End If
+End Function
+
+
+
+Public Function fileNamePromptUser(ByVal mode As Integer, ByRef dlgTitle As String, filter As String, ByRef fName As String, Optional blUseCurFName As Boolean = False, Optional forceFileNameOnError As Boolean = True) As Boolean
+On Error GoTo fout
+
+fileNamePromptUser = False
+
+
+Dim tpFile As T_OpenSaveGegevens
+Dim i As Integer
+
+tpFile.gegevens(0) = CByte(mode)
+
+
+For i = 1 To Len(dlgTitle) - 1
+  tpFile.gegevens(i) = CByte(Asc(Mid(dlgTitle, i, 1)))
+Next i
+tpFile.gegevens(i) = 0
+
+
+
+If Not blUseCurFName Then
+  For i = 256 To 512
+    tpFile.gegevens(i) = 0
+  Next i
+Else
+  For i = 256 To (Len(fName) - 1) + 256
+    tpFile.gegevens(i) = CByte(Asc(Mid(fName, (i - 256) + 1, 1)))
+  Next i
+  tpFile.gegevens(i) = 0
+End If
+
+For i = 512 To Len(filter) - 1 + 512
+  tpFile.gegevens(i) = CByte(Asc(Mid(filter, (i - 512) + 1, 1)))
+Next i
+tpFile.gegevens(i) = 0
+
+
+
+Dim intResult
+intResult = GetFileName(tpFile)
+
+If intResult = 1 Then
+  Dim sNewName As String
+  sNewName = ""
+    
+  For i = 0 To 257
+    If tpFile.gegevens(i) = 0 Then
+      Exit For
+    End If
+    sNewName = sNewName & Chr(tpFile.gegevens(i))
+  Next i
+  fName = sNewName
+Else
+  Exit Function
+End If
+
+fileNamePromptUser = True
+
+Exit Function
+
+fout:
+
+If (Err = 53) Then
+  MsgBox "De dll files hupswim.dll en/of huptel.dll konden niet gevonden worden in c:\windows\system. Ga naar " & _
+  "http://home.kpn.nl/wimhupke/hupsoft/downl.htm (onderaan) voor instructies om ze te downloaden.", 16
+Else
+  MsgBox Err & " fileNamePromptUser" & vbCrLf & Error$
+End If
+
+If forceFileNameOnError Then
+  On Error Resume Next
+  fName = InputBox("Voer bestandsnaam in:", "Fout tijdens openen dialoogvenster voor ophalen bestandsnaam.")
+  If (Len(fName) > 0) Then
+    fileNamePromptUser = True
+  End If
+End If
+
+Exit Function
+
+End Function
+
+
+
+
+
+
+Public Function fileNamePicturePromptUser(ByRef fName As String, Optional blUseCurName As Boolean = False, Optional forceFileNameOnError As Boolean = True) As Boolean
+On Error GoTo fout
+
+fileNamePicturePromptUser = False
+
+Dim tpPicture As T_Picture
+Dim i As Integer
+
+Dim dlgName As String
+
+dlgName = "Hupswim"
+
+For i = 0 To Len(dlgName) - 1
+  tpPicture.gegevens(i) = CByte(Asc(Mid(dlgName, i + 1, 1)))
+Next i
+tpPicture.gegevens(i) = 0
+
+
+
+If Not blUseCurName Then
+  For i = 256 To 512
+    tpPicture.gegevens(i) = 0
+  Next i
+Else
+  For i = 256 To (Len(fName) - 1) + 256
+    tpPicture.gegevens(i) = CByte(Asc(Mid(fName, (i - 256) + 1, 1)))
+  Next i
+  tpPicture.gegevens(i) = 0
+End If
+
+
+
+Dim intResult
+intResult = GetPictureNaam(tpPicture)
+
+If intResult = 1 Then
+  Dim sNewName As String
+  sNewName = ""
+    
+  For i = 0 To 257
+    If tpPicture.gegevens(i) = 0 Then
+      Exit For
+    End If
+    
+    sNewName = sNewName & Chr(tpPicture.gegevens(i))
+  Next i
+  fName = sNewName
+Else
+  Exit Function
+End If
+
+
+
+fileNamePicturePromptUser = True
+
+
+Exit Function
+
+fout:
+
+If (Err = 53) Then
+  MsgBox "De dll files hupswim.dll en/of huptel.dll konden niet gevonden worden in c:\windows\system. Ga naar " & _
+  "http://home.kpn.nl/wimhupke/hupsoft/downl.htm (onderaan) voor instructies om ze te downloaden.", 16
+Else
+  MsgBox Err & " fileNamePicturePromptUser" & vbCrLf & Error$
+End If
+
+If forceFileNameOnError Then
+  On Error Resume Next
+   
+  fName = InputBox("Voer bestandsnaam in:", "Fout tijdens openen dialoogvenster voor ophalen bestandsnaam.")
+  If (Len(fName) > 0) Then
+    fileNamePicturePromptUser = True
+  End If
+End If
+
+Exit Function
+
+
+
+
+
+End Function
+
+
+
+Public Function GetDir() As String
+On Error Resume Next
+Dim a
+Dim dirName As String
+dirName = String(255, 0)
+Dim sNewName As String
+
+    GetDirNaam (dirName)
+
+sNewName = CStr(dirName)
+Dim pos As Long
+pos = InStr(1, sNewName, Chr(0)) - 1
+sNewName = Left(sNewName, pos)
+GetDir = sNewName
+
+End Function
+
+Function goed_naam(x As String) As String
+On Error GoTo fout
+Dim y, z, u As String
+y = Left(x, 1)
+z = IIf(Len(x) = 1, "", Right(Left(x, 2), 1))
+u = IIf(Len(x) <= 2, "", Right(x, 1))
+If y = "." Or y = "/" Or y = "\" Or y = "[" Or y = "]" Or y = ":" Or y = ";" Or y = "|" Or y = "=" Or y = "," Or y = " " Then
+         y = "_"
+End If
+If z = "." Or z = "/" Or z = "\" Or z = "[" Or z = "]" Or z = ":" Or z = ";" Or z = "|" Or z = "=" Or z = "," Or z = " " Then
+         z = "_"
+End If
+If u = "." Or u = "/" Or u = "\" Or u = "[" Or u = "]" Or u = ":" Or u = ";" Or u = "|" Or u = "=" Or u = "," Or u = " " Then
+         u = "_"
+End If
+
+goed_naam = y & z & u
+Exit Function
+fout:
+goed_naam = "___"
+Exit Function
+
+End Function
+
+
+
+Public Function fltExtractFieldNames(geg As Recordset) As Boolean
+'Deze functie haalt de veldnamen uit een zekere recordset en voegt deze toe in een nieuwe tabel.
+On Error GoTo fout
+
+DoCmd.DeleteObject acTable, "~FLTFieldNames"
+DoCmd.DeleteObject acTable, "~FLTData"
+
+Dim mydb As Database, tbl As TableDef, tbl2 As TableDef
+Set mydb = CurrentDb()
+Set tbl = mydb.CreateTableDef("~FLTFieldNames")
+Set tbl2 = mydb.CreateTableDef("~FLTData")
+
+tbl.Fields.Append tbl.CreateField("FieldName", dbText, 100)
+tbl.Fields.Append tbl.CreateField("FieldType", dbInteger)
+
+tbl2.Fields.Append tbl2.CreateField("FieldName", dbText, 100)
+tbl2.Fields.Append tbl2.CreateField("FieldType", dbInteger)
+tbl2.Fields.Append tbl2.CreateField("Nr", dbInteger)
+tbl2.Fields.Append tbl2.CreateField("OrderBy", dbInteger)
+tbl2.Fields.Append tbl2.CreateField("Criteria", dbText, 255)
+mydb.TableDefs.Append tbl
+mydb.TableDefs.Append tbl2
+
+'Nieuwe tabel gemaakt.
+
+Dim uitv As Recordset
+Set uitv = mydb.OpenRecordset("~FLTFieldNames", dbOpenDynaset)
+
+Dim fld As Field
+For Each fld In geg.Fields
+  uitv.AddNew
+  uitv("FieldName") = fld.name
+  uitv("FieldType") = fld.type
+  uitv.Update
+Next fld
+
+fltExtractFieldNames = True
+Exit Function
+fout:
+
+If Err = 3011 Or Err = 7874 Then 'could not find object to delete
+  Resume Next
+End If
+
+MsgBox Err & " fltExtractFieldName" & vbCrLf & Error$, 16
+Exit Function
+
+
+
+
+
+
+End Function
+
+
+
+
+
+Function hzn(s)
+If IsNull(s) Or Nz(s, "") = "" Then
+ hzn = Null
+Else
+ hzn = s
+End If
+End Function
+
+
+
+Public Function GoedTekens(s As String) As String
+On Error GoTo fout
+Dim i As Integer
+Dim tpS As String
+tpS = ""
+Dim y
+For i = 1 To Len(s)
+  y = Mid(s, i, 1)
+  If y = "." Or y = "/" Or y = "\" Or y = "[" Or y = "]" Or y = ":" Or y = ";" Or y = "|" Or y = "=" Or y = "," Or y = " " Or y = "?" Or y = "<" Or y = ">" Or y = "*" Or y = "#" Then
+    y = "_"
+  End If
+  tpS = tpS & y
+Next i
+
+GoedTekens = tpS
+Exit Function
+fout:
+GoedTekens = "_"
+Exit Function
+End Function
+
+
+Public Function selGetNewStatus(blCurSel As Boolean, blIsValid As Boolean, blSelOverwrite As Boolean, blSelExtend As Boolean, blSelRestrict As Boolean, blUseValid As Boolean) As Boolean
+On Error GoTo fout
+
+'Vervelende logica...
+If (blSelOverwrite) Then
+  If (blUseValid) Then
+    selGetNewStatus = blIsValid
+  Else
+    selGetNewStatus = Not blIsValid
+  End If
+ElseIf (blSelExtend) Then
+  If (blCurSel) Then
+    selGetNewStatus = True
+  ElseIf (blUseValid) Then
+    selGetNewStatus = blIsValid
+  Else
+    selGetNewStatus = Not blIsValid
+  End If
+ElseIf (blSelRestrict) Then
+  If (Not blCurSel) Then
+    selGetNewStatus = False
+  ElseIf (blUseValid) Then
+    selGetNewStatus = blIsValid
+  Else
+    selGetNewStatus = Not blIsValid
+  End If
+End If
+
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function lenDateIsValid(dt As Date) As Boolean
+On Error Resume Next
+lenDateIsValid = False
+Dim yr As Double
+yr = val(Format(dt, "yyyy"))
+If (yr > 1900 And yr < 2098) Then
+  lenDateIsValid = True
+End If
+
+End Function
+
+
+
+Public Function strEditDistance(ByVal sA As String, ByVal sB As String) As Integer
+On Error Resume Next
+strEditDistance = -1
+
+Dim iLenA As Integer, iLenB As Integer
+iLenA = Len(sA)
+iLenB = Len(sB)
+
+
+If (Len(sA) > 300) Or (Len(sB) > 300) Then
+  Exit Function
+End If
+
+Dim curDist(0 To 300) As Integer
+Dim newDist(0 To 300) As Integer
+
+
+Dim i As Integer, j As Integer
+
+'Initialisation
+For i = 0 To iLenA
+  curDist(i) = i
+Next i
+
+For j = 1 To iLenB
+  newDist(0) = j
+  For i = 1 To iLenA
+    Dim cIns As Integer, cDel As Integer, cSub As Integer
+    cDel = newDist(i - 1) + 1   'delete last letter, and then turn 1..i-1 into 1..j
+    cIns = curDist(i) + 1   'turn 1..i into 1..j-1 and add letter j
+    cSub = curDist(i - 1) + IIf(Mid(sA, i, 1) = Mid(sB, j, 1), 0, 1) 'turn 1..i-1 into 1..j-1 and substitute sA[i] into sB[j]
+    newDist(i) = cDel
+    If (cIns < newDist(i)) Then
+      newDist(i) = cIns
+    End If
+    If (cSub < newDist(i)) Then
+      newDist(i) = cSub
+    End If
+  Next i
+  
+  For i = 0 To iLenA
+   curDist(i) = newDist(i)
+  Next i
+Next j
+
+strEditDistance = curDist(iLenA)
+
+End Function
+
+
+'Fast wrapper for directoryExists(). If sPath is non-local, the server is first pinged to see if it actually exists on the network
+'This is to prevent long delays waiting for directoryExists() to fail.
+Public Function lanDirectoryExists(sPath As String, ByVal lTimeOut As Long) As Boolean
+On Error Resume Next
+
+lanDirectoryExists = False
+
+If lanTestServerAvailability(sPath, lTimeOut) Then
+  lanDirectoryExists = DirectoryExists(sPath)
+End If
+
+End Function
+
+'Fast wrapper for fileExists(). If sPath is non-local, the server is first pinged to see if it actually exists on the network
+'This is to prevent long delays waiting for fileExists() to fail.
+Public Function lanFileExists(sFileName As String, ByVal lTimeOut) As Boolean
+On Error Resume Next
+
+lanFileExists = False
+
+If lanTestServerAvailability(sFileName, lTimeOut) Then
+  lanFileExists = FileExists(sFileName)
+End If
+
+End Function
+
+Private Function lanTestServerAvailability(sPath As String, ByVal lTimeOut As Long) As Boolean
+
+lanTestServerAvailability = False
+
+If (Left(sPath, 2) = "\\") Then
+  Dim pos As Integer
+  pos = InStr(3, sPath, "\")
+  If (pos > 0) Then
+    Dim sCompName As String
+    sCompName = Mid(sPath, 3, pos - 3)
+  End If
+  
+  Dim lDummy As Long, sDummy As String
+  Dim blIsPresent As Boolean
+  
+  If Not lanCheckComputerStatus(sCompName, lTimeOut, lDummy, sDummy, blIsPresent) Then
+    Exit Function
+  End If
+  
+  If (blIsPresent) Then
+    lanTestServerAvailability = True
+  End If
+Else
+  lanTestServerAvailability = True
+End If
+
+End Function
+
+Private Function lanCheckComputerStatus(ByVal sAddr As String, ByVal lTimeOut As Long, ByRef lSpeed As Long, ByRef sIPAddress As String, ByRef blIsPresent As Boolean) As Boolean
+On Error GoTo fout
+lanCheckComputerStatus = False
+
+blIsPresent = False
+lSpeed = 0
+sIPAddress = ""
+
+Dim hFile As Long, lpWSAdata As PING_WSADATA
+Dim hHostent As PING_HOSTENT
+Dim lAddrList As Long, lAddress As Long
+Dim lpOptInfo As PING_IP_OPTION_INFORMATION
+Dim lpEchoReply As PING_IP_ECHO_REPLY
+
+Dim blWSAStarted As Boolean
+
+hFile = 0
+blWSAStarted = False
+
+
+pingWSAStartup &H101, lpWSAdata
+blWSAStarted = True
+
+Dim lHostByName As Long
+lHostByName = pingGetHostByName(sAddr + String(64 - Len(sAddr), 0))
+
+If lHostByName <> PING_SOCKET_ERROR Then
+  'dereference some pointers
+  pingCopyMemory hHostent.h_name, ByVal lHostByName, Len(hHostent)
+  pingCopyMemory lAddrList, ByVal hHostent.h_addr_list, 4
+  pingCopyMemory lAddress, ByVal lAddrList, 4
+End If
+
+hFile = pingIcmpCreateFile()
+
+If hFile = 0 Then
+  Err.Raise 1, , "Could not create file handle"
+End If
+
+lpOptInfo.bTTL = 255
+
+If pingIcmpSendEcho(hFile, lAddress, String(32, "A"), 32, lpOptInfo, lpEchoReply, Len(lpEchoReply) + 8, lTimeOut) Then
+  sIPAddress = CStr(lpEchoReply.bAddress(0)) + "." + CStr(lpEchoReply.bAddress(1)) + "." + CStr(lpEchoReply.bAddress(2)) + "." + CStr(lpEchoReply.bAddress(3))
+  If (lpEchoReply.lStatus = 0) Then
+    lSpeed = lpEchoReply.lRoundTripTime
+    blIsPresent = True
+  End If
+End If
+
+pingIcmpCloseHandle hFile
+hFile = 0
+
+pingWSACleanup
+blWSAStarted = False
+
+
+lanCheckComputerStatus = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "lanCheckComputerStats", errInf
+
+On Error Resume Next
+
+If (hFile <> 0) Then
+  pingIcmpCloseHandle hFile
+  hFile = 0
+End If
+
+If (blWSAStarted) Then
+  pingWSACleanup
+  blWSAStarted = False
+End If
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Sub appSafeLinkTable(ByVal sDBName As String, sSrcName As String, sTgtName As String)
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tbDef As TableDef
+Set tbDef = CurrentDb.CreateTableDef(sTgtName)
+
+tbDef.Connect = ";DATABASE=" & sDBName
+tbDef.SourceTableName = sSrcName
+
+db.TableDefs.Append tbDef
+
+End Sub

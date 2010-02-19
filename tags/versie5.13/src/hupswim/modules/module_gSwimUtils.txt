@@ -1,0 +1,382 @@
+Option Compare Database
+Option Explicit
+
+Public Function swtIsValid(td As Double) As Boolean
+On Error GoTo fout
+swtIsValid = False
+
+If td < 1 Or (td > 8888 And td < 9999.995) Then
+  Exit Function
+End If
+
+swtIsValid = True
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function swtOrder(tdImp) As Double
+On Error Resume Next
+Dim td As Double
+td = Nz(tdImp, 0)
+
+If (Not swtIsValid(td)) Then
+  swtOrder = 999999.99
+Else
+  swtOrder = td
+End If
+End Function
+
+
+Public Function bnVolgorde(ByRef baanVolgorde() As Integer, ByVal nBanen As Integer, ByVal iFirstBn As Integer) As Boolean
+On Error GoTo fout
+bnVolgorde = False
+Select Case nBanen
+  Case 4
+    baanVolgorde(0) = 2
+    baanVolgorde(1) = 3
+    baanVolgorde(2) = 1
+    baanVolgorde(3) = 4
+  Case 5
+    baanVolgorde(0) = 3
+    baanVolgorde(1) = 4
+    baanVolgorde(2) = 2
+    baanVolgorde(3) = 5
+    baanVolgorde(4) = 1
+  Case 6
+    baanVolgorde(0) = 3
+    baanVolgorde(1) = 4
+    baanVolgorde(2) = 2
+    baanVolgorde(3) = 5
+    baanVolgorde(4) = 1
+    baanVolgorde(5) = 6
+  Case 7
+    baanVolgorde(0) = 4
+    baanVolgorde(1) = 5
+    baanVolgorde(2) = 3
+    baanVolgorde(3) = 6
+    baanVolgorde(4) = 2
+    baanVolgorde(5) = 7
+    baanVolgorde(6) = 1
+  Case 8
+    baanVolgorde(0) = 4
+    baanVolgorde(1) = 5
+    baanVolgorde(2) = 3
+    baanVolgorde(3) = 6
+    baanVolgorde(4) = 2
+    baanVolgorde(5) = 7
+    baanVolgorde(6) = 1
+    baanVolgorde(7) = 8
+  Case 9
+    baanVolgorde(0) = 5
+    baanVolgorde(1) = 6
+    baanVolgorde(2) = 4
+    baanVolgorde(3) = 7
+    baanVolgorde(4) = 3
+    baanVolgorde(5) = 8
+    baanVolgorde(6) = 2
+    baanVolgorde(7) = 9
+    baanVolgorde(8) = 1
+  Case 10
+    baanVolgorde(0) = 5
+    baanVolgorde(1) = 6
+    baanVolgorde(2) = 4
+    baanVolgorde(3) = 7
+    baanVolgorde(4) = 3
+    baanVolgorde(5) = 8
+    baanVolgorde(6) = 2
+    baanVolgorde(7) = 9
+    baanVolgorde(8) = 1
+    baanVolgorde(9) = 10
+  Case Else
+    MsgBox "Ongeldig aantal banen!", 16
+    Exit Function
+End Select
+
+If (iFirstBn > 1) Then
+  Dim i As Integer
+  For i = 0 To nBanen - 1
+    baanVolgorde(i) = baanVolgorde(i) + (iFirstBn - 1)
+  Next i
+End If
+
+
+bnVolgorde = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function sqlAfstOrder(x As String) As Long
+sqlAfstOrder = afstOrder(x)
+End Function
+
+Public Function afstOrder(x As String) As Long
+On Error GoTo fout
+Dim aantal As Integer      'Bijvoorbeeld 4x100m = 400 , 100m = 100
+Dim afst As Integer
+
+If x Like "*x*" Then
+  aantal = Left(x, (InStr(1, x, "x") - 1))
+  afst = val(Right(x, (Len(x) - InStr(1, x, "x"))))
+  afstOrder = afst * aantal * 16
+  If afst = 100 Then
+    afstOrder = afst * aantal * 20 + 1500
+  End If
+  If afst = 200 Then
+    afstOrder = afst * aantal * 20 + 10000
+  End If
+Else
+  afstOrder = val(x)
+End If
+Exit Function
+fout:
+MsgBox Err & " afstOrder" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function ssGetCurSeason() As String
+ssGetCurSeason = ssGetSeason(Now())
+End Function
+
+Function ssGetSeasonYear(dat As Date) As Long
+On Error GoTo fout
+
+Dim year As Long
+year = CLng(Format(dat, "yyyy"))
+Dim month As Integer
+month = CInt(Format(dat, "mm"))
+
+If month < 8 Then
+  ssGetSeasonYear = year - 1
+Else
+ ssGetSeasonYear = year
+End If
+
+
+
+Exit Function
+fout:
+MsgBox Err & " ssGetSeasonYear" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Function ssGetSeason(dat As Date) As String
+On Error GoTo fout
+Dim year As Long
+year = CLng(Format(dat, "yyyy"))
+Dim month As Integer
+month = CInt(Format(dat, "mm"))
+
+If month < 8 Then
+  ssGetSeason = year - 1 & "-" & year
+Else
+ ssGetSeason = year & "-" & year + 1
+End If
+Exit Function
+fout:
+MsgBox Err & " ssGetSeason" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Function slWisselVolg(vg As Integer) As String
+On Error Resume Next
+Select Case vg
+    Case 1
+        slWisselVolg = "RUG"
+    Case 2
+        slWisselVolg = "SCHOOL"
+    Case 3
+        slWisselVolg = "VLINDER"
+    Case 4
+        slWisselVolg = "VRIJ"
+    Case Else
+        slWisselVolg = ""
+End Select
+Exit Function
+
+End Function
+
+Public Function nmExtractAchternaam(naam As String) As String
+On Error Resume Next
+nmExtractAchternaam = ""
+If naam = "" Then
+  Exit Function
+End If
+
+Dim prvln As Integer, ln As Integer
+ln = 1
+While Not (ln = 0)
+   ' Debug.Print tplengte
+    prvln = ln
+    ln = InStr(prvln + 1, naam, " ", vbTextCompare)
+Wend
+
+nmExtractAchternaam = Trim(Right(naam, (Len(naam) - prvln)))
+
+Exit Function
+
+
+
+End Function
+
+
+Public Function nmExtractVoegsel(naam As String) As String
+On Error Resume Next
+nmExtractVoegsel = ""
+
+If naam = "" Then
+  Exit Function
+End If
+
+Dim a As String, v As String
+v = nmExtractVoornaam(naam)
+a = nmExtractAchternaam(naam)
+
+nmExtractVoegsel = Trim(Mid(naam, Len(v) + 1, Len(naam) - Len(a) - Len(v)))
+
+
+
+
+End Function
+
+
+Public Function nmExtractVoornaam(naam As String) As String
+On Error Resume Next
+nmExtractVoornaam = ""
+If (naam = "") Then
+  Exit Function
+End If
+Dim lengte As Integer
+lengte = InStr(1, naam, " ", vbTextCompare)
+nmExtractVoornaam = Trim(Left(naam, lengte))
+
+Exit Function
+
+
+End Function
+
+
+
+Public Function swtToSeconds(x As Double) As Double
+'Deze functie moet de tijd omzetten naar aantal seconden, bv 1 20.2 naar 80.2
+On Error Resume Next
+
+
+Dim nTotTime As Long
+Dim nHours As Integer
+Dim nMinutes As Integer
+Dim nSeconds As Integer
+Dim nHundreths As Integer
+nTotTime = CLng(x * 100)
+
+nHours = nTotTime \ 1000000
+nTotTime = nTotTime Mod 1000000
+nMinutes = nTotTime \ 10000
+nTotTime = nTotTime Mod 10000
+nSeconds = nTotTime \ 100
+nTotTime = nTotTime Mod 100
+nHundreths = nTotTime
+swtToSeconds = (CDbl(nHours) * 360000 + CDbl(nMinutes) * 6000 + CDbl(nSeconds) * 100 + CDbl(nHundreths)) * 0.01
+
+
+Exit Function
+
+End Function
+
+
+Public Function swtFromSeconds(x As Double) As Double
+On Error Resume Next
+'Zet het aantal seconden x om in een tijd
+
+
+Dim nHours As Long
+Dim nMinutes As Long
+Dim nSeconds As Long
+Dim nHundreths As Long
+
+Dim nTotTime As Long
+nTotTime = CLng(x * 100)
+
+nHours = nTotTime \ 360000
+nTotTime = nTotTime Mod 360000
+nMinutes = nTotTime \ 6000
+nTotTime = nTotTime Mod 6000
+nSeconds = nTotTime \ 100
+nTotTime = nTotTime Mod 100
+nHundreths = nTotTime
+
+
+
+swtFromSeconds = CDbl(nHours * 1000000 + nMinutes * 10000 + nSeconds * 100 + nHundreths) * 0.01
+If (swtFromSeconds < 0) Then
+  swtFromSeconds = 0
+End If
+Exit Function
+End Function
+
+
+Public Function swmPromptUser(ByVal ver As String, ByVal blOnlyActive As Boolean, ByRef isOK As Boolean, ByRef lkpStartNr As String) As Boolean
+On Error GoTo fout
+lkpStartNr = False
+
+
+Dim sql As String
+sql = "Delete * from gSwmOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gSwmOpzoek")
+
+rs.AddNew
+  rs("SO_ARG_Vereniging") = hzn(ver)
+  rs("SO_ARG_ActiefLid") = blOnlyActive
+  rs("SO_OK") = False
+rs.Update
+
+rs.Close
+
+DoCmd.OpenForm "hxSwmOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("gSwmOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel gSwmOpzoek is leeg."
+End If
+
+isOK = Nz(rs("SO_OK"))
+
+
+lkpStartNr = Nz(rs("SO_Startnummer"))
+
+rs.Close
+
+swmPromptUser = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " swmPromptUser" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+
+Public Function stnrExpand(startnr As String) As String
+On Error Resume Next
+stnrExpand = ""
+
+Dim y As Integer
+y = CInt(val(Left(startnr, 2)))
+If (y < 20) Then
+  stnrExpand = "20" & startnr
+Else
+  stnrExpand = "19" & startnr
+End If
+End Function

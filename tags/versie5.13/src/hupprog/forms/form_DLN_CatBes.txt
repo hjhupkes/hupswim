@@ -1,0 +1,170 @@
+Version =20
+VersionRequired =20
+Checksum =-2108876409
+Begin Form
+    NavigationButtons = NotDefault
+    BorderStyle =1
+    PictureAlignment =2
+    DatasheetGridlinesBehavior =3
+    GridY =10
+    Width =7808
+    DatasheetFontHeight =10
+    ItemSuffix =15
+    Left =1335
+    Top =240
+    Right =11100
+    Bottom =8070
+    DatasheetBackColor =16776960
+    DatasheetGridlinesColor =65280
+    RecSrcDt = Begin
+        0x0f9662153f5fe340
+    End
+    RecordSource ="SELECT  * from dtCodeDescriptions where ct_wedstrijdnummer = waarde() and ct_pro"
+        "grammanummer = waarde_prog() order by ct_code;"
+    Caption ="Categorie Beschrijvingen"
+    OnOpen ="[Event Procedure]"
+    DatasheetFontName ="Arial"
+    OnActivate ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin CommandButton
+            Width =1701
+            Height =283
+            FontSize =8
+            FontWeight =400
+            ForeColor =-2147483630
+            FontName ="MS Sans Serif"
+        End
+        Begin TextBox
+            SpecialEffect =2
+            OldBorderStyle =0
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            SpecialEffect =2
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =323
+            BackColor =65280
+            Name ="FormHeader"
+            Begin
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =113
+                    Top =113
+                    Width =450
+                    Height =210
+                    Name ="Label11"
+                    Caption ="Code "
+                End
+                Begin Label
+                    BackStyle =1
+                    OverlapFlags =85
+                    Left =680
+                    Top =113
+                    Width =1020
+                    Height =210
+                    Name ="Label12"
+                    Caption ="Beschrijving  "
+                End
+            End
+        End
+        Begin Section
+            Height =240
+            BackColor =65280
+            Name ="Detail"
+            Begin
+                Begin TextBox
+                    Visible = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =93
+                    Left =3858
+                    Width =666
+                    TabIndex =2
+                    Name ="CT_Wedstrijdnummer"
+                    ControlSource ="CT_Wedstrijdnummer"
+                    DefaultValue ="=waarde()"
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =113
+                    Width =336
+                    Name ="CT_Code"
+                    ControlSource ="CT_Code"
+                    Format =">"
+                    InputMask =">C;;\" \""
+                End
+                Begin TextBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =680
+                    Width =2001
+                    TabIndex =1
+                    Name ="CT_Beschrijving"
+                    ControlSource ="CT_Beschrijving"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    SpecialEffect =0
+                    OverlapFlags =247
+                    Left =3288
+                    Width =666
+                    TabIndex =3
+                    Name ="Text14"
+                    ControlSource ="CT_Programmanummer"
+                    DefaultValue ="=waarde_prog()"
+                End
+            End
+        End
+        Begin FormFooter
+            Height =623
+            BackColor =65280
+            Name ="FormFooter"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =56
+                    Top =56
+                    Width =7695
+                    Height =465
+                    Name ="Label13"
+                    Caption ="Met behulp van dit formulier kunt u per programmanummer voor elke categorie (aan"
+                        "gegeven met een lettercode)  een beschrijving opgeven. Deze komt in de uitslagli"
+                        "jst te staan."
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database
+Option Explicit
+
+
+Private Sub Form_Activate()
+On Error Resume Next
+
+End Sub
+
+Private Sub Form_Load()
+On Error Resume Next
+Me.OrderBy = ""
+Me.filter = ""
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub

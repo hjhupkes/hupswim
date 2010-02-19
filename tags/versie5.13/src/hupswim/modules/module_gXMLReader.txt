@@ -1,0 +1,1756 @@
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+
+Option Compare Database
+Option Explicit
+Private fFileName As String
+Private fFileNr As Integer
+
+Private Const ntNone = -1
+Private Const ntPI = 0
+Private Const ntElmOpen = 1
+Private Const ntText = 2
+Private Const ntElmClose = 3
+Private Const ntAttribs = 4
+'Private Const ntElmOpenClose = 4
+
+Private Const fltString = 0
+Private Const fltNum = 1
+Private Const fltLog = 2
+Private Const fltDate = 3
+Private Const fltDecimal = 4
+Private Const maxNFields = 200
+
+
+Private readBuffer As String
+Private readBufferLength As Integer
+Private readBufferCurPos As Integer
+Private readBufferIsEOF As Boolean
+Private readBufferSngChrMode As Boolean
+Private readBufferTotReadLen As Long
+Private readBufferTotFileLen As Long
+
+Private fIsUTF8Encoded As Boolean
+Private fReadAheadChar As String
+Private fCurNodeIsOpenClose As Boolean
+Private fCurNodeWasOpenClose As Boolean
+Private fCurElmType As Integer
+Private fCurElmString As String
+Private fCurAttribString As String
+Private fCurLineNr As Long
+
+
+Private Function decodeUTF8(ByVal inp As String) As String
+On Error GoTo fout
+
+'Be very careful with ascW and in fact do not use,
+'since it may return different things than asc
+'for example: ascw(chr(130)) = 8218
+
+
+Dim resS As String
+resS = ""
+Dim pos As Integer
+pos = 1
+Dim tpChar As String
+Dim asCode As Long
+
+Dim okPosStart As Integer
+okPosStart = 1
+While (pos <= Len(inp))
+  asCode = Asc(Mid(inp, pos, 1))
+  If (asCode < 0) Then
+    Err.Raise 1, , "Unexpected value"
+  ElseIf (asCode >= 0) And (asCode <= 127) Then
+    pos = pos + 1
+  Else
+    'multi byte sequence
+    
+    'first read rest of  normal sequence
+    If (okPosStart < pos) Then
+      resS = resS & Mid(inp, okPosStart, pos - okPosStart)
+    End If
+    
+    'now get the next character from multi byte sequence
+    If (asCode \ 32) = 6 Then
+      'two byte sequence
+      Dim b1 As Long, b2 As Long
+      b1 = asCode
+      b2 = Asc(Mid(inp, pos + 1, 1))
+      pos = pos + 2
+      Dim lo As Long, ho As Long
+      lo = (b2 And 63) + (b1 And 3) * 64
+      ho = (b1 And (4 + 8 + 16)) \ 4
+      tpChar = ChrW(ho * 256 + lo)
+    ElseIf (asCode \ 16) = 14 Then
+      'three byte sequence
+      Dim b3 As Long
+      b1 = asCode
+      b2 = Asc(Mid(inp, pos + 1, 1))
+      b3 = Asc(Mid(inp, pos + 2, 1))
+      pos = pos + 3
+      
+      lo = (b3 And 63) + (b2 And 3) * 64
+      ho = (b1 And 15) * 16 + ((b2 And (4 + 8 + 16 + 32)) \ 4)
+      tpChar = ChrW(ho * 256 + lo)
+    Else
+      Err.Raise 1, , "No support for long unicode sequences"
+    End If
+    
+    resS = resS & tpChar
+    okPosStart = pos
+  End If
+Wend
+If (okPosStart <= Len(inp)) Then
+  resS = resS & Mid(inp, okPosStart, Len(inp) - okPosStart + 1)
+End If
+
+decodeUTF8 = resS
+Exit Function
+fout:
+Err.Raise 1, , "There was an error decoding the utf-8 string: " & Chr(13) & Left(inp, 200) & Chr(13) & "in the xml file." & Chr(13) & "Linenr approximately: " & fCurLineNr
+End Function
+
+
+
+Private Sub rbInit()
+On Error Resume Next
+readBuffer = ""
+readBufferCurPos = 1
+readBufferLength = 0
+readBufferIsEOF = EOF(fFileNr)
+readBufferSngChrMode = False
+readBufferTotReadLen = 0
+readBufferTotFileLen = LOF(fFileNr)
+End Sub
+
+
+Private Function rbReadUptoAndIncluding(endStr As String) As String
+On Error GoTo fout
+Dim tpS As String
+Dim ln As Integer
+ln = Len(endStr)
+'tpS = fReadAheadChar
+tpS = ""
+'fReadAheadChar = ""
+
+If (tpS = endStr) Then
+  rbReadUptoAndIncluding = tpS
+  Exit Function
+End If
+  
+If (ln > 1) Then
+  While (Not rbIsEOF() And ((Len(tpS) < ln) Or (Right(tpS, ln) <> endStr)))
+    fReadAheadChar = ""
+    Dim ch As String
+    ch = rbGetNextChar()
+    tpS = tpS + ch
+    If (Asc(ch) = 10) Then
+      fCurLineNr = fCurLineNr + 1
+    End If
+  Wend
+  rbReadUptoAndIncluding = tpS
+Else
+  'Perform somewhat faster analysis.
+  Dim curLineStartPos As Integer
+  curLineStartPos = readBufferCurPos
+  
+  Dim done As Boolean
+  done = False
+  While Not done
+    If (readBufferCurPos > readBufferLength) Then
+      If (curLineStartPos <= readBufferLength) Then
+        tpS = tpS & Mid(readBuffer, curLineStartPos, readBufferLength - curLineStartPos + 1)
+      End If
+      curLineStartPos = 1
+      If (Not readBufferIsEOF) Then
+        'read next part of buffer.
+        If (readBufferTotReadLen + 1000 > readBufferTotFileLen) Then
+          readBuffer = Input(readBufferTotFileLen - readBufferTotReadLen, #fFileNr)
+        Else
+           readBuffer = Input(1000, #fFileNr)
+           readBufferTotReadLen = readBufferTotReadLen + 1000
+        End If
+        readBufferCurPos = 1
+        readBufferLength = Len(readBuffer)
+        readBufferIsEOF = EOF(fFileNr)
+      Else
+        done = True
+       End If
+    End If
+  
+    If (Not done) Then
+  
+        Dim curChar As String
+        curChar = Mid(readBuffer, readBufferCurPos, 1)
+        fReadAheadChar = ""
+        If (Asc(curChar) = 10) Then
+          fCurLineNr = fCurLineNr + 1
+        End If
+        If (curChar = endStr) Then
+          tpS = tpS & Mid(readBuffer, curLineStartPos, readBufferCurPos - curLineStartPos + 1)
+          done = True
+        End If
+        readBufferCurPos = readBufferCurPos + 1
+    End If
+    
+  Wend
+  rbReadUptoAndIncluding = tpS
+End If
+
+Exit Function
+fout:
+'debug
+MsgBox Err & " " & Error$, 16
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function rbIsEOF() As Boolean
+On Error Resume Next
+rbIsEOF = False
+If (readBufferCurPos > readBufferLength And readBufferIsEOF) Then
+  rbIsEOF = True
+End If
+End Function
+Private Function rbGetNextChar() As String
+On Error GoTo fout
+rbGetNextChar = ""
+
+If (readBufferCurPos > readBufferLength) Then
+  If (Not readBufferIsEOF) Then
+    'read next part of buffer.
+    
+    Dim blNeedsCheckForBOM As Boolean
+    blNeedsCheckForBOM = (readBufferTotReadLen = 0)
+    
+    If (readBufferTotReadLen + 1000 > readBufferTotFileLen) Then
+      readBuffer = Input(readBufferTotFileLen - readBufferTotReadLen, #fFileNr)
+    Else
+      readBuffer = Input(1000, #fFileNr)
+      readBufferTotReadLen = readBufferTotReadLen + 1000
+    End If
+    
+    
+    readBufferCurPos = 1
+    If (blNeedsCheckForBOM) Then
+      'Need to check for stupid EF, BB, BF sequence that splash sometimes adds at the start of a file
+      If Len(readBuffer) >= 3 Then
+        If Asc(Mid(readBuffer, 1, 1)) = 239 And Asc(Mid(readBuffer, 2, 1)) = 187 And Asc(Mid(readBuffer, 3, 1)) = 191 Then
+          readBufferCurPos = 4
+        End If
+      End If
+    End If
+    readBufferLength = Len(readBuffer)
+    readBufferIsEOF = EOF(fFileNr)
+  Else
+    Exit Function
+  End If
+End If
+rbGetNextChar = Mid(readBuffer, readBufferCurPos, 1)
+readBufferCurPos = readBufferCurPos + 1
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+
+Public Function extractTokenFromString(ByRef s As String) As String
+Dim tpS As String, char As String
+tpS = ""
+Dim pos As Integer
+pos = 1
+Dim wsf As Boolean
+Dim inQuotes As Boolean
+wsf = False
+inQuotes = False
+Dim tpSDefined As Boolean
+Dim sTrimmed As Boolean
+tpSDefined = False
+sTrimmed = False
+While (pos <= Len(s))
+  char = Mid(s, pos, 1)
+  If (isWhiteSpace(char) And Not inQuotes) Then
+    If (Not wsf) Then
+      tpSDefined = True
+      If (pos > 1) Then
+        tpS = Left(s, pos - 1)
+      End If
+      wsf = True
+    End If
+  Else
+    If (Not inQuotes) Then
+        If wsf Then
+          sTrimmed = True
+          s = Right(s, Len(s) - pos + 1)
+          pos = Len(s) + 1
+        Else
+          If (char = """") Then
+            inQuotes = True
+          End If
+        End If
+    Else
+      If (char = """") Then
+        inQuotes = False
+      End If
+    End If
+    
+  End If
+  pos = pos + 1
+Wend
+If (Not tpSDefined) Then
+  tpS = s
+End If
+If (Not sTrimmed) Then
+  s = ""
+End If
+If (inQuotes) Then
+  Err.Raise 1, , "Unterminated """" in token: " & tpS & Chr(13) & "Linenr approximately: " & fCurLineNr
+End If
+'Debug.Print s
+extractTokenFromString = tpS
+End Function
+
+Public Function isWhiteSpace(char As String) As Boolean
+If (char = " " Or Asc(char) = 13 Or Asc(char) = 10 Or Asc(char) = 9) Then
+  isWhiteSpace = True
+Else
+  isWhiteSpace = False
+End If
+End Function
+
+Public Function stripWhiteSpaceFromString(s As String) As String
+Dim lpos As Integer, rpos As Integer
+lpos = 1
+rpos = Len(s)
+Dim fin As Boolean
+fin = False
+While (Not fin) And (lpos < Len(s))
+  Dim char As String
+  char = Mid(s, lpos, 1)
+  If isWhiteSpace(char) Then
+    lpos = lpos + 1
+  Else
+    fin = True
+  End If
+Wend
+If (lpos > Len(s)) Then
+  stripWhiteSpaceFromString = ""
+End If
+fin = False
+While (Not fin) And (rpos > 0)
+  
+  char = Mid(s, rpos, 1)
+  If isWhiteSpace(char) Then
+    rpos = rpos - 1
+  Else
+    fin = True
+  End If
+Wend
+stripWhiteSpaceFromString = Mid(s, lpos, rpos - lpos + 1)
+
+
+
+End Function
+
+Public Sub stripWhiteSpace()
+Dim done As Boolean
+If rbIsEOF() Then Exit Sub
+If (fReadAheadChar = "") Then
+  'fReadAheadChar = Input(1, #fFileNr)
+  fReadAheadChar = rbGetNextChar()
+End If
+While (isWhiteSpace(fReadAheadChar))
+  If (rbIsEOF()) Then
+    Exit Sub
+  End If
+  fReadAheadChar = rbGetNextChar()
+  If (Asc(fReadAheadChar) = 10) Then
+    fCurLineNr = fCurLineNr + 1
+  End If
+Wend
+End Sub
+
+
+'This is the most important function, since it reads the next element from the xml file.
+Public Function readNext()
+If (fCurNodeIsOpenClose) Then
+  fCurAttribString = ""
+  'keep fCurElmString
+  fCurNodeIsOpenClose = False
+  fCurNodeWasOpenClose = True
+  fCurElmType = ntElmClose
+  Exit Function
+End If
+fCurAttribString = ""
+fCurElmString = ""
+fCurNodeIsOpenClose = False
+fCurNodeWasOpenClose = False
+
+stripWhiteSpace
+If rbIsEOF() Then
+  fCurElmType = ntNone
+  Exit Function
+End If
+Dim tpS As String
+Dim tpSWithAttrib As String
+'now examine the next character.
+If (fReadAheadChar = "<") Then
+  tpS = readUptoIncluding(">")
+  If (Len(tpS) = 0 Or Right(tpS, 1) <> ">") Then
+    Err.Raise 1, , "Unmatched > in string:" & Chr(13) & Left(tpS, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
+  End If
+  
+  
+  'modification dec 2006: do not want to convert from utf just yet,
+  'because special characters in attribute strings will not be treated properly.
+  
+  'tpS = convertFromUTF(left(tpS, Len(tpS) - 1))
+  tpS = Left(tpS, Len(tpS) - 1)
+  
+  If Len(tpS) > 0 Then
+    If (Left(tpS, 1) = "/") Then
+      fCurElmType = ntElmClose
+      fCurElmString = Right(tpS, Len(tpS) - 1)
+    Else
+        If (Right(tpS, 1) = "/") Then
+          fCurElmType = ntElmOpen
+          fCurNodeIsOpenClose = True
+          fCurAttribString = Left(tpS, Len(tpS) - 1)
+          fCurElmString = convertFromUTF(extractTokenFromString(fCurAttribString))
+        ElseIf (Left(tpS, 1) = "?") Then
+          If (Right(tpS, 1) <> "?") Then
+            Err.Raise 1, , "Unmatched ? in processing instruction:" & Chr(13) & Left(tpS, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
+          Else
+            fCurElmType = ntPI
+            fCurElmString = convertFromUTF(Mid(tpS, 2, Len(tpS) - 2))
+          End If
+        Else
+          fCurElmType = ntElmOpen
+          fCurAttribString = tpS
+          fCurElmString = convertFromUTF(extractTokenFromString(fCurAttribString))
+        End If
+    End If
+  Else
+    Err.Raise 1, , "Empty <> node in file." & Chr(13) & "Linenr approximately: " & fCurLineNr
+  End If
+  
+  'End readAheadChar "<"
+Else
+  fCurElmType = ntText
+  tpS = fReadAheadChar
+  tpS = tpS & readUptoIncluding("<")
+  Dim blReadNodeStart As Boolean
+  blReadNodeStart = Len(tpS) > 0 And (Right(tpS, 1) = "<")
+  If (blReadNodeStart) Then
+    fCurElmString = convertFromUTF(Left(tpS, Len(tpS) - 1))
+    'have to put back readAheadChar
+    fReadAheadChar = "<"
+  Else
+    fCurElmString = convertFromUTF(tpS)
+  End If
+End If
+
+
+End Function
+
+
+Public Function readUptoIncluding(endStr As String) As String
+readUptoIncluding = rbReadUptoAndIncluding(endStr)
+'Dim tpS As String
+'Dim ln As Integer
+'ln = Len(endStr)
+'tpS = ""
+'While (Not rbIsEOF() And ((Len(tpS) < ln) Or (right(tpS, ln) <> endStr)))
+'  Dim ch As String
+'  'ch = Input(1, #fFileNr)
+'  ch = rbGetNextChar()
+'  tpS = tpS + ch
+'  fReadAheadChar = ""
+'  If (Asc(ch) = 10) Then
+'    fCurLineNr = fCurLineNr + 1
+'  End If
+'Wend
+
+'readUptoIncluding = tpS
+End Function
+Private Function convertFromUTF(inp As String) As String
+On Error GoTo fout
+Dim resS As String
+resS = ""
+Dim pos As Integer
+pos = 1
+Dim tpChar As String
+Dim tpUCode As String
+Dim asCode As Long
+
+Dim okPosStart As Integer
+okPosStart = 1
+While (pos <= Len(inp))
+  tpChar = Mid(inp, pos, 1)
+  If (tpChar = "&") Then
+    If (okPosStart < pos) Then
+      If (fIsUTF8Encoded) Then
+        resS = resS & decodeUTF8(Mid(inp, okPosStart, pos - okPosStart))
+      Else
+        resS = resS & Mid(inp, okPosStart, pos - okPosStart)
+      End If
+    End If
+  
+    tpUCode = ""
+    pos = pos + 1
+    While (Len(tpUCode) < 1 Or Right(tpUCode, 1) <> ";")
+      tpUCode = tpUCode & Mid(inp, pos, 1)
+      pos = pos + 1
+    Wend
+    If tpUCode = "apos;" Then
+      tpChar = "'"
+    ElseIf tpUCode = "amp;" Then
+      tpChar = "&"
+    ElseIf tpUCode = "quot;" Then
+      tpChar = """"
+    ElseIf tpUCode = "lt;" Then
+      tpChar = "<"
+    ElseIf tpUCode = "gt;" Then
+      tpChar = ">"
+    ElseIf Left(tpUCode, 2) = "#x" Then
+      'the code uses a hexadecimal code.
+      Dim hexString As String
+      hexString = Mid(tpUCode, 3, Len(tpUCode) - 3)
+      'need to convert hex string.
+      asCode = CLng("&H" & hexString)
+      tpChar = ChrW(asCode)
+    Else
+      asCode = CLng(Mid(tpUCode, 2, Len(tpUCode) - 2))
+      tpChar = ChrW(asCode)
+    End If
+    resS = resS & tpChar
+    okPosStart = pos
+  Else
+    'resS = resS & tpChar
+    pos = pos + 1
+  End If
+Wend
+If (okPosStart <= Len(inp)) Then
+  If (fIsUTF8Encoded) Then
+    resS = resS & decodeUTF8(Mid(inp, okPosStart, Len(inp) - okPosStart + 1))
+  Else
+    resS = resS & Mid(inp, okPosStart, Len(inp) - okPosStart + 1)
+  End If
+End If
+
+convertFromUTF = resS
+Exit Function
+fout:
+Err.Raise 1, , "There was an error parsing the string: " & Chr(13) & Left(inp, 200) & Chr(13) & "in the xml file." & Chr(13) & "Linenr approximately: " & fCurLineNr
+End Function
+
+
+
+
+
+Public Function openXMLFile(xmlFileName As String) As Boolean
+On Error GoTo fout
+openXMLFile = False
+fFileName = xmlFileName
+fFileNr = FreeFile
+Open fFileName For Input As #fFileNr
+rbInit
+
+
+fIsUTF8Encoded = False
+fReadAheadChar = ""
+fCurLineNr = 1
+fCurNodeIsOpenClose = False
+fCurNodeWasOpenClose = False
+fCurElmString = ""
+fCurAttribString = ""
+fCurElmType = ntNone
+
+readNext
+
+
+openXMLFile = True
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+Public Function isFinished() As Boolean
+  isFinished = (fCurElmType = ntNone)
+End Function
+
+
+Private Sub readXMLHeader(Optional failOnAbsence As Boolean = False)
+  Dim sPIText As String
+  sPIText = readPI(failOnAbsence)
+  
+  If InStr(1, sPIText, "UTF-8") > 0 Then
+    fIsUTF8Encoded = True
+  End If
+End Sub
+
+
+
+Public Function readPI(Optional failOnAbsence As Boolean = False) As String
+  If (fCurElmType = ntPI) Then
+    readPI = fCurElmString
+    readNext
+  Else
+    readPI = ""
+    If (failOnAbsence) Then
+      Err.Raise 1, , "Processing instruction expected. Found: " & Chr(13) & Left(fCurElmString, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+  End If
+  
+End Function
+
+Public Function readNewNode(Optional nodeName As String = "", Optional failOnAbsence As Boolean = False, Optional ignoreAttributes As Boolean = False) As String
+  If (fCurElmType = ntElmOpen) Then
+    readNewNode = fCurElmString
+    If (ignoreAttributes) Then
+      readNext
+    Else
+      If (Len(fCurAttribString) > 0) Then
+        fCurElmType = ntAttribs
+      Else
+        readNext
+      End If
+    End If
+  'ElseIf (fCurElmType = ntElmOpenClose) Then
+  '  readNewNode = fCurElmString
+    'do NOT read next
+  Else
+    If (failOnAbsence) Then
+      Err.Raise 1, , "New node expected. Found: " & Chr(13) & Left(fCurElmType, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+    readNewNode = ""
+  End If
+  If (nodeName <> "") And (nodeName <> readNewNode) Then
+    Err.Raise 1, , "Expected node: " & Chr(13) & nodeName & Chr(13) & "Found: " & Chr(13) & Left(readNewNode, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
+  End If
+End Function
+Public Function readText(Optional failOnAbsence As Boolean = False) As String
+  If (fCurNodeWasOpenClose) Then
+    readText = ""
+  ElseIf (fCurElmType = ntText) Then
+    readText = fCurElmString
+    readNext
+  Else
+    If (failOnAbsence) Then
+      Err.Raise 1, , "Data expected. Found: " & Chr(13) & Left(fCurElmType, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+    readText = ""
+  End If
+End Function
+
+Public Function readNodeClose(Optional nodeName As String = "", Optional failOnAbsence As Boolean = False) As String
+  If (fCurElmType = ntElmClose) Then
+    readNodeClose = fCurElmString
+    If (nodeName <> "") Then
+      If nodeName <> readNodeClose Then
+        Err.Raise 1, , "Expected close of node: " & nodeName & Chr(13) & "Found: " & readNodeClose & Chr(13) & "Linenr approximately: " & fCurLineNr
+      End If
+    End If
+    readNext
+  Else
+    If (failOnAbsence) Then
+      Err.Raise 1, , "Close node expected. Found: " & Chr(13) & Left(fCurElmString, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+    readNodeClose = ""
+  End If
+End Function
+
+
+Public Function getNextNodeType() As Integer
+  getNextNodeType = fCurElmType
+End Function
+
+'Public Function hasMoreAttributes() As Boolean
+'  hasMoreAttributes = Len(fCurAttribString) > 0
+'  If (Not hasMoreAttributes And fCurElmType = ntElmOpen) Then
+'    readNext
+'  End If
+'End Function
+Public Function readAttribute(ByRef name As String, ByRef val As String, Optional failIfAbsent As Boolean = False)
+  name = ""
+  val = ""
+  If (fCurElmType <> ntAttribs) Then
+    If (failIfAbsent) Then
+      Err.Raise 1, , "Expected attribute." & Chr(13) & "Found: " & fCurElmString & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+    Exit Function
+  End If
+  If (Len(fCurAttribString) = 0) Then
+    If (failIfAbsent) Then
+      Err.Raise 1, , "Expected attribute but no more found." & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+    Exit Function
+  End If
+  Dim tpValue As String
+  tpValue = extractTokenFromString(fCurAttribString)
+  Dim tpName As String
+  tpName = extractToken(tpValue, "=")
+  tpValue = stripWhiteSpaceFromString(tpValue)
+  tpName = stripWhiteSpaceFromString(tpName)
+  If (Len(tpValue) < 2) Then
+    Err.Raise 1, , "Invalid attribute value. Found: " & Chr(13) & tpValue & Chr(13) & "Linenr approximately: " & fCurLineNr
+  End If
+  If (Left(tpValue, 1) <> """") Or (Right(tpValue, 1) <> """") Then
+    Err.Raise 1, , "Invalude attribute syntax. Missing quotation marks. Found: " & Chr(13) & tpValue & Chr(13) & "Linenr approximately: " & fCurLineNr
+  End If
+  tpValue = Mid(tpValue, 2, Len(tpValue) - 2)
+  name = convertFromUTF(tpName)
+  val = convertFromUTF(tpValue)
+  
+  If (Len(fCurAttribString) = 0) Then
+    readNext
+  End If
+  
+End Function
+
+
+
+
+
+
+
+Public Function importXMLTable(xmlFileName As String, tableNameForAppend As String, ByVal blUseFirstRecPrfx As Boolean) As Boolean
+On Error GoTo fout
+importXMLTable = False
+
+
+DoCmd.SetWarnings False
+Dim sql As String
+sql = "Delete * from [" & tableNameForAppend & "];"
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+Dim FieldData(0 To maxNFields, 1 To 4) As Variant
+Dim nFields As Integer
+
+Dim tpFieldName As String
+Dim tpFieldType As Integer
+Dim tpFieldStartStr As String
+
+
+Dim mydb As Database, tpTable As TableDef
+Set mydb = CurrentDb()
+
+Set tpTable = mydb.TableDefs(tableNameForAppend)
+
+nFields = tpTable.Fields.Count
+
+Dim i As Integer
+
+For i = 0 To nFields - 1
+  FieldData(i, 1) = tpTable.Fields(i).name
+  If (blUseFirstRecPrfx) Then
+    FieldData(i, 2) = Nz(tpTable.Fields(i).ValidationText, "")
+  Else
+    FieldData(i, 2) = ""
+  End If
+  Select Case tpTable.Fields(i).Type
+    Case dbText
+      FieldData(i, 3) = fltString
+    Case dbInteger
+      FieldData(i, 3) = fltNum
+    Case dbLong
+      FieldData(i, 3) = fltNum
+    Case dbDouble
+      FieldData(i, 3) = fltDecimal
+    Case dbCurrency
+      FieldData(i, 3) = fltDecimal
+    Case dbSingle
+      FieldData(i, 3) = fltDecimal
+    Case dbFloat
+      FieldData(i, 3) = fltDecimal
+    Case dbBoolean
+      FieldData(i, 3) = fltLog
+    Case dbDate
+      FieldData(i, 3) = fltDate
+    Case Else
+      FieldData(i, 3) = fltString
+  End Select
+Next i
+
+
+
+Dim uitv As Recordset
+Set uitv = CurrentDb().OpenRecordset("Select * from [" & tableNameForAppend & "];", dbOpenDynaset)
+
+If Not openXMLFile(xmlFileName) Then
+  Exit Function
+End If
+
+' the xml header.
+readXMLHeader True
+
+
+Dim nodeName As String
+Dim nextType As Integer
+
+nodeName = readNewNode("VFPData", , True)
+nextType = getNextNodeType()
+Dim firstRecord As Boolean
+firstRecord = True
+Dim FieldName As String
+Dim fieldValue As String
+Dim recNodeName As String
+While nextType = ntElmOpen
+  uitv.AddNew
+  
+  recNodeName = readNewNode(, , True)
+  nextType = getNextNodeType()
+  While nextType = ntElmOpen 'Or nextType = ntElmOpenClose
+    FieldName = readNewNode(, , True)
+    
+    'modification dd july 2007: text might not be present.
+    nextType = getNextNodeType()
+    If (nextType = ntText) Then
+      fieldValue = readText(True)
+    Else
+      fieldValue = ""
+    End If
+    readNodeClose FieldName, True
+    
+    
+    For i = 0 To nFields - 1
+      If (FieldData(i, 1) = FieldName) Then
+        If (firstRecord And Nz(FieldData(i, 2)) <> "") Then
+          If (Len(fieldValue) > 0) And (Left(fieldValue, 1) = Nz(FieldData(i, 2))) Then
+            fieldValue = Right(fieldValue, Len(fieldValue) - 1)
+          End If
+        End If
+        Select Case FieldData(i, 3)
+          Case fltDate
+            If (Nz(fieldValue, "") = "") Then
+              uitv(FieldName) = Null
+            Else
+              If (Not IsDate(fieldValue)) Then
+                Err.Raise 1, , "The string: " & Chr(13) & fieldValue & Chr(13) & "cannot be converted to a date." & Chr(13) & "Linenr approximately: " & fCurLineNr
+              Else
+                uitv(FieldName) = CDate(fieldValue)
+              End If
+            End If
+          Case fltLog
+            If (Nz(fieldValue)) = "" Then
+              uitv(FieldName) = Null
+            Else
+              uitv(FieldName) = (Nz(fieldValue) = "true")
+            End If
+          Case fltNum
+            If (Nz(fieldValue)) = "" Then
+              uitv(FieldName) = Null
+            Else
+              uitv(FieldName) = fieldValue
+            End If
+          Case fltDecimal
+            If (Nz(fieldValue)) = "" Then
+              uitv(FieldName) = Null
+            Else
+              'Val always except . as decimal separator.
+              'Can therefore safely use it here.
+              uitv(FieldName) = val(fieldValue)
+            End If
+          Case fltString
+            uitv(FieldName) = IIf(Nz(fieldValue) = "", Null, fieldValue)
+        End Select
+        Exit For
+      End If
+    Next i
+       
+    nextType = getNextNodeType()
+  Wend
+  readNodeClose recNodeName, True
+   
+  uitv.Update
+  
+  firstRecord = False
+   
+  
+  nextType = getNextNodeType()
+Wend
+
+
+readNodeClose "VFPData", True
+
+
+
+Close
+
+
+
+importXMLTable = True
+Exit Function
+
+
+fout:
+Dim emsg As String
+emsg = "Error during parse of xml file: " & xmlFileName & Chr(13) & "Errorcode: " & Err & Chr(13) & Error$
+On Error Resume Next
+'Clean up any mess.
+DoCmd.SetWarnings False
+sql = "Delete * from [" & tableNameForAppend & "];"
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+MsgBox emsg, 16
+
+Close
+'debug
+On Error GoTo 0
+Resume
+
+Exit Function
+End Function
+
+
+Private Function skipRestOfNode()
+Dim cnt As Long
+cnt = 1
+While (cnt > 0)
+  If fCurElmType = ntElmOpen Then
+    cnt = cnt + 1
+  ElseIf fCurElmType = ntElmClose Then
+    cnt = cnt - 1
+  End If
+  readNext
+Wend
+End Function
+
+
+Public Function isNodePresent(xmlFileName As String, nodeName As String, Optional blExactPathMatch As Boolean = False, Optional maxNElmsToRead = -1) As Boolean
+On Error GoTo fout
+  isNodePresent = False
+  Dim tNames(0 To 0) As String
+  tNames(0) = nodeName
+  Dim tVals(0 To 0) As String
+  Dim tFnd(0 To 0) As Boolean
+  If (readFirstTagsData(xmlFileName, tNames, tVals, tFnd, 1, blExactPathMatch, maxNElmsToRead)) Then
+    isNodePresent = tFnd(0)
+  End If
+  
+  Exit Function
+  
+  
+fout:
+MsgBox Err & " " & Error$, 16
+  Exit Function
+  
+End Function
+
+
+Public Function readFirstTagData(xmlFileName As String, tagName As String, Optional blExactPathMatch As Boolean = False, Optional maxNElmsToRead = -1, Optional blHandleError As Boolean = True) As String
+On Error GoTo fout
+  readFirstTagData = ""
+  Dim tNames(0 To 0) As String
+  tNames(0) = tagName
+  Dim tVals(0 To 0) As String
+  Dim tFnd(0 To 0) As Boolean
+  If (readFirstTagsData(xmlFileName, tNames, tVals, tFnd, 1, blExactPathMatch, maxNElmsToRead, blHandleError)) Then
+    readFirstTagData = tVals(0)
+  End If
+  
+  Exit Function
+  
+  
+fout:
+If (blHandleError) Then
+  MsgBox Err & " " & Error$, 16
+Else
+  Dim errCode As Long
+  errCode = Err
+  Dim errMsg As String
+  errMsg = Error$
+  
+  'Reraise the error.
+  On Error GoTo 0
+  Err.Raise errCode, , errMsg
+End If
+Exit Function
+  
+End Function
+
+Private Function tagMatch(tag As String, path As String, blExactPathMatch) As Boolean
+tagMatch = False
+If (blExactPathMatch) Then
+  If (tag = path) Then
+    tagMatch = True
+  End If
+Else
+  Dim lenP As Long, lenT As Long
+  lenP = Len(path)
+  lenT = Len(tag)
+  If (lenP >= lenT) Then
+    If (Right(path, lenT) = tag) Then
+      If (lenP = lenT) Then
+        tagMatch = True
+      Else
+        If (Mid(path, lenP - lenT, 1) = "/") Then
+          tagMatch = True
+        End If
+      End If
+    End If
+  End If
+End If
+  
+End Function
+Public Function readFirstTagsData(xmlFileName As String, tagNames() As String, ByRef tagOutput() As String, ByRef tagFound() As Boolean, nTags As Integer, Optional blExactPathMatch = False, Optional maxNElmsToRead = -1, Optional blHandleError As Boolean = True) As Boolean
+On Error GoTo fout
+Dim i As Integer
+
+readFirstTagsData = False
+
+
+
+Dim nTagsLeft As Integer
+nTagsLeft = nTags
+
+For i = 0 To nTags - 1
+  tagFound(i) = False
+  tagOutput(i) = ""
+Next i
+
+
+
+
+
+Const maxDepth = 100
+Dim openTags(1 To maxDepth) As String
+Dim openTagIsMatch(1 To maxDepth) As Boolean
+Dim curPathStr As String
+
+Dim nNodesEncountered As Integer
+
+If Not openXMLFile(xmlFileName) Then
+  Exit Function
+End If
+
+
+' the xml header.
+readXMLHeader True
+  
+Dim nodeName As String
+Dim FieldName As String
+Dim fieldValue As String
+Dim nextType As Integer
+
+Dim finished As Boolean
+finished = (nTagsLeft = 0)
+
+Dim level As Integer
+level = 0
+curPathStr = ""
+nNodesEncountered = 0
+
+Dim attribName As String
+Dim attribValue As String
+
+
+
+While (Not finished)
+  nextType = getNextNodeType()
+  If (nextType = ntElmOpen) Then
+    nNodesEncountered = nNodesEncountered + 1
+    nodeName = readNewNode()
+    level = level + 1
+    openTags(level) = nodeName
+    openTagIsMatch(level) = False
+    If (curPathStr = "") Then
+      curPathStr = nodeName
+    Else
+      curPathStr = curPathStr & "/" & nodeName
+    End If
+    'Check to see if match
+    For i = 0 To nTags - 1
+      If (Not tagFound(i)) Then
+        If (tagMatch(tagNames(i), curPathStr, blExactPathMatch)) Then
+          'tag reading is deferred to later
+          openTagIsMatch(level) = True
+          tagOutput(i) = ""
+          tagFound(i) = True
+          nTagsLeft = nTagsLeft - 1
+          Exit For
+        End If
+      End If
+    Next i
+    
+  ElseIf (nextType = ntAttribs) Then
+    readAttribute attribName, attribValue
+    'Check to see if match.
+    For i = 0 To nTags - 1
+      If (Not tagFound(i)) Then
+        If (tagMatch(tagNames(i), curPathStr & "/" & attribName, blExactPathMatch)) Then
+          tagOutput(i) = attribValue
+          tagFound(i) = True
+          nTagsLeft = nTagsLeft - 1
+          Exit For
+        End If
+      End If
+    Next i
+  ElseIf (nextType = ntElmClose) Then
+    readNodeClose
+    If (level > 1) Then
+      curPathStr = Left(curPathStr, Len(curPathStr) - Len(openTags(level)) - 1)
+    Else
+      curPathStr = ""
+    End If
+    level = level - 1
+  ElseIf (nextType = ntText) Then
+    Dim tpTxt As String
+    tpTxt = readText
+    
+    'Need to see if the current path can be matched to a tag that we are looking for
+    For i = 0 To nTags - 1
+      If tagFound(i) Then
+        If (tagMatch(tagNames(i), curPathStr, blExactPathMatch)) Then
+          'update the tag output. Note the tag has already been marked as found
+          tagOutput(i) = tpTxt
+          Exit For
+        End If
+      End If
+    Next i
+    
+  Else
+    Err.Raise 1, , "Unexpected elment found: " & Chr(13) & fCurElmString & Chr(13) & "Linenr approximately: " & fCurLineNr
+  End If
+  
+  
+  'Before we close, need to check if we are still actively scanning a node for its text.
+  Dim blIsPossMatch As Boolean
+  blIsPossMatch = False
+  If (nTagsLeft = 0) Then
+    For i = 1 To level
+      If openTagIsMatch(i) Then
+        blIsPossMatch = True
+        Exit For
+      End If
+    Next i
+  End If
+    
+  If (level = 0) Then
+    finished = True
+  ElseIf (Not blIsPossMatch) And (nTagsLeft = 0) Then
+    finished = True
+  ElseIf (maxNElmsToRead >= 0) And (nNodesEncountered > maxNElmsToRead) Then
+    finished = True
+  End If
+Wend
+
+
+
+
+  
+readFirstTagsData = True
+Close
+Exit Function
+
+fout:
+
+Close
+
+Dim emsg As String
+emsg = "Error during parse of xml file: " & xmlFileName & vbCrLf & "Errorcode: " & Err & vbCrLf & Error$
+
+If (blHandleError) Then
+  MsgBox emsg, 16
+Else
+  On Error GoTo 0
+  Err.Raise 1, , emsg
+End If
+
+'debug
+'On Error GoTo 0
+'Resume Next
+
+
+
+
+Exit Function
+
+
+
+
+
+
+End Function
+
+
+
+
+
+
+
+
+Public Function importXMLStructure(xmlFileName As String, xmlObjectsTable As String, xmlObjectRelationsTable As String, glbTablePrefix As String, Optional impPryThreshold As Integer = -1, Optional useResultTables As Boolean = True, Optional blFailOnUnknown As Boolean = False) As Boolean
+On Error GoTo fout
+
+DoCmd.Hourglass True
+SysCmd acSysCmdSetStatus, "Reading XML file"
+
+
+Dim xmlObjs As Recordset, xmlObjRels As Recordset
+
+Dim sql As String
+
+Set xmlObjs = CurrentDb().OpenRecordset("Select * from [" & xmlObjectsTable & "] order by [XML_OBJECT_NAME];", dbOpenDynaset)
+Set xmlObjRels = CurrentDb().OpenRecordset("Select * from [" & xmlObjectRelationsTable & "] order by [XML_PAR_OBJ_TYPE_NAME], [XML_CHILD_NAME];", dbOpenDynaset)
+
+'First build the object structure.
+Const maxPropsPerObj As Integer = 100
+Const maxObjTypes As Integer = 100
+Dim dsNObjs As Integer
+Dim dsMaxNPropsPerObj As Integer
+Dim dsRootObjTypeIdx As Integer
+Dim dsObjTypeNames(1 To maxObjTypes) As String
+Dim dsObjTableNames(1 To maxObjTypes) As String
+Dim dsObjTablePrefix(1 To maxObjTypes) As String
+Dim dsObjIsRoot(1 To maxObjTypes) As Boolean
+Dim dsObjImpPriority(1 To maxObjTypes) As Integer
+Dim dsObjLastUsedID(1 To maxObjTypes) As Long
+Dim dsObjUsedAsCollection(1 To maxObjTypes) As Boolean
+Dim dsObjLastUsedCollID(1 To maxObjTypes) As Long
+Dim dsObjNProps(1 To maxObjTypes) As Integer
+Dim dsPropNames(1 To maxObjTypes, 1 To maxPropsPerObj) As String
+Dim dsPropIsObject(1 To maxObjTypes, 1 To maxPropsPerObj) As Boolean
+Dim dsPropObjectTypeIdx(1 To maxObjTypes, 1 To maxPropsPerObj) As Integer
+Dim dsPropIsCollection(1 To maxObjTypes, 1 To maxPropsPerObj) As Boolean
+
+dsNObjs = 0
+dsMaxNPropsPerObj = 0
+
+xmlObjs.MoveFirst
+Do Until xmlObjs.EOF
+   
+  dsNObjs = dsNObjs + 1
+  dsObjTypeNames(dsNObjs) = Nz(xmlObjs("XML_OBJECT_NAME"))
+  dsObjTableNames(dsNObjs) = Nz(xmlObjs("XML_TABLE_NAME"))
+  dsObjTablePrefix(dsNObjs) = Nz(xmlObjs("XML_TABLE_FIELD_PREFIX"))
+  dsObjIsRoot(dsNObjs) = Nz(xmlObjs("XML_IS_ROOT"))
+  If (dsObjIsRoot(dsNObjs)) Then
+    dsRootObjTypeIdx = dsNObjs
+  End If
+  
+  dsObjImpPriority(dsNObjs) = Nz(xmlObjs("XML_IMPORT_PRIORITY"))
+  
+  dsObjNProps(dsNObjs) = 0
+  dsObjLastUsedID(dsNObjs) = 0
+  
+  dsObjUsedAsCollection(dsNObjs) = False
+  dsObjLastUsedCollID(dsNObjs) = 0
+    
+  xmlObjs.MoveNext
+Loop
+
+Dim objTypeIdx As Integer
+Dim nProps As Integer
+
+xmlObjRels.MoveFirst
+Do Until xmlObjRels.EOF
+  
+    
+  
+  objTypeIdx = findStringInOrdList(dsObjTypeNames, Nz(xmlObjRels("XML_PAR_OBJ_TYPE_NAME")), dsNObjs)
+  If (objTypeIdx = -1) Then
+    Err.Raise 1, , "Error in structure table. Unknown object type: " & Nz(xmlObjRels("XML_PAR_OBJ_TYPE_NAME"))
+  End If
+  nProps = dsObjNProps(objTypeIdx) + 1
+  dsObjNProps(objTypeIdx) = nProps
+  If (nProps > dsMaxNPropsPerObj) Then
+    dsMaxNPropsPerObj = nProps
+  End If
+  
+  Dim chPropIsObject As Boolean
+  Dim chPropName As String
+  
+  chPropName = Nz(xmlObjRels("XML_CHILD_NAME"))
+  chPropIsObject = Nz(xmlObjRels("XML_CHILD_IS_OBJECT"))
+  dsPropNames(objTypeIdx, nProps) = Nz(xmlObjRels("XML_CHILD_NAME"))
+  dsPropIsObject(objTypeIdx, nProps) = chPropIsObject
+  If (chPropIsObject) Then
+    Dim chPropObjTypeIdx  As Integer
+    chPropObjTypeIdx = findStringInOrdList(dsObjTypeNames, chPropName, dsNObjs)
+    dsPropObjectTypeIdx(objTypeIdx, nProps) = chPropObjTypeIdx
+    Dim chPropIsCollection As Boolean
+    chPropIsCollection = Nz(xmlObjRels("XML_IS_COLLECTION"))
+    dsPropIsCollection(objTypeIdx, nProps) = chPropIsCollection
+    If (chPropIsCollection) Then
+      dsObjUsedAsCollection(chPropObjTypeIdx) = True
+    End If
+  End If
+  xmlObjRels.MoveNext
+Loop
+
+appCleanRS xmlObjs
+appCleanRS xmlObjRels
+
+
+
+Dim blDeletingTables As Boolean
+blDeletingTables = True
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_IMPORT"
+DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_IMPORT_COLL"
+blDeletingTables = False
+
+'Build system tables.
+Dim mydb As Database
+Set mydb = CurrentDb()
+Dim glbXMLImportTable As TableDef
+Dim glbXMLImportCollTable As TableDef
+Dim fld As Field
+
+Dim fldIdx As Integer
+Dim sobjIdx As Integer
+
+
+Set glbXMLImportTable = mydb.CreateTableDef(glbTablePrefix & "__SYS__XML_IMPORT")
+Set fld = glbXMLImportTable.CreateField("XML_OBJECT_TYPE", dbText, 255)
+glbXMLImportTable.Fields.Append fld
+Set fld = glbXMLImportTable.CreateField("XML_OBJECT_ID", dbLong)
+glbXMLImportTable.Fields.Append fld
+For fldIdx = 1 To dsMaxNPropsPerObj
+  Set fld = glbXMLImportTable.CreateField("XML_PROP_" & CStr(fldIdx), dbText, 255)
+  glbXMLImportTable.Fields.Append fld
+Next fldIdx
+mydb.TableDefs.Append glbXMLImportTable
+
+Set glbXMLImportCollTable = mydb.CreateTableDef(glbTablePrefix & "__SYS__XML_IMPORT_COLL")
+Set fld = glbXMLImportCollTable.CreateField("XML_OBJECT_TYPE", dbText, 255)
+glbXMLImportCollTable.Fields.Append fld
+Set fld = glbXMLImportCollTable.CreateField("XML_COLLECTION_ID", dbLong)
+glbXMLImportCollTable.Fields.Append fld
+Set fld = glbXMLImportCollTable.CreateField("XML_CHILD_ID", dbLong)
+glbXMLImportCollTable.Fields.Append fld
+mydb.TableDefs.Append glbXMLImportCollTable
+
+'Build tables to hold the results.
+
+For sobjIdx = 1 To dsNObjs
+  If (useResultTables) Then
+    blDeletingTables = True
+    DoCmd.DeleteObject acTable, glbTablePrefix & dsObjTableNames(sobjIdx)
+    'If (dsObjUsedAsCollection) Then
+    'Just delete...
+      DoCmd.DeleteObject acTable, glbTablePrefix & dsObjTableNames(sobjIdx) & "_COLL"
+    'End If
+    blDeletingTables = False
+  End If
+  
+  'Now build the tables.
+  If (useResultTables) Then
+    Dim xmlResTableDef As TableDef
+    Set xmlResTableDef = mydb.CreateTableDef(glbTablePrefix & dsObjTableNames(sobjIdx))
+    Set fld = xmlResTableDef.CreateField("ID_" & dsObjTypeNames(sobjIdx), dbLong)
+    xmlResTableDef.Fields.Append fld
+    For fldIdx = 1 To dsObjNProps(sobjIdx)
+      If (dsPropIsObject(sobjIdx, fldIdx)) Then
+        If (dsPropIsCollection(sobjIdx, fldIdx)) Then
+          Set fld = xmlResTableDef.CreateField("SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)) & "_COLL", dbLong)
+          xmlResTableDef.Fields.Append fld
+        Else
+          Set fld = xmlResTableDef.CreateField("SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)), dbLong)
+          xmlResTableDef.Fields.Append fld
+        End If
+      Else
+        Set fld = xmlResTableDef.CreateField(dsObjTablePrefix(sobjIdx) & dsPropNames(sobjIdx, fldIdx), dbText, 255)
+        xmlResTableDef.Fields.Append fld
+      End If
+    Next fldIdx
+    Dim idx As Index
+      Set idx = xmlResTableDef.CreateIndex("P")
+      idx.Primary = True
+      idx.Fields.Append idx.CreateField("ID_" & dsObjTypeNames(sobjIdx), dbLong)
+      xmlResTableDef.Indexes.Append idx
+    mydb.TableDefs.Append xmlResTableDef
+    
+    If (dsObjUsedAsCollection(sobjIdx)) Then
+      Set xmlResTableDef = mydb.CreateTableDef(glbTablePrefix & dsObjTableNames(sobjIdx) & "_COLL")
+      Set fld = xmlResTableDef.CreateField("ID_" & dsObjTypeNames(sobjIdx) & "_COLL", dbLong)
+      xmlResTableDef.Fields.Append fld
+      Set fld = xmlResTableDef.CreateField("SYS_REF_CH_" & dsObjTypeNames(sobjIdx), dbLong)
+      xmlResTableDef.Fields.Append fld
+      Set idx = xmlResTableDef.CreateIndex("P")
+        idx.Primary = True
+        idx.Fields.Append idx.CreateField("ID_" & dsObjTypeNames(sobjIdx) & "_COLL", dbLong)
+        idx.Fields.Append idx.CreateField("SYS_REF_CH_" & dsObjTypeNames(sobjIdx), dbLong)
+        xmlResTableDef.Indexes.Append idx
+      mydb.TableDefs.Append xmlResTableDef
+    End If
+  End If
+Next sobjIdx
+
+
+
+Dim outp As Recordset
+Dim outpValid As Boolean
+outpValid = False
+
+Set outp = CurrentDb().OpenRecordset(glbTablePrefix & "__SYS__XML_IMPORT", dbOpenDynaset)
+outpValid = True
+
+Dim outpColl As Recordset
+Dim outpCollValid As Boolean
+outpCollValid = False
+Set outpColl = CurrentDb().OpenRecordset(glbTablePrefix & "__SYS__XML_IMPORT_COLL", dbOpenDynaset)
+outpCollValid = True
+
+
+'We are now ready for the file.
+If Not openXMLFile(xmlFileName) Then
+  DoCmd.Hourglass False
+  SysCmd acSysCmdClearStatus
+  Exit Function
+End If
+
+
+' the xml header.
+readXMLHeader True
+
+Dim nodeName As String
+Dim nextType As Integer
+
+
+Const maxDepth As Integer = 25
+
+Dim objTypeIndices(1 To maxDepth) As Long
+Dim objIDs(1 To maxDepth) As Long
+Dim objFieldValues(1 To maxDepth, 1 To maxPropsPerObj) As String
+Dim objFieldSet(1 To maxDepth, 1 To maxPropsPerObj) As Boolean
+
+
+
+Dim level As Integer
+
+level = 0
+Dim lastReadNodeName As String
+lastReadNodeName = readNewNode()
+
+'handle the opening of a new node.
+  Dim curObjTypeIdx As Integer
+  Dim curObjID As Long
+  
+    
+Dim isSubObject As Boolean
+Dim isField As Boolean
+Dim subObjectCollectionID As Long
+Dim subObjectTypeIdx As Long
+Dim subObjectIsCollection As Boolean
+Dim subObjectID As Long
+
+Dim fldFnd As Boolean
+Dim subObjTypeFnd As Boolean
+
+Dim isRecognized As Boolean
+
+
+While (level >= 0)
+
+  isSubObject = False
+  isField = False
+  isRecognized = False
+
+  'find the appropriate object type.
+  'first check to see if the new node is an object name.
+  
+  Dim prpIdx As Integer
+  If (level > 0) Then
+    prpIdx = findStringInOrd2dList(dsPropNames, lastReadNodeName, dsObjNProps(curObjTypeIdx), curObjTypeIdx)
+    isRecognized = (prpIdx <> -1)
+    If (Not isRecognized And blFailOnUnknown) Then
+      Err.Raise 1, , "Unexpected node found: " & Chr(13) & lastReadNodeName & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+    If (isRecognized) Then
+        isSubObject = dsPropIsObject(curObjTypeIdx, prpIdx)
+        isField = Not isSubObject
+        If (isSubObject) Then
+          subObjectIsCollection = dsPropIsCollection(curObjTypeIdx, prpIdx)
+          subObjectTypeIdx = dsPropObjectTypeIdx(curObjTypeIdx, prpIdx)
+        End If
+        If (objFieldSet(level, prpIdx)) Then
+          If (isField Or Not subObjectIsCollection) Then
+            Err.Raise 1, , "Duplicate node found: " & Chr(13) & lastReadNodeName & Chr(13) & "Linenr approximately: " & fCurLineNr
+          End If
+        End If
+    End If
+  Else
+    If (lastReadNodeName <> dsObjTypeNames(dsRootObjTypeIdx)) Then
+      Err.Raise 1, , "Unexpected root found: " & Chr(13) & readNewNode & Chr(13) & "Linenr approximately: " & fCurLineNr
+    End If
+    isRecognized = True
+    isSubObject = True
+    isField = False
+    subObjectIsCollection = False
+    subObjectTypeIdx = dsRootObjTypeIdx
+  End If
+  
+  Dim blSkipNode As Boolean
+  blSkipNode = False
+  
+  If (isRecognized) Then
+    If (isSubObject And dsObjImpPriority(subObjectTypeIdx) < impPryThreshold) Then
+      blSkipNode = True
+    End If
+  Else
+    blSkipNode = True
+  End If
+  
+  'Handle setting of value.
+  If (Not blSkipNode) Then
+    If (isSubObject) Then
+      subObjectID = dsObjLastUsedID(subObjectTypeIdx) + 1
+      dsObjLastUsedID(subObjectTypeIdx) = subObjectID
+      If (subObjectIsCollection) Then
+        If (Not objFieldSet(level, prpIdx)) Then
+          'have to make new collection
+          subObjectCollectionID = dsObjLastUsedCollID(subObjectTypeIdx) + 1
+          dsObjLastUsedCollID(subObjectTypeIdx) = subObjectCollectionID
+          objFieldSet(level, prpIdx) = True
+          objFieldValues(level, prpIdx) = CStr(subObjectCollectionID)
+        Else
+          subObjectCollectionID = CLng(objFieldValues(level, prpIdx))
+        End If
+        'Have to insert into collection.
+        outpColl.AddNew
+          outpColl("XML_OBJECT_TYPE") = dsObjTypeNames(subObjectTypeIdx)
+          outpColl("XML_COLLECTION_ID") = subObjectCollectionID
+          outpColl("XML_CHILD_ID") = subObjectID
+        outpColl.Update
+      Else
+        If (level > 0) Then
+          objFieldSet(level, prpIdx) = True
+          objFieldValues(level, prpIdx) = CStr(subObjectID)
+        End If
+      End If
+    Else
+      'read field properties.
+      If (getNextNodeType() = ntAttribs) Then
+        Err.Raise 1, , "Attributes unexpected for this field. Found: " & Chr(13) & fCurAttribString & Chr(13) & "Linenr approximately: " & fCurLineNr
+      End If
+      Dim fValue As String
+      fValue = readText(True)
+      
+      objFieldSet(level, prpIdx) = True
+      objFieldValues(level, prpIdx) = fValue
+      
+      readNodeClose lastReadNodeName, True
+    End If
+  Else
+    'skip the node.
+    skipRestOfNode
+  End If
+      
+    
+  
+  If (Not blSkipNode And isSubObject) Then
+    level = level + 1
+    
+    'update level.
+    objTypeIndices(level) = subObjectTypeIdx
+    objIDs(level) = subObjectID
+    For fldIdx = 1 To dsObjNProps(subObjectTypeIdx)
+      objFieldSet(level, fldIdx) = False
+      objFieldValues(level, fldIdx) = ""
+    Next fldIdx
+        
+    curObjID = subObjectID
+    curObjTypeIdx = subObjectTypeIdx
+    
+    
+    
+    'read all the attributes.
+    While (getNextNodeType() = ntAttribs)
+      Dim attribName As String
+      Dim attribVal As String
+      readAttribute attribName, attribVal
+      
+      'Check to see if the attribute is a valid field.
+      prpIdx = findStringInOrd2dList(dsPropNames, attribName, dsObjNProps(curObjTypeIdx), curObjTypeIdx)
+      
+      If (prpIdx <> -1) Then
+               
+        If (dsPropIsObject(curObjTypeIdx, prpIdx)) Then
+          Err.Raise 1, , "The following attribute refers to a sub-object and cannot be handled: " & Chr(13) & attribName & Chr(13) & "Linenr approximately: " & fCurLineNr
+        End If
+        If (objFieldSet(level, prpIdx)) Then
+          Err.Raise 1, , "Duplicate attribute found: " & Chr(13) & attribName & Chr(13) & "Linenr approximately: " & fCurLineNr
+        End If
+        
+        objFieldSet(level, prpIdx) = True
+        objFieldValues(level, prpIdx) = attribVal
+      
+      Else
+        If (blFailOnUnknown) Then
+          Err.Raise 1, , "The following attribute was unexpected and cannot be handled: " & Chr(13) & attribName & Chr(13) & "Linenr approximately: " & fCurLineNr
+        End If
+      End If
+      
+      
+      
+            
+    Wend
+  End If
+  
+  'Have to get next data.
+  Dim nxtNodeType As Integer
+  nxtNodeType = getNextNodeType()
+  While (level > 0 And (nxtNodeType <> ntElmOpen))
+  
+    readNodeClose dsObjTypeNames(objTypeIndices(level)), True
+    
+    'add a new finished record.
+    outp.AddNew
+    outp("XML_OBJECT_TYPE") = dsObjTypeNames(curObjTypeIdx)
+    outp("XML_OBJECT_ID") = curObjID
+    For fldIdx = 1 To dsObjNProps(curObjTypeIdx)
+      outp("XML_PROP_" & fldIdx) = hzn(objFieldValues(level, fldIdx))
+    Next fldIdx
+       
+    outp.Update
+    
+    
+    'now move down one level.
+    level = level - 1
+    If (level > 0) Then
+      curObjID = objIDs(level)
+      curObjTypeIdx = objTypeIndices(level)
+    End If
+    
+    nxtNodeType = getNextNodeType()
+  Wend
+  If (level > 0) Then
+    lastReadNodeName = readNewNode()
+  Else
+    level = -1
+  End If
+Wend
+
+'Now have to move everything to the corresponding tables.
+appCleanRS outp
+
+outpValid = False
+
+appCleanRS outpColl
+
+outpCollValid = False
+
+
+
+If (useResultTables) Then
+    'Add results to tables.
+    For sobjIdx = 1 To dsNObjs
+      'build the sql statement.
+      sql = "INSERT INTO [" & glbTablePrefix & dsObjTableNames(sobjIdx) & "] ([ID_" & dsObjTypeNames(sobjIdx) & "]"
+      For fldIdx = 1 To dsObjNProps(sobjIdx)
+        If (dsPropIsObject(sobjIdx, fldIdx)) Then
+           If (dsPropIsCollection(sobjIdx, fldIdx)) Then
+             sql = sql & ", [SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)) & "_COLL]"
+           Else
+             sql = sql & ", [SYS_REF_" & dsObjTypeNames(dsPropObjectTypeIdx(sobjIdx, fldIdx)) & "]"
+           End If
+        Else
+          sql = sql & ", [" & dsObjTablePrefix(sobjIdx) & dsPropNames(sobjIdx, fldIdx) & "]"
+        End If
+      Next fldIdx
+      sql = sql & ") SELECT [" & glbTablePrefix & "__SYS__XML_IMPORT].XML_OBJECT_ID"
+      For fldIdx = 1 To dsObjNProps(sobjIdx)
+        sql = sql & ", [" & glbTablePrefix & "__SYS__XML_IMPORT].XML_PROP_" & CStr(fldIdx)
+      Next fldIdx
+      sql = sql & " FROM [" & glbTablePrefix & "__SYS__XML_IMPORT] WHERE [" & glbTablePrefix & "__SYS__XML_IMPORT].XML_OBJECT_TYPE = """ & dsObjTypeNames(sobjIdx) & """;"
+      
+      DoCmd.SetWarnings False
+      DoCmd.RunSQL sql
+      DoCmd.SetWarnings True
+      
+      If (dsObjUsedAsCollection(sobjIdx)) Then
+        sql = "INSERT INTO [" & glbTablePrefix & dsObjTableNames(sobjIdx) & "_COLL] ([ID_" & dsObjTypeNames(sobjIdx) & "_COLL]"
+        sql = sql & ", [SYS_REF_CH_" & dsObjTypeNames(sobjIdx) & "]) Select [" & glbTablePrefix & "__SYS__XML_IMPORT_COLL].XML_COLLECTION_ID," & _
+              "[" & glbTablePrefix & "__SYS__XML_IMPORT_COLL].XML_CHILD_ID FROM [" & glbTablePrefix & "__SYS__XML_IMPORT_COLL] WHERE " & _
+              "[XML_OBJECT_TYPE]=""" & dsObjTypeNames(sobjIdx) & """;"
+        DoCmd.SetWarnings False
+        DoCmd.RunSQL sql
+        DoCmd.SetWarnings True
+      End If
+      
+      
+    Next sobjIdx
+    blDeletingTables = True
+    DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_IMPORT"
+    DoCmd.DeleteObject acTable, glbTablePrefix & "__SYS__XML_IMPORT_COLL"
+    blDeletingTables = False
+End If
+
+
+
+
+
+Close
+
+
+DoCmd.Hourglass False
+SysCmd acSysCmdClearStatus
+importXMLStructure = True
+Exit Function
+
+
+fout:
+If (Err = 3021) Then Resume Next
+
+If blDeletingTables And (Err = 3011 Or Err = 7874) Then
+  Resume Next
+End If
+
+Dim emsg As String
+emsg = "Error during parse of xml file: " & xmlFileName & Chr(13) & "Errorcode: " & Err & Chr(13) & Error$
+On Error GoTo 0
+On Error GoTo fin_clean_up
+If (outpValid) Then
+  appCleanRS outp
+End If
+If (outpCollValid) Then
+  appCleanRS outpColl
+End If
+'Clean up any mess.
+fin_clean_up:
+cleanupXMLStructureTables xmlObjectsTable, glbTablePrefix, useResultTables
+
+
+MsgBox emsg, 16
+
+Close
+
+'debug
+'On Error GoTo 0
+'Resume Next
+
+DoCmd.Hourglass False
+
+
+appCleanRS outp
+appCleanRS outpColl
+
+appCleanRS xmlObjs
+appCleanRS xmlObjRels
+
+
+Exit Function
+End Function

@@ -1,0 +1,3777 @@
+Option Compare Database
+Option Explicit
+
+Private Const MAX_N_AFSL = 1000
+
+Private Function uitAnalyze_HandleDis(ByRef outpDis As Recordset, ByVal dis As String, ByVal wednr As Long, ByVal prog As String) As Boolean
+On Error GoTo fout
+uitAnalyze_HandleDis = False
+
+If dis <> "" Then
+  Dim curDis As String
+  curDis = ""
+  Dim curPos As Integer
+  curPos = 1
+  Dim curChar As String
+  While (curPos <= Len(dis))
+    curChar = Mid(dis, curPos, 1)
+    If (curChar = "," Or curChar = "/" Or curChar = "+") Then
+      If (Len(curDis) > 0) Then
+        'add curDis
+        outpDis.AddNew
+        outpDis("DIS_Wedstrijdnummer") = wednr
+        outpDis("DIS_Programmanummer") = prog
+        outpDis("DIS_Code") = curDis
+        outpDis.Update
+        curDis = ""
+      End If
+    Else
+      curDis = curDis & curChar
+    End If
+    curPos = curPos + 1
+  Wend
+  If (Len(curDis) > 0) Then
+    'add curDis
+    outpDis.AddNew
+    outpDis("DIS_Wedstrijdnummer") = wednr
+    outpDis("DIS_Programmanummer") = prog
+    outpDis("DIS_Code") = curDis
+    outpDis.Update
+  End If
+
+End If
+
+
+uitAnalyze_HandleDis = True
+Exit Function
+fout:
+MsgBox Err & " uitAnalyze_HandleDis" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function uitAnalyze_AddCustomDis(ByRef outpDis As Recordset, ByVal wednr As Long, ByVal Code As String, ByVal descr As String) As Boolean
+On Error GoTo fout
+uitAnalyze_AddCustomDis = False
+
+outpDis.AddNew
+outpDis("DIS_wedstrijdnummer") = wednr
+outpDis("DIS_Programmanummer") = Null
+outpDis("DIS_Code") = Code
+outpDis("DIS_Custom_Beschrijving") = hzn(descr)
+outpDis.Update
+
+uitAnalyze_AddCustomDis = True
+Exit Function
+fout:
+MsgBox Err & " uitAnalyze_AddCustomDis" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
+
+Private Function uitAnalyze_CreateTables(tbNameAll As String, tbNameMain As String, tbNameDetails As String, tbNameDis As String) As Boolean
+On Error GoTo fout
+uitAnalyze_CreateTables = False
+
+DoCmd.DeleteObject acTable, tbNameAll
+DoCmd.DeleteObject acTable, tbNameMain
+DoCmd.DeleteObject acTable, tbNameDetails
+DoCmd.DeleteObject acTable, tbNameDis
+
+Dim tbDef As TableDef
+Dim db As Database
+
+
+Set db = CurrentDb()
+
+Set tbDef = db.CreateTableDef(tbNameAll)
+
+tbDef.Fields.Append tbDef.CreateField("TYA_ID", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TYA_FullTimeID", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TYA_FullTimePos", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("TYA_IsTransferred", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYA_IsTussenTijd", dbBoolean)
+
+tbDef.Fields.Append tbDef.CreateField("TYA_Wedstrijdnummer", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TYA_Programmanummer", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("TYA_IsEstaf", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYA_Estafettenummer", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("TYA_EstGes", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("TYA_EstMinYOB", dbLong)
+
+tbDef.Fields.Append tbDef.CreateField("TYA_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TYA_Geslacht", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("TYA_Geboortedatum", dbDate)
+
+tbDef.Fields.Append tbDef.CreateField("TYA_ActVereniging", dbText, 50)
+
+tbDef.Fields.Append tbDef.CreateField("TYA_Afstand", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("TYA_Slag", dbText, 20)
+
+tbDef.Fields.Append tbDef.CreateField("TYA_Dis", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("TYA_Tijd", dbDouble)
+
+Dim idx As Index
+
+Set idx = tbDef.CreateIndex("PrimaryKey")
+idx.Primary = True
+idx.Fields.Append idx.CreateField("TYA_ID", dbLong)
+
+tbDef.Indexes.Append idx
+
+
+db.TableDefs.Append tbDef
+
+Set tbDef = Nothing
+Set idx = Nothing
+
+
+
+Set tbDef = db.CreateTableDef(tbNameMain)
+
+tbDef.Fields.Append tbDef.CreateField("TY_Id", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TY_Wedstrijdnummer", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TY_Programmanummer", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("TY_IsEstaf", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TY_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TY_Categorie", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("TY_CategorieStartZwemmer", dbText, 20)
+
+tbDef.Fields.Append tbDef.CreateField("TY_Eindtijd", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("TY_Eindafstand", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TY_Eindslag", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TY_Bijz", dbText, 20)
+
+tbDef.Fields.Append tbDef.CreateField("TY_Dis", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("TY_Opm", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("TY_Eindplaats", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("TY_Naam", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("TY_Tussentijden", dbMemo)
+
+tbDef.Fields.Append tbDef.CreateField("TY_EST_Deelnemers", dbMemo)
+
+tbDef.Fields.Append tbDef.CreateField("TY_EST_MinYOB", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TY_EST_MaxYOB", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TY_EST_SumYOB", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TY_EST_CntYOB", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TY_EST_Geslacht", dbText, 1)
+
+Dim i As Integer
+For i = 1 To MAX_ESTAF_CNT
+  tbDef.Fields.Append tbDef.CreateField("TY_EST_Startnummer_" & i, dbText, 12)
+  tbDef.Fields.Append tbDef.CreateField("TY_EST_Naam_" & i, dbText, 50)
+Next i
+
+
+For i = 1 To 4
+  tbDef.Fields.Append tbDef.CreateField("TY_Tijd" & i, dbDouble)
+  tbDef.Fields.Append tbDef.CreateField("TY_Afstand" & i, dbText, 12)
+  tbDef.Fields.Append tbDef.CreateField("TY_Slag" & i, dbText, 12)
+  tbDef.Fields.Append tbDef.CreateField("TY_Bijz" & i, dbText, 20)
+Next i
+
+Set idx = tbDef.CreateIndex("PrimaryKey")
+idx.Primary = True
+
+idx.Fields.Append idx.CreateField("TY_ID", dbLong)
+
+tbDef.Indexes.Append idx
+
+db.TableDefs.Append tbDef
+
+Set tbDef = Nothing
+Set idx = Nothing
+
+Set tbDef = db.CreateTableDef(tbNameDetails)
+
+tbDef.Fields.Append tbDef.CreateField("TYD_REF_TYA_ID", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TYD_REF_FullTimeID", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TYD_Wedstrijdnummer", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TYD_Programmanummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TYD_IsEstaf", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYD_Type", dbText, 5)
+tbDef.Fields.Append tbDef.CreateField("TYD_Type_Omschrijving", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("TYD_Verbetering", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("TYD_IS_PR", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYD_IS_CR", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYD_IS_Custom_Record", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYD_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TYD_Naam", dbText, 100)
+
+tbDef.Fields.Append tbDef.CreateField("TYD_Afstand", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TYD_Slag", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TYD_Tijd", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("TYD_Categorie", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_Vereniging", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_Baan", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_Code", dbText, 10)
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_Geslacht", dbText, 1)
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_Leeftijd", dbLong)
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_IsSuspect", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_SuspectReason", dbText, 255)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Valid", dbBoolean)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Tijd", dbDouble)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_DisplayTijd", dbText)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Startnummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Vereniging", dbText, 50)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Naam", dbText, 100)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Datum", dbDate)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_DisplayDatum", dbText, 20)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Baan", dbInteger)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_DisplayBaan", dbText, 10)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_Plaats", dbText, 50)
+
+tbDef.Fields.Append tbDef.CreateField("TYD_EST_Deelnemers", dbMemo)
+tbDef.Fields.Append tbDef.CreateField("TYD_O_EST_Deelnemers", dbMemo)
+For i = 1 To MAX_ESTAF_CNT
+  tbDef.Fields.Append tbDef.CreateField("TYD_EST_Startnummer_" & i, dbText, 12)
+  tbDef.Fields.Append tbDef.CreateField("TYD_EST_Naam_" & i, dbText, 50)
+  tbDef.Fields.Append tbDef.CreateField("TYD_O_EST_Startnummer_" & i, dbText, 12)
+  tbDef.Fields.Append tbDef.CreateField("TYD_O_EST_Naam_" & i, dbText, 50)
+Next i
+tbDef.Fields.Append tbDef.CreateField("TYD_Description_Short", dbMemo)
+tbDef.Fields.Append tbDef.CreateField("TYD_Description_Long", dbMemo)
+
+tbDef.Fields.Append tbDef.CreateField("TYD_REC_IsRegistered", dbBoolean)
+
+db.TableDefs.Append tbDef
+
+
+Set tbDef = db.CreateTableDef(tbNameDis)
+
+tbDef.Fields.Append tbDef.CreateField("DIS_Wedstrijdnummer", dbLong)
+tbDef.Fields.Append tbDef.CreateField("DIS_Programmanummer", dbText, 12)
+tbDef.Fields.Append tbDef.CreateField("DIS_Code", dbText, 10)
+tbDef.Fields.Append tbDef.CreateField("DIS_Custom_Beschrijving", dbText, 100)
+
+db.TableDefs.Append tbDef
+
+Set tbDef = Nothing
+
+Set db = Nothing
+
+uitAnalyze_CreateTables = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+
+
+'debug
+'On Error GoTo 0
+'Resume
+
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+
+End Function
+
+Private Function uitAnalyze_WriteTimes_Write(ByRef outpAll As Recordset, ByRef tyaMaxUsedID As Long, ByVal tyFullID As Long, _
+ByVal timePos As Integer, ByVal isOvergezet As Boolean, ByVal IsTusTijd As Boolean, ByVal wednr As Long, ByVal prognr As String, ByVal isEstaf As Boolean, ByVal estNr As Integer, ByVal estGes As String, ByVal estMinYOB As Long, _
+ByVal start As String, ByVal ges As String, ByVal gebDate As Date, ByVal actVer As String, ByVal dis As String, ByVal af As String, ByVal sl As String, ByVal td As Double) As Boolean
+On Error GoTo fout
+uitAnalyze_WriteTimes_Write = False
+
+Dim blSkip As Boolean
+
+
+blSkip = False
+
+If Not swtIsValid(td) Then
+  If (IsTusTijd) Or (dis = "") Then
+    blSkip = True
+  End If
+End If
+
+If Not blSkip Then
+
+
+  tyaMaxUsedID = tyaMaxUsedID + 1
+
+      outpAll.AddNew
+
+        outpAll("TYA_ID") = tyaMaxUsedID
+        outpAll("TYA_FullTimeID") = tyFullID
+        outpAll("TYA_FullTimePos") = timePos
+        outpAll("TYA_IsTransferred") = isOvergezet
+        
+        outpAll("TYA_IsTussenTijd") = IsTusTijd
+        
+        outpAll("TYA_Wedstrijdnummer") = wednr
+        outpAll("TYA_Programmanummer") = hzn(prognr)
+        outpAll("TYA_IsEstaf") = isEstaf
+
+        If (Not isEstaf) Then
+          outpAll("TYA_Estafettenummer") = Null
+          outpAll("TYA_EstGes") = Null
+          outpAll("TYA_EstMinYOB") = Null
+        
+          outpAll("TYA_Startnummer") = hzn(start)
+          outpAll("TYA_Geslacht") = hzn(ges)
+          outpAll("TYA_Geboortedatum") = gebDate
+        Else
+          outpAll("TYA_Estafettenummer") = estNr
+          outpAll("TYA_EstGes") = estGes
+          outpAll("TYA_EstMinYOB") = estMinYOB
+          
+          outpAll("TYA_Startnummer") = Null
+          outpAll("TYA_Geslacht") = Null
+        End If
+        
+        outpAll("TYA_ActVereniging") = hzn(actVer)
+        
+        outpAll("TYA_Afstand") = hzn(af)
+        outpAll("TYA_Slag") = hzn(sl)
+        
+        outpAll("TYA_Dis") = hzn(dis)
+        outpAll("TYA_Tijd") = td
+      outpAll.Update
+
+End If ' if not blSkip
+
+
+uitAnalyze_WriteTimes_Write = True
+Exit Function
+fout:
+MsgBox Err & " uitAnalyze_writeTimes_write" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+
+
+Private Function uitAnalyze_determinePRS_writePR(ByRef outpDetails As Recordset, ByRef wedS As Recordset, tyaID As Long, tyFullID As Long, wed As Long, prog As String, start As String, nm As String, _
+af As String, sl As String, time As Double, recBaan As Integer, recTime As Double, recWed As Long) As Boolean
+
+On Error GoTo fout
+uitAnalyze_determinePRS_writePR = False
+
+  outpDetails.AddNew
+  
+  outpDetails("TYD_REF_TYA_ID") = tyaID
+  outpDetails("TYD_REF_FullTimeID") = tyFullID
+  
+  outpDetails("TYD_Wedstrijdnummer") = wed
+  outpDetails("TYD_Programmanummer") = hzn(prog)
+  outpDetails("TYD_IsEstaf") = False
+  outpDetails("TYD_Type") = "PR"
+  outpDetails("TYD_Type_Omschrijving") = "Persoonlijke Records"
+        
+  outpDetails("TYD_Verbetering") = swtToSeconds(recTime) - swtToSeconds(time)
+        
+  outpDetails("TYD_IS_PR") = True
+  outpDetails("TYD_IS_CR") = False
+  outpDetails("TYD_IS_Custom_Record") = False
+          
+  outpDetails("TYD_Startnummer") = hzn(start)
+  outpDetails("TYD_Naam") = hzn(nm)
+          
+  outpDetails("TYD_Afstand") = hzn(af)
+  outpDetails("TYD_Slag") = hzn(sl)
+  outpDetails("TYD_Tijd") = time
+  
+  outpDetails("TYD_REC_Baan") = recBaan
+          
+  outpDetails("TYD_O_Tijd") = recTime
+  outpDetails("TYD_O_DisplayTijd") = hzn(fmtSwimTime(recTime))
+  outpDetails("TYD_O_Startnummer") = hzn(start)
+  outpDetails("TYD_O_Naam") = Null
+        
+  Dim oFnd As Boolean
+  Dim odat As Date, obn As Integer, opl As String
+  
+  odat = #1/1/1900#
+  obn = 0
+  opl = ""
+        
+        
+  wedS.Seek "=", recWed
+  If (Not wedS.NoMatch) Then
+    odat = Nz(wedS("datum"), #1/1/1900#)
+    obn = wedS("Baanlengte")
+    opl = Nz(wedS("Plaats"))
+    oFnd = True
+  End If
+           
+        
+  If (lenDateIsValid(odat)) Then
+    outpDetails("TYD_O_Datum") = odat
+    outpDetails("TYD_O_DisplayDatum") = hzn(Format(odat, "dd\-mm\-yyyy"))
+  Else
+    outpDetails("TYD_O_Datum") = Null
+    outpDetails("TYD_O_DisplayDatum") = Null
+  End If
+  
+  outpDetails("TYD_O_Baan") = obn
+  If (obn = 25) Or (obn = 50) Then
+    outpDetails("TYD_O_Baan") = obn
+    outpDetails("TYD_O_DisplayBaan") = obn & "m"
+  Else
+    outpDetails("TYD_O_BAAN") = Null
+    outpDetails("TYD_O_DisplayBaan") = Null
+  End If
+  
+  outpDetails("TYD_O_Plaats") = hzn(opl)
+          
+  outpDetails("TYD_O_Valid") = oFnd
+          
+  Dim oTdValid As Boolean, oPlValid As Boolean, oDatValid As Boolean, oNmValid As Boolean, oBnValid As Boolean
+        
+          
+  oPlValid = False
+  oDatValid = False
+  oNmValid = False
+  oBnValid = False
+        
+        
+
+  oPlValid = opl <> ""
+  oDatValid = lenDateIsValid(odat)
+  oBnValid = oPlValid And oDatValid And ((obn = 25) Or (obn = 50))
+  
+  Dim descriptionStrShort As String
+  Dim descriptionStrLong As String
+  
+
+          
+  descriptionStrShort = ""
+          
+  descriptionStrLong = "Verbetering oud pr in de tijd van " & fmtSwimTime(recTime)
+  If (oDatValid) Then
+    descriptionStrLong = descriptionStrLong & " gezwommen op " & Format(odat, "dd-mm-yyyy")
+    If (oPlValid) Then
+      descriptionStrLong = descriptionStrLong & " te " & opl
+      If (oBnValid) Then
+        descriptionStrLong = descriptionStrLong & " (" & obn & "m baan)"
+      End If
+    End If
+  End If
+          
+          
+  outpDetails("TYD_Description_Long") = hzn(descriptionStrLong)
+  outpDetails("TYD_Description_Short") = hzn(descriptionStrShort)
+          
+          
+  outpDetails.Update
+  
+uitAnalyze_determinePRS_writePR = True
+
+
+Exit Function
+
+fout:
+MsgBox Err & " uitAnalyze_determinePRs_writePR" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function uitAnalyze_determineRecs_ProcessRecSet_WriteRecord(ByRef outpDetails As Recordset, ByRef outpDis As Recordset, ByRef wedS As Recordset, ByRef recsInternal As Recordset, ByRef recsExternal As Recordset, ByRef swms As Recordset, ByRef vers As Recordset, ByRef est As Recordset, _
+  ByRef rsInfo As RECSET_BASIC_INFO, tyaID As Long, tyFullID As Long, isEstaf As Boolean, wed As Long, prog As String, start As String, ver As String, nm As String, _
+  estDescription As String, af As String, sl As String, ges As String, lft As Long, bn As Integer, time As Double, recTime As Double, blRecIsUpdated As Boolean, _
+  recnr As Long, recIsExt As Boolean, updVer As String, updWed As Long, updItem As String, _
+  recIsRegistered As Boolean, recRegisteredNr As Long) As Boolean
+
+On Error GoTo fout
+
+uitAnalyze_determineRecs_ProcessRecSet_WriteRecord = False
+
+
+
+Dim oldZwmStart As String, oldZwmName As String, oldZwmVoornaam As String, oldZwmVoegsel As String, oldZwmAchternaam As String
+Dim oldZwmGes As String, oldZwmGebDate As Date
+
+Dim oldRecWedDatum As Date, oldRecWedPlaats As String, oldRecWedDes As String, oldRecWedNation As String, oldRecWedBaanlengte As Integer
+Dim oldRecVer As String, oldRecVerDepot As String, oldRecVerNation As String, oldRecVerCode As String, oldRecVerWasEmpty As Boolean
+Dim oldNEstZwemmers As Integer, oldEstDeelnemers As String
+
+Dim oldRecActTime As Double, oldRecNDecimals As Integer
+
+Dim oldZwmIsValid As Boolean, oldEstIsValid As Boolean
+
+Dim oldEstStartnummers(0 To MAX_ESTAF_CNT) As String
+Dim oldEstNames(0 To MAX_ESTAF_CNT) As String
+Dim oldEstVoornaam(0 To MAX_ESTAF_CNT) As String
+Dim oldEstVoegsel(0 To MAX_ESTAF_CNT) As String
+Dim oldEstAchternaam(0 To MAX_ESTAF_CNT) As String
+Dim oldEstGeslacht(0 To MAX_ESTAF_CNT) As String
+Dim oldEstGebDate(0 To MAX_ESTAF_CNT) As Date
+
+
+
+If Not uitAnalyze_AddCustomDis(outpDis, wed, rsInfo.Code, rsInfo.nmSingle) Then
+  Exit Function
+End If
+
+
+'Have to lookup old record data. There are three different scenario's to consider
+'*Rec has been transferred and is external, so that old data can be read from RC_EXT_* fields
+'*Rec was just updated during this match. Used justUpdated data to determine old record data
+'*Lookup the old record from the (recnr, recIsExt) pair
+
+If (blRecIsUpdated) Then
+
+  oldRecActTime = recTime
+  oldRecNDecimals = 2
+
+
+  oldRecVer = updVer
+  oldRecVerWasEmpty = (oldRecVer = "")
+    
+  Dim tpOldWedNr As Long
+  tpOldWedNr = updWed
+    
+  wedS.Seek "=", tpOldWedNr
+  If (Not wedS.NoMatch) Then
+    oldRecWedBaanlengte = Nz(wedS("Baanlengte"))
+    oldRecWedPlaats = Nz(wedS("Plaats"))
+    oldRecWedDatum = Nz(wedS("Datum"))
+  Else
+    oldRecWedBaanlengte = 0
+    oldRecWedPlaats = ""
+    oldRecWedDatum = #1/1/1900#
+  End If
+    
+    
+  If (isEstaf) Then
+    oldEstDeelnemers = updItem
+  Else
+    oldZwmStart = updItem
+      
+    swms.Seek "=", oldZwmStart
+    If Not swms.NoMatch Then
+      oldZwmName = fmtName(Nz(swms("Voornaam")), Nz(swms("Voegsel")), Nz(swms("achternaam")))
+    Else
+      oldZwmName = ""
+    End If
+  End If
+    
+  oldZwmIsValid = (oldZwmName <> "") And (oldZwmName <> "Estafette") And (oldZwmName <> "Limiet")
+    
+  oldNEstZwemmers = 0
+  oldEstIsValid = (oldEstDeelnemers <> "")
+
+ElseIf (recIsRegistered And rsInfo.blManagedExternally) Then
+
+  'simply look up the old data
+  recsInternal.Seek "=", rsInfo.Code, recRegisteredNr
+  If (recsInternal.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  oldRecActTime = Nz(recsInternal("RC_EXT_OLD_TIJD"))
+  oldRecNDecimals = 2
+  
+    
+  oldRecVer = Nz(recsInternal("RC_EXT_OLD_Ver"))
+  oldRecVerWasEmpty = (oldRecVer = "")
+  
+  oldZwmStart = ""
+  oldZwmName = Nz(recsInternal("RC_EXT_OLD_Name"))
+  
+  oldEstDeelnemers = Nz(recsInternal("RC_EXT_OLD_EST_Deelnemers"))
+  oldRecWedPlaats = Nz(recsInternal("RC_EXT_OLD_Plaats"))
+  oldRecWedBaanlengte = Nz(recsInternal("RC_EXT_OLD_Baan"))
+  oldRecWedDatum = Nz(recsInternal("RC_EXT_OLD_Datum"), #1/1/1900#)
+  oldRecWedDes = ""
+  
+  
+  oldZwmIsValid = (oldZwmName <> "") And (oldZwmName <> "Estafette") And (oldZwmName <> "Limiet")
+    
+  oldNEstZwemmers = 0
+  oldEstIsValid = (oldEstDeelnemers <> "")
+    
+Else
+    
+  'lookup old record data
+  If Not recLkp_FindData(rsInfo, recnr, recIsExt, _
+    recsInternal, recsExternal, est, swms, vers, wedS, _
+    oldRecActTime, oldRecNDecimals, oldRecVer, oldRecVerDepot, oldRecVerNation, oldRecVerCode, oldRecVerWasEmpty, oldRecWedDatum, oldRecWedPlaats, oldRecWedDes, oldRecWedNation, oldRecWedBaanlengte, _
+    oldZwmIsValid, oldZwmStart, oldZwmName, oldZwmVoornaam, oldZwmVoegsel, oldZwmAchternaam, oldZwmGes, oldZwmGebDate, _
+    oldEstIsValid, oldNEstZwemmers, oldEstStartnummers, oldEstNames, oldEstDeelnemers, oldEstVoornaam, oldEstVoegsel, oldEstAchternaam, oldEstGeslacht, oldEstGebDate) Then
+    Exit Function
+  End If
+    
+  
+End If 'if blRecIsUpdate
+  
+  
+
+
+
+
+
+
+
+
+
+'OK; did the best job possible for finding out the old info.
+
+outpDetails.AddNew
+
+  outpDetails("TYD_REF_TYA_ID") = tyaID
+  outpDetails("TYD_REF_FullTimeID") = tyFullID
+  
+  outpDetails("TYD_Wedstrijdnummer") = wed
+  outpDetails("TYD_Programmanummer") = hzn(prog)
+  outpDetails("TYD_IsEstaf") = isEstaf
+          
+  outpDetails("TYD_TYPE") = rsInfo.Code
+  outpDetails("TYD_Type_Omschrijving") = rsInfo.nm
+          
+  outpDetails("TYD_IS_PR") = False
+  outpDetails("TYD_IS_CR") = True
+  outpDetails("TYD_IS_Custom_Record") = False
+          
+  Dim catCode As String
+  catCode = fmtCatCode(ges, lft)
+  
+  outpDetails("TYD_REC_Baan") = bn
+  outpDetails("TYD_REC_Geslacht") = ges
+  outpDetails("TYD_REC_Leeftijd") = lft
+  outpDetails("TYD_REC_Code") = rsInfo.Code
+  outpDetails("TYD_REC_Vereniging") = hzn(ver)
+  
+          
+          
+  outpDetails("TYD_Categorie") = hzn(catCode)
+          
+          
+          
+  If (isEstaf) Then
+    outpDetails("TYD_Startnummer") = "00-000"
+    
+    If (rsInfo.blIsMultiVer) Then
+      outpDetails("TYD_Naam") = hzn(ver)
+    Else
+      outpDetails("TYD_Naam") = "Estafette"
+    End If
+    outpDetails("TYD_EST_Deelnemers") = hzn(estDescription)
+  Else
+    outpDetails("TYD_Startnummer") = hzn(start)
+    outpDetails("TYD_Naam") = hzn(nm)
+  End If
+      
+    
+    
+  
+  outpDetails("TYD_O_Vereniging") = hzn(oldRecVer)
+  
+  Dim oldRecTimeValid As Boolean
+  oldRecTimeValid = swtIsValid(oldRecActTime)
+          
+  If Not oldRecTimeValid Then
+    outpDetails("TYD_Verbetering") = 0
+  Else
+    outpDetails("TYD_Verbetering") = swtToSeconds(oldRecActTime) - swtToSeconds(time)
+  End If
+  
+  Dim oPlValid As Boolean, oDatValid As Boolean, oBnValid As Boolean
+  Dim oNmValid As Boolean, oFullNameAndVer As String
+          
+  oPlValid = False
+  oDatValid = False
+  oBnValid = False
+  
+  oNmValid = False
+  oFullNameAndVer = ""
+          
+  
+  oPlValid = oldRecWedPlaats <> ""
+  oDatValid = lenDateIsValid(oldRecWedDatum)
+  oBnValid = oPlValid And oDatValid And ((oldRecWedBaanlengte = 25) Or (oldRecWedBaanlengte = 50))
+  
+  If (isEstaf) Then
+    If (rsInfo.blIsMultiVer) Then
+      If (oldEstIsValid) Then
+        oFullNameAndVer = oldEstDeelnemers & " van " & oldRecVer
+        oNmValid = True
+      ElseIf (Not oldRecVerWasEmpty) Then
+        oFullNameAndVer = oldRecVer
+        oNmValid = True
+      Else
+        oNmValid = False
+      End If
+    ElseIf (oldEstIsValid) Then
+      oFullNameAndVer = oldEstDeelnemers
+      oNmValid = True
+    Else
+      oNmValid = False
+    End If
+  ElseIf (oldZwmIsValid) Then
+    oFullNameAndVer = oldZwmName
+    If (dbIsMultipleVer) Then
+      oFullNameAndVer = oFullNameAndVer & " van " & oldRecVer
+    End If
+    oNmValid = True
+  Else
+    oNmValid = False
+  End If
+  
+  
+  
+  If (isEstaf) Then
+    outpDetails("TYD_O_Startnummer") = "00-000"
+    If (oNmValid) Then
+      If (rsInfo.blIsMultiVer) Then
+        outpDetails("TYD_O_Naam") = hzn(oldRecVer)
+      Else
+        outpDetails("TYD_O_Naam") = "Estafette"
+      End If
+    Else
+      outpDetails("TYD_O_Naam") = "Limiet"
+    End If
+    outpDetails("TYD_O_EST_Deelnemers") = hzn(oldEstDeelnemers)
+  Else
+    outpDetails("TYD_O_Startnummer") = hzn(oldZwmStart)
+    If (oNmValid) Then
+      outpDetails("TYD_O_Naam") = hzn(oldZwmName)
+    Else
+      outpDetails("TYD_O_Naam") = "Limiet"
+    End If
+  End If
+    
+             
+  outpDetails("TYD_Afstand") = hzn(af)
+  outpDetails("TYD_Slag") = hzn(sl)
+  outpDetails("TYD_Tijd") = time
+   
+  outpDetails("TYD_O_Tijd") = oldRecActTime
+  outpDetails("TYD_O_DisplayTijd") = hzn(Trim(fmtRecTime_Decimals(oldRecActTime, oldRecNDecimals, "")))
+  If (oDatValid) Then
+    outpDetails("TYD_O_Datum") = oldRecWedDatum
+    outpDetails("TYD_O_DisplayDatum") = hzn(Format(oldRecWedDatum, "dd\-mm\-yyyy"))
+  Else
+    outpDetails("TYD_O_Datum") = Null
+    outpDetails("TYD_O_DisplayDatum") = Null
+  End If
+  
+  outpDetails("TYD_O_Baan") = IIf(oBnValid, oldRecWedBaanlengte, 0)
+  If oBnValid Then
+    outpDetails("TYD_O_DisplayBaan") = oldRecWedBaanlengte & "m"
+  Else
+    outpDetails("TYD_O_DisplayBaan") = Null
+  End If
+  
+  outpDetails("TYD_O_Plaats") = hzn(oldRecWedPlaats)
+          
+          
+  
+  
+  outpDetails("TYD_O_Valid") = oldRecTimeValid
+          
+  Dim descriptionStrShort As String, descriptionStrLong As String
+  
+  descriptionStrShort = ""
+  descriptionStrLong = ""
+          
+  If (Not oldRecTimeValid) Then
+    descriptionStrLong = "Het record " & catCode & " werd niet eerder gezwomen."
+    descriptionStrShort = descriptionStrLong
+  Else
+    Dim vbTypeS As String
+    vbTypeS = "Verbetering "
+    If (time > oldRecActTime) Then
+      vbTypeS = "Egalisatie "
+    End If
+    If (Not oNmValid) Then
+      descriptionStrShort = vbTypeS & "startlimiet " & catCode
+      descriptionStrLong = vbTypeS & "startlimiet " & catCode & " van " & fmtRecTime_Decimals(oldRecActTime, oldRecNDecimals, "")
+    Else
+      
+      descriptionStrShort = vbTypeS & "oud record " & catCode & " van " & oFullNameAndVer
+      descriptionStrLong = vbTypeS & "oud record " & catCode & " van " & oFullNameAndVer & " in de tijd van " & fmtRecTime_Decimals(oldRecActTime, oldRecNDecimals, "")
+      If (oDatValid) Then
+        descriptionStrLong = descriptionStrLong & " gezwommen op " & Format(oldRecWedDatum, "dd\-mm\-yyyy")
+        If (oPlValid) Then
+          descriptionStrLong = descriptionStrLong & " te " & oldRecWedPlaats
+          If (oBnValid) Then
+            descriptionStrLong = descriptionStrLong & " (" & oldRecWedBaanlengte & "m baan)"
+          End If
+        End If
+      End If
+    End If
+  End If
+          
+  outpDetails("TYD_Description_Long") = hzn(descriptionStrLong)
+  outpDetails("TYD_Description_Short") = hzn(descriptionStrShort)
+  
+  outpDetails("TYD_REC_IsRegistered") = recIsRegistered
+          
+outpDetails.Update
+
+
+
+uitAnalyze_determineRecs_ProcessRecSet_WriteRecord = True
+Exit Function
+fout:
+MsgBox Err & " uitAnalyze_determineRecs_ProcessRecSet_WriteRecord" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Function uitAnalyze_determineRecs_ProcessRecSet(ByVal recCode As String, ByRef tdFull As Recordset, ByRef outpDetails As Recordset, ByRef outpDis As Recordset, ByRef wed As Recordset, _
+ByRef recsInternal As Recordset, ByRef recsExternal As Recordset, ByRef swms As Recordset, ByRef vers As Recordset, ByRef est As Recordset, ByRef regRecs As Recordset, ByRef wedInfo As WED_BASIC_INFO, ByVal tbNameAll As String, _
+ByVal nAfSl As String, ByRef lkpOrdAf() As String, lkpOrdSl() As String) As Boolean
+On Error GoTo fout
+uitAnalyze_determineRecs_ProcessRecSet = False
+
+Dim rsInfo As RECSET_BASIC_INFO
+Dim nRecAges As Integer
+Dim recAges(0 To MAX_N_REC_AGES) As Long
+Dim updVers(0 To 10000) As String
+Dim updWeds(0 To 10000) As Long
+Dim updItems(0 To 10000) As String
+Dim nUpdItems As Integer
+
+  Dim recTimes25M(0 To MAX_N_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25M(0 To MAX_N_AFSL, MAX_N_REC_AGES) As Long, recIsExt25M(0 To MAX_N_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50M(0 To MAX_N_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50M(0 To MAX_N_AFSL, MAX_N_REC_AGES) As Long, recIsExt50M(0 To MAX_N_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25V(0 To MAX_N_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25V(0 To MAX_N_AFSL, MAX_N_REC_AGES) As Long, recIsExt25V(0 To MAX_N_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50V(0 To MAX_N_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50V(0 To MAX_N_AFSL, MAX_N_REC_AGES) As Long, recIsExt50V(0 To MAX_N_AFSL, MAX_N_REC_AGES)  As Boolean
+  
+  Dim recTimes25X(0 To MAX_N_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs25X(0 To MAX_N_AFSL, MAX_N_REC_AGES) As Long, recIsExt25X(0 To MAX_N_AFSL, MAX_N_REC_AGES)  As Boolean
+  Dim recTimes50X(0 To MAX_N_AFSL, 0 To MAX_N_REC_AGES) As Double, recNrs50X(0 To MAX_N_AFSL, MAX_N_REC_AGES) As Long, recIsExt50X(0 To MAX_N_AFSL, MAX_N_REC_AGES)  As Boolean
+
+  
+
+'First initialize the records.
+
+If Not recLkp(recCode, nAfSl, lkpOrdAf, lkpOrdSl, _
+  wedInfo.date, wedInfo.wednr, rsInfo, nRecAges, recAges, _
+  updVers, updWeds, updItems, nUpdItems, _
+  recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+  recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+  recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+  
+  Exit Function
+End If
+  
+
+
+
+'Now loop through the times; in order.
+
+Dim sql As String
+sql = "select * from [" & tbNameAll & "] order by tya_wedstrijdnummer, val(nz([tya_programmanummer])), tya_programmanummer, tya_tijd desc"
+
+
+Dim td As Recordset
+Set td = CurrentDb().OpenRecordset(sql)
+
+td.MoveFirst
+Do Until td.EOF
+  Dim tpWed As Long
+  Dim tpProg As String
+  Dim tpStart As String
+  Dim tpGes As String
+  Dim tpGebDate As String
+  
+  Dim tpIsEstaf As Boolean
+  Dim tpEstNr As Integer
+  Dim tpEstMinYOB As Long
+  Dim tpEstGes As String
+  
+  Dim tpActVer As String
+  
+  Dim tpTime As Double
+  Dim tpDis As String
+  
+  Dim tpAf As String, tpSl As String
+  
+  Dim tpID As Long, tpFullId As Long
+  
+  Dim tpIsTransferred As Boolean
+  
+  tpIsTransferred = Nz(td("TYA_IsTransferred"))
+  
+  tpWed = Nz(td("TYA_Wedstrijdnummer"))
+  tpProg = Nz(td("TYA_Programmanummer"))
+  tpIsEstaf = Nz(td("TYA_IsEstaf"))
+  
+  If (tpIsEstaf) Then
+    tpEstNr = Nz(td("TYA_Estafettenummer"))
+    tpEstMinYOB = Nz(td("TYA_EstMinYOB"))
+    tpEstGes = Nz(td("TYA_EstGes"))
+    tpStart = ""
+    tpGes = ""
+    tpGebDate = #1/1/1900#
+  Else
+    tpStart = Nz(td("TYA_Startnummer"))
+    tpGes = Nz(td("TYA_Geslacht"))
+    tpGebDate = Nz(td("TYA_Geboortedatum"))
+    
+    tpEstNr = -1
+    tpEstMinYOB = 0
+    tpEstGes = ""
+  End If
+  
+  tpActVer = Nz(td("TYA_ActVereniging"))
+  
+  tpTime = Nz(td("TYA_Tijd"))
+  tpDis = Nz(td("TYA_Dis"))
+  
+  
+  tpAf = Nz(td("TYA_Afstand"))
+  tpSl = Nz(td("TYA_Slag"))
+  
+  tpID = Nz(td("TYA_ID"))
+  tpFullId = Nz(td("TYA_FullTimeID"))
+  
+  
+  Dim tpIsDis As String
+  tpIsDis = tpDis <> ""
+  
+  Dim tpWedDate As Date
+  Dim tpWedBaan As Integer
+  
+  Dim i As Integer
+  
+  'todo: may need to update this
+  
+  tpWedDate = wedInfo.date
+  tpWedBaan = wedInfo.baan
+  
+  
+  Dim nSatisfied As Integer, satLft(0 To MAX_N_REC_AGES) As Long, satLftIdx(0 To MAX_N_REC_AGES) As Integer, satBn(0 To MAX_N_REC_AGES) As Integer
+  Dim satAfSlIdx As Integer, satGes As String
+  Dim oldRecTimes(0 To MAX_N_REC_AGES) As Double, oldRecIsJustUpdated(0 To MAX_N_REC_AGES) As Boolean
+  Dim oldRecNrs(0 To MAX_N_REC_AGES) As Long, oldRecIsExt(0 To MAX_N_REC_AGES) As Boolean
+  Dim oldJustUpdatedVers(0 To MAX_N_REC_AGES) As String, oldJustUpdatedWeds(0 To MAX_N_REC_AGES) As Long
+  Dim oldJustUpdatedItems(0 To MAX_N_REC_AGES) As String
+  
+  Dim satIsRegistered(0 To MAX_N_REC_AGES) As Boolean
+  Dim satRegisteredRecNr(0 To MAX_N_REC_AGES) As Long
+  
+  
+  If (rsInfo.blManagedExternally And tpIsTransferred And (Not rsInfo.blIsFrozen)) Then
+  
+    'We have no control over the actual records at time of this match,
+    'since they are managed externally.
+    'We therefore simply used the previously stored records in regRecords
+    'To make sure that they are all considered,
+    'include all ages + baan here
+    
+    nSatisfied = 2 * (nRecAges + 1)
+    For i = 0 To nRecAges - 1
+      satLft(i) = recAges(i)
+      satBn(i) = 25
+      
+      satLft(i + (nRecAges + 1)) = recAges(i)
+      satBn(i + (nRecAges + 1)) = 50
+    Next i
+    satLft(nRecAges) = CAT_MAX_AGE
+    satLft(2 * nRecAges + 1) = CAT_MAX_AGE
+    
+    If (tpIsEstaf) Then
+      satGes = tpEstGes
+    Else
+      satGes = tpGes
+    End If
+    
+      
+  Else
+  
+    If Not recLkp_AnalyzeTime(tpWedDate, tpWedBaan, tpIsEstaf, tpStart, tpGebDate, tpGes, tpEstGes, tpEstMinYOB, _
+      tpAf, tpSl, tpTime, tpIsDis, _
+      nSatisfied, satAfSlIdx, satGes, satLft, satLftIdx, satBn, _
+      oldRecTimes, oldRecIsJustUpdated, oldRecNrs, oldRecIsExt, oldJustUpdatedVers, oldJustUpdatedWeds, oldJustUpdatedItems, _
+      rsInfo, nRecAges, recAges, _
+      nAfSl, lkpOrdAf, lkpOrdSl, _
+      updVers, updWeds, updItems, nUpdItems, _
+      recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+      recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+      recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+    
+      Exit Function
+    End If
+    
+  End If
+  
+  If (nSatisfied > 0) And (Not rsInfo.blIsFrozen) Then
+    'Need to determine which records are ok, in the sense that have already been registered.
+    Dim tpNwRcCode As String
+    Dim tpNwRcWed As Long
+    Dim tpNwRcAf As String
+    Dim tpNwRcSl As String
+    Dim tpNwRcGes As String
+    Dim tpNwRcLft As Long
+    Dim tpNwRcBn As Integer
+    Dim tpNwRcStart As String
+    Dim tpNwRcTimeX100 As Long
+    
+    'Work our way backwards, so we can eliminate unregistered records.
+    For i = nSatisfied - 1 To 0 Step -1
+      tpNwRcCode = rsInfo.Code
+      tpNwRcWed = tpWed
+      tpNwRcAf = tpAf
+      tpNwRcSl = tpSl
+      tpNwRcGes = satGes
+      tpNwRcLft = satLft(i)
+      tpNwRcBn = satBn(i)
+      If (tpIsEstaf) Then
+        tpNwRcStart = "00-000"
+      Else
+        tpNwRcStart = tpStart
+      End If
+      tpNwRcTimeX100 = CLng(tpTime * 100)
+      
+      regRecs.Seek "=", tpNwRcCode, tpNwRcWed, tpNwRcAf, tpNwRcSl, tpNwRcGes, tpNwRcLft, tpNwRcBn, tpNwRcStart, tpNwRcTimeX100
+      
+      Dim blInvalid As Boolean
+      blInvalid = False
+      
+      Dim blIsRegistered As Boolean, lRegRecnr As Long
+      blIsRegistered = Not (regRecs.NoMatch)
+      If (blIsRegistered) Then
+        lRegRecnr = Nz(regRecs("RC_Recordnummer"))
+      End If
+      
+      If (tpIsTransferred And (Not blIsRegistered)) Then
+        blInvalid = True
+      End If
+            
+      
+      If (blInvalid) Then
+        nSatisfied = nSatisfied - 1
+        If (i <> nSatisfied) Then
+          satLft(i) = satLft(nSatisfied)
+          satLftIdx(i) = satLftIdx(nSatisfied)
+          satBn(i) = satBn(nSatisfied)
+          
+          satIsRegistered(i) = satIsRegistered(nSatisfied)
+          satRegisteredRecNr(i) = satRegisteredRecNr(nSatisfied)
+          
+          oldRecTimes(i) = oldRecTimes(nSatisfied)
+          oldRecNrs(i) = oldRecNrs(nSatisfied)
+          oldRecIsExt(i) = oldRecIsExt(nSatisfied)
+          oldRecIsJustUpdated(i) = oldRecIsJustUpdated(nSatisfied)
+          oldJustUpdatedVers(i) = oldJustUpdatedVers(nSatisfied)
+          oldJustUpdatedWeds(i) = oldJustUpdatedWeds(nSatisfied)
+          oldJustUpdatedItems(i) = oldJustUpdatedItems(nSatisfied)
+        
+        End If 'if i <> nsatisfied
+        
+      Else
+      
+        satIsRegistered(i) = blIsRegistered
+        satRegisteredRecNr(i) = lRegRecnr
+        
+      End If 'if blInvalid
+    Next i
+    
+    
+  Else
+  
+    For i = 0 To nSatisfied - 1
+      satIsRegistered(i) = False
+    Next i
+    
+  End If 'if  nSatisfied > 0 and (not isFrozen)
+  
+  
+  
+  If (nSatisfied > 0) Then
+  
+    
+  
+  
+    'Need to process the new records
+    tdFull.Seek "=", tpFullId
+    
+    If tdFull.NoMatch Then
+      Err.Raise 1, , "internal error."
+    End If
+    
+    Dim tpName As String
+    Dim tpEstDeelnemers As String
+    
+    If (tpIsEstaf) Then
+      tpEstDeelnemers = Nz(tdFull("TY_EST_Deelnemers"))
+    Else
+      If (Nz(tdFull("TY_IsEstaf"), False)) Then
+        'this is the start time of the estafette
+        tpName = Nz(tdFull("TY_EST_Naam_1"))
+      Else
+        tpName = Nz(tdFull("TY_Naam"))
+      End If
+    End If
+  
+    Dim isNewRecNrs(0 To MAX_N_REC_AGES) As Boolean
+    Dim newRecNrs(0 To MAX_N_REC_AGES) As Long
+    Dim newRecIsExt(0 To MAX_N_REC_AGES) As Boolean
+  
+    
+    For i = 0 To nSatisfied - 1
+    
+      Dim tpRecTime As Double, tpRecIsUpdated As Boolean, tpRecNr As Long, tpRecIsExt As Boolean
+      Dim tpUpdVer As String, tpUpdWed As Long, tpUpdItem As String
+      Dim tpSatGes As String, tpSatLft As Long, tpSatBn As Integer
+      
+      Dim tpIsRecRegistered As Boolean, tpRegRecNr As Long
+    
+      tpRecTime = oldRecTimes(i)
+      tpRecIsUpdated = oldRecIsJustUpdated(i)
+      
+      tpRecNr = oldRecNrs(i)
+      tpRecIsExt = oldRecIsExt(i)
+      
+      tpUpdVer = oldJustUpdatedVers(i)
+      tpUpdWed = oldJustUpdatedWeds(i)
+      tpUpdItem = oldJustUpdatedItems(i)
+      
+      tpSatGes = satGes
+      tpSatLft = satLft(i)
+      tpSatBn = satBn(i)
+      
+      tpIsRecRegistered = satIsRegistered(i)
+      tpRegRecNr = satRegisteredRecNr(i)
+      
+      
+    
+      If Not uitAnalyze_determineRecs_ProcessRecSet_WriteRecord(outpDetails, outpDis, wed, recsInternal, recsExternal, swms, vers, est, rsInfo, tpID, tpFullId, tpIsEstaf, _
+        tpWed, tpProg, tpStart, tpActVer, tpName, tpEstDeelnemers, tpAf, tpSl, tpSatGes, tpSatLft, tpSatBn, tpTime, _
+         tpRecTime, tpRecIsUpdated, tpRecNr, tpRecIsExt, tpUpdVer, tpUpdWed, tpUpdItem, tpIsRecRegistered, tpRegRecNr) Then
+        Exit Function
+      End If
+      
+      isNewRecNrs(i) = False
+    Next i
+    
+    
+    If (Not (tpIsTransferred And rsInfo.blManagedExternally)) Then
+    
+      If (Not rsInfo.blIsFrozen) Then
+        If Not recLkp_UpdateRecord(tpTime, nSatisfied, _
+          satBn, satAfSlIdx, satGes, satLftIdx, _
+          isNewRecNrs, newRecNrs, newRecIsExt, _
+          tpIsEstaf, tpActVer, tpStart, tpEstDeelnemers, tpWed, _
+          updVers, updWeds, updItems, nUpdItems, _
+          recTimes25M, recNrs25M, recIsExt25M, recTimes50M, recNrs50M, recIsExt50M, _
+          recTimes25V, recNrs25V, recIsExt25V, recTimes50V, recNrs50V, recIsExt50V, _
+          recTimes25X, recNrs25X, recIsExt25X, recTimes50X, recNrs50X, recIsExt50X) Then
+        
+          Exit Function
+        End If
+      End If 'if not isFrozen
+      
+    End If
+    
+    
+    
+  
+  End If 'if nSatisfied > 0
+  
+  td.MoveNext
+Loop
+
+
+uitAnalyze_determineRecs_ProcessRecSet = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " uitAnalyze_determineRecs_ProcessRecSet" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function uitAnalyze_determineRecs_getRegRecs_createTable(ByVal tbName As String) As Boolean
+On Error GoTo fout
+uitAnalyze_determineRecs_getRegRecs_createTable = False
+
+DoCmd.DeleteObject acTable, tbName
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("RC_Code", dbText, 15)
+tb.Fields.Append tb.CreateField("RC_Recordnummer", dbLong)
+tb.Fields.Append tb.CreateField("RC_Wedstrijdnummer", dbLong)
+tb.Fields.Append tb.CreateField("RC_Afstand", dbText, 20)
+tb.Fields.Append tb.CreateField("RC_Slag", dbText, 20)
+tb.Fields.Append tb.CreateField("RC_Geslacht", dbText, 1)
+tb.Fields.Append tb.CreateField("RC_Leeftijd", dbLong)
+tb.Fields.Append tb.CreateField("RC_Baanlengte", dbInteger)
+tb.Fields.Append tb.CreateField("RC_Startnummer", dbText, 12)
+tb.Fields.Append tb.CreateField("RC_TijdX100", dbLong)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+
+idx.Fields.Append idx.CreateField("RC_Code", dbText, 15)
+idx.Fields.Append idx.CreateField("RC_Wedstrijdnummer", dbLong)
+idx.Fields.Append idx.CreateField("RC_Afstand", dbText, 20)
+idx.Fields.Append idx.CreateField("RC_Slag", dbText, 20)
+idx.Fields.Append idx.CreateField("RC_Geslacht", dbText, 1)
+idx.Fields.Append idx.CreateField("RC_Leeftijd", dbLong)
+idx.Fields.Append idx.CreateField("RC_Baanlengte", dbInteger)
+idx.Fields.Append idx.CreateField("RC_Startnummer", dbText, 12)
+idx.Fields.Append idx.CreateField("RC_TijdX100", dbLong)
+
+
+tb.Indexes.Append idx
+db.TableDefs.Append tb
+
+
+uitAnalyze_determineRecs_getRegRecs_createTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next
+MsgBox Err & " uitAnalyze_determineRecs_getRegRecs_createTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function uitAnalyze_determineRecs_getRegRecs(ByVal meetMainNr As Long) As Boolean
+On Error GoTo fout
+On Error GoTo fout
+uitAnalyze_determineRecs_getRegRecs = False
+
+If Not uitAnalyze_determineRecs_getRegRecs_createTable("~RegRecords") Then
+  Exit Function
+End If
+
+'Add all records swum during the meet to the table.
+
+Dim recSQL As String
+recSQL = "SELECT dtRecordsInternal.* FROM dtRecordsInternal INNER JOIN [dtWedstrijden] ON dtRecordsInternal.RC_Wedstrijdnummer = " & _
+"[dtWedstrijden].[Wedstrijd nummer] " & _
+"WHERE ((([dtWedstrijden].[Wedstrijd nummer])=" & meetMainNr & ")) OR ((([dtWedstrijden].MainWedstrijdNummer)= " & meetMainNr & "));"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(recSQL)
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~RegRecords")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpCode As String
+  Dim tpRecNr As Long
+  Dim tpWedNr As Long
+  Dim tpAf As String
+  Dim tpSl As String
+  Dim tpGes As String
+  Dim tpLft As Long
+  Dim tpBn As Integer
+  Dim tpTd As Double
+  Dim tpStart As String
+  
+  tpCode = Nz(rs("RC_Code"))
+  tpRecNr = Nz(rs("RC_Recordnummer"))
+  tpWedNr = Nz(rs("RC_Wedstrijdnummer"))
+  tpAf = Nz(rs("RC_Afstand"))
+  tpSl = Nz(rs("RC_Slag"))
+  tpGes = Nz(rs("RC_Geslacht"))
+  tpLft = Nz(rs("RC_Leeftijd"))
+  tpBn = Nz(rs("RC_Baanlengte"))
+  tpTd = Nz(rs("RC_Tijd"))
+  If (tpAf Like "*x*") Then
+    tpStart = "00-000"
+  Else
+    tpStart = Nz(rs("RC_Startnummer"))
+  End If
+  
+  
+  outp.AddNew
+    outp("RC_Code") = hzn(tpCode)
+    outp("RC_Recordnummer") = tpRecNr
+    outp("RC_Wedstrijdnummer") = tpWedNr
+    outp("RC_Afstand") = hzn(tpAf)
+    outp("RC_Slag") = hzn(tpSl)
+    outp("RC_Geslacht") = hzn(tpGes)
+    outp("RC_Leeftijd") = tpLft
+    outp("RC_Baanlengte") = tpBn
+    outp("RC_Startnummer") = hzn(tpStart)
+    outp("RC_TijdX100") = CLng(tpTd * 100)
+  outp.Update
+    
+  rs.MoveNext
+Loop
+
+
+uitAnalyze_determineRecs_getRegRecs = True
+Exit Function
+fout:
+If (Err = 3022) Then Resume Next ' if duplicate key problem, just ignore
+If (Err = 3021) Then Resume Next
+MsgBox Err & " uitAnalyze_determineRecs_getRegRecs" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+Private Function uitAnalyze_determineRecs_getRegRecs_cleanup() As Boolean
+On Error GoTo fout
+uitAnalyze_determineRecs_getRegRecs_cleanup = False
+
+DoCmd.DeleteObject acTable, "~RegRecords"
+
+uitAnalyze_determineRecs_getRegRecs_cleanup = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next 'could not find object
+MsgBox Err & " uitAnalyze_determineRecs_getRegRecs_cleanup" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function uitAnalyze_determineRecs(ByRef wedInfo As WED_BASIC_INFO, ByVal tbNameAll As String, ByVal tbNameMain As String, tbNameDetails As String, tbNameDis As String) As Boolean
+On Error GoTo fout
+uitAnalyze_determineRecs = False
+
+'First build a list of af-slag pairs
+
+Dim nAfSl As Integer
+Dim lkpOrdAf(0 To MAX_N_AFSL) As String
+Dim lkpOrdSl(0 To MAX_N_AFSL) As String
+
+nAfSl = 0
+
+Dim sql As String
+sql = "select tya_afstand, tya_slag from [" & tbNameAll & "] group by tya_afstand, tya_slag order by tya_afstand, tya_slag"
+
+Dim td As Recordset
+Set td = CurrentDb().OpenRecordset(sql)
+
+Dim tdFull As Recordset
+Set tdFull = CurrentDb().OpenRecordset(tbNameMain)
+tdFull.Index = "PrimaryKey"
+
+Dim wedS As Recordset
+Set wedS = CurrentDb().OpenRecordset("dtWedstrijden")
+wedS.Index = "PrimaryKey"
+
+Dim outpDetails As Recordset
+Set outpDetails = CurrentDb().OpenRecordset(tbNameDetails)
+
+
+Dim outpDis As Recordset
+Set outpDis = CurrentDb().OpenRecordset(tbNameDis)
+
+
+Dim recsInternal As Recordset
+Dim recsExternal As Recordset
+
+Set recsInternal = CurrentDb().OpenRecordset("dtRecordsInternal")
+recsInternal.Index = "PrimaryKey"
+
+Set recsExternal = CurrentDb().OpenRecordset("dtRecordsExternal")
+'Do not use the standard primary key, but the RC_ID primary key
+recsExternal.Index = "RC_ID"
+
+Dim swms As Recordset
+Set swms = CurrentDb().OpenRecordset("dtLeden")
+swms.Index = "PrimaryKey"
+
+Dim vers As Recordset
+Set vers = CurrentDb().OpenRecordset("dtVerenigingen")
+vers.Index = "PrimaryKey"
+
+Dim est As Recordset
+Set est = CurrentDb().OpenRecordset("dtEstafettes")
+est.Index = "PrimaryKey"
+
+
+
+
+
+
+
+Dim curAf As String
+Dim curSl As String
+
+curAf = ""
+curSl = ""
+
+td.MoveFirst
+Do Until td.EOF
+  Dim tpAf As String, tpSl As String
+  tpAf = Nz(td("TYA_Afstand"))
+  tpSl = Nz(td("TYA_Slag"))
+  
+  If (tpAf <> curAf) Or (tpSl <> curSl) Then
+    
+    insAfSlag tpAf, tpSl, nAfSl, lkpOrdAf, lkpOrdSl
+    
+    curAf = tpAf
+    curSl = tpSl
+  End If
+
+
+  td.MoveNext
+Loop
+
+appCleanRS td
+
+
+
+'Now need to build  a table with already registered records.
+
+
+If Not uitAnalyze_determineRecs_getRegRecs(wedInfo.meetMainNr) Then
+  Exit Function
+End If
+
+Dim regRecs As Recordset
+Set regRecs = CurrentDb().OpenRecordset("~RegRecords")
+regRecs.Index = "PrimaryKey"
+
+
+
+
+
+Dim rsCodes(0 To MAX_N_RECSETS) As String
+Dim nRecSets As Integer
+
+If Not rcsGetList(nRecSets, rsCodes) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nRecSets - 1
+  If Not uitAnalyze_determineRecs_ProcessRecSet(rsCodes(i), tdFull, outpDetails, outpDis, wedS, recsInternal, recsExternal, swms, vers, est, regRecs, wedInfo, tbNameAll, nAfSl, lkpOrdAf, lkpOrdSl) Then
+    Exit Function
+  End If
+Next i
+
+appCleanRS regRecs
+
+If Not uitAnalyze_determineRecs_getRegRecs_cleanup() Then
+  Exit Function
+End If
+
+
+appCleanRS tdFull
+appCleanRS outpDetails
+appCleanRS wedS
+appCleanRS swms
+appCleanRS est
+
+appCleanRS recsInternal
+appCleanRS recsExternal
+
+
+If Not uitAnalyze_determineRecs_findSuspects(tbNameDetails) Then
+  Exit Function
+End If
+
+
+uitAnalyze_determineRecs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " uitAnalyze_determineRecs" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function uitAnalyze_determineRecs_findSuspects(ByVal tbNameDetails As String) As Boolean
+On Error GoTo fout
+uitAnalyze_determineRecs_findSuspects = False
+
+
+
+Dim sql As String
+
+sql = "update [" & tbNameDetails & "] set tyd_rec_isSuspect = false where tyd_is_cr = true;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+'Note that we here sort the time in an ascending fashion!
+sql = "select * from [" & tbNameDetails & "] where tyd_is_cr = true order by tyd_rec_code,  tyd_wedstrijdnummer, val(nz([tyd_programmanummer])), tyd_programmanummer, tyd_rec_leeftijd, tyd_rec_geslacht, tyd_rec_baan, tyd_afstand, tyd_slag, tyd_tijd"
+
+Dim rsNewRecs As Recordset
+Set rsNewRecs = CurrentDb().OpenRecordset(sql)
+
+rsNewRecs.MoveFirst
+
+Dim curCode As String, curWed As Long, curProg As String, curLft As Long, curGes As String, curBn As Long, curAf As String, curSl As String, curFastTime As Double
+
+
+curCode = ""
+curWed = -1
+curProg = ""
+curLft = -1
+curGes = ""
+curBn = -1
+curAf = ""
+curSl = ""
+
+Do Until rsNewRecs.EOF
+
+  Dim tpCode As String, tpWed As Long, tpProg As String, tpLft As Long, tpGes As String, tpBn As Long, tpAf As String, tpSl As String
+  tpCode = Nz(rsNewRecs("TYD_REC_Code"))
+  tpWed = Nz(rsNewRecs("TYD_Wedstrijdnummer"))
+  tpProg = Nz(rsNewRecs("TYD_Programmanummer"))
+  tpLft = Nz(rsNewRecs("TYD_REC_Leeftijd"))
+  tpGes = Nz(rsNewRecs("TYD_REC_Geslacht"))
+  tpBn = Nz(rsNewRecs("TYD_REC_Baan"))
+  tpAf = Nz(rsNewRecs("TYD_Afstand"))
+  tpSl = Nz(rsNewRecs("TYD_Slag"))
+  
+  Dim isNewSubSet As Boolean
+  
+  isNewSubSet = False
+  
+  If (tpCode <> curCode) Then
+    isNewSubSet = True
+  End If
+  
+  If (tpWed <> curWed) Then
+    isNewSubSet = True
+  End If
+  
+  If (tpProg <> curProg) Then
+    isNewSubSet = True
+  End If
+  
+  If (tpLft <> curLft) Then
+    isNewSubSet = True
+  End If
+  
+  If (tpGes <> curGes) Then
+    isNewSubSet = True
+  End If
+  
+  If (tpBn <> curBn) Then
+    isNewSubSet = True
+  End If
+  
+  If (tpAf <> curAf) Then
+    isNewSubSet = True
+  End If
+  
+  If (tpSl <> curSl) Then
+    isNewSubSet = True
+  End If
+  
+  
+  curCode = tpCode
+  curWed = tpWed
+  curProg = tpProg
+  curLft = tpLft
+  curGes = tpGes
+  curBn = tpBn
+  curAf = tpAf
+  curSl = tpSl
+  
+  If (isNewSubSet) Then
+    curFastTime = Nz(rsNewRecs("TYD_Tijd"))
+  Else
+    'Need to mark record as suspect
+    rsNewRecs.Edit
+      rsNewRecs("TYD_REC_IsSuspect") = True
+      rsNewRecs("TYD_REC_SuspectReason") = "Record van " & fmtSwimTime(curFastTime) & " in prognr " & curProg & " was mogelijk eerder."
+    rsNewRecs.Update
+  End If
+  
+  
+
+  rsNewRecs.MoveNext
+Loop
+
+appCleanRS rsNewRecs
+
+
+
+
+uitAnalyze_determineRecs_findSuspects = True
+Exit Function
+
+fout:
+
+If (Err = 3021) Then Resume Next ' no current record
+
+DoCmd.SetWarnings True
+
+MsgBox Err & " uitAnalyze_determineRecs_findSuspects" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+
+
+
+Private Function uitAnalyze_determinePRs(ByRef wedInfo As WED_BASIC_INFO, ByVal tbNameAll As String, ByVal tbNameMain As String, tbNameDetails As String) As Boolean
+On Error GoTo fout
+uitAnalyze_determinePRs = False
+
+
+Dim rs As Recordset
+
+If Not prsLkp_Initialize(rs) Then
+  Exit Function
+End If
+
+
+
+Dim wedS As Recordset
+Set wedS = CurrentDb().OpenRecordset("dtWedstrijden")
+wedS.Index = "PrimaryKey"
+
+Dim outpDetails As Recordset
+Set outpDetails = CurrentDb().OpenRecordset(tbNameDetails)
+
+
+
+Dim sql As String
+sql = "select * from [" & tbNameAll & "] where tya_isEstaf = false order by tya_startnummer, tya_afstand, tya_slag"
+
+Dim td As Recordset
+Set td = CurrentDb().OpenRecordset(sql)
+
+Dim tdFull As Recordset
+Set tdFull = CurrentDb().OpenRecordset(tbNameMain)
+tdFull.Index = "PrimaryKey"
+
+Dim curAf As String
+Dim curSl As String
+Dim curStart As String
+
+curStart = ""
+curAf = ""
+curSl = ""
+
+td.MoveFirst
+Do Until td.EOF
+  Dim tpStart As String, tpAf As String, tpSl As String
+  tpStart = Nz(td("TYA_Startnummer"))
+  tpAf = Nz(td("TYA_Afstand"))
+  tpSl = Nz(td("TYA_Slag"))
+  
+  If (curStart <> tpStart) Or (tpAf <> curAf) Or (tpSl <> curSl) Then
+    If Not prsLkp_AddItem(rs, tpStart, tpAf, tpSl) Then
+      Exit Function
+    End If
+  
+    curStart = tpStart
+    curAf = tpAf
+    curSl = tpSl
+  End If
+
+
+  td.MoveNext
+Loop
+
+appCleanRS td
+
+
+If Not prsLkp_Acquire(rs, #1/1/1900#, wedInfo.date, wedInfo.wednr) Then
+  Exit Function
+End If
+
+
+sql = "select * from [" & tbNameAll & "] where tya_isEstaf = false order by tya_wedstrijdnummer, val(nz([tya_programmanummer])), tya_programmanummer"
+Set td = CurrentDb().OpenRecordset(sql)
+
+td.MoveFirst
+Do Until td.EOF
+
+  Dim tpWed As Long
+  Dim tpProg As String
+  Dim tpBn As Integer
+  Dim tpID As Long
+  Dim tpTime As Double
+  Dim tpFullTimeID As Long
+  
+  
+  tpWed = Nz(td("TYA_Wedstrijdnummer"))
+  tpProg = Nz(td("TYA_Programmanummer"))
+  tpBn = wedInfo.baan
+  tpID = Nz(td("TYA_ID"))
+  tpTime = Nz(td("TYA_Tijd"))
+  tpFullTimeID = Nz(td("TYA_FullTimeID"))
+  
+  tpStart = Nz(td("TYA_Startnummer"))
+  tpAf = Nz(td("TYA_Afstand"))
+  tpSl = Nz(td("TYA_Slag"))
+  
+  
+  Dim recTime25 As Double, recTime50 As Double
+  Dim recWedNr25 As Long, recWedNr50 As Long
+  Dim isFnd As Boolean
+   
+  If Not prsLkp_Lookup(rs, tpStart, tpAf, tpSl, isFnd, recTime25, recWedNr25, recTime50, recWedNr50) Then
+    Exit Function
+  End If
+  
+  If (isFnd) Then
+    'have to analyze and see if it is a pr
+    Dim isPR25 As Boolean, isPR50 As Boolean
+    isPR25 = False
+    isPR50 = False
+    
+    If (swtIsValid(tpTime)) Then
+      If (tpBn = 50) Then
+        If (swtIsValid(recTime50)) Then
+          If tpTime < recTime50 Then
+            isPR50 = True
+          End If
+        End If
+        If (swtIsValid(recTime25)) Then
+          If (tpTime < recTime25) Then
+            isPR25 = True
+          End If
+        End If
+      Else
+        If (swtIsValid(recTime25)) Then
+          If (tpTime < recTime25) Then
+            isPR25 = True
+          End If
+        End If 'if swtIsValid
+      End If 'if tpBn =50
+    End If
+    
+    Dim tpName As String
+    tpName = ""
+    If (isPR25 Or isPR50) Then
+      'need to extract nam
+      tdFull.Seek "=", tpFullTimeID
+      If tdFull.NoMatch Then
+        Err.Raise 1, , "Internal error."
+      Else
+        Dim tpFullIsEstaf As Boolean
+        tpFullIsEstaf = Nz(tdFull("TY_IsEstaf"))
+        If (tpFullIsEstaf) Then
+          tpName = Nz(tdFull("TY_EST_Naam_1"))
+        Else
+          tpName = Nz(tdFull("TY_Naam"))
+        End If
+      End If
+    End If
+    
+    If (isPR25) Then
+      If Not uitAnalyze_determinePRS_writePR(outpDetails, wedS, tpID, tpFullTimeID, tpWed, tpProg, tpStart, tpName, tpAf, tpSl, tpTime, 25, recTime25, recWedNr25) Then
+        Exit Function
+      End If
+      
+      If Not prsLkp_Update(rs, tpStart, tpAf, tpSl, 25, tpTime, tpWed, True) Then
+        Exit Function
+      End If
+    End If
+    If (isPR50) Then
+      If Not uitAnalyze_determinePRS_writePR(outpDetails, wedS, tpID, tpFullTimeID, tpWed, tpProg, tpStart, tpName, tpAf, tpSl, tpTime, 50, recTime50, recWedNr50) Then
+        Exit Function
+      End If
+      If Not prsLkp_Update(rs, tpStart, tpAf, tpSl, 50, tpTime, tpWed, True) Then
+        Exit Function
+      End If
+    End If
+    
+  End If 'if isFnd
+   
+
+  td.MoveNext
+Loop
+
+If Not prsLkp_Cleanup(rs) Then
+  Exit Function
+End If
+
+appCleanRS rs
+
+appCleanRS td
+appCleanRS tdFull
+appCleanRS wedS
+appCleanRS outpDetails
+
+
+uitAnalyze_determinePRs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " uitAnalyze_determinePRS" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function uitAnalyze_recCustomDescription(ByVal recTypeCode As String, plural As Boolean) As String
+On Error Resume Next
+If (recTypeCode = "KR") Then
+  uitAnalyze_recCustomDescription = "Kringrecord" & IIf(plural, "s", "")
+ElseIf (recTypeCode = "NR") Then
+  uitAnalyze_recCustomDescription = IIf(plural, "Nederlandse records", "Nederlands record")
+ElseIf (recTypeCode = "BJP") Then
+  uitAnalyze_recCustomDescription = IIf(plural, "Beste Jaargangs Prestaties", "Beste Jaargangs Prestatie")
+ElseIf (recTypeCode = "WR") Then
+  uitAnalyze_recCustomDescription = IIf(plural, "Wereldrecords", "Wereldrecord")
+ElseIf (recTypeCode = "OR") Then
+  uitAnalyze_recCustomDescription = IIf(plural, "Olympische Records", "Olympisch Record")
+ElseIf (recTypeCode = "ER") Then
+  uitAnalyze_recCustomDescription = IIf(plural, "Europese Records", "Europees Record")
+ElseIf (recTypeCode = "MR") Then
+  uitAnalyze_recCustomDescription = IIf(plural, "Master Records", "Master Record")
+Else
+  uitAnalyze_recCustomDescription = recTypeCode
+End If
+  
+End Function
+
+
+Private Function uitAnalyze_determineCustomRecs_TestTime(ByRef outpDis As Recordset, ByRef outpDetails As Recordset, ByRef tdFull As Recordset, ByVal tyFullID As Long, ByVal tyaID As Long, ByVal wednr As Long, ByVal prognr As String, ByVal isForCat As Boolean, ByVal cat As String, ByVal isEstaf As Boolean, ByVal startnr As String, ByVal af As String, ByVal sl As String, ByVal bn As Integer, ByVal td As Double, ByRef rec As RECORD_INFO) As Boolean
+On Error GoTo fout
+uitAnalyze_determineCustomRecs_TestTime = False
+Dim i As Integer
+
+Dim recTime As Double
+recTime = rec.Tijd
+
+Dim recTimeValid As Boolean
+recTimeValid = swtIsValid(recTime)
+
+Dim recCustomDescription As String
+Dim recCustomDescriptionPlural As String
+recCustomDescription = uitAnalyze_recCustomDescription(Trim(rec.recType), False)
+recCustomDescriptionPlural = uitAnalyze_recCustomDescription(Trim(rec.recType), True)
+
+If (recTimeValid) Then
+  'Have to see if record is beaten.
+  If (td + 0.0001 < recTime) Then
+  
+    If (Not uitAnalyze_AddCustomDis(outpDis, wednr, Trim(rec.recType), recCustomDescription)) Then
+      Exit Function
+    End If
+    
+    Dim tpName As String
+    Dim tpEstDeelns As String
+    
+    tpName = ""
+    tpEstDeelns = ""
+    
+    tdFull.Seek "=", tyFullID
+    If Not tdFull.NoMatch Then
+      tpName = Nz(tdFull("TY_Naam"))
+      tpEstDeelns = Nz(tdFull("TY_Est_Deelnemers"))
+    End If
+    
+
+    outpDetails.AddNew
+      outpDetails("TYD_REF_TYA_ID") = tyaID
+      outpDetails("TYD_Wedstrijdnummer") = wednr
+      outpDetails("TYD_Programmanummer") = hzn(prognr)
+      outpDetails("TYD_IsEstaf") = isEstaf
+      outpDetails("TYD_Type") = hzn(Left(Trim(rec.recType), 5))
+      outpDetails("TYD_Type_Omschrijving") = hzn(recCustomDescriptionPlural)
+      
+      outpDetails("TYD_O_Valid") = True
+          
+      outpDetails("TYD_Verbetering") = swtToSeconds(recTime) - swtToSeconds(td)
+      outpDetails("TYD_IS_PR") = False
+      outpDetails("TYD_IS_CR") = False
+      outpDetails("TYD_IS_Custom_Record") = True
+        
+      If (isForCat) Then
+        outpDetails("TYD_Categorie") = hzn(Trim(cat))
+      End If
+        
+        
+        
+      If (isEstaf) Then
+        outpDetails("TYD_Startnummer") = "00-000"
+        outpDetails("TYD_Naam") = "Estafette"
+        outpDetails("TYD_O_Startnummer") = "00-000"
+        outpDetails("TYD_O_Naam") = hzn(rec.naam)
+          
+        outpDetails("TYD_EST_Deelnemers") = hzn(tpEstDeelns)
+          
+      Else
+        outpDetails("TYD_Startnummer") = hzn(startnr)
+        outpDetails("TYD_Naam") = hzn(tpName)
+        outpDetails("TYD_O_Startnummer") = Null
+        outpDetails("TYD_O_Naam") = hzn(Trim(rec.naam))
+      End If
+        
+        
+      outpDetails("TYD_Afstand") = hzn(af)
+      outpDetails("TYD_Slag") = hzn(sl)
+      outpDetails("TYD_Tijd") = td
+      outpDetails("TYD_O_Tijd") = rec.Tijd
+      outpDetails("TYD_O_DisplayTijd") = hzn(fmtSwimTime(rec.Tijd))
+      
+      If (lenDateIsValid(rec.Datum)) Then
+        outpDetails("TYD_O_Datum") = rec.Datum
+        outpDetails("TYD_O_DisplayDatum") = hzn(Format(rec.Datum, "dd\-mm\-yyyy"))
+      Else
+        outpDetails("TYD_O_Datum") = Null
+        outpDetails("TYD_O_DisplayDatum") = Null
+      End If
+      
+      outpDetails("TYD_O_Baan") = 0
+      outpDetails("TYD_O_DisplayBaan") = Null
+      
+      outpDetails("TYD_O_Plaats") = hzn(Trim(rec.Plaats))
+    
+    
+      Dim descriptionStrShort As String, descriptionStrLong As String
+      descriptionStrShort = ""
+      descriptionStrLong = ""
+    
+      Dim oPlValid As Boolean, oDatValid As Boolean, oNmValid As Boolean, oBnValid As Boolean
+      Dim catValid As Boolean
+    
+      catValid = isForCat
+      oPlValid = False
+      oDatValid = False
+      oNmValid = False
+    
+      oPlValid = Trim(rec.Plaats) <> ""
+      oDatValid = CInt(val(Format(rec.Datum, "yyyy"))) > 1900
+      oNmValid = IIf(isEstaf, False, Trim(rec.naam) <> "")
+          
+      If (catValid) Then
+        descriptionStrShort = "Verbetering oud " & Trim(rec.recType) & " " & Trim(cat)
+        descriptionStrLong = descriptionStrShort
+      Else
+         descriptionStrShort = "Verbetering oud " & Trim(rec.recType)
+         descriptionStrLong = descriptionStrShort
+      End If
+        
+      If (Not oNmValid) Then
+        descriptionStrLong = descriptionStrLong & " van " & fmtSwimTime(rec.Tijd)
+      Else
+        descriptionStrShort = descriptionStrShort & " van " & Trim(rec.naam)
+        descriptionStrLong = descriptionStrShort & " in de tijd van " & fmtSwimTime(rec.Tijd)
+      End If
+            
+            
+      If (oDatValid) Then
+        descriptionStrLong = descriptionStrLong & " gezwommen op " & Format(rec.Datum, "dd-mm-yyyy")
+        If (oPlValid) Then
+          descriptionStrLong = descriptionStrLong & " te " & Trim(rec.Plaats)
+        End If
+      End If
+        
+      outpDetails("TYD_Description_Long") = hzn(descriptionStrLong)
+      outpDetails("TYD_Description_Short") = hzn(descriptionStrShort)
+        
+    outpDetails.Update
+        
+  End If 'if td < recTime
+End If 'if recTimeValid
+
+
+uitAnalyze_determineCustomRecs_TestTime = True
+Exit Function
+fout:
+MsgBox Err & " uitAnalyze_determineCustomRecs_TestTime" & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+Exit Function
+End Function
+
+Private Function uitAnalyze_determineCustomRecs(ByRef wedInfo As WED_BASIC_INFO, ByVal tbNameAll As String, ByVal tbNameMain As String, tbNameDetails As String, tbNameDis As String) As Boolean
+On Error GoTo fout
+uitAnalyze_determineCustomRecs = False
+
+
+
+Dim prs As Recordset
+Set prs = CurrentDb().OpenRecordset(TNM_PR)
+prs.Index = "PrimaryKey"
+
+Dim tdFull As Recordset
+Set tdFull = CurrentDb().OpenRecordset(tbNameMain)
+tdFull.Index = "PrimaryKey"
+
+Dim outpDis As Recordset
+Set outpDis = CurrentDb().OpenRecordset(tbNameDis)
+
+
+Dim outpDetails As Recordset
+Set outpDetails = CurrentDb().OpenRecordset(tbNameDetails)
+
+
+
+Dim nMCatProgs As Integer
+Dim mCatProgNames(0 To MAX_N_PROGS) As String
+Dim mCatProgOffs(0 To MAX_N_PROGS) As Integer
+Dim mCatProgCatCnt(0 To MAX_N_PROGS) As Integer
+Dim catInfo(0 To MAX_N_VAR_CATS) As CAT_INFO
+Dim dummy(0 To 0) As String
+
+'Need only to process eindtijden.
+
+Dim sql As String
+sql = "select * from [" & tbNameAll & "] where tya_isTussentijd = false order by tya_wedstrijdnummer, tya_programmanummer "
+
+Dim td As Recordset
+Set td = CurrentDb().OpenRecordset(sql)
+
+Dim curWed As Long
+Dim curProg As String
+curWed = -1
+curProg = ""
+Dim curProgRec As RECORD_INFO
+
+td.MoveFirst
+Do Until td.EOF
+
+  Dim tpWed As Long
+  Dim tpProg As String
+  
+  Dim tpFullId As Long
+  Dim tpTYAId As Long
+  
+  tpWed = Nz(td("TYA_Wedstrijdnummer"))
+  tpProg = Nz(td("TYA_Programmanummer"))
+  
+  tpFullId = Nz(td("TYA_FullTimeID"))
+  tpTYAId = Nz(td("TYA_ID"))
+  
+  If (tpWed <> curWed) Then
+    If Not catInfoGetListForWed(tpWed, nMCatProgs, mCatProgNames, dummy, mCatProgOffs, mCatProgCatCnt, catInfo) Then
+      Exit Function
+    End If
+
+    curWed = tpWed
+    curProg = ""
+  End If
+  
+  If (tpProg <> curProg) Then
+    'Need to read new rec.
+    
+    prs.Seek "=", tpWed, tpProg
+    If (Not prs.NoMatch) Then
+      If Not lenReadRecInfo(curProgRec, prs, "") Then
+        Exit Function
+      End If
+    Else
+      If Not lenInitRecInfo(curProgRec) Then
+        Exit Function
+      End If
+    End If
+    
+    curProg = tpProg
+  End If
+
+
+  Dim tpIsEstaf As Boolean
+  tpIsEstaf = Nz(td("TYA_IsEstaf"))
+  
+  Dim tpStart  As String
+  Dim tpTime As Double
+  Dim tpGes As String
+  Dim tpGebDate As Date
+  Dim tpDis As String
+  
+  tpStart = Nz(td("TYA_Startnummer"))
+  tpTime = Nz(td("TYA_Tijd"))
+  tpGes = Nz(td("TYA_Geslacht"))
+  tpGebDate = Nz(td("TYA_GeboorteDatum"))
+  
+  tpDis = Nz(td("TYA_Dis"))
+  
+  Dim tpAf As String
+  Dim tpSl As String
+  Dim tpBn As Integer
+  
+  tpAf = Nz(td("TYA_Afstand"))
+  tpSl = Nz(td("TYA_Slag"))
+  
+  tpBn = wedInfo.baan
+  
+  Dim blSkip As Boolean
+  blSkip = Not swtIsValid(tpTime) Or (tpDis <> "")
+  
+
+  If Not blSkip Then
+    Dim varCatIdx As Integer
+    If (Not tpIsEstaf) Then
+      varCatIdx = catInfoGetSatisfiedCatIdx(wedInfo.ageDate, wedInfo.lftBep, tpProg, tpStart, tpGes, tpGebDate, _
+        nMCatProgs, mCatProgNames, mCatProgOffs, mCatProgCatCnt, catInfo)
+    Else
+        varCatIdx = -1
+    End If
+    If (varCatIdx <> -1) Then
+      'check to see if there is a valid record.
+      If Not uitAnalyze_determineCustomRecs_TestTime(outpDis, outpDetails, tdFull, tpFullId, tpTYAId, tpWed, tpProg, True, catInfo(varCatIdx).cat, tpIsEstaf, tpStart, tpAf, tpSl, tpBn, tpTime, catInfo(varCatIdx).rec) Then
+        Exit Function
+      End If
+    End If
+    
+
+    If Not uitAnalyze_determineCustomRecs_TestTime(outpDis, outpDetails, tdFull, tpFullId, tpTYAId, tpWed, tpProg, False, "", tpIsEstaf, tpStart, tpAf, tpSl, tpBn, tpTime, curProgRec) Then
+      Exit Function
+    End If
+    
+  End If 'if not blSkip
+
+
+  td.MoveNext
+Loop
+
+
+appCleanRS prs
+appCleanRS td
+appCleanRS outpDetails
+appCleanRS outpDis
+appCleanRS tdFull
+
+uitAnalyze_determineCustomRecs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " uitAnalyze_determineCustomRecs" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function uitAnalyze_cleanup(tbNameMain As String, tbNameAll As String, tbNameDetails As String, tbNameDis As String) As Boolean
+On Error GoTo fout
+uitAnalyze_cleanup = False
+
+
+DoCmd.DeleteObject acTable, tbNameMain
+DoCmd.DeleteObject acTable, tbNameAll
+DoCmd.DeleteObject acTable, tbNameDetails
+DoCmd.DeleteObject acTable, tbNameDis
+
+
+
+uitAnalyze_cleanup = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then
+  Resume Next
+End If
+
+MsgBox Err & " uitAnalyze_cleanup" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Private Function uitAnalyze_driver(ByRef wedInfo As WED_BASIC_INFO, blEntireMeet As Boolean, ByVal blSkipTransferred As Boolean, ByVal blCalcPRs As Boolean, ByVal blCalcRecs As Boolean, ByVal blCalcCustomRecs As Boolean, ByVal blDetBijzString As Boolean, ByVal blIncludeNG As Boolean, ByVal blIncludeNGZA As Boolean, tbNameMain As String, tbNameAll As String, tbNameDetails As String, tbNameDis As String) As Boolean
+On Error GoTo fout
+uitAnalyze_driver = False
+
+
+
+
+If Not uitAnalyze_CreateTables(tbNameAll, tbNameMain, tbNameDetails, tbNameDis) Then
+  Exit Function
+End If
+
+If Not analyzeEstafs(Not blEntireMeet, wedInfo.wednr, wedInfo.meetMainNr, "~AN_Estafs") Then
+  Exit Function
+End If
+
+If Not uitAnalyze_WriteTimes(wedInfo, blSkipTransferred, blEntireMeet, blIncludeNG, blIncludeNGZA, tbNameAll, tbNameMain, tbNameDis) Then
+  Exit Function
+End If
+
+If (blCalcPRs) Then
+  If Not uitAnalyze_determinePRs(wedInfo, tbNameAll, tbNameMain, tbNameDetails) Then
+    Exit Function
+  End If
+End If
+
+If (blCalcRecs) Then
+  If Not uitAnalyze_determineRecs(wedInfo, tbNameAll, tbNameMain, tbNameDetails, tbNameDis) Then
+    Exit Function
+  End If
+End If
+
+If (blCalcCustomRecs) Then
+  If Not uitAnalyze_determineCustomRecs(wedInfo, tbNameAll, tbNameMain, tbNameDetails, tbNameDis) Then
+    Exit Function
+  End If
+End If
+
+If (blDetBijzString) Then
+  If Not uitAnalyze_DetermineBijz(tbNameMain, tbNameDetails, tbNameAll) Then
+    Exit Function
+  End If
+End If
+
+uitAnalyze_driver = True
+Exit Function
+fout:
+MsgBox Err & " uitAnalyze_driver" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Private Function uitAnalyze_WriteTimes_checkIsWisselTstOK(ByVal tstAf As Integer, af As String) As Boolean
+uitAnalyze_WriteTimes_checkIsWisselTstOK = False
+If (af = "100") Then
+ElseIf (af = "200") Then
+  If (tstAf = 50) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+ElseIf (af = "300") Then
+  If (tstAf = 50) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+ElseIf (af = "400") Then
+  If (tstAf = 50) Or (tstAf = 100) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+ElseIf (af = "4x50") Then
+  If (tstAf = 50) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+ElseIf (af = "8x50") Then
+  If (tstAf = 50) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+ElseIf (af = "4x100") Then
+  If (tstAf = 50) Or (tstAf = 100) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+ElseIf (af = "8x100") Then
+  If (tstAf = 50) Or (tstAf = 100) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+ElseIf (af = "4x200") Then
+  If (tstAf = 50) Or (tstAf = 100) Or (tstAf = 200) Then
+    uitAnalyze_WriteTimes_checkIsWisselTstOK = True
+  End If
+End If
+
+
+
+
+End Function
+
+Private Function uitAnalyze_WriteTimes(ByRef wedInfo As WED_BASIC_INFO, ByVal blSkipTransferred As Boolean, blEntireMeet As Boolean, ByVal blIncludeNG As Boolean, ByVal blIncludeNGZA As Boolean, tbNameAll As String, tbNameMain As String, tbNameDis As String) As Boolean
+On Error GoTo fout
+uitAnalyze_WriteTimes = False
+
+
+Dim nAllAfSl As Integer, allAf(0 To MAX_N_AFSL) As String, allSl(0 To MAX_N_AFSL) As String
+
+If Not afslFillOrderedPersList(nAllAfSl, allAf, allSl) Then
+  Exit Function
+End If
+
+
+Dim outpDis As Recordset
+Dim outpAll As Recordset, outpMain As Recordset
+
+Set outpDis = CurrentDb().OpenRecordset(tbNameDis, dbOpenDynaset)
+Set outpAll = CurrentDb().OpenRecordset(tbNameAll)
+Set outpMain = CurrentDb().OpenRecordset(tbNameMain)
+
+Dim tstAf(0 To MAX_N_TUSSENTIJDEN) As Integer
+Dim tstTd(0 To MAX_N_TUSSENTIJDEN) As Double
+Dim tstCnt As Integer
+
+
+Dim tyaMaxUsedID As Long
+tyaMaxUsedID = -1
+Dim tyFullMaxUsedID As Long
+tyFullMaxUsedID = -1
+
+
+
+Dim estSeek As Recordset
+Set estSeek = CurrentDb().OpenRecordset("~AN_Estafs")
+estSeek.Index = "P"
+
+
+
+Dim dbMainVerName As String
+dbMainVerName = ver()
+
+
+
+
+Dim sqlPers As String
+sqlPers = tyGetResultsPersSQL(False, blEntireMeet, "", wedInfo.wednr, wedInfo.meetMainNr)
+
+Dim pers As Recordset
+Set pers = CurrentDb().OpenRecordset(sqlPers)
+
+
+pers.MoveFirst
+Do Until pers.EOF
+
+  Dim tppDis As String
+  tppDis = Nz(pers("TY_DIS"))
+  Dim blSkip As Boolean
+  blSkip = False
+  If (tppDis = DIS_ZK Or tppDis = DIS_NG Or tppDis = "NO" Or tppDis = DIS_NGZA Or tppDis = DIS_AFM Or tppDis = DIS_VV) Then
+    blSkip = True
+  End If
+  
+  'Need to see if we should completely skip this result.
+  If (tppDis = "") And (Not swtIsValid(Nz(pers(FNM_TY_PERS_EINDTIJD)))) Then
+    blSkip = True
+  End If
+  
+  'Correction; do include ng and ngza
+  If (tppDis = DIS_NG) And (blIncludeNG) Then
+    blSkip = False
+  End If
+  
+  If (tppDis = DIS_NGZA) And (blIncludeNGZA) Then
+    blSkip = False
+  End If
+  
+  
+  
+  Dim isOvergezet As Boolean
+  isOvergezet = Nz(pers("TY_Overgezet")) = "J"
+  
+  
+  If (isOvergezet And blSkipTransferred) Then
+    blSkip = True
+  End If
+    
+  If Not blSkip Then
+    
+    
+      outpMain.AddNew
+      
+      tyFullMaxUsedID = tyFullMaxUsedID + 1
+      outpMain("TY_ID") = tyFullMaxUsedID
+      
+      
+      Dim tpStartnr As String
+      Dim tpNaam As String
+      Dim tpGes As String
+      Dim tpGebDate As Date
+      Dim tpActVer As String
+      
+      tpStartnr = Nz(pers(FNM_TY_PERS_START))
+      tpNaam = Nz(pers(FNM_TY_PERS_NAAM))
+      tpGes = Nz(pers(FNM_NA_GES))
+      tpGebDate = Nz(pers(FNM_NA_GEBDAT), #1/1/1900#)
+      
+      tpActVer = Nz(pers("Vereniging"))
+      If (tpActVer = "") Then
+        tpActVer = dbMainVerName
+      End If
+      
+      
+      
+           
+      outpMain("TY_Wedstrijdnummer") = pers(FNM_TY_WED)
+      outpMain("TY_Programmanummer") = pers(FNM_TY_PROG)
+      outpMain("TY_IsEstaf") = False
+      outpMain("TY_Startnummer") = hzn(tpStartnr)
+      
+      outpMain("TY_Dis") = hzn(Nz(pers(FNM_TY_PERS_DIS)))
+      outpMain("TY_Opm") = pers("TY_Opm")
+      outpMain("TY_Eindplaats") = pers("TY_plaats")
+      outpMain("TY_Naam") = pers(FNM_TY_PERS_NAAM)
+      
+
+      
+      tstCnt = 0
+      If Not (tstExtractTussenTijden(Nz(pers("TY_ExtraTussentijden")), tstCnt, tstAf, tstTd)) Then
+        Exit Function
+      End If
+      
+      Dim blHasExtraTst As Boolean
+      blHasExtraTst = (tstCnt > 0)
+      
+      
+      'Combine the two sources of tussentijden
+      Dim tpTstI As Integer
+      For tpTstI = 1 To 4
+        Dim tpTstAf As Integer
+        Dim tpTstTd As Double
+        tpTstAf = CInt(val(Nz(pers("TY_Afstand" & tpTstI))))
+        tpTstTd = Nz(pers("TY_Tijd" & tpTstI))
+        If (tpTstTd > 0.01) Then
+          If (tpTstAf > 0) Then
+            If Not tstSetTussenTijd(tpTstAf, tpTstTd, tstCnt, tstAf, tstTd) Then
+              Exit Function
+            End If
+          End If
+        End If
+      Next tpTstI
+        
+        
+      If (blHasExtraTst) Then
+        outpMain("TY_Tussentijden") = hzn(tstFormatTussentijdenArray(tstCnt, tstAf, tstTd))
+      End If
+      
+      Dim tstMainIdx(0 To MAX_N_TUSSENTIJDEN), tstSlag As String, tstShouldTransfer(0 To MAX_N_TUSSENTIJDEN) As Boolean
+      
+      Dim i As Integer
+      For i = 0 To tstCnt - 1
+        tstMainIdx(i) = -1
+      Next i
+      
+      Dim tpEindSlag As String
+      tpEindSlag = Nz(pers("TY_Eindslag"))
+      
+      Dim tpEindAfstand As String
+      tpEindAfstand = Nz(pers("TY_Eindafstand"))
+      
+      If (tpEindSlag = "WISSEL") Then
+        tstSlag = "VLINDER"
+      Else
+        tstSlag = tpEindSlag
+      End If
+      
+      For tpTstI = 1 To 4
+        Dim lkpPos As Integer
+        tpTstAf = CInt(val(Nz(pers("TY_Afstand" & tpTstI))))
+        tpTstTd = Nz(pers("TY_Tijd" & tpTstI))
+        lkpPos = tstFindTussenTijd(tpTstAf, tstCnt, tstAf)
+        If (lkpPos >= 0) Then
+          tstMainIdx(lkpPos) = tpTstI
+        End If
+      Next tpTstI
+      
+      For i = 0 To tstCnt - 1
+        tstShouldTransfer(i) = False
+        If (tstMainIdx(i) >= 0) Then
+          tstShouldTransfer(i) = True
+        Else
+          'Need to check if it is a stored distance
+          If (bSearchAfSlag(tstAf(i), tstSlag, allAf, allSl, nAllAfSl) >= 0) Then
+            If (tpEindSlag = "WISSEL") Then
+              If (uitAnalyze_WriteTimes_checkIsWisselTstOK(tstAf(i), tpEindAfstand)) Then
+                tstShouldTransfer(i) = True
+              End If
+            Else
+              tstShouldTransfer(i) = True
+            End If
+          End If
+        End If
+      Next i
+      
+      
+      Dim tpTd As Double
+      Dim tpAf As String
+      Dim tpSl As String
+      
+      Dim tpWedNr As Long
+      Dim tpProgNr As String
+      
+      tpWedNr = Nz(pers(FNM_TY_WED))
+      tpProgNr = Nz(pers(FNM_TY_PROG))
+      
+      
+      Dim tpDis As String
+      tpDis = Nz(pers(FNM_TY_PERS_DIS))
+      If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpProgNr) Then
+        Exit Function
+      End If
+      
+      
+      
+              
+      
+      'Eindtijd
+      
+      tpTd = Nz(pers(FNM_TY_PERS_EINDTIJD))
+      tpAf = Nz(pers("TY_EindAfstand"))
+      tpSl = Nz(pers("TY_EindSlag"))
+      
+      outpMain("TY_Eindtijd") = tpTd
+      outpMain("TY_Eindafstand") = hzn(tpAf)
+      outpMain("TY_Eindslag") = hzn(tpSl)
+      
+
+  
+      
+      If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, 0, isOvergezet, False, _
+        tpWedNr, tpProgNr, False, 0, "", -1, tpStartnr, tpGes, tpGebDate, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
+        Exit Function
+      End If
+      
+      
+      'Now handle the tussentijden
+      
+      For i = 0 To tstCnt - 1
+        If tstShouldTransfer(i) Then
+          tpTd = tstTd(i)
+          tpAf = tstAf(i)
+          tpSl = tstSlag
+          
+          
+          If (tstMainIdx(i) <> -1) Then
+            outpMain("TY_Tijd" & tstMainIdx(i)) = tpTd
+            outpMain("TY_Afstand" & tstMainIdx(i)) = hzn(tpAf)
+            outpMain("TY_slag" & tstMainIdx(i)) = hzn(tpSl)
+          End If
+          
+          If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, tstMainIdx(i), isOvergezet, True, _
+            tpWedNr, tpProgNr, False, 0, "", -1, tpStartnr, tpGes, tpGebDate, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
+            Exit Function
+          End If
+
+        
+        End If 'if tstShouldTransfer
+      Next i
+      
+      
+           
+      
+      outpMain.Update
+      
+  End If
+
+  pers.MoveNext
+Loop
+
+
+appCleanRS pers
+
+'========================================
+'Estafettes
+'========================================
+
+Dim estDeelns As String
+Dim estStartNrs(0 To MAX_ESTAF_CNT) As String
+Dim estNames(0 To MAX_ESTAF_CNT) As String
+
+
+
+
+Dim sqlEst As String
+sqlEst = tyGetResultsEstSQL(False, blEntireMeet, "", wedInfo.wednr, wedInfo.meetMainNr)
+
+Dim est As Recordset
+Set est = CurrentDb().OpenRecordset(sqlEst)
+
+est.MoveFirst
+Do Until est.EOF
+
+
+  tppDis = Nz(est("TY_DIS"))
+  blSkip = False
+  
+  
+  Dim tppSzDis As String
+  tppSzDis = Nz(est("TY_DIS_Startzwemmer"))
+  
+  If (tppDis = DIS_ZK Or tppDis = DIS_NG Or tppDis = "NO" Or tppDis = DIS_NGZA Or tppDis = DIS_AFM Or tppDis = DIS_VV) Then
+    blSkip = True
+  End If
+  
+  'Need to see if we should completely skip this result.
+  If (tppDis = "") And (Not swtIsValid(Nz(est(FNM_TY_EST_EINDTIJD)))) Then
+    blSkip = True
+  End If
+  
+  'Correction; do include ng and ngza
+  If (tppDis = DIS_NG) And (blIncludeNG) Then
+    blSkip = False
+  End If
+  
+  If (tppDis = DIS_NGZA) And (blIncludeNGZA) Then
+    blSkip = False
+  End If
+    
+  isOvergezet = Nz(est("TY_Overgezet")) = "J"
+  
+  If (isOvergezet And blSkipTransferred) Then
+    blSkip = True
+  End If
+
+  If Not blSkip Then
+  
+    Dim tpEstNr As String
+    Dim tpEstVer As String
+    
+    tpEstVer = Nz(est(FNM_TY_EST_VER))
+    tpEstNr = Nz(est(FNM_TY_EST_ESTNR))
+    
+    tpWedNr = Nz(est(FNM_TY_WED))
+    tpProgNr = Nz(est(FNM_TY_PROG))
+    
+    Dim tpEstGes As String
+    Dim tpEstMaxYOB As Long
+    Dim tpEstMinYOB As Long
+    Dim tpEstCntYOB As Long
+    Dim tpEstSumYOB As Long
+    
+    Dim estSZNr As String
+    Dim estSZNaam As String
+    Dim estSZGes As String
+    Dim estSZGebDate As Date
+    Dim estSZActVer As String
+    
+    estSeek.Seek "=", tpWedNr, tpProgNr, tpEstNr, tpEstVer
+    If (estSeek.NoMatch) Then
+      'It may happen that we have orphaned relay times, since the relay may have been deleted from the dtDeelnemers table
+      'In this case, simply ignore the time
+      'Err.Raise 1, , "Internal error. Could not find estafette ploeg (" & tpWedNr & ", " & tpProgNr & ", " & tpEstVer & ", " & tpEstNr & " )"
+    Else
+      
+      
+      estSZNr = Nz(estSeek("EST_Startnummer_1"))
+      estSZNaam = Nz(estSeek("EST_Naam_1"))
+      estSZGes = Nz(estSeek("EST_Startzwemmer_Geslacht"))
+      estSZGebDate = Nz(estSeek("EST_Startzwemmer_Geboortedatum"), #1/1/1900#)
+      estSZActVer = Nz(estSeek("EST_Startzwemmer_ActVereniging"))
+      
+      If (estSZActVer = "") Then
+        estSZActVer = dbMainVerName
+      End If
+      
+      tpActVer = Nz(estSeek("EST_ActVereniging"))
+      
+      If (tpActVer = "") Then
+        tpActVer = dbMainVerName
+      End If
+      
+      
+      tpEstGes = Nz(estSeek("EST_Geslacht"))
+      tpEstMinYOB = Nz(estSeek("EST_MinYOB"))
+      tpEstMaxYOB = Nz(estSeek("EST_MaxYOB"))
+      tpEstSumYOB = Nz(estSeek("EST_SumYOB"))
+      tpEstCntYOB = Nz(estSeek("EST_ActPloegCnt"))
+      
+    
+      
+      outpMain.AddNew
+        
+        tyFullMaxUsedID = tyFullMaxUsedID + 1
+        
+        outpMain("TY_ID") = tyFullMaxUsedID
+        
+        
+        
+        outpMain("TY_EST_MinYOB") = tpEstMinYOB
+        outpMain("TY_EST_MaxYOB") = tpEstMaxYOB
+        outpMain("TY_EST_SumYOB") = tpEstSumYOB
+        outpMain("TY_EST_CntYOB") = tpEstCntYOB
+        outpMain("TY_Est_Geslacht") = hzn(tpEstGes)
+        
+        
+        estDeelns = ""
+        For i = 1 To MAX_ESTAF_CNT
+          estStartNrs(i - 1) = Nz(estSeek("EST_Startnummer_" & i))
+          estNames(i - 1) = Nz(estSeek("EST_NAAM_" & i))
+          If (Len(estNames(i - 1)) > 0) Then
+            If Len(estDeelns) > 0 Then
+              estDeelns = estDeelns & ", "
+            End If
+            estDeelns = estDeelns & estNames(i - 1)
+          End If
+          
+          outpMain("TY_EST_Startnummer_" & i) = hzn(estStartNrs(i - 1))
+          outpMain("TY_EST_Naam_" & i) = hzn(estNames(i - 1))
+        Next i
+        
+        outpMain("TY_EST_Deelnemers") = hzn(estDeelns)
+        
+       
+        
+        outpMain("TY_Wedstrijdnummer") = est("TY_Wedstrijdnummer")
+        outpMain("TY_Programmanummer") = est("TY_Programmanummer")
+        outpMain("TY_IsEstaf") = True
+        outpMain("TY_Startnummer") = "00-000"
+        
+        
+        'feb 2007 modification
+        'outpMain("TY_Naam") = "Estafette"
+        outpMain("TY_Naam") = estSeek("EST_ActVereniging")
+        
+        tpDis = Nz(est("TY_Dis"))
+        If Not uitAnalyze_HandleDis(outpDis, tpDis, tpWedNr, tpProgNr) Then
+          Exit Function
+        End If
+        
+        outpMain("TY_Dis") = hzn(tpDis)
+        outpMain("TY_Opm") = est("TY_Opm")
+        outpMain("TY_Eindplaats") = est("TY_plaats")
+        
+        
+        tstCnt = 0
+        If Not (tstExtractTussenTijden(Nz(est("TY_ExtraTussentijden")), tstCnt, tstAf, tstTd)) Then
+          Exit Function
+        End If
+        
+        
+        blHasExtraTst = (tstCnt > 0)
+        
+        'Combine the tussentijden
+        
+        
+        For tpTstI = 1 To 4
+          tpTstAf = CInt(val(Nz(est("TY_Afstand" & tpTstI))))
+          tpTstTd = Nz(est("TY_Tijd" & tpTstI))
+          If (tpTstTd > 0.01) Then
+            If (tpTstAf > 0) Then
+              If Not tstSetTussenTijd(tpTstAf, tpTstTd, tstCnt, tstAf, tstTd) Then
+                Exit Function
+              End If
+            End If
+          End If
+        Next tpTstI
+        
+        If (blHasExtraTst) Then
+          outpMain("TY_Tussentijden") = hzn(tstFormatTussentijdenArray(tstCnt, tstAf, tstTd))
+        End If
+      
+        
+        
+        For i = 0 To tstCnt - 1
+          tstMainIdx(i) = -1
+        Next i
+        
+        
+        Dim tpAfstandIndPart As Long
+        tpAfstandIndPart = val(afstand_ind_part(Nz(est("TY_Eindafstand"))))
+        
+        
+        tpEindAfstand = Nz(est("TY_Eindafstand"))
+        
+        tpEindSlag = Nz(est("TY_Eindslag"))
+        If (tpEindSlag = "WISSEL") Then
+          tstSlag = "RUG"
+        Else
+          tstSlag = tpEindSlag
+        End If
+        
+        For tpTstI = 1 To 4
+          tpTstAf = CInt(val(Nz(est("TY_Afstand" & tpTstI))))
+          tpTstTd = Nz(est("TY_Tijd" & tpTstI))
+          lkpPos = tstFindTussenTijd(tpTstAf, tstCnt, tstAf)
+          If (lkpPos >= 0) Then
+            tstMainIdx(lkpPos) = tpTstI
+          End If
+        Next tpTstI
+        
+        For i = 0 To tstCnt - 1
+          tstShouldTransfer(i) = False
+          If (tstMainIdx(i) >= 0) Then
+            tstShouldTransfer(i) = True
+          Else
+            'Need to check if it is a stored distance
+            'Also need to make sure that the tussen afstand is no longer than the first swimmers distance
+            If (tstAf(i) <= tpAfstandIndPart) Then
+              If (tpEindSlag = "WISSEL") Then
+                If (uitAnalyze_WriteTimes_checkIsWisselTstOK(tstAf(i), tpEindAfstand)) Then
+                  tstShouldTransfer(i) = True
+                End If
+              Else
+                If (bSearchAfSlag(tstAf(i), tstSlag, allAf, allSl, nAllAfSl) >= 0) Then
+                  tstShouldTransfer(i) = True
+                End If
+              End If
+            End If
+          End If
+        Next i
+        
+        
+        
+        
+        
+        'Eindtijd
+        
+        tpTd = Nz(est("TY_eindtijd"))
+        tpAf = Nz(est("TY_EindAfstand"))
+        tpSl = Nz(est("TY_EindSlag"))
+        
+        outpMain("TY_Eindtijd") = tpTd
+        outpMain("TY_Eindafstand") = hzn(tpAf)
+        outpMain("TY_Eindslag") = hzn(tpSl)
+        
+  
+        
+        If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, 0, isOvergezet, False, _
+          tpWedNr, tpProgNr, True, tpEstNr, tpEstGes, tpEstMinYOB, "", "", #1/1/1900#, tpActVer, tpDis, tpAf, tpSl, tpTd) Then
+          Exit Function
+        End If
+        
+        
+        'Now handle the tussentijden
+        
+        'Need to check if the startzwemmer is valid.
+        If (estSZNr <> "") Then
+          For i = 0 To tstCnt - 1
+            If tstShouldTransfer(i) Then
+              tpTd = tstTd(i)
+              tpAf = tstAf(i)
+              tpSl = tstSlag
+              
+              'Determine if this is the full distance for the startzwemmer, in order to get the IsTusTijd right.
+              Dim tpIsFullSzDistance As Boolean
+              tpIsFullSzDistance = (tstAf(i) = tpAfstandIndPart)
+              
+              
+              If (tstMainIdx(i) <> -1) Then
+                outpMain("TY_Tijd" & tstMainIdx(i)) = tpTd
+                outpMain("TY_Afstand" & tstMainIdx(i)) = hzn(tpAf)
+                outpMain("TY_slag" & tstMainIdx(i)) = hzn(tpSl)
+              End If
+              
+              'Use the startzwemmer dis here
+              If Not uitAnalyze_WriteTimes_Write(outpAll, tyaMaxUsedID, tyFullMaxUsedID, tstMainIdx(i), isOvergezet, Not tpIsFullSzDistance, _
+                tpWedNr, tpProgNr, False, -1, "", -1, estSZNr, estSZGes, estSZGebDate, estSZActVer, tppSzDis, tpAf, tpSl, tpTd) Then
+                Exit Function
+              End If
+    
+            
+            End If 'if tstShouldTransfer
+          Next i
+        End If 'if estSZNr <> ""
+        
+  
+      outpMain.Update
+    End If 'if estSeek.nomatch
+  End If 'if not blSkip
+
+  est.MoveNext
+Loop
+
+
+appCleanRS est
+
+appCleanRS estSeek
+
+
+
+uitAnalyze_WriteTimes = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " uitAnalyze_WriteTimes" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+Private Function uitAnalyze_DetermineBijz(ByVal tbNameMain As String, ByVal tbNameDetails As String, ByVal tbNameAll As String) As Boolean
+On Error GoTo fout
+uitAnalyze_DetermineBijz = False
+
+
+Dim tdFull As Recordset
+Set tdFull = CurrentDb().OpenRecordset(tbNameMain)
+tdFull.Index = "PrimaryKey"
+
+Dim tdAll As Recordset
+Set tdAll = CurrentDb().OpenRecordset(tbNameAll)
+tdAll.Index = "PrimaryKey"
+
+Dim sql As String
+sql = "select * from [" & tbNameDetails & "]"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpTYAId As Long
+  Dim tpFullId As Long
+  Dim tpFullPos As Integer
+  
+  tpTYAId = Nz(rs("TYD_REF_TYA_ID"))
+  
+  tdAll.Seek "=", tpTYAId
+  If tdAll.NoMatch Then
+    Err.Raise 1, , "Internal error."
+  End If
+  
+  tpFullId = Nz(tdAll("TYA_FullTimeID"))
+  tpFullPos = Nz(tdAll("TYA_FullTimePos"))
+  
+  tdFull.Seek "=", tpFullId
+  
+  If tdFull.NoMatch Then
+    Err.Raise 1, , "Internal error."
+  End If
+  
+  Dim tpIsPR As Boolean, tpIsRec As Boolean, tpIsCustomRec As Boolean
+  tpIsPR = Nz(rs("TYD_IS_PR"))
+  tpIsRec = Nz(rs("TYD_IS_CR"))
+  tpIsCustomRec = Nz(rs("TYD_IS_Custom_Record"))
+
+  Dim tpCode As String
+  tpCode = Nz(rs("TYD_Type"))
+
+  Dim curBijz As String
+  curBijz = ""
+  If (tpFullPos = 0) Then
+    curBijz = Nz(tdFull("TY_Bijz"))
+  ElseIf (tpFullPos > 0) Then
+    curBijz = Nz(tdFull("TY_Bijz" & tpFullPos))
+  End If
+    
+  If (curBijz <> "(!)") Then
+    If (tpIsPR) Then
+      curBijz = "*" & curBijz
+    Else
+      'Check if this is the first instance of this code.
+      If (InStr(1, curBijz, tpCode) = 0) Then
+        curBijz = curBijz & tpCode
+      End If
+    End If
+  End If
+  
+  If Len(curBijz) > 4 Then
+    curBijz = "(!)"
+  End If
+  
+  If (tpFullPos >= 0) Then
+    tdFull.Edit
+      If (tpFullPos = 0) Then
+        tdFull("TY_Bijz") = hzn(curBijz)
+      Else
+        tdFull("TY_Bijz" & tpFullPos) = hzn(curBijz)
+      End If
+    tdFull.Update
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS tdFull
+appCleanRS tdAll
+
+
+uitAnalyze_DetermineBijz = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " uitAnalyze_determineBijz" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function uitTransferTimes_HandleRecs(ByRef wedInfo As WED_BASIC_INFO, ByVal tbNameFull As String, ByVal tbNameDetails As String, ByRef blRecOverflow As Boolean, ByRef nNewRecs As Long, ByRef nSuspectRecs As Long) As Boolean
+On Error GoTo fout
+uitTransferTimes_HandleRecs = False
+
+nNewRecs = 0
+nSuspectRecs = 0
+
+Dim freeEstGUID As Long
+freeEstGUID = estGetFreeGUID()
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("dtRecordsInternal")
+
+Dim est As Recordset
+Set est = CurrentDb().OpenRecordset("dtEstafettes")
+
+
+
+Dim tdFull As Recordset
+Set tdFull = CurrentDb().OpenRecordset(tbNameFull)
+tdFull.Index = "PrimaryKey"
+
+'Make sure to output records in the right order.
+'Tijd is ordered in a descending fashion.
+Dim tdd As Recordset
+Set tdd = CurrentDb().OpenRecordset("select * from [" & tbNameDetails & "] where tyd_is_cr = true order by tyd_rec_code,  tyd_wedstrijdnummer, val(nz([tyd_programmanummer])), tyd_programmanummer,  tyd_afstand, tyd_slag, tyd_rec_baan, tyd_rec_geslacht, tyd_rec_leeftijd, tyd_tijd desc ")
+
+
+Dim minRecFreeNr As Long, maxRecFreeNr As Long
+Dim wedYear As Long
+wedYear = val(Format(wedInfo.date, "yyyy"))
+
+minRecFreeNr = wedYear * 1000 + 1
+maxRecFreeNr = wedYear * 1000 + 999
+
+
+
+  Dim tpEstMinYOB As Long
+  Dim tpEstMaxYOB As Long
+  Dim tpEstSumYOB As Long
+  Dim tpEstCntYOB As Long
+  Dim tpEstGes As String
+  Dim estStarts(0 To MAX_ESTAF_CNT) As String
+  
+
+
+
+Dim curRecCode As String, curRecFreeNr As Long, curRSInfo As RECSET_BASIC_INFO
+Dim curRecNAges As Integer, curRecAges(0 To MAX_N_REC_AGES) As Long
+
+curRecCode = ""
+
+
+
+
+tdd.MoveFirst
+Do Until tdd.EOF
+
+  Dim tpRecCode As String
+  
+  tpRecCode = Nz(tdd("TYD_REC_Code"))
+  If (tpRecCode <> curRecCode) Then
+    Dim isFnd As Boolean
+    If Not rcsLookup(tpRecCode, isFnd, curRSInfo, curRecNAges, curRecAges) Then
+      Exit Function
+    End If
+    If (Not isFnd) Then
+      Err.Raise 1, , "Internal error. Could not find recordset: " & tpRecCode
+    End If
+    curRecFreeNr = Nz(DMax("RC_Recordnummer", "dtRecordsInternal", "RC_Code = """ & tpRecCode & """ and RC_Recordnummer >= " & minRecFreeNr & " and rc_recordnummer <= " & maxRecFreeNr)) + 1
+    If (curRecFreeNr <= 1) Then
+      curRecFreeNr = minRecFreeNr
+    End If
+  
+    curRecCode = tpRecCode
+  End If
+  
+  
+  
+  If (Not curRSInfo.blIsFrozen) Then
+  
+    Dim tpIsRegistered As Boolean
+    tpIsRegistered = Nz(tdd("TYD_REC_IsRegistered"))
+    
+    If (Not tpIsRegistered) Then
+  
+  
+      Dim tpWed As Long
+      Dim tpProg As String
+      Dim tpFullId As Long
+      Dim tpStart As String
+      Dim tpIsEstaf As Boolean
+      Dim tpAf As String
+      Dim tpSl As String
+      Dim tpTime As Double
+      
+      
+      tpWed = Nz(tdd("TYD_Wedstrijdnummer"))
+      tpProg = Nz(tdd("TYD_Programmanummer"))
+      tpFullId = Nz(tdd("TYD_REF_FullTimeID"))
+      
+      tpIsEstaf = Nz(tdd("TYD_IsEstaf"))
+      
+      tpAf = Nz(tdd("TYD_Afstand"))
+      tpSl = Nz(tdd("TYD_Slag"))
+      tpTime = Nz(tdd("TYD_Tijd"))
+      
+      Dim tpOldName As String
+      Dim tpOldVer As String
+      Dim tpOldTd As Double
+      Dim tpOldDat As Date
+      Dim tpOldPlaats As String
+      Dim tpOldEstDlns As String
+      Dim tpOldBn As Integer
+      
+      If (curRSInfo.blManagedExternally) Then
+        If (Nz(tdd("TYD_O_VALID"))) Then
+          tpOldName = Nz(tdd("TYD_O_Naam"))
+          tpOldVer = Nz(tdd("TYD_O_Vereniging"))
+          tpOldTd = Nz(tdd("TYD_O_Tijd"))
+          tpOldDat = Nz(tdd("TYD_O_Datum"))
+          tpOldPlaats = Nz(tdd("TYD_O_Plaats"))
+          If (tpIsEstaf) Then
+            tpOldEstDlns = Nz(tdd("TYD_O_EST_Deelnemers"))
+          Else
+            tpOldEstDlns = ""
+          End If
+          tpOldBn = Nz(tdd("TYD_O_Baan"))
+        Else
+          tpOldName = ""
+          tpOldVer = ""
+          tpOldTd = 0
+          tpOldDat = #1/1/1900#
+          tpOldPlaats = ""
+          tpOldEstDlns = ""
+          tpOldBn = 0
+        End If
+      End If
+        
+      
+      Dim tpEstGUID As Long
+        
+        
+      If (tpIsEstaf) Then
+        If Not uitTransferTimes_WriteEstaf(tdFull, est, freeEstGUID, tpEstGUID, tpFullId, tpAf, tpEstMinYOB, tpEstMaxYOB, tpEstSumYOB, tpEstCntYOB, tpEstGes, estStarts) Then
+          Exit Function
+        End If
+      Else
+        tpStart = Nz(tdd("TYD_Startnummer"))
+      End If 'if tpIsEstaf
+      
+      
+      Dim tpRecBaan As Integer
+      Dim tpRecGes As String
+      Dim tpRecLft As Long
+      Dim tpRecVer As String
+      
+      tpRecBaan = Nz(tdd("TYD_REC_Baan"))
+      tpRecGes = Nz(tdd("TYD_REC_Geslacht"))
+      tpRecLft = Nz(tdd("TYD_REC_Leeftijd"))
+      tpRecVer = Nz(tdd("TYD_REC_Vereniging"))
+      
+      
+      If (curRecFreeNr > maxRecFreeNr) Then
+        blRecOverflow = True
+      Else
+        'output the record.
+        outp.AddNew
+          If (tpIsEstaf) Then
+            outp("RC_Startnummer") = "00-000"
+            If (tpEstGUID >= 0) Then
+              outp("RC_EST_GUID") = tpEstGUID
+            End If
+          Else
+            outp("RC_Startnummer") = tpStart
+          End If
+          
+          outp("RC_Code") = tpRecCode
+          outp("RC_Recordnummer") = curRecFreeNr
+        
+          curRecFreeNr = curRecFreeNr + 1
+          
+          outp("RC_Afstand") = hzn(tpAf)
+          outp("RC_Slag") = hzn(tpSl)
+          outp("RC_Tijd") = tpTime
+          
+          outp("RC_Baanlengte") = tpRecBaan
+          
+          outp("RC_Geslacht") = tpRecGes
+          outp("RC_Leeftijd") = tpRecLft
+          
+          outp("RC_DisplayCategorie") = hzn(fmtCatCode(tpRecGes, tpRecLft))
+          
+          
+          
+          outp("RC_AantalDecimalen") = 2
+          outp("RC_Wedstrijdnummer") = tpWed
+          
+          outp("RC_Vereniging") = tpRecVer
+          
+          
+          Dim tpIsSuspect As Boolean
+          tpIsSuspect = Nz(tdd("TYD_REC_IsSuspect"), False)
+          
+          outp("RC_IsSuspect") = tpIsSuspect
+          
+          If (tpIsSuspect) Then
+            outp("RC_SuspectReason") = tdd("TYD_REC_SuspectReason")
+            outp("RC_SuspectCode") = REC_SUSPECT_UNKNOWN_SEQ
+          End If
+          
+          If (curRSInfo.blManagedExternally) Then
+            If (swtIsValid(tpOldTd)) Then
+              outp("RC_EXT_OLD_Tijd") = tpOldTd
+              outp("RC_EXT_OLD_Name") = hzn(tpOldName)
+              outp("RC_EXT_OLD_Ver") = hzn(tpOldVer)
+              If (lenDateIsValid(tpOldDat)) Then
+                outp("RC_EXT_OLD_Datum") = tpOldDat
+                outp("RC_EXT_OLD_Plaats") = hzn(tpOldPlaats)
+              End If
+              If (tpOldBn = 25) Or (tpOldBn = 50) Then
+                outp("RC_EXT_OLD_Baan") = tpOldBn
+              End If
+              
+              If (tpIsEstaf) Then
+                outp("RC_EXT_OLD_EST_Deelnemers") = hzn(tpOldEstDlns)
+              End If
+            End If 'if swtIsValid(tpOldTd)
+          End If 'if blManagedExternally
+          
+        outp.Update
+        
+        
+        If (tpIsSuspect) Then
+          nSuspectRecs = nSuspectRecs + 1
+        End If
+        nNewRecs = nNewRecs + 1
+        
+      End If 'if not an overflow
+      
+    End If 'if not isRegistered
+      
+  End If 'if not isFrozen
+  
+  
+
+  tdd.MoveNext
+Loop
+
+
+
+uitTransferTimes_HandleRecs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " uitTransferTimes_HandleRecs" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function uitTransferTimes_HandleTimes(ByVal tbNameAll As String, ByVal tbNameFull As String, ByRef nNewTimes As Long) As Boolean
+On Error GoTo fout
+uitTransferTimes_HandleTimes = False
+
+
+nNewTimes = 0
+
+
+Dim td As Recordset
+
+
+Set td = CurrentDb().OpenRecordset("select * from [" & tbNameAll & "]  ")
+
+Dim tdFull As Recordset
+Set tdFull = CurrentDb().OpenRecordset(tbNameFull)
+tdFull.Index = "PrimaryKey"
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("dtTijden")
+
+Dim freeEstGUID As Long
+freeEstGUID = estGetFreeGUID
+
+Dim est As Recordset
+Set est = CurrentDb().OpenRecordset("dtEstafettes")
+
+
+Dim tpEstMinYOB As Long
+Dim tpEstMaxYOB As Long
+Dim tpEstSumYOB As Long
+Dim tpEstCntYOB As Long
+Dim tpEstGes As String
+Dim estStarts(0 To MAX_ESTAF_CNT) As String
+
+td.MoveFirst
+Do Until td.EOF
+
+  Dim tpWed As String
+  Dim tpProg As String
+  Dim tpStart As String
+  Dim tpAf As String
+  Dim tpSlag As String
+  Dim tpTijd As Double
+  Dim tpDis As String
+  Dim tpIsEstaf As Boolean
+  Dim tpIsTst As Boolean
+  
+  
+  
+  
+  tpWed = Nz(td("TYA_Wedstrijdnummer"))
+  tpProg = Nz(td("TYA_Programmanummer"))
+  tpStart = Nz(td("TYA_Startnummer"))
+  tpAf = Nz(td("TYA_Afstand"))
+  tpSlag = Nz(td("TYA_Slag"))
+  tpTijd = Nz(td("TYA_Tijd"))
+  tpDis = Nz(td("TYA_Dis"))
+  tpIsEstaf = Nz(td("TYA_IsEstaf"))
+  tpIsTst = Nz(td("TYA_IsTussentijd"))
+  
+  Dim tpFullId As Long
+  tpFullId = Nz(td("TYA_FullTimeID"))
+  
+  If swtIsValid(tpTijd) Then
+    
+    Dim tpEstGUID As Long
+    
+    
+    If (tpIsEstaf) Then
+      If Not uitTransferTimes_WriteEstaf(tdFull, est, freeEstGUID, tpEstGUID, tpFullId, tpAf, tpEstMinYOB, tpEstMaxYOB, tpEstSumYOB, tpEstCntYOB, tpEstGes, estStarts) Then
+        Exit Function
+      End If
+    End If 'if tpIsEstaf
+    
+    
+    'now write the time
+    
+    outp.AddNew
+      outp("wedstr nr") = tpWed
+      
+      If (tpIsEstaf) Then
+        If (tpEstGUID >= 0) Then
+          outp("EST_GUID") = tpEstGUID
+        End If
+        outp("EST_MinYOB") = tpEstMinYOB
+        outp("EST_MaxYOB") = tpEstMaxYOB
+        outp("EST_SumYOB") = tpEstSumYOB
+        outp("EST_CntYOB") = tpEstCntYOB
+        outp("EST_Geslacht") = tpEstGes
+        
+        outp("Start nr") = "00-000"
+      Else
+        outp("Start nr") = tpStart
+      End If
+      
+      'write other fields
+      outp("afstand") = hzn(tpAf)
+      outp("slag") = hzn(tpSlag)
+      outp("tijd") = tpTijd
+      outp("Wedstr nr") = tpWed
+      outp("Diskw code") = hzn(tpDis)
+      outp("IsTusTijd") = tpIsTst
+      
+      outp("Programmanummer") = hzn(tpProg)
+      outp("Programmanummer_NumPart") = val(tpProg)
+    
+    outp.Update
+    
+    
+    nNewTimes = nNewTimes + 1
+    
+    
+    
+    
+    
+  End If 'if swtIsValid
+
+
+
+  td.MoveNext
+Loop
+
+
+
+uitTransferTimes_HandleTimes = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next 'no current record
+MsgBox Err & " uitTransferTimes_HandleTimes" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
+Private Function uitTransferTimes_WriteEstaf(ByRef tdFull As Recordset, ByRef est As Recordset, ByRef freeEstGUID As Long, ByRef estGUID As Long, ByVal tyFullID As Long, ByVal af As String, ByRef tpEstMinYOB As Long, ByRef tpEstMaxYOB As Long, ByRef tpEstSumYOB As Long, ByRef tpEstCntYOB As Long, ByRef tpEstGes As String, ByRef estStarts() As String) As Boolean
+On Error GoTo fout
+uitTransferTimes_WriteEstaf = False
+
+
+estGUID = -1
+
+
+'Need to get estafette
+tdFull.Seek "=", tyFullID
+
+If (tdFull.NoMatch) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+Dim tpEstIsOK As Boolean
+tpEstIsOK = True
+
+
+
+Dim nEstDlns As Integer
+nEstDlns = afstand_n_zwemmers(af)
+
+Dim i As Integer
+For i = 0 To nEstDlns - 1
+  estStarts(i) = Nz(tdFull("TY_EST_Startnummer_" & (i + 1)))
+  If (estStarts(i) = "") Then
+    tpEstIsOK = False
+    Exit For
+  End If
+Next i
+
+tpEstMinYOB = Nz(tdFull("TY_EST_MinYOB"))
+tpEstMaxYOB = Nz(tdFull("TY_EST_MaxYOB"))
+tpEstSumYOB = Nz(tdFull("TY_EST_SumYOB"))
+tpEstCntYOB = Nz(tdFull("TY_EST_CntYOB"))
+tpEstGes = Nz(tdFull("TY_Est_Geslacht"))
+
+If (tpEstIsOK) Then
+  estGUID = freeEstGUID
+  
+  If Not estWriteEst(estGUID, nEstDlns, estStarts, est) Then
+    Exit Function
+  End If
+  
+  freeEstGUID = freeEstGUID + 1
+End If 'if tpEstOK
+
+
+
+uitTransferTimes_WriteEstaf = True
+Exit Function
+
+fout:
+MsgBox Err & " uitTransferTimes_WriteEstaf" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function uitTransferTimes_MarkTransferred(ByRef wedInfo As WED_BASIC_INFO, ByVal blEntireMeet As Boolean, ByVal blIsTransferred) As Boolean
+On Error GoTo fout
+uitTransferTimes_MarkTransferred = False
+
+Dim tdPersSQL As String
+tdPersSQL = tyGetResultsPersSQL(False, blEntireMeet, "", wedInfo.wednr, wedInfo.meetMainNr)
+
+Dim td As Recordset
+Set td = CurrentDb().OpenRecordset(tdPersSQL)
+
+td.MoveFirst
+Do Until td.EOF
+  
+  td.Edit
+    td("TY_Overgezet") = IIf(blIsTransferred, "J", "N")
+  td.Update
+
+  td.MoveNext
+Loop
+
+appCleanRS td
+
+Dim tdEstSQL As String
+tdEstSQL = tyGetResultsEstSQL(False, blEntireMeet, "", wedInfo.wednr, wedInfo.meetMainNr)
+
+Set td = CurrentDb().OpenRecordset(tdEstSQL)
+
+td.MoveFirst
+Do Until td.EOF
+  
+  td.Edit
+    td("TY_Overgezet") = IIf(blIsTransferred, "J", "N")
+  td.Update
+
+  td.MoveNext
+Loop
+
+uitTransferTimes_MarkTransferred = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+
+MsgBox Err & " uitTransferTimes_markTransferred" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function uitTransferTimes(ByVal wednr As Long, ByVal meetMainNr As Long, ByVal blEntireMeet As Boolean, ByRef nNewTimes As Long, ByRef blRecOverflow As Boolean, ByRef nNewRecs As Long, ByRef nSuspectRecs As Long) As Boolean
+On Error GoTo fout
+uitTransferTimes = False
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+
+If (blEntireMeet) Then
+  If Not wedLookup(meetMainNr, isFnd, wedInf) Then
+    Exit Function
+  End If
+  
+  If Not isFnd Then
+    Err.Raise 1, , "Could not find wedstrijd: " & meetMainNr
+  End If
+Else
+  If Not wedLookup(wednr, isFnd, wedInf) Then
+    Exit Function
+  End If
+  
+  If Not isFnd Then
+    Err.Raise 1, , "Could not find wedstrijd: " & wednr
+  End If
+End If
+
+
+Dim tbNameAll As String, tbNameMain As String, tbNameDetails As String, tbNameDis As String
+tbNameAll = "~TransferAll"
+tbNameMain = "~TransferMain"
+tbNameDetails = "~TransferDetails"
+tbNameDis = "~TransferDis"
+
+
+
+
+
+If Not uitAnalyze_driver(wedInf, blEntireMeet, True, False, True, False, False, False, False, tbNameMain, tbNameAll, tbNameDetails, tbNameDis) Then
+  Exit Function
+End If
+
+
+
+notifyTimeChange
+
+
+If Not uitTransferTimes_HandleTimes(tbNameAll, tbNameMain, nNewTimes) Then
+  Exit Function
+End If
+
+
+
+If Not uitTransferTimes_HandleRecs(wedInf, tbNameMain, tbNameDetails, blRecOverflow, nNewRecs, nSuspectRecs) Then
+  Exit Function
+End If
+
+
+If Not uitAnalyze_cleanup(tbNameMain, tbNameAll, tbNameDetails, tbNameDis) Then
+  Exit Function
+End If
+
+
+'Now need to mark that times have been transferred.
+
+If Not uitTransferTimes_MarkTransferred(wedInf, blEntireMeet, True) Then
+  Exit Function
+End If
+
+
+
+'TODO: we are skipping snel_snelste_tijden_2
+'snel_snelste_tijden_2
+
+
+
+
+
+
+
+uitTransferTimes = True
+Exit Function
+fout:
+MsgBox Err & " uitTransferTimes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function uitRestoreTimes(ByVal wednr As Long) As Boolean
+On Error GoTo fout
+uitRestoreTimes = False
+
+
+
+notifyTimeChange
+
+
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+
+If Not wedLookup(wednr, isFnd, wedInf) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Could not find wedstrijd: " & wednr
+End If
+
+
+
+
+'Check if times can be restored, that is, if the result tables are not empty for this wedstrijd.
+
+Dim cntPers As Long, cntEst As Long
+
+cntPers = Nz(DCount("TY_Eindtijd", "dtUitslagenPers", "TY_Wedstrijdnummer = " & wednr), 0)
+cntEst = Nz(DCount("TY_Eindtijd", "dtUitslagenEst", "TY_Wedstrijdnummer = " & wednr), 0)
+
+
+If (cntPers + cntEst = 0) Then
+  Err.Raise 1, , "U kunt de tijden voor wedstrijd nummer: " & wednr & " niet herstellen." & vbCrLf & "Er zijn namelijk geen uitslagen gevonden voor deze wedstrijd."
+End If
+
+
+
+'Delete all times and records for this match.
+
+Dim sql As String
+
+sql = "delete * from [dtTijden] where [wedstr nr]= " & wednr & ";"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+'update aug 2008: do not delete the records
+'sql = "delete * from [dtRecordsInternal] where [RC_wedstrijdnummer]= " & wednr & ";"
+'DoCmd.SetWarnings False
+'DoCmd.RunSQL sql
+'DoCmd.SetWarnings True
+
+
+'Now need to mark that times have been transferred back.
+
+If Not uitTransferTimes_MarkTransferred(wedInf, False, False) Then
+  Exit Function
+End If
+
+
+
+
+
+
+uitRestoreTimes = True
+Exit Function
+fout:
+DoCmd.SetWarnings True
+MsgBox Err & " uitRestoreTimes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+Public Function uitCreate(ByVal wednr As Long, ByVal meetMainNr, ByVal blEntireMeet As Boolean, ByVal blIncludeNG, ByVal blIncludeNGZA As Boolean) As Boolean
+On Error GoTo fout
+uitCreate = False
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+
+If (blEntireMeet) Then
+  If Not wedLookup(meetMainNr, isFnd, wedInf) Then
+    Exit Function
+  End If
+  
+  If Not isFnd Then
+    Err.Raise 1, , "Could not find wedstrijd: " & meetMainNr
+  End If
+Else
+  If Not wedLookup(wednr, isFnd, wedInf) Then
+    Exit Function
+  End If
+  
+  If Not isFnd Then
+    Err.Raise 1, , "Could not find wedstrijd: " & wednr
+  End If
+End If
+
+
+Dim tbNameAll As String, tbNameMain As String, tbNameDetails As String, tbNameDis As String
+tbNameAll = "~vUitslagAll"
+tbNameMain = "~vUitslagMain"
+tbNameDetails = "~vUitslagDetails"
+tbNameDis = "~vUitslagDis"
+
+
+
+
+
+If Not uitAnalyze_driver(wedInf, blEntireMeet, False, True, True, True, True, blIncludeNG, blIncludeNGZA, tbNameMain, tbNameAll, tbNameDetails, tbNameDis) Then
+  Exit Function
+End If
+
+
+
+
+
+
+uitCreate = True
+Exit Function
+fout:
+MsgBox Err & " uitCreate" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Sub uitFindUitslagAfstanden_AddAf(ByVal af As Integer, ByRef cnt As Integer, ByRef afstanden() As Integer)
+On Error GoTo fout
+
+Dim curPos As Integer
+curPos = bSearchInt(af, cnt, afstanden)
+If (curPos <> -1) Then
+  Exit Sub
+End If
+
+insInt af, cnt, afstanden
+
+Exit Sub
+fout:
+MsgBox Err & " uitFindUitslagAfstanden_addAf" & Error$, 16
+End Sub
+
+Public Function uitFindUitslagAfstanden(ByRef cnt As Integer, ByRef afstanden() As Integer) As Boolean
+On Error GoTo fout
+uitFindUitslagAfstanden = False
+
+Dim rs As Recordset
+Dim tpAf(1 To 5) As Integer
+
+Set rs = CurrentDb().OpenRecordset("Select * from [~vUitslagMain]; ")
+
+cnt = 0
+
+rs.MoveFirst
+Do Until rs.EOF
+  tpAf(1) = CInt(val(Nz(rs("TY_afstand1"))))
+  tpAf(2) = CInt(val(Nz(rs("TY_afstand2"))))
+  tpAf(3) = CInt(val(Nz(rs("TY_Afstand3"))))
+  tpAf(4) = CInt(val(Nz(rs("TY_Afstand4"))))
+  tpAf(5) = uitNormalizeAfstand(Nz(rs("TY_Eindafstand")))
+    
+  Dim i As Integer
+  For i = 1 To 5
+    If tpAf(i) <> 0 Then
+      uitFindUitslagAfstanden_AddAf tpAf(i), cnt, afstanden
+    End If
+  Next i
+  
+  rs.MoveNext
+Loop
+
+uitFindUitslagAfstanden = True
+Exit Function
+fout:
+If Err = 3021 Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+Public Function uitNormalizeAfstand(ByVal af As String) As Integer
+On Error Resume Next
+If af Like "*x*" Then
+  uitNormalizeAfstand = 400
+Else
+  uitNormalizeAfstand = CInt(val(af))
+End If
+End Function

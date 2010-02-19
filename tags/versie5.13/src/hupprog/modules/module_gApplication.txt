@@ -1,0 +1,593 @@
+Option Compare Database
+Option Explicit
+
+Public Const APP_PROP_EDIT_EXT_TST_SHOW_ALL_TST = "EditExtTstShowAllTussentijden"
+Public Const APP_PROP_NEW_VERSION_ACQ_DATE_NL = "NewVersionAcquireDateNL"
+Public Const APP_PROP_NEW_VERSION_ID = "NewVersionID"
+
+Public Const APP_NAME_HUPSWIM = "Hupswim"
+Public Const APP_NAME_HUPPROG = "Hupprog"
+Public Const APP_NAME_HUPPAY = "Huppay"
+
+Public Type ERR_INFO
+  lErrCode As Long
+  sErrMsg As String
+  sFncName As String
+End Type
+
+
+
+
+Public Function appIsSafeMode() As Boolean
+On Error Resume Next
+appIsSafeMode = False
+
+Dim sOpenCommand As String
+sOpenCommand = Command()
+    
+If (sOpenCommand <> "") Then
+  If InStr(1, sOpenCommand, "SafeMode") > 0 Then
+    appIsSafeMode = True
+  End If
+End If
+
+
+End Function
+
+
+
+Public Function appCheckSize(ByRef blShouldCompact As Boolean) As Boolean
+On Error Resume Next
+appCheckSize = False
+
+blShouldCompact = False
+
+Dim sFName As String
+sFName = CurrentDb.name
+
+Dim lFSize As Long
+lFSize = FileLen(sFName)
+
+Dim lMaxSize As Long
+lMaxSize = CLng(1024) * CLng(1024) * CLng(200)
+
+If (lFSize > lMaxSize) Then
+  blShouldCompact = True
+End If
+
+
+appCheckSize = True
+
+End Function
+
+
+Public Sub appDelAll(ByVal sTableName As String)
+On Error Resume Next
+DoCmd.SetWarnings False
+DoCmd.RunSQL "delete * from [" & sTableName & "];"
+DoCmd.SetWarnings True
+End Sub
+
+
+
+Public Sub appSetGlobalProperty(ByVal propName As String, ByVal propValue As String)
+On Error Resume Next
+If (propName = "") Then
+  Exit Sub
+End If
+
+Dim dsData As DIR_SERVER_DATA
+If Not dsInit(dsData, False, "") Then
+  Exit Sub
+End If
+
+dsSetString dsData, "GLOBAL\PROPERTIES\" & propName, propValue
+
+dsClean dsData
+End Sub
+
+Public Function appGetGlobalProperty(ByVal propName As String) As String
+On Error Resume Next
+appGetGlobalProperty = ""
+If (propName = "") Then
+  Exit Function
+End If
+Dim dsData As DIR_SERVER_DATA
+If Not dsInit(dsData, False, "") Then
+  Exit Function
+End If
+appGetGlobalProperty = dsGetString(dsData, "GLOBAL\PROPERTIES\" & propName)
+dsClean dsData
+End Function
+
+
+
+
+
+
+Public Function showAbout()
+On Error Resume Next
+DoCmd.OpenForm "hxAbout"
+End Function
+
+Public Function instellingen_scherm()
+On Error Resume Next
+DoCmd.OpenForm "INST_Master"
+End Function
+
+Public Function filter_scherm()
+
+On Error GoTo fout
+
+If fltExtractFieldNames(Screen.ActiveForm.RecordsetClone) Then
+  DoCmd.OpenForm "gFilter", , , , , acDialog, Screen.ActiveForm.name
+End If
+  
+Exit Function
+
+fout:
+
+If Err = 7951 Then
+  Exit Function
+End If
+
+MsgBox Error$, 16
+Exit Function
+
+
+End Function
+
+Public Function hideAssistant()
+On Error Resume Next
+Assistant.Visible = False
+End Function
+
+'Register lxf files to the current application.
+Public Function appRegisterLXF() As Boolean
+On Error GoTo fout
+appRegisterLXF = False
+
+
+Dim curVersionAcc As String
+
+curVersionAcc = SysCmd(acSysCmdAccessVer)
+
+Dim blIsAcc2003 As Boolean
+Dim blIsAcc2007 As Boolean
+Dim blIsAcc97 As Boolean
+
+blIsAcc2003 = (curVersionAcc = "11.0")
+blIsAcc2007 = (curVersionAcc = "12.0")
+blIsAcc97 = (curVersionAcc = "8.0")
+
+If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97) Then
+  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007 en acces 97 versies van Hupswim"
+End If
+
+
+
+Dim sAccesFName As String
+If (blIsAcc2003) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\11.0\Access\InstallRoot", "PATH", sAccesFName) Then
+    Exit Function
+  End If
+ElseIf (blIsAcc2007) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\12.0\Access\InstallRoot", "PATH", sAccesFName) Then
+    Exit Function
+  End If
+ElseIf (blIsAcc97) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\8.0\Common\InstallRoot", "OfficeBin", sAccesFName) Then
+    Exit Function
+  End If
+  sAccesFName = sAccesFName & "\"
+End If
+
+Dim dbFName As String
+dbFName = CurrentDb().name
+
+Dim sBaseNameLXF As String
+sBaseNameLXF = "LXF.HUPSOFT.5x"
+
+Dim sBaseNameLEF As String
+sBaseNameLEF = "LEF.HUPSOFT.5x"
+
+
+
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, ".lxf", vbNullString, sBaseNameLXF) Then
+  Exit Function
+End If
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, ".lef", vbNullString, sBaseNameLEF) Then
+  Exit Function
+End If
+
+
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sBaseNameLXF, vbNullString, "Lenex file") Then
+  Exit Function
+End If
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sBaseNameLEF, vbNullString, "Lenex file") Then
+  Exit Function
+End If
+
+
+
+Dim sCmdKeyNameLXF As String
+sCmdKeyNameLXF = sBaseNameLXF & "\Shell\Open\Command"
+
+Dim sCmdKeyNameLEF As String
+sCmdKeyNameLEF = sBaseNameLEF & "\Shell\Open\Command"
+
+
+
+
+Dim sCmdValueName As String
+sCmdValueName = vbNullString
+
+
+
+Dim sCmdValue As String
+sCmdValue = """" & sAccesFName & "msaccess.exe"" /runtime " & """" & dbFName & """ /x gLoadLXF /cmd %1"
+
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sCmdKeyNameLXF, sCmdValueName, sCmdValue) Then
+  Exit Function
+End If
+
+If Not regSetKeyValueString(HKEY_CLASSES_ROOT, sCmdKeyNameLEF, sCmdValueName, sCmdValue) Then
+  Exit Function
+End If
+
+
+appRegisterLXF = True
+Exit Function
+
+fout:
+MsgBox Err & " appRegisterLXF" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function appUpdateVersionInfo(ByVal blForceUpdate As Boolean, ByRef blNeedsManualCheck As Boolean, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+appUpdateVersionInfo = False
+
+blNeedsManualCheck = False
+
+
+Dim blReacquire As Boolean
+
+blReacquire = False
+
+
+
+'Determine blReacquire and blNeedsManualCheck
+
+If (Not blForceUpdate) Then
+
+  Dim blOutOfDate As Boolean
+  
+  blOutOfDate = False
+
+  Dim sCurDateNL As String
+  sCurDateNL = appGetGlobalProperty(APP_PROP_NEW_VERSION_ACQ_DATE_NL)
+  
+  If (sCurDateNL = "") Then
+    'do not set outOfDate directly after install.
+    appSetGlobalProperty APP_PROP_NEW_VERSION_ACQ_DATE_NL, rxpFormatDateNL(Now())
+    appSetGlobalProperty APP_PROP_NEW_VERSION_ID, ""
+  Else
+  
+    Dim blBlockAutoCheck As Boolean
+    blBlockAutoCheck = dbBlockAutoVerCheck()
+  
+    If (blBlockAutoCheck) Then
+      'need to compute if manual check is necessary
+      Dim dRefdate As Date
+      dRefdate = rxpParseDateNL(sCurDateNL)
+      
+      Dim lItv As Long
+      lItv = dbManVerCheckItv()
+      
+      If (lItv < 1) Then
+        lItv = 1
+      ElseIf (lItv > 7) Then
+        lItv = 7
+      End If
+      
+      blOutOfDate = True
+      If lenDateIsValid(dRefdate) Then
+        If (CLng(val(Format(dRefdate, "yyyy"))) = CLng(val(Format(Now(), "yyyy")))) Then
+          If (DateDiff("d", dRefdate, Now()) < lItv) Then
+            blOutOfDate = False
+          End If
+        End If
+      End If
+    Else
+      blOutOfDate = True
+      If (sCurDateNL = rxpFormatDateNL(Now())) Then
+        blOutOfDate = False
+      End If
+    End If
+  
+  End If
+  
+  
+  
+  
+  If (blOutOfDate) Then
+    If (blBlockAutoCheck) Then
+      blNeedsManualCheck = True
+    Else
+      If Not appIsSafeMode() Then
+        blReacquire = True
+      Else
+        'if out of date in safe mode, request a manual check
+        blNeedsManualCheck = True
+      End If
+    End If
+  End If
+  
+Else
+  'force reacquire
+  blReacquire = True
+End If
+
+If (blReacquire) Then
+    
+  Dim rssURL As String
+  rssURL = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/rss_feed.rss"
+  
+  Dim rssFName As String
+  
+  
+  SysCmd acSysCmdSetStatus, "Downloading version info. If program hangs, try using SafeMode to start hupswim/hupprog or block automatic version checks in <Instellingen>."
+  
+  rssFName = downloadFile(rssURL)
+  If (rssFName = "") Then
+    Err.Raise 1, , "Error downloading file: " & rssURL
+    Exit Function
+  End If
+  
+  SysCmd acSysCmdClearStatus
+  
+  
+  Dim sGUID As String
+  sGUID = gXMLReader.readFirstTagData(rssFName, "rss/channel/item/guid", True, -1, False)
+  
+  extractToken sGUID, "versie"
+  
+  Dim sNewVersion As String
+  sNewVersion = sGUID
+  
+  
+  appSetGlobalProperty APP_PROP_NEW_VERSION_ACQ_DATE_NL, rxpFormatDateNL(Now())
+  appSetGlobalProperty APP_PROP_NEW_VERSION_ID, sNewVersion
+  
+End If
+
+
+
+appUpdateVersionInfo = True
+Exit Function
+
+fout:
+sErrMsg = Err & " appUpdateVersionInfo" & vbCrLf & Error$
+SysCmd acSysCmdClearStatus
+Exit Function
+End Function
+
+
+
+Public Function appCheckNewVersion(ByRef blNewVersionAvailable As Boolean, ByRef blNeedsManualCheck As Boolean, ByRef sNewVersion As String, ByVal blForceUpdate As Boolean, ByVal blSilent As Boolean, ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+appCheckNewVersion = False
+
+blNewVersionAvailable = False
+
+If Not appUpdateVersionInfo(blForceUpdate, blNeedsManualCheck, sErrMsg) Then
+  Err.Raise 1, , sErrMsg
+End If
+
+sNewVersion = appGetGlobalProperty(APP_PROP_NEW_VERSION_ID)
+
+If (sNewVersion <> "") Then
+  Dim sCurVersion As String
+  sCurVersion = licentie_versie()
+  If (sNewVersion <> sCurVersion) Then
+    If (val(sNewVersion) > val(sCurVersion)) Then
+      blNewVersionAvailable = True
+    ElseIf (val(sNewVersion) = val(sCurVersion)) Then
+      If (sNewVersion > sCurVersion) Then
+        blNewVersionAvailable = True
+      End If
+    End If
+  End If
+End If
+
+
+
+appCheckNewVersion = True
+Exit Function
+
+fout:
+sErrMsg = Err & " appCheckNewVersion" & vbCrLf & Error$
+If (Not blSilent) Then
+  MsgBox Err & " appCheckNewVersion" & vbCrLf & Error$, 16
+End If
+Exit Function
+End Function
+
+
+Public Function appGetNewVersion() As Boolean
+On Error GoTo fout
+appGetNewVersion = False
+
+Dim curVersionAcc As String
+
+curVersionAcc = SysCmd(acSysCmdAccessVer)
+
+Dim blIsAcc2003 As Boolean
+Dim blIsAcc2007 As Boolean
+Dim blIsAcc97 As Boolean
+
+
+blIsAcc2003 = (curVersionAcc = "11.0")
+blIsAcc2007 = (curVersionAcc = "12.0")
+blIsAcc97 = (curVersionAcc = "8.0")
+
+If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97) Then
+  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007 en access 97 versies van Hupswim"
+End If
+
+Dim msg As String
+msg = "Deze operatie zal een nieuwe versie van hupswim/hupprog/huppay installeren. " & vbCrLf & _
+"Indien u verder wilt gaan, sluit dan alle eventuele andere openstaande vensters af van hupswim/hupprog/huppay." & vbCrLf & _
+vbCrLf & "Wilt u verder gaan? "
+
+If MsgBox(msg, vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Function
+End If
+
+
+Dim sURLNameSetup As String
+If (blIsAcc2003 Or blIsAcc2007) Then
+  sURLNameSetup = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/lenex/setup_hupsoft_office_2003_2007.exe"
+Else
+  sURLNameSetup = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/lenex/setup_hupsoft_office_97.exe"
+End If
+
+Dim sFNameSetup As String
+
+SysCmd acSysCmdSetStatus, "Downloading new version..."
+
+sFNameSetup = downloadFile(sURLNameSetup)
+
+SysCmd acSysCmdClearStatus
+
+If (sFNameSetup = "") Then
+  Err.Raise 1, , "Error downloading file: " & sURLNameSetup
+  Exit Function
+End If
+
+
+Dim sZwemBaseDir As String
+sZwemBaseDir = extractFilePath(CurrentDb.name)
+If (Right(sZwemBaseDir, 9) <> "\database") Then
+  Err.Raise 1, , "Unexpected directory structure"
+End If
+sZwemBaseDir = Left(sZwemBaseDir, Len(sZwemBaseDir) - 9)
+
+Dim sTaskStr As String
+If (blIsAcc2003) Then
+  sTaskStr = "/tasks=""restorebackups,useAcc2003"""
+ElseIf (blIsAcc2007) Then
+  sTaskStr = "/tasks=""restorebackups,useAcc2007"""
+Else
+  sTaskStr = "/tasks=""restorebackups"""
+End If
+
+Dim sCmdLine As String
+sCmdLine = """" & sFNameSetup & """ /silent /dir=""" & sZwemBaseDir & """ " & sTaskStr & " /noicons "
+
+If Shell(sCmdLine) = 0 Then
+  Exit Function
+End If
+
+
+appGetNewVersion = True
+Exit Function
+
+fout:
+Dim errMsg As String
+errMsg = Err & " appGetNewVersion" & vbCrLf & Error$
+
+SysCmd acSysCmdClearStatus
+
+MsgBox errMsg, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+'This function is meant to be silent.
+Public Function appRestoreSetupBackup(ByRef sErrMsg As String) As Boolean
+On Error GoTo fout
+appRestoreSetupBackup = False
+
+
+
+On Error Resume Next
+Dim frm As Form_HOOFDFORMULIER
+Set frm = Forms("Hoofdformulier")
+frm.blSuppClosePrompt = True
+Set frm = Nothing
+
+On Error GoTo fout
+
+
+
+
+If Not dbFirstUse() Then
+  appRestoreSetupBackup = True
+  Exit Function
+End If
+
+
+Dim blFnd As Boolean, sFName As String, sDummy As String
+
+If Not firstUseScanSetupBackups(blFnd, sFName, sDummy, sDummy, True, sErrMsg) Then
+  Exit Function
+End If
+
+If blFnd Then
+
+
+  If Not backup_teruglezen_driver(sFName, False) Then
+    Exit Function
+  End If
+  
+  dbSetUsed True
+
+End If
+
+
+
+
+
+
+appRestoreSetupBackup = True
+Exit Function
+
+fout:
+sErrMsg = Err & " appRestoreSetupBackup" & vbCrLf & Error$
+Exit Function
+End Function
+
+
+
+Public Sub appRaiseSilentError()
+Err.Raise 2, , "Silent"
+End Sub
+
+Public Sub appRecordError(ByVal sFncName As String, ByRef errInf As ERR_INFO)
+errInf.lErrCode = Err
+errInf.sErrMsg = Error$
+errInf.sFncName = sFncName
+End Sub
+
+Public Sub appDisplayError(ByRef errInf As ERR_INFO)
+On Error Resume Next
+If (errInf.lErrCode <> 2) Then
+  Dim msg As String
+  msg = errInf.lErrCode & " " & errInf.sFncName & vbCrLf & errInf.sErrMsg
+  MsgBox msg, 16
+End If
+End Sub

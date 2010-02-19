@@ -1,0 +1,1066 @@
+Option Compare Database
+Option Explicit
+
+Public Const TNM_VER = "dtVerenigingen"
+Public Const FNM_VER_NAAM = "V_Naam"
+Public Const FNM_VER_PLAATS = "V_Plaats"
+Public Const FNM_VER_DEPOT = "V_Depotnummer"
+
+
+Public Const TNM_WED = "dtWedstrijden"
+Public Const FNM_WED_PLAATS = "Plaats"
+Public Const FNM_WED_DATUM = "Datum"
+Public Const FNM_WED_DES = "Beschrijving"
+Public Const FNM_WED_MAIN_NR = "MainWedstrijdNummer"
+Public Const FNM_WED_PART_OF_MEET = "IsPartOfMeet"
+Public Const FNM_WED_NR = "wedstrijd nummer"
+
+
+Public Const TNM_PR = "dtProgrammanummers"
+
+Public Const FNM_NA_GES = "Geslacht"
+Public Const FNM_NA_GEBDAT = "Geboortedatum"
+
+
+Public Const FNM_DE_PERS_WEDNR = "Wedstrijdnr"
+Public Const FNM_DE_PERS_WEDNR_TO_ORDER = "[dtDeelnemers].Wedstrijdnr"
+Public Const FNM_DE_PERS_PROG = "Programmanr"
+Public Const FNM_DE_PERS_VER = "THIS_VER"
+Public Const FNM_DE_PERS_VER_TO_ORDER = """1"""
+Public Const FNM_DE_PERS_STARTNR = "Startnummer"
+Public Const FNM_DE_PERS_STARTNR_TO_ORDER = "[dtDeelnemers].Startnummer"
+Public Const FNM_DE_PERS_INSTD = "Inschrijftijd"
+Public Const FNM_DE_PERS_NAAM = "NAAM"
+Public Const FNM_DE_PERS_ABC = "A/B/C"
+Public Const FNM_DE_PERS_RES = "Reserve"
+Public Const FNM_DE_PERS_BM = "BM"
+Public Const FNM_DE_PERS_ACHTNM = "Achternaam"
+Public Const FNM_DE_PERS_VOORNM = "Voornaam"
+Public Const FNM_DE_PERS_VOEGSEL = "Voegsel"
+Public Const FNM_DE_PERS_QLF_DAT = "InsDat"
+Public Const FNM_DE_PERS_QLF_BAAN = "InsBaan"
+
+Public Const FNM_PL_WEDNR = "Wedstrijdnr"
+Public Const FNM_PL_WEDNR_TO_ORDER = "[dtDeelnemers].Wedstrijdnr"
+Public Const FNM_PL_PROG = "Programmanr"
+Public Const FNM_PL_VER = "THIS_VER"
+Public Const FNM_PL_VER_TO_ORDER = """1"""
+Public Const FNM_PL_STARTNR = "Startnummer"
+Public Const FNM_PL_STARTNR_TO_ORDER = "[dtDeelnemers].Startnummer"
+Public Const FNM_PL_NAAM = "NAAM"
+Public Const FNM_PL_RES = "Reserve"
+Public Const FNM_PL_ACHTNM = "Achternaam"
+Public Const FNM_PL_VOORNM = "Voornaam"
+Public Const FNM_PL_VOEGSEL = "Voegsel"
+Public Const FNM_PL_ESTNR = "Estafette nummer"
+Public Const FNM_PL_VLG = "Volgorde"
+
+Public Const FNM_DE_EST_WEDNR = "EST_Wedstrijdnummer"
+Public Const FNM_DE_EST_PROG = "EST_Programmanummer"
+Public Const FNM_DE_EST_VER = "EST_Vereniging"
+Public Const FNM_DE_EST_VER_TO_ORDER = FNM_DE_EST_VER
+Public Const FNM_DE_EST_ESTNR = "EST_Estafettenummer"
+Public Const FNM_DE_EST_INSTD = "EST_Inschrijftijd"
+Public Const FNM_DE_EST_RES = "EST_IsReserve"
+Public Const FNM_DE_EST_BM = "BM"
+Public Const FNM_DE_EST_QLF_DAT = "InsDat"
+Public Const FNM_DE_EST_QLF_BAAN = "InsBaan"
+
+
+
+
+
+Public Const FNM_PR_OPM = "Opmerking"
+Public Const FNM_PR_LIM = "Limiet"
+Public Const FNM_PR_LIM_RES = "Res_Marge"
+Public Const FNM_PR_AF = "Afstand"
+Public Const FNM_PR_WED = "Wedstrijdnr"
+Public Const FNM_PR_CAT = "Categorie"
+Public Const FNM_PR_BESCAT = "Beschrijving Categorie"
+Public Const FNM_PR_PROG = "Programmanummer"
+Public Const FNM_PR_SL = "Slag"
+Public Const FNM_PR_VVT = "Vervangende_Tijd"
+Public Const FNM_PR_NCOMP = "N_Meetellende_deelnemers"
+Public Const FNM_PR_BESAFW = "Beschrijving_Afwijkend"
+Public Const FNM_PR_TYPE = "Type"
+Public Const FNM_PR_REC_PRFX = ""
+Public Const FNM_PR_PRV_NR = "Vorig_programmanummer"
+
+Public Const FNM_PRL_PROG = "Programmanummer"
+Public Const FNM_PRL_WED = "Wedstrijdnr"
+Public Const FNM_PRL_CAT = "Categorie"
+Public Const FNM_PRL_BESCAT = "Beschrijving Categorie"
+Public Const FNM_PRL_CODE = "Code"
+Public Const FNM_PRL_LIM = "Limiet"
+Public Const FNM_PRL_LIM_RES = "RES_Marge"
+Public Const FNM_PRL_VVT = "Vervangende_Tijd"
+Public Const FNM_PRL_REC_PRFX = ""
+
+
+
+Public Const FNM_TY_EST_VER = "THIS_VER"
+Public Const FNM_TY_EST_VER_TO_ORDER = """1"""
+Public Const FNM_TY_EST_EINDAF = "TY_Eindafstand"
+Public Const FNM_TY_EST_EINDTIJD = "TY_Eindtijd"
+Public Const FNM_TY_EST_DIS = "TY_DIS"
+Public Const FNM_TY_EST_ESTNR = "TY_Estafettenummer"
+Public Const FNM_TY_EST_BM = "BM"
+
+Public Const FNM_TY_PERS_START = "TY_Startnummer"
+Public Const FNM_TY_PERS_VER = "THIS_VER"
+Public Const FNM_TY_PERS_VER_TO_ORDER = """1"""
+Public Const FNM_TY_PERS_EINDAF = "TY_Eindafstand"
+Public Const FNM_TY_PERS_EINDTIJD = "TY_Eindtijd"
+Public Const FNM_TY_PERS_DIS = "TY_DIS"
+Public Const FNM_TY_PERS_NAAM = "NAAM"
+Public Const FNM_TY_PERS_BM = "TY_BM"
+
+Public Const FNM_TY_WED = "TY_Wedstrijdnummer"
+Public Const FNM_TY_PROG = "TY_Programmanummer"
+Public Const FNM_TY_TST_AF_MAIN_ROOT = "TY_Afstand"
+Public Const FNM_TY_TST_TD_MAIN_ROOT = "TY_Tijd"
+Public Const FNM_TY_TST_EXT = "TY_ExtraTussentijden"
+
+
+
+
+Public Function wedLkpIsOW(ByVal wednr As Long) As Boolean
+On Error Resume Next
+wedLkpIsOW = False
+End Function
+
+
+Public Function wedProgTabelVullen(wedMeetMainNr As Long, wednr As Long, ByVal wedIsMeet As Boolean, ByVal blRestrict As Boolean, ByVal restrictSlag As String, restrictAfstand As String) As Boolean
+On Error GoTo fout
+wedProgTabelVullen = False
+Dim geg As Recordset, uit As Recordset
+
+Dim sql As String
+If (wedIsMeet) Then
+  sql = "SELECT [dtProgrammanummers].* " & _
+  "FROM [dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr " & _
+  "WHERE [wedstrijdnr] = " & wedMeetMainNr & " or [mainWedstrijdNummer] = " & wedMeetMainNr & ";"
+Else
+  sql = "SELECT [dtProgrammanummers].* " & _
+  "FROM [dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr " & _
+  "WHERE [wedstrijdnr] = " & wednr & ";"
+End If
+
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL ("Delete * from [gSelProgs];")
+DoCmd.SetWarnings True
+
+Set uit = CurrentDb().OpenRecordset("gSelProgs", dbOpenDynaset)
+
+geg.MoveFirst
+Do Until geg.EOF
+
+    Dim tpAf As String
+    Dim tpSl As String
+    tpAf = Nz(geg("Afstand"))
+    tpSl = Nz(geg("Slag"))
+    
+    If (Not blRestrict) Or (tpAf = restrictAfstand And tpSl = restrictSlag) Then
+
+
+
+      uit.AddNew
+      uit("TP_Wedstrijdnummer") = geg("wedstrijdnr")
+      uit("TP_PRogrammanummer") = geg("Programmanummer")
+      uit("TP_Description") = fmtProgDes_Kort(Nz(geg("Type")), Nz(geg("beschrijving_afwijkend")), Nz(geg("afstand")), Nz(geg("slag")), Nz(geg("beschrijving categorie")))
+      uit("TP_Teltmee") = True
+      uit("TP_IsCurWed") = Nz(geg("wedstrijdnr")) = wednr
+      uit("TP_IsEstaf") = Nz(geg("afstand")) Like "*x*"
+    
+      uit("TP_Slag") = geg("slag")
+      uit("TP_Afstand") = geg("Afstand")
+      uit("TP_Categorie") = geg("categorie")
+      uit("TP_ProgType") = geg("Type")
+      uit.Update
+    End If
+    
+    geg.MoveNext
+Loop
+
+appCleanRS geg
+appCleanRS uit
+
+wedProgTabelVullen = True
+Exit Function
+
+
+fout:
+If Err = 3021 Then Resume Next 'no current record.
+
+appCleanRS uit
+
+MsgBox Err & " " & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function wedGetLftSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long, ByVal blUseSelection As Boolean) As String
+On Error GoTo fout
+wedGetLftSQL = ""
+
+
+  
+If (blHuidigProg) Then
+  wedGetLftSQL = "SELECT dtProgrammaLeeftijdsgroepen.*, [dtProgrammanummers].Afstand,[dtProgrammanummers].Slag   " & _
+     "FROM [dtProgrammanummers] INNER JOIN dtProgrammaLeeftijdsgroepen ON ([dtProgrammanummers].Programmanummer = " & _
+     "dtProgrammaLeeftijdsgroepen.Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = dtProgrammaLeeftijdsgroepen.Wedstrijdnr) " & _
+     "WHERE (((dtProgrammaLeeftijdsgroepen.Wedstrijdnr)=" & curWedNr & ") AND ((dtProgrammaLeeftijdsgroepen.Programmanummer)=""" & curProg & """))"
+
+ElseIf (blMeet) Then
+
+  If (blUseSelection) Then
+
+    wedGetLftSQL = "SELECT dtProgrammaLeeftijdsgroepen.*, [dtProgrammanummers].Afstand,[dtProgrammanummers].Slag  " & _
+                "FROM ([dtWedstrijden] INNER JOIN ([dtProgrammanummers] INNER JOIN dtProgrammaLeeftijdsgroepen ON ([dtProgrammanummers].Programmanummer = dtProgrammaLeeftijdsgroepen.Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = dtProgrammaLeeftijdsgroepen.Wedstrijdnr)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN [gSelProgs] ON (dtProgrammaLeeftijdsgroepen.Programmanummer = [gSelProgs].TP_Programmanummer) AND (dtProgrammaLeeftijdsgroepen.Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) " & _
+                "WHERE (((dtProgrammaLeeftijdsgroepen.Wedstrijdnr)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True))"
+                
+  Else
+  
+    wedGetLftSQL = "SELECT dtProgrammaLeeftijdsgroepen.*, [dtProgrammanummers].Afstand,[dtProgrammanummers].Slag  " & _
+                "FROM ([dtWedstrijden] INNER JOIN ([dtProgrammanummers] INNER JOIN dtProgrammaLeeftijdsgroepen ON ([dtProgrammanummers].Programmanummer = dtProgrammaLeeftijdsgroepen.Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = dtProgrammaLeeftijdsgroepen.Wedstrijdnr)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr)  " & _
+                "WHERE (((dtProgrammaLeeftijdsgroepen.Wedstrijdnr)=" & curMeetNr & ") ) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") )"
+  
+  End If 'if blUseSelection
+
+Else
+
+  If (blUseSelection) Then
+    wedGetLftSQL = "SELECT dtProgrammaLeeftijdsgroepen.*, [dtProgrammanummers].Afstand,[dtProgrammanummers].Slag  " & _
+                 "FROM ([dtProgrammanummers] INNER JOIN dtProgrammaLeeftijdsgroepen ON ([dtProgrammanummers].Programmanummer = dtProgrammaLeeftijdsgroepen.Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = dtProgrammaLeeftijdsgroepen.Wedstrijdnr)) INNER JOIN [gSelProgs] ON (dtProgrammaLeeftijdsgroepen.Programmanummer = [gSelProgs].TP_Programmanummer) AND (dtProgrammaLeeftijdsgroepen.Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) " & _
+                 "WHERE (((dtProgrammaLeeftijdsgroepen.Wedstrijdnr)=" & curWedNr & ") AND (([gSelProgs].TP_Teltmee)=True))"
+
+  Else
+  
+    wedGetLftSQL = "SELECT dtProgrammaLeeftijdsgroepen.*, [dtProgrammanummers].Afstand,[dtProgrammanummers].Slag  " & _
+                 "FROM ([dtProgrammanummers] INNER JOIN dtProgrammaLeeftijdsgroepen ON ([dtProgrammanummers].Programmanummer = dtProgrammaLeeftijdsgroepen.Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = dtProgrammaLeeftijdsgroepen.Wedstrijdnr))  " & _
+                 "WHERE (((dtProgrammaLeeftijdsgroepen.Wedstrijdnr)=" & curWedNr & ") )"
+  
+  End If
+End If
+
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function wedGetProgsSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long, blUseSelection As Boolean, blAddOrderClause As Boolean) As String
+On Error GoTo fout
+wedGetProgsSQL = ""
+
+If (blHuidigProg) Then
+  wedGetProgsSQL = "Select * from [dtProgrammanummers] where [wedstrijdnr]=" & curWedNr & " and programmanummer=""" & curProg & """"
+ElseIf (blUseSelection) Then
+
+  If (blMeet) Then
+    wedGetProgsSQL = "SELECT [dtProgrammanummers].* FROM ([dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) " & _
+                   "WHERE (( (([dtProgrammanummers].Wedstrijdnr)= " & curMeetNr & ")) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & "))) and (([gSelProgs].TP_Teltmee)=True) "
+  Else
+    wedGetProgsSQL = "SELECT * FROM [dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Programmanummer = " & _
+    "[gSelProgs].TP_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) WHERE " & _
+    "((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") AND (([gSelProgs].TP_Teltmee)=True)) "
+  End If
+Else
+  If (blMeet) Then
+    wedGetProgsSQL = "SELECT [dtProgrammanummers].* FROM ([dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr)  " & _
+                   "WHERE (( (([dtProgrammanummers].Wedstrijdnr)= " & curMeetNr & ")) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & "))) "
+  Else
+    wedGetProgsSQL = "SELECT * FROM [dtProgrammanummers]  WHERE " & _
+    "((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") ) "
+  End If
+
+End If
+
+
+
+If (blAddOrderClause) Then
+  wedGetProgsSQL = wedGetProgsSQL & " ORDER BY [dtProgrammanummers].wedstrijdnr, val([dtProgrammanummers].programmanummer), [dtProgrammanummers].programmanummer"
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function wedGetABCSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long) As String
+On Error GoTo fout
+wedGetABCSQL = ""
+
+If (blHuidigProg) Then
+  wedGetABCSQL = "SELECT [dtDeelnemers].*, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag, " & _
+  "[dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtLeden].Geslacht, [dtLeden].Geboortedatum " & _
+  "FROM [dtLeden] INNER JOIN ([dtProgrammanummers] INNER JOIN [dtDeelnemers] ON ([dtProgrammanummers].Programmanummer = " & _
+  "[dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) " & _
+  "ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer " & _
+  "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") and [dtProgrammanummers].programmanummer=""" & curProg & """)"
+ElseIf (blMeet) Then
+  wedGetABCSQL = "SELECT [dtDeelnemers].*, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtLeden].Geslacht, [dtLeden].Geboortedatum " & _
+                 "FROM (([dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) " & _
+                 "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) " & _
+                 "ORDER BY [dtProgrammanummers].wedstrijdnr"
+
+Else
+  wedGetABCSQL = "SELECT [dtDeelnemers].*, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtLeden].Geslacht, [dtLeden].Geboortedatum " & _
+              "FROM ([dtProgrammanummers] INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) " & _
+              "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") AND (([gSelProgs].TP_Teltmee)=True))"
+
+End If
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function wedLkpLftBep(ByVal wednr As Long) As String
+On Error Resume Next
+Dim wedMainNr As Long
+wedMainNr = wednr
+If (Nz(DLookup("IsPartOfMeet", "dtWedstrijden", "wedstrijdnummer = " & wednr))) Then
+  wedMainNr = Nz(DLookup("MainWedstrijdNummer", "dtWedstrijden", "wedstrijdnummer = " & wednr))
+End If
+wedLkpLftBep = Nz(DLookup("Leeftijdsbepaling", "dtWedstrijdGegevens", "wedstrijdnummer = " & wedMainNr))
+If (wedLkpLftBep = "") Then
+  wedLkpLftBep = LFT_MODE_SZYR
+End If
+End Function
+
+Public Function wedLkpAgeDate(ByVal wednr As Long) As Date
+On Error Resume Next
+
+Dim wedMainNr As Long
+wedMainNr = wednr
+If (Nz(DLookup("IsPartOfMeet", "dtWedstrijden", "wedstrijdnummer = " & wednr))) Then
+  wedMainNr = Nz(DLookup("MainWedstrijdNummer", "dtWedstrijden", "wedstrijdnummer = " & wednr))
+End If
+
+wedLkpAgeDate = Nz(DLookup("AgeDate", "dtWedstrijden", "[wedstrijd nummer] = " & wedMainNr), #1/1/1900#)
+If (Not lenDateIsValid(wedLkpAgeDate)) Then
+  wedLkpAgeDate = wedLkpDate(wedMainNr)
+End If
+End Function
+
+
+
+
+Public Function wedLkpDate(ByVal wednr As Long) As Date
+On Error Resume Next
+wedLkpDate = #1/1/1900#
+wedLkpDate = DLookup("Datum", "dtWedstrijden", "[wedstrijd nummer] = " & wednr)
+End Function
+
+
+Public Function wedLkpBaan(ByVal wednr As Long) As Integer
+On Error Resume Next
+wedLkpBaan = 0
+wedLkpBaan = Nz(DLookup("Baanlengte", "dtWedstrijden", "[Wedstrijd nummer] = " & wednr))
+End Function
+
+
+
+Public Function abcPostLftUpdate(blDeleteAll As Boolean, blHuidig As Boolean, blEntireMeet As Boolean, curProg As String, curWedNr As Long, curMeetMainNr As Long) As Boolean
+On Error GoTo fout
+abcPostLftUpdate = False
+
+'Do nothing.
+
+abcPostLftUpdate = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+Public Function wedGetDlnVers(blCompOnly As Boolean, blMeet As Boolean, curWedNr As Long, curMeetNr As Long, ByRef dlnVNames() As String, ByRef dlnVDepots() As String, ByRef nDlnVers As Integer) As Boolean
+On Error GoTo fout
+wedGetDlnVers = False
+
+nDlnVers = 1
+dlnVNames(0) = ver()
+dlnVDepots(0) = depot()
+
+
+wedGetDlnVers = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function tyGetResultsPersSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long) As String
+On Error GoTo fout
+tyGetResultsPersSQL = ""
+
+If (blHuidigProg) Then
+  tyGetResultsPersSQL = "SELECT dtUitslagenPers.*,  ver() as THIS_VER, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].* " & _
+          "FROM dtUitslagenPers LEFT JOIN [dtLeden] ON (dtUitslagenPers.TY_Startnummer = [dtLeden].Startnummer)  " & _
+          "WHERE (((dtUitslagenPers.TY_Wedstrijdnummer)=" & curWedNr & ") AND ((dtUitslagenPers.TY_Programmanummer)=""" & curProg & """)) "
+ElseIf blMeet Then
+  tyGetResultsPersSQL = "SELECT dtUitslagenPers.*,ver() as THIS_VER,  fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].* " & _
+  "FROM (dtUitslagenPers LEFT JOIN [dtLeden] ON  " & _
+  "(dtUitslagenPers.TY_Startnummer = [dtLeden].Startnummer)) INNER JOIN [dtWedstrijden] ON " & _
+  "dtUitslagenPers.TY_Wedstrijdnummer = [dtWedstrijden].[Wedstrijd nummer] " & _
+  "WHERE ((([dtWedstrijden].[Wedstrijd nummer])=" & curMeetNr & ")) OR ((([dtWedstrijden].MainWedstrijdnummer)= " & curMeetNr & ")) "
+Else
+  tyGetResultsPersSQL = "SELECT dtUitslagenPers.*, ver() as THIS_VER, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].* " & _
+          "FROM dtUitslagenPers LEFT JOIN [dtLeden] ON (dtUitslagenPers.TY_Startnummer = [dtLeden].Startnummer)  " & _
+          "WHERE (((dtUitslagenPers.TY_Wedstrijdnummer)=" & curWedNr & ") ) "
+
+End If
+
+
+
+Exit Function
+fout:
+MsgBox Err & " tyGetResultsPersSQL" & Error$, 16
+Exit Function
+End Function
+
+Public Function tyGetResultsEstSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long) As String
+On Error GoTo fout
+tyGetResultsEstSQL = ""
+
+If (blHuidigProg) Then
+  tyGetResultsEstSQL = "SELECT dtUitslagenEst.* ,ver() as THIS_VER, ""N"" as BM " & _
+          "FROM dtUitslagenEst " & _
+          "WHERE (((dtUitslagenEst.TY_Wedstrijdnummer)=" & curWedNr & ") AND ((dtUitslagenEst.TY_Programmanummer)=""" & curProg & """)) "
+ElseIf blMeet Then
+  tyGetResultsEstSQL = "SELECT dtUitslagenEst.*, ver() as THIS_VER, ""N"" as BM " & _
+  "FROM dtUitslagenEst INNER JOIN [dtWedstrijden] ON " & _
+  "dtUitslagenEst.TY_Wedstrijdnummer = [dtWedstrijden].[Wedstrijd nummer] " & _
+  "WHERE ((([dtWedstrijden].[Wedstrijd nummer])=" & curMeetNr & ")) OR ((([dtWedstrijden].MainWedstrijdnummer)= " & curMeetNr & ")) "
+Else
+  tyGetResultsEstSQL = "SELECT dtUitslagenEst.*, ver() as THIS_VER, ""N"" as BM  " & _
+          "FROM dtUitslagenEst " & _
+          "WHERE (((dtUitslagenEst.TY_Wedstrijdnummer)=" & curWedNr & ") ) "
+
+End If
+
+
+
+Exit Function
+fout:
+MsgBox Err & " tyGetResultsPersSQL" & Error$, 16
+Exit Function
+End Function
+
+
+Function waarde()
+On Error Resume Next
+waarde = Null
+
+waarde = Forms![wed_master]![Wedstrijd nummer]
+
+Exit Function
+err_waa:
+Exit Function
+End Function
+
+
+Function waarde_prog()
+On Error Resume Next
+
+waarde_prog = ""
+ 
+waarde_prog = Forms![dln_master].glbCurProg
+
+
+If (Nz(waarde_prog, "") = "") Then
+  waarde_prog = Forms![prog_master].subfrm![Programmanummer]
+End If
+
+
+Exit Function
+err_w:
+Exit Function
+End Function
+Function waarde_cat()
+On Error Resume Next
+
+waarde_cat = Forms![dln_master].glbCurCat
+
+If (Nz(waarde_cat, "") = "") Then
+  waarde_cat = Forms![inschrijvingen frm]![cat]
+End If
+
+Exit Function
+
+End Function
+
+
+Public Function wed_IsMeet() As Boolean
+On Error Resume Next
+wed_IsMeet = False
+wed_IsMeet = Nz(Forms![wed_master]![IsPartOfMeet], False)
+
+End Function
+
+Public Function wed_combineFacStarts() As Boolean
+On Error Resume Next
+wed_combineFacStarts = False
+wed_combineFacStarts = Nz(Forms![wed_master]![combineFacStartLim], False)
+
+End Function
+
+
+Public Function wed_MeetMainNr() As Long
+On Error Resume Next
+wed_MeetMainNr = Nz(Forms![wed_master]![MainWedstrijdNummer], -1)
+If (wed_MeetMainNr = -1 Or wed_MeetMainNr = 0) Then
+  wed_MeetMainNr = waarde()
+End If
+
+
+End Function
+
+
+Function wed_lft_mode() As String
+On Error Resume Next
+
+Dim blIsMeet As Boolean
+blIsMeet = wed_IsMeet()
+If (blIsMeet) Then
+  Dim meetMainNr As Long
+  meetMainNr = wed_MeetMainNr()
+  wed_lft_mode = wedLkpLftBep(meetMainNr)
+Else
+  wed_lft_mode = Nz(Forms![wed_master]![cmbLftMode])
+End If
+
+If (wed_lft_mode = "") Then
+  wed_lft_mode = LFT_MODE_SZYR
+End If
+
+End Function
+
+
+Public Function wed_age_date() As Date
+On Error Resume Next
+wed_age_date = #1/1/1900#
+
+Dim blIsMeet As Boolean
+blIsMeet = wed_IsMeet()
+If (blIsMeet) Then
+  Dim meetMainNr As Long
+  meetMainNr = wed_MeetMainNr()
+  wed_age_date = wedLkpAgeDate(meetMainNr)
+Else
+  wed_age_date = Nz(Forms![wed_master]![ageDate], #1/1/1900#)
+  If (Not lenDateIsValid(wed_age_date)) Then
+    wed_age_date = Forms![wed_master]![Datum]
+  End If
+End If
+
+End Function
+
+Function wed_datum()
+On Error Resume Next
+
+wed_datum = Forms![wed_master]![Datum]
+
+End Function
+
+
+
+
+Public Function wedLookup(ByVal wednr As Long, ByRef isFound As Boolean, ByRef wedInfo As WED_BASIC_INFO) As Boolean
+On Error GoTo fout
+wedLookup = False
+
+isFound = False
+
+Dim rs As Recordset, skWed As Recordset
+
+
+Dim sqlBase As String, sql As String
+sqlBase = "SELECT [dtWedstrijden].*, [dtWedstrijdGegevens].* " & _
+      "FROM [dtWedstrijden] LEFT JOIN [dtWedstrijdGegevens] ON [dtWedstrijden].[Wedstrijd nummer] = " & _
+      "[dtWedstrijdGegevens].Wedstrijdnummer WHERE [dtWedstrijden].[Wedstrijd nummer]="
+      
+sql = sqlBase & wednr & ";"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+rs.MoveFirst
+If (Not rs.EOF) Then
+  isFound = True
+  
+  wedInfo.date = Nz(rs("Datum"), #1/1/1900#)
+  
+  
+  wedInfo.baan = Nz(rs("Baanlengte"))
+  wedInfo.isMeet = Nz(rs("IsPartOfMeet"))
+  
+  If (wedInfo.isMeet) Then
+    wedInfo.meetMainNr = Nz(rs("MainWedstrijdnummer"))
+    If (wedInfo.meetMainNr <= 0) Then
+      wedInfo.meetMainNr = wednr
+    End If
+  Else
+    wedInfo.meetMainNr = wednr
+  End If
+  
+  wedInfo.avst = Nz(rs("Aanvang"), #12:00:00 AM#)
+  
+  wedInfo.des = Nz(rs("Beschrijving"))
+  
+  wedInfo.Plaats = Nz(rs("Plaats"))
+  wedInfo.wednr = wednr
+  
+  
+  
+  
+  If (wedInfo.isMeet) And (wedInfo.meetMainNr <> wedInfo.wednr) Then
+  
+    appCleanRS rs
+    
+    sql = sqlBase & wedInfo.meetMainNr & ";"
+    Set rs = CurrentDb().OpenRecordset(sql)
+    rs.MoveFirst
+    If (rs.EOF) Then
+      Err.Raise 1, , "De meerdaagse wedstrijd: " & wedInfo.wednr & " verwijst naar: " & wedInfo.meetMainNr & " als eerste deel, maar dit laatste wedstrijdnummer bestaat niet."
+    End If
+  End If
+
+  
+  wedInfo.qlfConvMode = Nz(rs("KwalificatieMode"))
+  wedInfo.qlfMinDate = Nz(rs("KwalificatieMinDatum"), #1/1/1900#)
+  wedInfo.qlfMaxDate = Nz(rs("KwalificatieMaxDatum"), #1/1/1900#)
+  wedInfo.qlfRelayMode = Nz(rs("KwalificatieRelayMode"), RELAY_MODE_BOTH)
+  
+  wedInfo.ageDate = Nz(rs("AgeDate"), #1/1/1900#)
+  If (Not lenDateIsValid(wedInfo.ageDate)) Then
+    'put ageDate at the date of the first part of the match
+    wedInfo.ageDate = Nz(rs("datum"), #1/1/1900#)
+  End If
+  
+  wedInfo.lftBep = Nz(rs("Leeftijdsbepaling"))
+  
+  
+  If (wedInfo.isMeet) Then
+    wedInfo.meetDes = Nz(rs("MainBeschrijving"))
+    If (wedInfo.meetDes = "") Then
+      wedInfo.meetDes = wedInfo.des
+    End If
+  Else
+    wedInfo.meetDes = wedInfo.des
+  End If
+  
+  
+  wedInfo.meetMinDate = wedInfo.date
+  wedInfo.meetMaxDate = wedInfo.date
+  
+  If (wedInfo.isMeet) Then
+    Dim lMinWedNr As Long, lMaxWedNr As Long
+    lMinWedNr = Nz(DMin("[wedstrijd nummer]", "dtWedstrijden", "mainWedstrijdnummer = " & wedInfo.meetMainNr), -1)
+    lMaxWedNr = Nz(DMax("[wedstrijd nummer]", "dtWedstrijden", "mainWedstrijdnummer = " & wedInfo.meetMainNr), -1)
+    
+    If (lMinWedNr <> wedInfo.wednr) Then
+      skWed.Seek "=", lMinWedNr
+      If Not skWed.NoMatch Then
+        Dim tpDate As Date
+        tpDate = Nz(skWed("datum"), #1/1/1900#)
+        If (lenDateIsValid(tpDate)) Then
+          If (tpDate < wedInfo.meetMinDate) Then
+            wedInfo.meetMinDate = tpDate
+          End If
+        End If
+      End If
+    End If
+    If (lMaxWedNr <> wedInfo.wednr) Then
+      skWed.Seek "=", lMaxWedNr
+      If Not skWed.NoMatch Then
+        tpDate = Nz(skWed("datum"), #1/1/1900#)
+        If (lenDateIsValid(tpDate)) Then
+          If (tpDate > wedInfo.meetMaxDate) Then
+            wedInfo.meetMaxDate = tpDate
+          End If
+        End If
+      End If
+    End If
+  End If
+  
+  
+  
+
+End If
+
+
+appCleanRS skWed
+appCleanRS rs
+
+
+wedLookup = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wedLookup" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function dlnBuildDlnSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long, blUseSelection As Boolean, blIsEstaf As Boolean) As String
+
+dlnBuildDlnSQL = ""
+
+
+Dim tpEstCrit As String
+If (blIsEstaf) Then
+  tpEstCrit = ""
+Else
+  tpEstCrit = "not "
+End If
+
+If (blHuidigProg) Then
+  dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, " & _
+  "[dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel " & _
+  "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) ON wedIns.[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd " & _
+  "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") and ([dtProgrammanummers].programmanummer=""" & curProg & """) and " & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") )"
+ElseIf (blUseSelection) Then
+  If (blMeet) Then
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats,[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
+                 "FROM (([dtWedstrijden] INNER JOIN ([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) LEFT JOIN [dtWedstrijden] AS wedIns ON [dtDeelnemers].WedstrijdnrInsTijd = wedIns.[Wedstrijd nummer] " & _
+                 "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
+                 "( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) )"
+
+  Else
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum,fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
+              "FROM [dtWedstrijden] AS wedIns RIGHT JOIN (([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) ON wedIns.[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd " & _
+              "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
+              "((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") AND (([gSelProgs].TP_Teltmee)=True))"
+
+  End If
+Else
+  If (blMeet) Then
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum, fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
+                 "FROM (([dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) LEFT JOIN [dtWedstrijden] AS wedIns ON [dtDeelnemers].WedstrijdnrInsTijd = wedIns.[Wedstrijd nummer] " & _
+                 "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
+                 "( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") ) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") ) )"
+
+  Else
+    dlnBuildDlnSQL = "SELECT [dtDeelnemers].*, ver() as THIS_VER, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, [dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE,[dtLeden].Geslacht, [dtLeden].Geboortedatum,fmtName(nz([dtLeden].voornaam), nz([dtLeden].voegsel), nz([dtLeden].achternaam)) as NAAM, [dtLeden].achternaam, [dtLeden].voornaam, [dtLeden].voegsel  " & _
+              "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN ([dtLeden] INNER JOIN [dtDeelnemers] ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer) ON ([dtProgrammanummers].Programmanummer = [dtDeelnemers].Programmanr) AND ([dtProgrammanummers].Wedstrijdnr = [dtDeelnemers].Wedstrijdnr)) ON wedIns.[Wedstrijd nummer] = [dtDeelnemers].WedstrijdnrInsTijd  " & _
+              "WHERE (" & tpEstCrit & " ([dtProgrammanummers].afstand like ""*x*"") ) and " & _
+              " ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") )"
+  End If
+End If
+
+End Function
+
+
+Public Function dlnGetDeelnemersPersSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long, blUseSelection As Boolean) As String
+On Error GoTo fout
+
+dlnGetDeelnemersPersSQL = dlnBuildDlnSQL(blHuidigProg, blMeet, curProg, curWedNr, curMeetNr, blUseSelection, False)
+
+Exit Function
+fout:
+MsgBox Err & " dlnGetDeelnemersPersSQL" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function dlnGetDeelnemersEstSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long, blUseSelection As Boolean, sAnEstafsSfx As String) As String
+On Error GoTo fout
+
+'Here we need to use the ~AN_Estafs table to get the estafettes.
+
+dlnGetDeelnemersEstSQL = ""
+
+Dim sEstafsTBName As String
+sEstafsTBName = "~AN_ESTAFS" & sAnEstafsSfx
+
+
+If (blHuidigProg) Then
+  dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+  "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE " & _
+  "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN  [" & sEstafsTBName & "] ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) ON wedIns.[Wedstrijd nummer] = [" & sEstafsTBName & "].EST_ExtInsWedNr " & _
+  "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") and ([dtProgrammanummers].programmanummer=""" & curProg & """)  )"
+ElseIf (blUseSelection) Then
+  If (blMeet) Then
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*,""N"" as BM, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+                             "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE  " & _
+                 "FROM (([dtWedstrijden] INNER JOIN ([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN  [" & sEstafsTBName & "]  ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) LEFT JOIN [dtWedstrijden] AS wedIns ON [" & sEstafsTBName & "].EST_ExtInsWedNr = wedIns.[Wedstrijd nummer] " & _
+                 "WHERE ( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) )"
+
+  Else
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM,wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+                             "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE  " & _
+              "FROM [dtWedstrijden] AS wedIns RIGHT JOIN (([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) INNER JOIN  [" & sEstafsTBName & "]  ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) ON wedIns.[Wedstrijd nummer] = [" & sEstafsTBName & "].EST_ExtInsWedNr " & _
+              "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") AND (([gSelProgs].TP_Teltmee)=True))"
+
+  End If
+Else
+  If (blMeet) Then
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*,""N"" as BM, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+                             "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet , [dtProgrammanummers].RES_MARGE " & _
+                 "FROM (([dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN  [" & sEstafsTBName & "] ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) LEFT JOIN [dtWedstrijden] AS wedIns ON [" & sEstafsTBName & "].EST_ExtInsWedNr = wedIns.[Wedstrijd nummer] " & _
+                 "WHERE ( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") ) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") ) )"
+
+  Else
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM,wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+                             "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE  " & _
+              "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN  [" & sEstafsTBName & "] ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) ON wedIns.[Wedstrijd nummer] = [" & sEstafsTBName & "].EST_ExtInsWedNr  " & _
+              "WHERE  ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") )"
+  End If
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " dlnGetDeelnemersEstSQL" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function dlnGetPloegledenSQL(blHuidigProg As Boolean, blMeet As Boolean, curProg As String, curWedNr As Long, curMeetNr As Long, blUseSelection As Boolean) As String
+On Error GoTo fout
+
+dlnGetPloegledenSQL = dlnBuildDlnSQL(blHuidigProg, blMeet, curProg, curWedNr, curMeetNr, blUseSelection, True)
+
+Exit Function
+fout:
+MsgBox Err & " dlnGetDeelnemersEstSQL" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Sub wedUpdateViewAfterWedImport()
+On Error Resume Next
+'do nothing
+End Sub
+
+
+
+
+Public Function wedAppendMissingTimes(ByVal lWedNr As Long, ByVal blEntireMeet As Boolean, ByVal blSingleProg As Boolean, ByVal sSingleProg As String) As Boolean
+On Error Resume Next
+'do nothing
+End Function
+
+
+
+Public Function wediNrChange_notify() As Boolean
+On Error GoTo fout
+wediNrChange_notify = False
+
+notifyWedStructureChange
+
+
+wediNrChange_notify = True
+Exit Function
+
+fout:
+MsgBox Err & " wediNrChange_notify" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+Public Sub wediNrChronologicalChange_getStats(ByRef lWedsPerYear As Long, ByRef lMinWedNrToChange As Long)
+lWedsPerYear = 1000
+lMinWedNrToChange = 1000000
+End Sub
+
+
+Public Sub wediMove_prepareSpecialTables(ByRef blUseSimpleEdit As Boolean, ByRef sTbs() As String, ByRef sWedFld() As String, ByRef blAdd() As Boolean, ByRef nTbs As Integer)
+
+blUseSimpleEdit = True
+
+End Sub
+
+
+
+Public Function wediMayDelete_prompt(wednr As Long, ByVal blSupressInitialPrompt As Boolean, blSupressWarning As Boolean, blAllowGlobalCancel As Boolean, ByRef isWarning As Boolean, ByRef isGlobalCancel As Boolean) As Boolean
+On Error GoTo fout
+
+wediMayDelete_prompt = False
+
+isGlobalCancel = False
+isWarning = False
+
+
+Dim intTijdTel As Long
+Dim intClubTel As Long
+
+If Not blSupressInitialPrompt Then
+  If MsgBox("Weet u zeker dat u deze wedstrijd met nummer: " & wednr & " inclusief opstelling en gezwommen tijden wilt verwijderen?", 33) = vbCancel Then
+    Exit Function
+  End If
+End If
+  
+If Not recMarkRecords(#1/1/2099#, -1) Then
+  Exit Function
+End If
+
+If Not prsMarkPRs(#1/1/1900#, #1/1/2099#, -1) Then
+  Exit Function
+End If
+
+
+
+
+Dim sql As String
+sql = "Select * from dtRecordsInternal where rc_wedstrijdnummer =" & wednr & ";"
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+
+
+Dim intTelHouder As Integer
+  
+  intClubTel = 0
+  intTelHouder = 0
+  
+  geg.MoveFirst
+  Do Until geg.EOF
+    If Nz(geg("rc_isMarked")) Then
+      intTelHouder = intTelHouder + 1
+    End If
+    intClubTel = intClubTel + 1
+    geg.MoveNext
+  Loop
+
+
+appCleanRS geg
+
+
+'Dat waren de clubrecords. Gebruiker vragen wat hij ermee wil doen...
+
+Dim msgstr As String
+msgstr = "Tijdens deze wedstrijd met nummer: " & wednr & " zijn " & intClubTel & " records gezwommen, waarvan er op dit moment" & Chr$(13) & intTelHouder & _
+    " nog steeds (als snelste) staan." & Chr$(13) & _
+    "Deze records zullen worden verwijderd indien u deze wedstrijd wilt verwijderen." & Chr$(13) & "Wilt u doorgaan?"
+    
+'Alleen als er records zijn gezwommen vragen of ze verwijderd moeten worden en zo ja, verwijderen...
+If intClubTel > 0 Then
+  isWarning = True
+  If (Not blSupressWarning) Then
+    If (blAllowGlobalCancel) Then
+      msgstr = msgstr & vbCrLf & vbCrLf & "NB: No = Alleen deze wedstrijd niet verwijderen" & vbCrLf & "NB: Cancel = Proces afbreken"
+      Dim answer As Integer
+      answer = MsgBox(msgstr, vbYesNoCancel + vbDefaultButton2 + vbQuestion, "Records verwijderen?")
+      If (answer = vbCancel) Then
+        isGlobalCancel = True
+      End If
+      If (answer <> vbYes) Then
+        Exit Function
+      End If
+    Else
+      If MsgBox(msgstr, vbOKCancel + vbDefaultButton2 + vbQuestion, "Records verwijderen?") = vbCancel Then
+        Exit Function
+      End If
+    End If
+  End If
+End If
+  
+  'records daadwerkelijk verwijderen gebeurt straks pas...
+
+
+
+sql = "select * from [dtTijden] where [wedstr nr] =" & wednr & ";"
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+Dim intPTel As Integer
+
+intTijdTel = 0
+intPTel = 0
+
+geg.MoveFirst
+  Do Until geg.EOF
+    If Nz(geg("IsMarked")) Then
+      intPTel = intPTel + 1
+    End If
+    intTijdTel = intTijdTel + 1
+    geg.MoveNext
+  Loop
+  
+appCleanRS geg
+
+
+msgstr = "Voor deze wedstrijd met nummer: " & wednr & " staan nog " & intTijdTel & " tijden geregistreerd, waarvan er op dit moment" & Chr$(13) & intPTel & _
+    " nog als PR geregistreerd staan." & Chr$(13) & _
+    "Deze tijden zullen worden verwijderd indien u deze wedstrijd wilt verwijderen." & Chr$(13) & "Wilt u doorgaan?"
+
+If intTijdTel > 0 Then
+  isWarning = True
+  If Not blSupressWarning Then
+    If (blAllowGlobalCancel) Then
+      msgstr = msgstr & vbCrLf & vbCrLf & "NB: No = Alleen deze wedstrijd niet verwijderen" & vbCrLf & "NB: Cancel = Proces afbreken"
+      answer = MsgBox(msgstr, vbYesNoCancel + vbDefaultButton2 + vbQuestion, "Tijden verwijderen?")
+      If (answer = vbCancel) Then
+        isGlobalCancel = True
+      End If
+      If (answer <> vbYes) Then
+        Exit Function
+      End If
+    Else
+      If MsgBox(msgstr, vbOKCancel + vbQuestion + vbDefaultButton2, "Tijden verwijderen?") = vbCancel Then
+        Exit Function
+      End If
+    End If
+  End If 'if not blSuppressWarning
+End If 'if intTijdTel > 0
+
+
+
+
+wediMayDelete_prompt = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " wediMayDelete_prompt" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Sub wediMayDelete_prepareDeleteTables(ByRef nTbs As Integer, ByRef sTbNames() As String, ByRef fNamesWed() As String, ByRef fNamesToUpdate() As String)
+
+sTbNames(0) = "dtRecordsInternal"
+fNamesWed(0) = "rc_wedstrijdnummer"
+fNamesToUpdate(0) = "rc_wedstrijdnummer"
+
+sTbNames(1) = "dtTijden"
+fNamesWed(1) = "wedstr nr"
+fNamesToUpdate(1) = "wedstr nr"
+
+
+sTbNames(2) = "dtDeelnemers"
+fNamesWed(2) = "wedstrijdnr"
+fNamesToUpdate(2) = "wedstrijdNrInsTijd"
+
+sTbNames(3) = "dtDeelnemers"
+fNamesWed(3) = "wedstrijdnr"
+fNamesToUpdate(3) = "ESTINS_ExtInsWedNr"
+
+nTbs = 4
+
+End Sub

@@ -1,0 +1,429 @@
+Option Compare Database
+Option Explicit
+
+Public Const REP_PRG = "rptProgramma"
+Public Const REP_UTB = "rptUitslag"
+Public Const REP_UTL = "rptUitslaglijst"
+
+Public Const REP_STL = "rptStartlijst"
+Public Const REP_STL_KLEIN = "rptStartlijst_small"
+Public Const REP_STL_CAT = "rptStartlijst_cat"
+Public Const REP_STL_CAT_KLEIN = "rptStartlijst_cat_small"
+
+
+Public Const REP_CNT_LIST = "rptCntList"
+Public Const REP_OFF_LIST = "rptOffList"
+Public Const REP_VER_LIST = "rptVerLijst"
+Public Const REP_DIS_LIST = "rptDisLijst"
+
+
+Public Const REP_MM_LAB = "gRptMMLabels"
+Public Const REP_MM_ENV = "gRptMMEnvelopes"
+
+
+
+
+Public Const REP_PNT_VER = "gRptPntVer"
+Public Const REP_PNT_VER_KLEIN = "gRptPntVer_klein"
+Public Const REP_PNT_IND = "rptPntInd"
+Public Const REP_TEL = "rptTellijst"
+
+Public Const REP_JRY = "rptVoorblad"
+Public Const REP_DLV = "rptDlnVers"
+
+
+Public Const REP_STK = "rptStartkaart"
+Public Const REP_KMP = "rptKampKaart"
+
+Public Const REP_STK_EXT_PERS = "rptStartkaartVoorbedruktPers"
+Public Const REP_STK_EXT_EST_VOOR = "rptStartkaartVoorbedruktEst"
+Public Const REP_STK_EXT_EST_ACHT = "rptStartkaartVoorbedruktEstAchterkant"
+
+
+
+Public Const REP_LNCAP = "rptLeencaps"
+
+Public Const REP_LNG_PROG = "rptLengteProg"
+
+Public Const REP_SPD_OORK = "rptSpeedoOorkonde"
+Public Const REP_SPD_OORK_SNG = "rptSpeedoOorkondeSingle"
+
+Public Const REP_FAC_OVZ = "gRptAantalStarts"
+Public Const REP_FAC_IND = "gRptFactuur"
+Public Const REP_FAC_IND_KLEIN = "gRptFactuur_small"
+
+Public Const RXP_CB_ID_PV_UTL = 0
+Public Const RXP_CB_ID_PV_UTB = 1
+Public Const RXP_CB_ID_PV_STL = 2
+
+Public Const RXP_CB_ID_RXL_SWB = 10
+
+
+
+
+
+
+Public Function rxpExportCbMaster_TxtRegDefaultFormat(ByVal cbID As Integer, ByVal bandName As String, ByRef bndNCols As Integer, ByRef bndColWidths() As Integer, ByRef bndColMultiLine() As Boolean, ByRef bndColFields() As String, ByRef bndColFixedText() As String, ByRef blIgnoreBand As Boolean, ByRef blStartPage As Boolean, ByRef blEndPage As Boolean, ByRef pageFieldName As String, ByRef rxpPnt As RXP_Pointer) As Boolean
+
+Select Case cbID
+  Case RXP_CB_ID_PV_UTL
+    rxpExportCbMaster_TxtRegDefaultFormat = cbExpPV_UTL_TxtRegDefaultFormat(bandName, bndNCols, bndColWidths, bndColMultiLine, bndColFields, bndColFixedText, blIgnoreBand, rxpPnt)
+  Case RXP_CB_ID_PV_UTB
+    rxpExportCbMaster_TxtRegDefaultFormat = cbExpPV_UTB_TxtRegDefaultFormat(bandName, bndNCols, bndColWidths, bndColMultiLine, bndColFields, bndColFixedText, blIgnoreBand, rxpPnt)
+  Case RXP_CB_ID_PV_STL
+    rxpExportCbMaster_TxtRegDefaultFormat = cbExpPV_STL_TxtRegDefaultFormat(bandName, bndNCols, bndColWidths, bndColMultiLine, bndColFields, bndColFixedText, blIgnoreBand, rxpPnt)
+  Case RXP_CB_ID_RXL_SWB
+    rxpExportCbMaster_TxtRegDefaultFormat = cbRXL_SW_TxtRegDefaultFormat(bandName, bndNCols, bndColWidths, bndColMultiLine, bndColFields, bndColFixedText, blIgnoreBand, rxpPnt)
+End Select
+
+End Function
+
+Public Function rxpExportCbMaster_TxtProcess(ByVal cbID As Integer, ByVal fNr As Integer, ByVal bndName As String, ByVal bndIsFirst As Boolean, ByVal bndIsLast As Boolean, ByVal nCols As Integer, ByRef colWidths() As Integer, ByRef colMultiLine() As Boolean, ByRef fldValues() As String, ByRef fldColSpans() As Integer, ByRef blSkipDefaultOutput As Boolean, ByRef rxpPnt As RXP_Pointer)
+
+Select Case cbID
+  Case RXP_CB_ID_PV_UTL
+    rxpExportCbMaster_TxtProcess = cbExpPV_UTL_TxtProcess(fNr, bndName, bndIsFirst, bndIsLast, nCols, colWidths, colMultiLine, fldValues, fldColSpans, blSkipDefaultOutput, rxpPnt)
+  Case RXP_CB_ID_PV_UTB
+    rxpExportCbMaster_TxtProcess = cbExpPV_UTB_TxtProcess(fNr, bndName, bndIsFirst, bndIsLast, nCols, colWidths, colMultiLine, fldValues, fldColSpans, blSkipDefaultOutput, rxpPnt)
+  Case RXP_CB_ID_PV_STL
+    rxpExportCbMaster_TxtProcess = cbExpPV_STL_TxtProcess(fNr, bndName, bndIsFirst, bndIsLast, nCols, colWidths, colMultiLine, fldValues, fldColSpans, blSkipDefaultOutput, rxpPnt)
+  Case RXP_CB_ID_RXL_SWB
+    rxpExportCbMaster_TxtProcess = cbRXL_SW_TxtProcess(fNr, bndName, bndIsFirst, bndIsLast, nCols, colWidths, colMultiLine, fldValues, fldColSpans, blSkipDefaultOutput, rxpPnt)
+End Select
+
+End Function
+
+Public Function rxpExportCbMaster_TxtPostProcess(ByVal cbID As Integer, ByVal fNr As Integer, ByVal bndName As String, ByVal bndIsFirst As Boolean, ByVal bndIsLast As Boolean, ByRef rxpPnt As RXP_Pointer) As Boolean
+Select Case cbID
+  Case RXP_CB_ID_PV_UTL
+    rxpExportCbMaster_TxtPostProcess = cbExpPV_UTL_TxtPostProcess(fNr, bndName, bndIsFirst, bndIsLast, rxpPnt)
+  Case RXP_CB_ID_PV_UTB
+    rxpExportCbMaster_TxtPostProcess = cbExpPV_UTB_TxtPostProcess(fNr, bndName, bndIsFirst, bndIsLast, rxpPnt)
+  Case RXP_CB_ID_PV_STL
+    rxpExportCbMaster_TxtPostProcess = cbExpPV_STL_TxtPostProcess(fNr, bndName, bndIsFirst, bndIsLast, rxpPnt)
+  Case RXP_CB_ID_RXL_SWB
+    rxpExportCbMaster_TxtPostProcess = cbRXL_SW_TxtPostProcess(fNr, bndName, bndIsFirst, bndIsLast, rxpPnt)
+End Select
+End Function
+
+
+Public Function rxpExportCbMaster_HTMLRegDefaultFormat(ByVal cbID As Integer, ByVal bandName As String, ByRef useTable As Boolean, ByRef nTableCols As Integer, ByRef bndHTMLProps As RXP_HTML_BND_PROPS, ByRef bndNCols As Integer, ByRef bndColSpans() As Integer, ByRef bndColFields() As String, ByRef bndColFixedText() As String, bndColBold() As Boolean, bndColItalic() As Boolean, bndColHTMLProps() As RXP_HTML_COL_PROPS, ByRef blIgnoreBand As Boolean, ByRef blStartPage As Boolean, ByRef blEndPage As Boolean, ByRef pageFieldName As String, ByRef rxpPnt As RXP_Pointer) As Boolean
+
+Select Case cbID
+  Case RXP_CB_ID_PV_UTL
+    rxpExportCbMaster_HTMLRegDefaultFormat = cbExpPV_UTL_HTMLRegDefaultFormat(bandName, useTable, nTableCols, bndHTMLProps, bndNCols, bndColSpans, bndColFields, bndColFixedText, bndColBold, bndColItalic, bndColHTMLProps, blIgnoreBand, rxpPnt)
+  Case RXP_CB_ID_PV_UTB
+    rxpExportCbMaster_HTMLRegDefaultFormat = cbExpPV_UTB_HTMLRegDefaultFormat(bandName, useTable, nTableCols, bndHTMLProps, bndNCols, bndColSpans, bndColFields, bndColFixedText, bndColBold, bndColItalic, bndColHTMLProps, blIgnoreBand, rxpPnt)
+  Case RXP_CB_ID_PV_STL
+    rxpExportCbMaster_HTMLRegDefaultFormat = cbExpPV_STL_HTMLRegDefaultFormat(bandName, useTable, nTableCols, bndHTMLProps, bndNCols, bndColSpans, bndColFields, bndColFixedText, bndColBold, bndColItalic, bndColHTMLProps, blIgnoreBand, rxpPnt)
+
+End Select
+End Function
+
+Public Function rxpExportCBMaster_HTMLPreProcess(ByVal cbID As Integer, ByVal fNr As Integer, ByVal bndName As String, ByVal bndIsFirst As Boolean, ByVal bndIsLast As Boolean, ByVal isHTMLTableOpen As Boolean, ByVal htmlTableNCols As Integer, ByRef useTable As Boolean, ByRef tableNCols As Integer, ByRef htmlProps As RXP_HTML_BND_PROPS, ByRef rxpPnt As RXP_Pointer) As Boolean
+
+Select Case cbID
+  Case RXP_CB_ID_PV_UTL
+    rxpExportCBMaster_HTMLPreProcess = cbExpPV_UTL_HTMLPreProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, useTable, rxpPnt)
+  Case RXP_CB_ID_PV_UTB
+    rxpExportCBMaster_HTMLPreProcess = cbExpPV_UTB_HTMLPreProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, useTable, rxpPnt)
+  Case RXP_CB_ID_PV_STL
+    rxpExportCBMaster_HTMLPreProcess = cbExpPV_STL_HTMLPreProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, useTable, rxpPnt)
+End Select
+
+End Function
+
+
+Public Function rxpExportCbMaster_HTMLProcess(ByVal cbID As Integer, ByVal fNr As Integer, ByVal bndName As String, ByVal bndIsFirst As Boolean, ByVal bndIsLast As Boolean, ByRef isHTMLTableOpen As Boolean, ByVal htmlTableNCols As Integer, ByVal nFields As Integer, ByRef fldValues() As String, ByRef fldColSpans() As Integer, ByRef fldColBold() As Boolean, ByRef fldColItalic() As Boolean, ByRef fldColHTMLProps() As RXP_HTML_COL_PROPS, ByRef blSkipDefaultOutput As Boolean, ByRef rxpPnt As RXP_Pointer) As Boolean
+
+Select Case cbID
+  Case RXP_CB_ID_PV_UTL
+    rxpExportCbMaster_HTMLProcess = cbExpPV_UTL_HTMLProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, nFields, fldValues, fldColSpans, fldColBold, fldColItalic, blSkipDefaultOutput, rxpPnt)
+  Case RXP_CB_ID_PV_UTB
+    rxpExportCbMaster_HTMLProcess = cbExpPV_UTB_HTMLProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, nFields, fldValues, fldColSpans, fldColBold, fldColItalic, blSkipDefaultOutput, rxpPnt)
+  Case RXP_CB_ID_PV_STL
+    rxpExportCbMaster_HTMLProcess = cbExpPV_STL_HTMLProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, nFields, fldValues, fldColSpans, fldColBold, fldColItalic, blSkipDefaultOutput, rxpPnt)
+End Select
+
+End Function
+
+Public Function rxpExportCbMaster_HTMLPostProcess(ByVal cbID As Integer, ByVal fNr As Integer, ByVal bndName As String, ByVal bndIsFirst As Boolean, ByVal bndIsLast As Boolean, ByVal isHTMLTableOpen As Boolean, ByVal htmlTableNCols As Integer, ByRef rxpPnt As RXP_Pointer) As Boolean
+Select Case cbID
+  Case RXP_CB_ID_PV_UTL
+    rxpExportCbMaster_HTMLPostProcess = cbExpPV_UTL_HTMLPostProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, rxpPnt)
+  Case RXP_CB_ID_PV_UTB
+    rxpExportCbMaster_HTMLPostProcess = cbExpPV_UTB_HTMLPostProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, rxpPnt)
+  Case RXP_CB_ID_PV_STL
+    rxpExportCbMaster_HTMLPostProcess = cbExpPV_STL_HTMLPostProcess(fNr, bndName, bndIsFirst, bndIsLast, isHTMLTableOpen, htmlTableNCols, rxpPnt)
+End Select
+End Function
+
+
+
+
+
+Public Function rxpCustomHandleExport(rptName As String, rxpFormat As Integer, ByVal nArgs As Integer, ByRef argArray(), ByRef isHandled As Boolean, ByVal blUseSuppFName As Boolean, sSuppFileName As String) As Boolean
+On Error GoTo fout
+rxpCustomHandleExport = False
+
+isHandled = True
+
+
+Dim fName As String
+Dim isExp As Boolean
+
+fName = ""
+isExp = False
+
+
+Dim fExt As String
+fExt = ""
+
+Select Case rxpFormat
+  Case RXP_FORMAT_RTF
+    fExt = ".rtf"
+  Case RXP_FORMAT_XLS
+    fExt = ".xls"
+  Case RXP_FORMAT_TXT
+    fExt = ".txt"
+  Case RXP_FORMAT_HTM
+    fExt = ".htm"
+  Case RXP_FORMAT_XML
+    fExt = ".xml"
+  Case RXP_FORMAT_PDF
+    fExt = ".pdf"
+  Case RXP_FORMAT_RTF_X
+    fExt = ".rtf"
+End Select
+
+
+Dim blIsDefaultHandler As Boolean
+blIsDefaultHandler = False
+
+
+'First compute a file name suggestion
+
+If (blUseSuppFName) Then
+  fName = sSuppFileName
+End If
+
+Dim sProgSfx As String
+sProgSfx = ""
+
+If (rptName = REP_PRG) Or (rptName = REP_UTB) Or (rptName = REP_UTL) Or (rptName = REP_STL) Or (rptName = REP_STL_CAT) _
+  Or (rptName = REP_STL_KLEIN) Or (rptName = REP_STL_CAT_KLEIN) Then
+  If Not blUseSuppFName Then
+    Dim blIsSingleProg As Boolean
+    Dim sSingleProg As String
+    
+    blIsSingleProg = Nz(DLookup("PV_IsSingleProg", "hpoPV_Stats"), False)
+    sSingleProg = Nz(DLookup("PV_SingleProg", "hpoPV_Stats"))
+    
+    If (blIsSingleProg) And (sSingleProg <> "") Then
+      sProgSfx = "_prog_" & GoedTekens(sSingleProg)
+    End If
+  End If
+End If
+
+
+If (rptName = REP_UTL) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslaglijst" & sProgSfx & fExt
+  End If
+ElseIf (rptName = REP_UTB) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_uitslag" & sProgSfx & fExt
+  End If
+ElseIf (rptName = REP_PRG) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_programmablad" & sProgSfx & fExt
+  End If
+ElseIf (rptName = REP_STL) Or (rptName = REP_STL_KLEIN) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_startlijst" & sProgSfx & fExt
+  End If
+ElseIf (rptName = REP_STL_CAT) Or (rptName = REP_STL_CAT_KLEIN) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_startlijst" & sProgSfx & fExt
+  End If
+ElseIf (rptName = REP_JRY) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_voorblad" & fExt
+  End If
+  blIsDefaultHandler = True
+ElseIf (rptName = REP_FAC_OVZ) Then
+  If Not blUseSuppFName Then
+    Dim blEntireMeet As Boolean
+    blEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
+  
+    If (blEntireMeet) Then
+      fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & "_aantal_starts" & fExt
+    Else
+      fName = dbdir() & "\" & wedSuggestBaseFName() & "_aantal_starts" & fExt
+    End If
+  End If
+  blIsDefaultHandler = True
+ElseIf (rptName = REP_FAC_IND) Or (rptName = REP_FAC_IND_KLEIN) Then
+  If Not blUseSuppFName Then
+    blEntireMeet = Nz(DLookup("AV_IsEntireMeet", "gFaktuurVer"), False)
+    
+    Dim sVerSfx As String
+    sVerSfx = ""
+    
+    Dim blIsSingleVer As Boolean
+    blIsSingleVer = Nz(DLookup("FO_IsSingleVer", "gFaktuurOptions"), False)
+    
+    If (blIsSingleVer) Then
+      Dim sFacVer As String
+      sFacVer = Nz(DLookup("FO_SingleVer", "gFaktuurOptions"))
+      If sFacVer <> "" Then
+        sVerSfx = "_" & GoedTekens(sFacVer)
+      End If
+    End If
+    
+    If (blEntireMeet) Then
+      fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & sVerSfx & "_factuur" & fExt
+    Else
+      fName = dbdir() & "\" & wedSuggestBaseFName() & sVerSfx & "_factuur" & fExt
+    End If
+  End If
+  blIsDefaultHandler = True
+ElseIf (rptName = REP_TEL) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_tellijst" & fExt
+  End If
+  blIsDefaultHandler = True
+ElseIf (rptName = REP_PNT_VER) Or (rptName = REP_PNT_VER_KLEIN) Or (rptName = REP_PNT_IND) Then
+  If Not blUseSuppFName Then
+    fName = dbdir() & "\" & wedSuggestBaseFName() & "_puntentelling" & fExt
+  End If
+  blIsDefaultHandler = True
+Else
+  isHandled = False
+End If
+
+
+If (Not blIsDefaultHandler) Then
+  If (rxpFormat = RXP_FORMAT_RTF) Or (rxpFormat = RXP_FORMAT_XLS) Or (rxpFormat = RXP_FORMAT_PDF) Or (rxpFormat = RXP_FORMAT_RTF_X) Then
+    blIsDefaultHandler = True
+  End If
+End If
+
+If (isHandled) And (blIsDefaultHandler) And (rxpFormat = RXP_FORMAT_XML) Then
+  isHandled = False
+End If
+
+
+
+
+
+
+If (isHandled) Then
+
+  Dim blOK As Boolean
+  
+  blOK = True
+  
+  
+  
+  
+  If (Not blUseSuppFName) Then
+    blOK = False
+  
+  
+    'Prompt the user for a file name, using the file name computed above as a suggestion
+    If Not rxpExportFilePromptUser(True, rxpFormat, blIsDefaultHandler, blOK, fName) Then
+      Exit Function
+    End If
+    
+  End If
+  
+  
+  
+  
+  If (blOK) Then
+  
+  
+    If (fName = "") Then
+      Err.Raise 1, , "Internal error"
+    End If
+  
+
+    If (rptName = REP_UTL) Then
+      Select Case rxpFormat
+        Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
+          If Not expRepPV(fName, RXP_PV_TYPE_UTL, rxpFormat) Then
+            Exit Function
+          End If
+          isExp = True
+      End Select
+      
+    ElseIf (rptName = REP_UTB) Then
+      Select Case rxpFormat
+        Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
+          If Not expRepPV(fName, RXP_PV_TYPE_UTB, rxpFormat) Then
+            Exit Function
+          End If
+          isExp = True
+      End Select
+    
+    
+    ElseIf (rptName = REP_PRG) Then
+      Select Case rxpFormat
+        Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
+          If Not expRepPV(fName, RXP_PV_TYPE_PRG, rxpFormat) Then
+            Exit Function
+          End If
+          isExp = True
+      End Select
+    
+    ElseIf (rptName = REP_STL) Or (rptName = REP_STL_KLEIN) Then
+      Select Case rxpFormat
+        Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
+          If Not expRepPV(fName, RXP_PV_TYPE_STL, rxpFormat) Then
+            Exit Function
+          End If
+          isExp = True
+      End Select
+      
+    ElseIf (rptName = REP_STL_CAT) Or (rptName = REP_STL_CAT_KLEIN) Then
+      Select Case rxpFormat
+        Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
+          If Not expRepPV(fName, RXP_PV_TYPE_STLGRP, rxpFormat) Then
+            Exit Function
+          End If
+          isExp = True
+      End Select
+      
+    End If
+    
+    
+    If (isExp) Then
+      If Not blUseSuppFName Then
+        MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & fName, vbInformation
+      End If
+    Else
+      If Not rptHandleDefaultExport(rptName, rxpFormat, fName) Then
+        Exit Function
+      End If
+      If Not blUseSuppFName Then
+        MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & fName, vbInformation
+      End If
+    End If
+  End If 'if blOK
+End If 'if isHandled
+
+rxpCustomHandleExport = True
+
+Exit Function
+fout:
+If (Err = 2501) Then Resume Next ' output was cancelled.
+MsgBox Err & " rxpHandleExport" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function

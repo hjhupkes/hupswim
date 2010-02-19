@@ -1,0 +1,1776 @@
+Option Compare Database
+Option Explicit
+
+
+
+
+
+Private Function lenFinaSlagCode(ByVal slag As String) As Integer
+On Error Resume Next
+Select Case slag
+Case "Rug"
+    lenFinaSlagCode = 1
+Case "School"
+    lenFinaSlagCode = 2
+Case "Vlinder"
+    lenFinaSlagCode = 3
+Case "Vrij"
+    lenFinaSlagCode = 4
+Case "Wissel"
+    lenFinaSlagCode = 5
+Case Else
+    lenFinaSlagCode = 0
+End Select
+
+End Function
+
+Public Function lenFinaBaanCode(ByVal bn As Integer) As Integer
+On Error Resume Next
+  lenFinaBaanCode = 0
+If (bn = 25) Then
+  lenFinaBaanCode = 1
+ElseIf (bn = 50) Then
+  lenFinaBaanCode = 2
+End If
+End Function
+Public Function lenFinaAfstandCode(Afstand As String) As Integer
+On Error Resume Next
+Select Case Afstand
+Case "50"
+    lenFinaAfstandCode = 1
+Case "100"
+    lenFinaAfstandCode = 2
+Case "200"
+    lenFinaAfstandCode = 3
+Case "400"
+    lenFinaAfstandCode = 4
+Case "800"
+    lenFinaAfstandCode = 5
+Case "1500"
+    lenFinaAfstandCode = 6
+Case "4x50"
+     lenFinaAfstandCode = 7
+Case "4x100"
+     lenFinaAfstandCode = 8
+Case "4x200"
+     lenFinaAfstandCode = 9
+Case Else
+    lenFinaAfstandCode = 0
+End Select
+End Function
+
+
+Public Function lenCalcFinaPoints(ByVal td As Double, ByVal af As String, ByVal sl As String, ByVal ges As String, ByVal bn As Integer) As Double
+On Error GoTo fout
+lenCalcFinaPoints = 0
+
+'Deze functie rekent de punten uit volgens de LEN_Tabel
+
+'Wereldrecord tijden opzoeken
+Static wrecords(0 To 5, 0 To 9, 0 To 1, 0 To 2) As Double 'als seconden.
+Static ingeladen As Boolean
+
+If td < 1 Then
+    lenCalcFinaPoints = 0
+    Exit Function
+End If
+
+If Not ingeladen Then
+    Dim wr As Recordset
+    Set wr = CurrentDb().OpenRecordset("fdtgWR", dbOpenDynaset)
+    wr.MoveFirst
+    Do Until wr.EOF
+        wrecords(lenFinaSlagCode(wr("LEN_slag")), lenFinaAfstandCode(wr("LEN_afstand")), IIf(wr("LEN_Geslacht") = "M", 1, 0), lenFinaBaanCode(Nz(wr("LEN_Baan"), 0))) = swtToSeconds(wr("LEN_WR"))
+        wr.MoveNext
+    Loop
+    wr.Close
+    wrecords(0, 0, 0, 0) = 0
+    wrecords(0, 0, 1, 0) = 0
+    ingeladen = True
+End If
+    
+        'wrecords ingeladen
+
+Dim hwr, sec
+sec = swtToSeconds(td)
+hwr = wrecords(lenFinaSlagCode(sl), lenFinaAfstandCode(af), IIf(ges = "M", 1, 0), lenFinaBaanCode(bn))
+        
+lenCalcFinaPoints = 1000 * ((hwr / sec) ^ 3)
+
+
+
+
+
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+Public Function catInfoGetEstSatisfiedCatIdxFromList_bare(ByVal wedLftMode As String, ByVal estMinYOB As Long, ByVal estMaxYOB As Long, ByVal estSumYOB As Long, ByVal estCntYOB As Long, ByVal estGes As String, ByVal idxStart As Integer, ByVal idxEndExcl As Integer, ByRef catInfo() As CAT_INFO, ByVal ageDate As Date) As Integer
+On Error GoTo fout
+catInfoGetEstSatisfiedCatIdxFromList_bare = -1
+
+Dim blFound As Boolean
+blFound = False
+Dim fndCatIdx As Integer
+Dim fndCatMinAge As Integer
+Dim fndCatMaxAge As Integer
+
+'Attempt to find most restrictive category, to account for duplicates etc.
+
+Dim i As Integer
+For i = idxStart To idxEndExcl - 1
+  Dim cat As String
+  cat = Trim(catInfo(i).cat)
+  If (cat_voldoet_est_bare(estMinYOB, estMaxYOB, estSumYOB, estCntYOB, estGes, cat, wedLftMode, ageDate, False) = CAT_OK) Then
+    Dim catMinAge As Integer, catMaxAge As Integer
+    If catGetAllowedAgeRange_bare(cat, catMinAge, catMaxAge, ageDate, wedLftMode, wedLftMode, True) Then
+      If (Not blFound) Then
+        blFound = True
+        fndCatIdx = i
+        fndCatMinAge = catMinAge
+        fndCatMaxAge = catMaxAge
+      Else
+        If (catMaxAge - catMinAge < fndCatMaxAge - fndCatMinAge) Then
+          fndCatIdx = i
+          fndCatMinAge = catMinAge
+          fndCatMaxAge = catMaxAge
+        End If
+      End If
+    End If
+  End If
+Next i
+
+If (blFound) Then
+  catInfoGetEstSatisfiedCatIdxFromList_bare = fndCatIdx
+End If
+
+
+
+
+
+Exit Function
+fout:
+MsgBox Err & " catInfoGetEstSatisfiedCatIdxFromList_bare" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function catInfoGetEstSatisfiedCatIdx_bare(ByVal wedLftMode As String, ByVal prognr As String, ByVal estMinYOB As Long, ByVal estMaxYOB As Long, ByVal estSumYOB As Long, ByVal estCntYOB As Long, ByVal estGes As String, ByRef nMCatProgs As Integer, ByRef mCatProgNames() As String, ByRef mCatProgOffs() As Integer, ByRef mCatProgCatCnt() As Integer, ByRef catInfo() As CAT_INFO, ByVal ageDate As Date) As Integer
+On Error GoTo fout
+catInfoGetEstSatisfiedCatIdx_bare = -1
+
+'first find programmanummer
+Dim progIdx As Integer
+progIdx = catInfoGetProgIdx(prognr, nMCatProgs, mCatProgNames)
+If (progIdx = -1) Then
+  Exit Function
+End If
+
+Dim nProgCats As Integer
+nProgCats = mCatProgCatCnt(progIdx)
+Dim offs As Integer
+offs = mCatProgOffs(progIdx)
+
+
+
+  
+catInfoGetEstSatisfiedCatIdx_bare = catInfoGetEstSatisfiedCatIdxFromList_bare(wedLftMode, estMinYOB, estMaxYOB, estSumYOB, estCntYOB, estGes, offs, offs + nProgCats, catInfo, ageDate)
+
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function catInfoGetSatisfiedCatIdxFromList(ByVal wedAgeDate As Date, ByVal wedLftMode As String, ByVal startnr As String, ByVal ges As String, ByVal gebDat As Date, ByVal idxStart As Integer, ByVal idxEndExclusive As Integer, ByRef catInfo() As CAT_INFO) As Integer
+On Error GoTo fout
+catInfoGetSatisfiedCatIdxFromList = -1
+
+Dim blFound As Boolean
+blFound = False
+Dim fndCatIdx As Integer
+Dim fndCatMinAge As Integer
+Dim fndCatMaxAge As Integer
+
+'Attempt to find most restrictive category, to account for duplicates etc.
+
+Dim i As Integer
+For i = idxStart To idxEndExclusive - 1
+  Dim cat As String
+  cat = Trim(catInfo(i).cat)
+  If (cat_voldoet_bare(startnr, cat, ges, gebDat, wedLftMode, False, wedAgeDate) = CAT_OK) Then
+    Dim catMinAge As Integer, catMaxAge As Integer
+    If catGetAllowedAgeRange_bare(cat, catMinAge, catMaxAge, wedAgeDate, wedLftMode, wedLftMode, True) Then
+      If (Not blFound) Then
+        blFound = True
+        fndCatIdx = i
+        fndCatMinAge = catMinAge
+        fndCatMaxAge = catMaxAge
+      Else
+        If (catMaxAge - catMinAge < fndCatMaxAge - fndCatMinAge) Then
+          fndCatIdx = i
+          fndCatMinAge = catMinAge
+          fndCatMaxAge = catMaxAge
+        End If
+      End If
+    End If
+  End If
+Next i
+
+If (blFound) Then
+  catInfoGetSatisfiedCatIdxFromList = fndCatIdx
+End If
+
+Exit Function
+fout:
+MsgBox Err & " catInfoGetSatisfiedCatIdxFromList" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function catInfoGetSatisfiedCatIdx(ByVal wedAgeDate As Date, ByVal wedLftMode As String, ByVal prognr As String, ByVal startnr As String, ByVal ges As String, ByVal gebDat As Date, ByRef nMCatProgs As Integer, ByRef mCatProgNames() As String, ByRef mCatProgOffs() As Integer, ByRef mCatProgCatCnt() As Integer, ByRef catInfo() As CAT_INFO) As Integer
+On Error GoTo fout
+catInfoGetSatisfiedCatIdx = -1
+
+'first find programmanummer
+Dim progIdx As Integer
+progIdx = catInfoGetProgIdx(prognr, nMCatProgs, mCatProgNames)
+If (progIdx = -1) Then
+  Exit Function
+End If
+
+Dim nProgCats As Integer
+nProgCats = mCatProgCatCnt(progIdx)
+Dim offs As Integer
+offs = mCatProgOffs(progIdx)
+
+catInfoGetSatisfiedCatIdx = catInfoGetSatisfiedCatIdxFromList(wedAgeDate, wedLftMode, startnr, ges, gebDat, offs, offs + nProgCats, catInfo)
+
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+'-1 if not found
+Public Function catInfoGetProgIdx(prognr As String, ByVal nMCatProgs, ByRef mCatProgNames() As String) As Integer
+'Perform a binary search for the specified prognr in the array.
+On Error GoTo fout
+catInfoGetProgIdx = -1
+
+Dim l As Integer
+Dim r As Integer
+'Invariant: somewhere in interval [l, r)
+l = 0
+r = nMCatProgs
+
+While (r > l)
+  Dim m As Integer
+  m = (l + r) \ 2
+  Dim comp As Integer
+  comp = StrComp(prognr, mCatProgNames(m))
+  If (comp < 0) Then
+    r = m
+  ElseIf (comp > 0) Then
+    l = m + 1
+  ElseIf (comp = 0) Then
+    catInfoGetProgIdx = m
+    Exit Function
+  End If
+Wend
+
+Exit Function
+fout:
+MsgBox Err & Error$, 16
+End Function
+
+
+Private Function parseTijd_perform(ByVal x As String) As Double
+On Error GoTo fout
+
+Dim p1 As String, p2 As String, p3 As String
+
+p1 = extractToken(x, ".")
+p2 = extractToken(x, ".")
+p3 = extractToken(x, ".")
+
+If (p3 = "") Then
+  If (Len(p2) = 2) Then
+    parseTijd_perform = val(p1) + val(p2) * 0.01
+  ElseIf (Len(p2) = 1) Then
+    parseTijd_perform = val(p1) + val(p2) * 0.1
+  Else
+   parseTijd_perform = val(p1) + val(Left(p2, 2)) * 0.01
+  End If
+Else
+  If (Len(p3) = 2) Then
+    parseTijd_perform = val(p1) * 100 + val(p2) + val(p3) * 0.01
+  ElseIf (Len(p3) = 1) Then
+    parseTijd_perform = val(p1) * 100 + val(p2) + val(p3) * 0.1
+  Else
+    parseTijd_perform = val(p1) * 100 + val(p2) + val(Left(p3, 2)) * 0.01
+  End If
+End If
+
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+End Function
+
+
+Public Function parseTijd(td As String) As Double
+On Error Resume Next
+parseTijd = 0
+If td Like "*.*.*" Then
+  parseTijd = parseTijd_perform(td)
+ElseIf td Like "*.*" Then
+  parseTijd = parseTijd_perform(td) 'val(td)
+End If
+End Function
+
+Public Function extractTussentijd(ByRef tst As String, ByRef af As Integer, ByRef td As Double, ByRef valid As Boolean) As Boolean
+On Error GoTo fout
+extractTussentijd = False
+valid = False
+af = 0
+td = 0
+
+Dim rgt As String
+Dim lft As String
+rgt = extractToken(tst, ";")
+lft = extractToken(rgt, "=")
+
+If (Len(rgt) = 0 Or Len(lft) = 0) Then
+  extractTussentijd = True
+  Exit Function
+End If
+
+af = CInt(val(lft))
+td = parseTijd(rgt)
+If (af = 0) Or td < 1 Then
+  extractTussentijd = True
+  Exit Function
+End If
+
+valid = True
+extractTussentijd = True
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+Public Function tstFormatTussentijden(ByVal tst As String) As String
+On Error GoTo fout
+tstFormatTussentijden = ""
+Dim fmt As String
+Dim af As Integer, td As Double, valid As Boolean
+fmt = ""
+  While Len(tst) > 0
+    If Not extractTussentijd(tst, af, td, valid) Then
+      Exit Function
+    End If
+    If valid Then
+      If (Len(fmt) > 0) Then
+        fmt = fmt & ", "
+      End If
+      fmt = fmt & af & "m: " & Trim(fmtSwimTime(td))
+    End If
+  Wend
+  
+  
+  tstFormatTussentijden = fmt
+  Exit Function
+fout:
+  MsgBox Err & " " & Error$, 16
+  Exit Function
+End Function
+
+Public Function tstReadTussentijdenArray(ByVal tstCnt As Integer, ByRef tstAfst() As Integer, ByRef tstTijd() As Double) As String
+On Error GoTo fout
+tstReadTussentijdenArray = ""
+Dim fmt As String
+fmt = ""
+
+Dim i As Integer
+For i = 0 To tstCnt - 1
+  If (swtIsValid(tstTijd(i))) Then
+    If (Len(fmt) > 0) Then
+      fmt = fmt & ";"
+    End If
+    fmt = fmt & tstAfst(i) & "=" & Trim(fmtSwimTime(tstTijd(i)))
+  End If
+Next i
+
+tstReadTussentijdenArray = fmt
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+Public Function tstFormatTussentijdenArray(ByVal tstCnt As Integer, ByRef tstAfst() As Integer, ByRef tstTijd() As Double) As String
+On Error GoTo fout
+tstFormatTussentijdenArray = ""
+Dim fmt As String
+fmt = ""
+Dim i As Integer
+For i = 0 To tstCnt - 1
+  If (swtIsValid(tstTijd(i))) Then
+    If (Len(fmt) > 0) Then
+      fmt = fmt & ", "
+    End If
+    fmt = fmt & tstAfst(i) & "m: " & Trim(fmtSwimTime(tstTijd(i)))
+  End If
+Next i
+
+tstFormatTussentijdenArray = fmt
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function tstFindTussenTijd(ByVal af As Integer, ByRef tstCnt As Integer, ByRef tstAfst() As Integer) As Integer
+tstFindTussenTijd = bSearchInt(af, tstCnt, tstAfst)
+End Function
+Public Function tstSetTussenTijd(ByVal af As Integer, ByVal td As Double, ByRef tstCnt As Integer, ByRef tstAfst() As Integer, ByRef tstTijden() As Double) As Boolean
+On Error GoTo fout
+tstSetTussenTijd = False
+
+Dim idx As Integer
+idx = tstFindTussenTijd(af, tstCnt, tstAfst)
+If (idx <> -1) Then
+  tstTijden(idx) = td
+Else
+  Dim insIdx As Integer
+  Dim oldTstCnt As Integer
+  oldTstCnt = tstCnt
+  insIdx = insInt(af, tstCnt, tstAfst)
+  If (insIdx = -1) Then
+    Exit Function
+  End If
+  
+  shiftRightDouble insIdx, 1, oldTstCnt, tstTijden
+  tstTijden(insIdx) = td
+  
+End If
+
+tstSetTussenTijd = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+Public Function tstExtractTussenTijden(ByVal tst As String, ByRef tstCnt As Integer, ByRef tstAfst() As Integer, ByRef tstTijden() As Double) As Boolean
+On Error GoTo fout
+tstExtractTussenTijden = False
+
+tstCnt = 0
+
+
+Dim af As Integer, td As Double, valid As Boolean
+While Len(tst) > 0
+  If Not extractTussentijd(tst, af, td, valid) Then
+    Exit Function
+  End If
+  If (valid) Then
+    If (Not tstSetTussenTijd(af, td, tstCnt, tstAfst, tstTijden)) Then
+      Exit Function
+    End If
+  End If
+Wend
+
+
+tstExtractTussenTijden = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function tstWriteToTable(ByVal tst As String) As Boolean
+On Error GoTo fout
+tstWriteToTable = False
+
+Dim sql As String
+sql = "Delete * from [gINVUL_TST];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gINVUL_TST")
+
+Dim af As Integer, td As Double, valid As Boolean
+  While Len(tst) > 0
+    If Not extractTussentijd(tst, af, td, valid) Then
+      Exit Function
+    End If
+    If valid Then
+      outp.AddNew
+        outp("TST_Afstand") = af
+        outp("TST_Tijd") = td
+      outp.Update
+    End If
+  Wend
+
+
+tstWriteToTable = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function tstReadFromTable() As String
+On Error GoTo fout
+tstReadFromTable = ""
+Dim tpS As String
+tpS = ""
+
+Dim inp As Recordset
+Set inp = CurrentDb().OpenRecordset("gINVUL_TST")
+
+inp.MoveFirst
+Do Until inp.EOF
+  Dim af As Long, td As Double
+  af = Nz(inp("TST_Afstand"))
+  td = Nz(inp("TST_Tijd"))
+  
+  If (af > 0) And (td > 1) Then
+    If (Len(tpS) > 0) Then
+      tpS = tpS & ";"
+    End If
+    tpS = tpS & af & "=" & Trim(fmtSwimTime(td))
+  End If
+  
+  inp.MoveNext
+Loop
+
+tstReadFromTable = tpS
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function finIsFirstRound(progType As String) As Boolean
+On Error Resume Next
+If (progType = "") Then
+  finIsFirstRound = True
+  Exit Function
+End If
+If (progType = "SER" Or progType = "PRLM" Or progType = "FST") Then
+  finIsFirstRound = True
+End If
+
+End Function
+
+
+Public Function ptOpenForEntry(progType As String)
+On Error Resume Next
+ptOpenForEntry = False
+If (progType = "") Or (progType = PROG_TYPE_SER) Then
+  ptOpenForEntry = True
+End If
+End Function
+
+
+
+
+
+
+Public Function lenWriteContactInfo(ByRef outp As Recordset, ByVal fldPrefix As String, ByRef cont As CONTACT_INFO) As Boolean
+On Error GoTo fout
+lenWriteContactInfo = False
+
+
+outp(fldPrefix & "Adres") = hzn(cont.adres)
+outp(fldPrefix & "Adres2") = hzn(cont.adres2)
+outp(fldPrefix & "Email") = hzn(cont.sEmail)
+outp(fldPrefix & "Fax") = hzn(cont.fax)
+outp(fldPrefix & "Internet") = hzn(cont.internet)
+outp(fldPrefix & "Mobiel") = hzn(cont.mobiel)
+outp(fldPrefix & "Naam") = hzn(cont.naam)
+outp(fldPrefix & "Land") = hzn(cont.nation)
+outp(fldPrefix & "Plaats") = hzn(cont.sPlaats)
+outp(fldPrefix & "Postcode") = hzn(cont.sPostcode)
+outp(fldPrefix & "Staat") = hzn(cont.state)
+outp(fldPrefix & "Telefoonnummer") = hzn(cont.tel)
+
+
+
+
+lenWriteContactInfo = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+Public Function lenReadContactInfo(ByRef inp As Recordset, ByVal fldPrefix As String, ByRef cont As CONTACT_INFO) As Boolean
+On Error GoTo fout
+lenReadContactInfo = False
+
+cont.adres = Nz(inp(fldPrefix & "Adres"))
+cont.adres2 = Nz(inp(fldPrefix & "Adres2"))
+cont.sEmail = Nz(inp(fldPrefix & "Email"))
+cont.fax = Nz(inp(fldPrefix & "Fax"))
+cont.internet = Nz(inp(fldPrefix & "Internet"))
+cont.mobiel = Nz(inp(fldPrefix & "Mobiel"))
+cont.naam = Nz(inp(fldPrefix & "Naam"))
+cont.nation = Nz(inp(fldPrefix & "Land"))
+cont.sPlaats = Nz(inp(fldPrefix & "Plaats"))
+cont.sPostcode = Nz(inp(fldPrefix & "Postcode"))
+cont.state = Nz(inp(fldPrefix & "Staat"))
+cont.tel = Nz(inp(fldPrefix & "Telefoonnummer"))
+
+
+
+lenReadContactInfo = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Function lenReadCatInfo(ByRef inp As Recordset, ByVal fldPrefix As String, ByVal blReadCatCode As Boolean, ByRef catInfo As CAT_INFO, Optional fnBesCat As String = "BeschrijvingCategorie", Optional fnResMarge As String = "ResMarge", Optional fnVVT As String = "VervangendeTijd") As Boolean
+On Error GoTo fout
+lenReadCatInfo = False
+
+Dim cat As String
+Dim bescat As String
+
+cat = Nz(inp(fldPrefix & "Categorie"))
+
+'If Not lenFormatCategorie(cat, lftBep, gender, minAge, maxAge, isMCat) Then
+'  Exit Function
+'End If
+
+bescat = Nz(inp(fldPrefix & fnBesCat))
+
+If (bescat = "") Then
+  bescat = catBeschrijving(cat)
+End If
+
+catInfo.cat = cat
+catInfo.bescat = bescat
+
+catInfo.lim = Nz(inp(fldPrefix & "Limiet"))
+catInfo.resLim = Nz(inp(fldPrefix & fnResMarge))
+catInfo.vvt = Nz(inp(fldPrefix & fnVVT))
+
+If (blReadCatCode) Then
+  catInfo.Code = Nz(inp(fldPrefix & "code"))
+Else
+  catInfo.Code = ""
+End If
+
+catInfo.rec.recType = Nz(inp(fldPrefix & "Record_Omschrijving"))
+catInfo.rec.naam = Nz(inp(fldPrefix & "Record_Naam"))
+catInfo.rec.Tijd = Nz(inp(fldPrefix & "Record_Tijd"))
+catInfo.rec.Plaats = Nz(inp(fldPrefix & "Record_Plaats"))
+catInfo.rec.Datum = Nz(inp(fldPrefix & "Record_Datum"), #1/1/1900#)
+catInfo.rec.tussentijden = Nz(inp(fldPrefix & "Record_Tussentijden"))
+
+
+
+
+
+
+
+lenReadCatInfo = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+'debug
+On Error GoTo 0
+Resume
+Exit Function
+End Function
+
+
+Public Function lenWriteCatInfo(ByRef outp As Recordset, ByVal fldPrefix As String, ByVal blWriteCatCode As Boolean, ByRef catInfo As CAT_INFO, Optional fnBesCat As String = "BeschrijvingCategorie", Optional fnResMarge As String = "ResMarge", Optional fnVVT As String = "VervangendeTijd") As Boolean
+On Error GoTo fout
+lenWriteCatInfo = False
+
+
+
+  Dim cat As String
+  Dim bescat As String
+  
+    cat = Trim(catInfo.cat)
+    bescat = Trim(catInfo.bescat)
+  outp(fldPrefix & "Categorie") = hzn(cat)
+  outp(fldPrefix & fnBesCat) = hzn(bescat)
+  outp(fldPrefix & "Limiet") = hzn(Trim(catInfo.lim))
+  outp(fldPrefix & fnResMarge) = hzn(Trim(catInfo.resLim))
+  outp(fldPrefix & fnVVT) = catInfo.vvt
+  
+  If (blWriteCatCode) Then
+    outp(fldPrefix & "code") = hzn(Trim(catInfo.Code))
+  End If
+  
+  If (catInfo.rec.Tijd > 1) Then
+    outp(fldPrefix & "Record_Omschrijving") = hzn(Trim(catInfo.rec.recType))
+    outp(fldPrefix & "Record_Naam") = hzn(Trim(catInfo.rec.naam))
+    outp(fldPrefix & "Record_Tijd") = catInfo.rec.Tijd
+    outp(fldPrefix & "Record_Plaats") = hzn(Trim(catInfo.rec.Plaats))
+    outp(fldPrefix & "Record_Datum") = IIf(lenDateIsValid(catInfo.rec.Datum), catInfo.rec.Datum, Null)
+    outp(fldPrefix & "Record_Tussentijden") = hzn(Trim(catInfo.rec.tussentijden))
+  End If
+
+
+lenWriteCatInfo = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+'debug
+On Error GoTo 0
+Resume
+Exit Function
+End Function
+
+
+
+
+Function lenIndAfstand(x As String) As String
+On Error Resume Next
+Dim aantal As Integer      'Bijvoorbeeld 4x100m = 400 , 100m = 100
+Dim afst As Integer
+
+If x Like "*x*" Then
+  afst = val(Right(x, (Len(x) - InStr(1, x, "x"))))
+  lenIndAfstand = afst
+Else
+lenIndAfstand = val(x)
+End If
+Exit Function
+End Function
+
+
+Function lenAfNZwemmers(x As String) As Integer
+On Error Resume Next
+Dim aantal As Integer      'Bijvoorbeeld 4x100m = 400 , 100m = 100
+Dim afst As Integer
+
+If x Like "*x*" Then
+  aantal = val(Left(x, InStr(1, x, "x") - 1))
+  lenAfNZwemmers = aantal
+Else
+  lenAfNZwemmers = 1
+End If
+Exit Function
+End Function
+
+
+Public Function tstLookupTussenAfstanden(ByVal af As String, ByVal slag As String, ByVal bn As Integer, ByRef tsAf() As Long) As Boolean
+On Error GoTo fout
+tstLookupTussenAfstanden = False
+
+Dim mydb As Database, geg As Recordset
+Dim tpSlag, tpAfstand
+
+Set mydb = CurrentDb()
+Set geg = mydb.OpenRecordset("fdtgTussenAfstanden", dbOpenDynaset)
+
+Dim i As Integer
+For i = 0 To 3
+  tsAf(i) = 0
+Next i
+
+If af = "" Or slag = "" Or bn = 0 Then
+  tstLookupTussenAfstanden = True
+  Exit Function
+End If
+
+If (Not slag Like "WISSEL") Then slag = "VRIJ"
+
+geg.MoveFirst
+geg.FindFirst ("[TU_eindafstand]=""" & af & """ and [tu_eindslag]=""" & slag & """ and [tu_baan]=" & bn)
+
+If Not geg.NoMatch Then
+
+  For i = 0 To 3
+    Dim tpAf As Long
+    tpAf = CLng(val(Nz(geg("TU_Afstand" & (i + 1)))))
+    tsAf(i) = tpAf
+  Next i
+  
+End If
+
+tstLookupTussenAfstanden = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+
+
+End Function
+
+
+Private Function lenGetRegionName(ByVal regCode As Integer) As String
+On Error GoTo fout
+Dim tpS As String
+Select Case regCode
+Case 1
+  tpS = "Groningen"
+Case 2
+  tpS = "Friesland"
+Case 3
+  tpS = "Drenthe"
+Case 4
+  tpS = "Overijssel"
+Case 5
+  tpS = "Gelderland"
+Case 6
+  tpS = "Utrecht"
+Case 7
+  tpS = "Amsterdam-'t Gooi"
+Case 8
+  tpS = "Noord-Holland"
+Case 9
+  tpS = "Gouwe Rijnstreek"
+Case 10
+  tpS = "Haaglanden"
+Case 11
+  tpS = "Rotterdam"
+Case 12
+  tpS = "Noord-Brabant"
+Case 13
+  tpS = "Zeeland"
+Case 14
+  tpS = "Limburg"
+Case Else
+  Err.Raise 1, , "Unknown region code: " & regCode
+End Select
+
+lenGetRegionName = tpS
+Exit Function
+fout:
+MsgBox Err & " lenGetRegionName" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function lenBuildRegionCodesDescription(ByRef blImpRegion() As Boolean, ByRef sDescription As String) As Boolean
+On Error GoTo fout
+lenBuildRegionCodesDescription = False
+
+sDescription = ""
+Dim i As Integer
+For i = 1 To REG_N_REGIONS
+  If (blImpRegion(i)) Then
+    Dim regS As String
+    regS = lenGetRegionName(i)
+    If (Len(sDescription) > 0) Then
+      sDescription = sDescription & ", "
+    End If
+    sDescription = sDescription & regS
+  End If
+Next i
+
+lenBuildRegionCodesDescription = True
+Exit Function
+fout:
+MsgBox Err & " lenBuildRegionCodesDescription" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Public Function lenInitRegionCodes(ByRef blImpRegion() As Boolean, ByRef sDescription As String) As Boolean
+On Error GoTo fout
+lenInitRegionCodes = False
+
+Dim i As Integer
+For i = 1 To REG_N_REGIONS
+  blImpRegion(i) = True
+Next i
+
+If Not lenBuildRegionCodesDescription(blImpRegion, sDescription) Then
+  Exit Function
+End If
+
+lenInitRegionCodes = True
+Exit Function
+fout:
+MsgBox Err & " lenInitRegionCodes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function lenReadRegionCodes(ByRef blImpRegion() As Boolean, ByRef sDescription As String) As Boolean
+On Error GoTo fout
+lenReadRegionCodes = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gRegioncodes")
+
+Dim i As Integer
+For i = 1 To REG_N_REGIONS
+  blImpRegion(i) = False
+Next i
+
+rs.MoveFirst
+Do Until rs.EOF
+  If Nz(rs("RG_Import")) Then
+    blImpRegion(CInt(Nz(rs("RG_Region")))) = True
+  End If
+  rs.MoveNext
+Loop
+
+If Not lenBuildRegionCodesDescription(blImpRegion, sDescription) Then
+  Exit Function
+End If
+
+lenReadRegionCodes = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " lenReadRegionCodes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+Public Function lenWriteRegionCodes(ByRef blImpRegion() As Boolean) As Boolean
+On Error GoTo fout
+lenWriteRegionCodes = False
+
+Dim sql As String
+sql = "delete * from [gRegioncodes];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gRegioncodes")
+
+Dim i As Integer
+For i = 1 To REG_N_REGIONS
+  rs.AddNew
+    rs("RG_Region") = i
+    rs("RG_RegionName") = lenGetRegionName(i)
+    rs("RG_Import") = blImpRegion(i)
+  rs.Update
+Next i
+
+
+lenWriteRegionCodes = True
+Exit Function
+fout:
+MsgBox Err & " lenWriteRegionCodes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function lenReadRecInfo(ByRef rec As RECORD_INFO, ByRef rs As Recordset, ByVal prefix As String) As Boolean
+On Error GoTo fout
+lenReadRecInfo = False
+
+rec.Datum = Nz(rs(prefix & "Record_Datum"), #1/1/1900#)
+rec.naam = Nz(rs(prefix & "Record_Naam"))
+rec.Plaats = Nz(rs(prefix & "Record_Plaats"))
+rec.recType = Nz(rs(prefix & "Record_Omschrijving"))
+rec.Tijd = Nz(rs(prefix & "Record_Tijd"))
+rec.tussentijden = Nz(rs(prefix & "Record_Tussentijden"))
+
+lenReadRecInfo = True
+Exit Function
+fout:
+MsgBox Err & " lenReadRecInfo" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lenWriteRecInfo(ByRef rec As RECORD_INFO, ByRef rs As Recordset, ByVal prefix As String) As Boolean
+On Error GoTo fout
+lenWriteRecInfo = False
+
+If lenDateIsValid(rec.Datum) Then
+  rs(prefix & "Record_datum") = rec.Datum
+Else
+  rs(prefix & "Record_Datum") = Null
+End If
+
+
+rs(prefix & "Record_Naam") = hzn(Trim(rec.naam))
+rs(prefix & "Record_Plaats") = hzn(Trim(rec.Plaats))
+rs(prefix & "Record_Omschrijving") = hzn(Trim(rec.recType))
+rs(prefix & "Record_Tijd") = rec.Tijd
+rs(prefix & "Record_Tussentijden") = hzn(Trim(rec.tussentijden))
+
+
+
+lenWriteRecInfo = True
+Exit Function
+fout:
+MsgBox Err & " lenWriteRecInfo" & Error$, 16
+Exit Function
+End Function
+
+Public Function lenInitRecInfo(ByRef rec As RECORD_INFO) As Boolean
+On Error GoTo fout
+lenInitRecInfo = False
+
+rec.Datum = #1/1/1900#
+rec.naam = ""
+rec.Plaats = ""
+rec.recType = ""
+rec.Tijd = 0
+rec.tussentijden = ""
+
+
+lenInitRecInfo = True
+Exit Function
+fout:
+MsgBox Err & " lenInitRecInfo" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function levCodeToInt(ByVal levCode, blIsLowerBound As Boolean) As Integer
+On Error Resume Next
+levCodeToInt = -2
+If (levCode = "A+") Then
+  levCodeToInt = 0
+ElseIf (levCode = "") Then
+  If (blIsLowerBound) Then
+    levCodeToInt = -1
+  Else
+    levCodeToInt = MAX_N_LEVELS + 1
+  End If
+Else
+  levCodeToInt = Asc(Left(levCode, 1)) - Asc("A") + 1
+  If (levCodeToInt < 0) Then
+    levCodeToInt = -1
+  ElseIf (levCodeToInt > MAX_N_LEVELS + 1) Then
+    levCodeToInt = MAX_N_LEVELS + 1
+  End If
+End If
+End Function
+
+
+Public Function levAcquire(ByRef levNLft As Integer, ByRef levLft() As Long, _
+  ByRef levNLevels As Integer, ByRef levCodes() As String, _
+  ByRef levNAfSl As Integer, ByRef levOrdAf() As String, ByRef levOrdSl() As String, _
+  ByRef levHasTimes25M() As Boolean, ByRef levTimes25M() As Double, _
+  ByRef levHasTimes50M() As Boolean, ByRef levTimes50M() As Double, _
+  ByRef levHasTimes25V() As Boolean, ByRef levTimes25V() As Double, _
+  ByRef levHasTimes50V() As Boolean, ByRef levTimes50V() As Double) As Boolean
+On Error GoTo fout
+levAcquire = False
+
+levCodes(0) = "A+"
+levCodes(1) = "A"
+levCodes(2) = "B"
+levCodes(3) = "C"
+levCodes(4) = "D"
+levCodes(5) = "E"
+levCodes(6) = "F"
+levCodes(7) = "G"
+levCodes(8) = "H"
+levNLevels = 9
+
+levNLft = 0
+Dim tpL As Integer
+For tpL = 9 To 20
+  levLft(levNLft) = tpL
+  levNLft = levNLft + 1
+Next tpL
+levLft(levNLft) = CAT_MAX_AGE
+levNLft = levNLft + 1
+
+'Now get afsl lists
+
+levNAfSl = 0
+
+Dim sql As String
+sql = "SELECT fdtgNiveauLimieten.LEV_Afstand, fdtgNiveauLimieten.LEV_Slag " & _
+      "FROM fdtgNiveauLimieten GROUP BY fdtgNiveauLimieten.LEV_Afstand, fdtgNiveauLimieten.LEV_Slag " & _
+       "ORDER BY fdtgNiveauLimieten.LEV_Afstand, fdtgNiveauLimieten.LEV_Slag;"
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset(sql)
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpAf As String
+  Dim tpSl As String
+  tpAf = Nz(rs("lev_afstand"))
+  tpSl = Nz(rs("lev_slag"))
+  
+  insAfSlag tpAf, tpSl, levNAfSl, levOrdAf, levOrdSl
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+
+Dim i As Integer, j As Integer
+For i = 0 To levNAfSl - 1
+  For j = 0 To levNLft - 1
+    levHasTimes25M(i, j) = False
+    levHasTimes50M(i, j) = False
+    levHasTimes25V(i, j) = False
+    levHasTimes50V(i, j) = False
+  Next j
+Next i
+'Now import the full list
+sql = "select * from fdtgNiveauLimieten order by lev_afstand, lev_slag, lev_max_age, lev_level"
+
+Dim curAf As String, curSl As String, curAge As Long, curLevel As String
+Dim curAfSlIdx As Integer, curLftIdx As Integer, curLevIdx As Integer
+
+curAf = ""
+curSl = ""
+curAge = -1
+curLevel = -1
+
+
+Set rs = CurrentDb().OpenRecordset(sql)
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpBn As Integer, tpLft As Long, tpGes As String, tpLev As String, tpTime As Double
+  tpAf = Nz(rs("lev_afstand"))
+  tpSl = Nz(rs("lev_slag"))
+  tpBn = Nz(rs("lev_baan"))
+  tpLft = Nz(rs("lev_max_age"))
+  tpGes = Nz(rs("lev_geslacht"))
+  tpLev = Nz(rs("lev_level"))
+  tpTime = Nz(rs("lev_tijd"))
+  
+  If (curAf <> tpAf) Or (curSl <> tpSl) Then
+    curAfSlIdx = bSearchAfSlag(tpAf, tpSl, levOrdAf, levOrdSl, levNAfSl)
+    If (curAfSlIdx < 0) Then
+      Err.Raise 1, , "internal error"
+    End If
+    curAf = tpAf
+    curSl = tpSl
+  End If
+  
+  If (tpLft <> curAge) Then
+    curLftIdx = bSearchLong(tpLft, levNLft, levLft)
+    If (curLftIdx < 0) Then
+      Err.Raise 1, , "internal error"
+    End If
+    curAge = tpLft
+  End If
+  
+  If (curLevel <> tpLev) Then
+    curLevIdx = levCodeToInt(tpLev, False)
+    If (curLevIdx < 0) Or (curLevIdx >= levNLevels) Then
+      Err.Raise 1, , "internal error"
+    End If
+    curLevel = tpLev
+  End If
+  
+  
+  
+  'Now output the time
+  If (tpBn = 25) Then
+    If (tpGes = "M") Then
+      levHasTimes25M(curAfSlIdx, curLftIdx) = True
+      levTimes25M(curAfSlIdx, curLftIdx, curLevIdx) = tpTime
+    ElseIf (tpGes = "V") Then
+      levHasTimes25V(curAfSlIdx, curLftIdx) = True
+      levTimes25V(curAfSlIdx, curLftIdx, curLevIdx) = tpTime
+    End If
+  ElseIf (tpBn = 50) Then
+    If (tpGes = "M") Then
+      levHasTimes50M(curAfSlIdx, curLftIdx) = True
+      levTimes50M(curAfSlIdx, curLftIdx, curLevIdx) = tpTime
+    ElseIf (tpGes = "V") Then
+      levHasTimes50V(curAfSlIdx, curLftIdx) = True
+      levTimes50V(curAfSlIdx, curLftIdx, curLevIdx) = tpTime
+    End If
+  End If
+  
+  
+
+  rs.MoveNext
+Loop
+
+levAcquire = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " levAcquire" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function levFind(ByVal startnr As String, ByVal ges As String, ByVal ageDate As Date, _
+  ByVal af As String, ByVal sl As String, ByVal bn As Integer, ByVal searchTime As Double, _
+  ByRef fndLevel As String, _
+  ByVal levNLft As Integer, ByRef levLft() As Long, _
+  ByVal levNLevels As Integer, ByRef levCodes() As String, _
+  ByVal levNAfSl As Integer, ByRef levOrdAf() As String, ByRef levOrdSl() As String, _
+  ByRef levHasTimes25M() As Boolean, ByRef levTimes25M() As Double, _
+  ByRef levHasTimes50M() As Boolean, ByRef levTimes50M() As Double, _
+  ByRef levHasTimes25V() As Boolean, ByRef levTimes25V() As Double, _
+  ByRef levHasTimes50V() As Boolean, ByRef levTimes50V() As Double) As Boolean
+On Error GoTo fout
+levFind = False
+
+fndLevel = ""
+
+Dim afslIdx As Integer
+afslIdx = bSearchAfSlag(af, sl, levOrdAf, levOrdSl, levNAfSl)
+
+If (afslIdx < 0) Then
+  levFind = True
+  Exit Function
+End If
+
+Dim yob As Long
+yob = stnrExtractYOB(startnr, ageDate, #1/1/1900#)
+
+Dim minLft As Long
+minLft = catGetAge(yob, #1/1/1900#, LFT_MODE_SZYR, ageDate)
+
+Dim lftIdx As Integer
+lftIdx = -1
+
+Dim i As Integer
+For i = 0 To levNLft - 1
+  If (levLft(i) >= minLft) Then
+    If (bn = 25) Then
+      If (ges = "M") Then
+        If levHasTimes25M(afslIdx, i) Then
+          lftIdx = i
+          Exit For
+        End If
+      ElseIf (ges = "V") Then
+        If levHasTimes25V(afslIdx, i) Then
+          lftIdx = i
+          Exit For
+        End If
+      End If
+    ElseIf (bn = 50) Then
+      If (ges = "M") Then
+        If levHasTimes50M(afslIdx, i) Then
+          lftIdx = i
+          Exit For
+        End If
+      ElseIf (ges = "V") Then
+        If levHasTimes50V(afslIdx, i) Then
+          lftIdx = i
+          Exit For
+        End If
+      End If
+    End If
+  End If
+Next i
+
+If (lftIdx < 0) Then
+  levFind = True
+  Exit Function
+End If
+
+
+Dim levIdx As Integer
+levIdx = -1
+'Now look for the level
+For i = 0 To levNLevels - 1
+  If (bn = 25) Then
+    If (ges = "M") Then
+      If (searchTime < levTimes25M(afslIdx, lftIdx, i)) Then
+        levIdx = i
+        Exit For
+      End If
+    ElseIf (ges = "V") Then
+      If (searchTime < levTimes25V(afslIdx, lftIdx, i)) Then
+        levIdx = i
+        Exit For
+      End If
+    End If
+  ElseIf (bn = 50) Then
+    If (ges = "M") Then
+      If (searchTime < levTimes50M(afslIdx, lftIdx, i)) Then
+        levIdx = i
+        Exit For
+      End If
+    ElseIf (ges = "V") Then
+      If (searchTime < levTimes50V(afslIdx, lftIdx, i)) Then
+        levIdx = i
+        Exit For
+      End If
+    End If
+  End If
+Next i
+
+If (levIdx < 0) Then
+  'The time is slower than all other times.
+  fndLevel = "I"
+  levFind = True
+  Exit Function
+End If
+
+fndLevel = levCodes(levIdx)
+
+
+levFind = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " levFind" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Public Function tstPromptUser(ByVal sEindAf As String, ByVal wedBaan As Integer, ByVal nProgDefinedTstAf As Integer, ByRef progDefinedTstAf() As Long, ByVal nUserDefinedTstAf As Integer, ByRef userDefinedTstAf() As Long, ByRef userDefinedTstTimes() As Double, ByRef userDefinedEndTime As Double, ByVal curExtTst As String, ByRef blChangeIsOK As Boolean, ByRef newProgDefinedTstTimes() As Double, ByRef newProgEndTime As Double, ByRef newExtTst As String)
+On Error GoTo fout
+
+tstPromptUser = False
+
+blChangeIsOK = False
+
+If (wedBaan <> 25) And (wedBaan <> 50) Then
+  Err.Raise 1, , "Ongeldige baanlengte voor wedstrijd: " & wedBaan & " meter"
+End If
+
+Dim tstCnt As Integer, tstAf(0 To MAX_N_TUSSENTIJDEN) As Integer, tstTd(0 To MAX_N_TUSSENTIJDEN) As Double
+Dim tstIsPrev(0 To MAX_N_TUSSENTIJDEN) As Boolean
+
+
+
+If Not tstExtractTussenTijden(curExtTst, tstCnt, tstAf, tstTd) Then
+  Exit Function
+End If
+
+Dim i As Integer
+For i = 0 To nUserDefinedTstAf - 1
+  Dim tpAf As Integer, tpTd As Double
+  tpAf = userDefinedTstAf(i)
+  tpTd = userDefinedTstTimes(i)
+  If (tpAf > 0) And (swtIsValid(tpTd)) Then
+    If Not tstSetTussenTijd(tpAf, tpTd, tstCnt, tstAf, tstTd) Then
+      Exit Function
+    End If
+  End If
+Next i
+
+Dim lEindAf As Long
+lEindAf = afstand_tot_distance(sEindAf)
+
+If (swtIsValid(userDefinedEndTime)) Then
+  If (lEindAf > 0) Then
+    If Not tstSetTussenTijd(lEindAf, userDefinedEndTime, tstCnt, tstAf, tstTd) Then
+      Exit Function
+    End If
+  End If
+End If
+
+'Now generate all possible  tst distannces
+
+
+
+
+Dim cntAllTst As Integer
+cntAllTst = (lEindAf \ (2 * wedBaan))
+
+If (cntAllTst < 0) Or (cntAllTst + tstCnt >= MAX_N_TUSSENTIJDEN) Then
+  Err.Raise 1, , "Ongeldige eind afstand: " & sEindAf
+End If
+
+
+For i = 0 To cntAllTst - 1
+  tpAf = 2 * wedBaan * (i + 1)
+  If bSearchInt(tpAf, tstCnt, tstAf) < 0 Then
+    tstSetTussenTijd tpAf, 0, tstCnt, tstAf, tstTd
+  End If
+Next i
+
+
+For i = 0 To tstCnt - 1
+  tstIsPrev(i) = swtIsValid(tstTd(i))
+Next i
+
+'Eliminate prog defined tstAf from the tstIsPrev list
+For i = 0 To nProgDefinedTstAf - 1
+  Dim lkpPos As Integer
+  If (progDefinedTstAf(i) > 0) Then
+    lkpPos = tstFindTussenTijd(progDefinedTstAf(i), tstCnt, tstAf)
+    If (lkpPos >= 0) Then
+      tstIsPrev(lkpPos) = False
+    End If
+  End If
+Next i
+If (lEindAf > 0) Then
+  lkpPos = tstFindTussenTijd(lEindAf, tstCnt, tstAf)
+  If (lkpPos >= 0) Then
+    tstIsPrev(lkpPos) = False
+  End If
+End If
+
+
+
+Dim sql As String
+sql = "Delete * from [gINVUL_TST];"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gINVUL_TST")
+
+For i = 0 To tstCnt - 1
+  outp.AddNew
+    outp("TST_Afstand") = tstAf(i)
+    outp("TST_Tijd") = tstTd(i)
+    outp("TST_IsAlreadyPresent") = tstIsPrev(i)
+  outp.Update
+Next i
+
+appCleanRS outp
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gINVUL_TST_Stats")
+rs.MoveFirst
+
+If (rs.EOF) Then
+  rs.AddNew
+Else
+  rs.Edit
+End If
+  rs("TST_OK") = False
+  
+  
+  Dim sGlbPropShowAll As String
+  sGlbPropShowAll = appGetGlobalProperty(APP_PROP_EDIT_EXT_TST_SHOW_ALL_TST)
+  If (sGlbPropShowAll <> "") Then
+    rs("TST_INP_ShowAll") = rxpParseBoolean(sGlbPropShowAll)
+  Else
+    rs("TST_INP_ShowAll") = True
+  End If
+  
+
+rs.Update
+
+
+appCleanRS rs
+
+
+
+DoCmd.OpenForm "gExtraTussentijden", , , , , acDialog
+
+'reset de tussentijden
+tstCnt = 0
+
+blChangeIsOK = Nz(DFirst("TST_OK", "gINVUL_TST_Stats"), False)
+
+Dim argShowAll As Boolean
+argShowAll = Nz(DFirst("TST_OUT_ShowAll", "gINVUL_TST_Stats"), False)
+
+
+If (blChangeIsOK) Then
+
+  Set rs = CurrentDb().OpenRecordset("gINVUL_TST")
+  rs.MoveFirst
+  Do Until rs.EOF
+    tpAf = Nz(rs("TST_Afstand"))
+    tpTd = Nz(rs("TST_Tijd"))
+    If (tpAf > 0) And (swtIsValid(tpTd)) Then
+      If Not tstSetTussenTijd(tpAf, tpTd, tstCnt, tstAf, tstTd) Then
+        Exit Function
+      End If
+    End If
+    rs.MoveNext
+  Loop
+  
+  appCleanRS rs
+  
+  
+  'Now lookup any prog defined tussen times
+  For i = 0 To nProgDefinedTstAf - 1
+    newProgDefinedTstTimes(i) = 0
+    If (progDefinedTstAf(i) > 0) Then
+      lkpPos = tstFindTussenTijd(progDefinedTstAf(i), tstCnt, tstAf)
+      If (lkpPos >= 0) Then
+        newProgDefinedTstTimes(i) = tstTd(lkpPos)
+        'invalidate the time in the array
+        tstTd(lkpPos) = 0
+      End If
+    End If
+  Next i
+  
+  'lookup the new end time
+  If (lEindAf > 0) Then
+    newProgEndTime = 0
+    lkpPos = tstFindTussenTijd(lEindAf, tstCnt, tstAf)
+    If (lkpPos >= 0) Then
+      newProgEndTime = tstTd(lkpPos)
+      tstTd(lkpPos) = 0
+    End If
+  End If
+
+  'Need to do something with argShowAll
+  appSetGlobalProperty APP_PROP_EDIT_EXT_TST_SHOW_ALL_TST, rxpFormatBoolean(argShowAll)
+  
+  newExtTst = tstReadTussentijdenArray(tstCnt, tstAf, tstTd)
+
+End If
+
+
+tstPromptUser = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " tstPromptUser" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function tstRestoreAllStoredTimes_handleOrderedSet(ByRef rs As Recordset, ByRef skWed As Recordset, ByVal fldEindAf As String, ByVal fldEindSlag As String, ByVal fldWedBaanlengte As String, ByVal blSetSlag As String) As Boolean
+On Error GoTo fout
+tstRestoreAllStoredTimes_handleOrderedSet = False
+
+Dim curAf As String, curSl As String, curWed As Long, curWedBaan As Integer
+Dim curMainTstAf(0 To 3) As Long, curMainTstSlag(0 To 3) As String
+
+curWed = -1
+curAf = ""
+curWedBaan = -1
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpAf As String, tpSl As String
+  Dim tpWed As Long
+  tpAf = Nz(rs(fldEindAf))
+  tpSl = Nz(rs(fldEindSlag))
+  tpWed = Nz(rs(FNM_TY_WED))
+  
+  If (tpAf <> curAf) Or (tpSl <> curSl) Or (tpWed <> curWed) Then
+    Dim blReloadTstAf As Boolean
+    blReloadTstAf = False
+    If (tpWed <> curWed) Then
+      skWed.Seek "=", tpWed
+      If (skWed.NoMatch) Then
+        Err.Raise 1, , "Internal error"
+      End If
+      
+      Dim tpWedBaan As Integer
+      tpWedBaan = Nz(skWed(fldWedBaanlengte))
+      If (curWedBaan <> 50) Then
+        tpWedBaan = 25
+      End If
+      
+      If (tpWedBaan <> curWedBaan) Then
+        blReloadTstAf = True
+      End If
+      
+      curWedBaan = tpWedBaan
+      
+      curWed = tpWed
+    End If
+    
+    If (tpAf <> curAf) Or (tpSl <> curSl) Then
+      blReloadTstAf = True
+      curAf = tpAf
+      curSl = tpSl
+    End If
+    
+    'Re lookup tussen distances
+    If (blReloadTstAf) Then
+      If Not tstLookupTussenAfstanden(curAf, curSl, curWedBaan, curMainTstAf) Then
+        Exit Function
+      End If
+      
+      Dim i As Integer
+      For i = 0 To 3
+        curMainTstSlag(i) = ""
+        If (curMainTstAf(i) > 0) Then
+          If tpAf Like "*x*" Then
+            If (tpSl = "WISSEL") Then
+              curMainTstSlag(i) = "RUG"
+            Else
+              curMainTstSlag(i) = tpSl
+            End If
+          ElseIf (tpSl = "WISSEL") Then
+            'individual medly
+            curMainTstSlag(i) = "VLINDER"
+          Else
+            'normal
+            curMainTstSlag(i) = tpSl
+          End If
+        End If
+      Next i
+
+      
+    End If 'if blReloadTst
+        
+  
+  End If 'if (af, sl, wed) change
+  
+  'Now analyze the time
+  Dim tpUserMainTimes(0 To 3) As Double
+  Dim tpUserMainAf(0 To 3) As Long
+  
+  For i = 0 To 3
+    tpUserMainTimes(i) = Nz(rs("TY_Tijd" & (i + 1)))
+    tpUserMainAf(i) = val(Nz(rs("TY_Afstand" & (i + 1))))
+  Next i
+  
+  'Need to check if everything is ok
+  Dim blIsOK As Boolean
+  blIsOK = True
+  
+  For i = 0 To 3
+    If (tpUserMainAf(i) <> curMainTstAf(i)) Then
+      blIsOK = False
+      Exit For
+    End If
+  Next i
+  
+  
+  If (Not blIsOK) Then
+  
+    
+    Dim tpUserExtTst As String
+    tpUserExtTst = Nz(rs("TY_ExtraTussentijden"))
+    
+    Dim tpUserTstCnt As Integer, tpUserTstAf(0 To MAX_N_TUSSENTIJDEN) As Integer, tpUserTstTd(0 To MAX_N_TUSSENTIJDEN) As Double
+    
+    If Not tstExtractTussenTijden(tpUserExtTst, tpUserTstCnt, tpUserTstAf, tpUserTstTd) Then
+      Exit Function
+    End If
+    
+    For i = 0 To 3
+      If (tpUserMainAf(i) > 0) And (swtIsValid(tpUserMainTimes(i))) Then
+        If Not tstSetTussenTijd(tpUserMainAf(i), tpUserMainTimes(i), tpUserTstCnt, tpUserTstAf, tpUserTstTd) Then
+          Exit Function
+        End If
+      End If
+    Next i
+    
+    'Now write out the correct times
+    
+    rs.Edit
+    For i = 0 To 3
+      If (curMainTstAf(i) > 0) Then
+        rs("TY_Afstand" & (i + 1)) = curMainTstAf(i)
+        If (blSetSlag) Then
+          rs("TY_Slag" & (i + 1)) = hzn(curMainTstSlag(i))
+        End If
+        
+        Dim tpTimeToWrite As Double
+        tpTimeToWrite = 0
+        
+        Dim lkpPos As Integer
+        lkpPos = tstFindTussenTijd(curMainTstAf(i), tpUserTstCnt, tpUserTstAf)
+        If (lkpPos >= 0) Then
+          If swtIsValid(tpUserTstTd(lkpPos)) Then
+            tpTimeToWrite = tpUserTstTd(lkpPos)
+            'delete the time from the tst array
+            tpUserTstTd(lkpPos) = 0
+          End If
+        End If
+        
+        rs("TY_Tijd" & (i + 1)) = tpTimeToWrite
+      Else
+        rs("TY_Afstand" & (i + 1)) = Null
+        If (blSetSlag) Then
+          rs("TY_Slag" & (i + 1)) = Null
+        End If
+        rs("TY_Tijd" & (i + 1)) = 0
+      End If
+    Next i
+    
+    rs("TY_ExtraTussentijden") = hzn(tstReadTussentijdenArray(tpUserTstCnt, tpUserTstAf, tpUserTstTd))
+    
+    
+    rs.Update
+    
+  End If
+    
+  
+  
+  
+  
+      
+    
+  
+  rs.MoveNext
+Loop
+
+
+
+tstRestoreAllStoredTimes_handleOrderedSet = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " tstRestoreAllStoredTimes_handleOrderedSet" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Public Function lenIsValidStartnr(st As String) As Boolean
+On Error Resume Next
+lenIsValidStartnr = False
+If (Len(st) = 8) Then
+  If (Mid(st, 3, 1) = "-") Then
+    If (Left(st, 2) Like "[0-9][0-9]") Then
+      lenIsValidStartnr = True
+    End If
+  End If
+ElseIf (Len(st) = 7) Then
+  If (Left(st, 2) Like "[0-9][0-9]") Then
+    lenIsValidStartnr = True
+  End If
+End If
+End Function

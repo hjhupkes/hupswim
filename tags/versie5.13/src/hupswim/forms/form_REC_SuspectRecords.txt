@@ -1,0 +1,554 @@
+Version =20
+VersionRequired =20
+Checksum =278063663
+Begin Form
+    MaxButton = NotDefault
+    MinButton = NotDefault
+    ControlBox = NotDefault
+    AutoCenter = NotDefault
+    NavigationButtons = NotDefault
+    AllowDeletions = NotDefault
+    AllowAdditions = NotDefault
+    ScrollBars =2
+    BorderStyle =1
+    GridY =10
+    Width =13096
+    ItemSuffix =58
+    Left =2460
+    Top =450
+    Right =17355
+    Bottom =8925
+    BeforeDelConfirm ="[Event Procedure]"
+    AfterDelConfirm ="[Event Procedure]"
+    RecSrcDt = Begin
+        0x6d988ef6956be340
+    End
+    RecordSource ="SELECT dtRecordsInternal.*, fmtName(nz([voornaam]),nz([voegsel]),nz([achternaam]"
+        ")) AS naam, dtWedstrijden.*, dtLeden.Geslacht, dtLeden.Geboortedatum, dtLeden.ve"
+        "reniging, fmtCatCode(nz([rc_geslacht]),nz([rc_leeftijd])) AS sqlCat, [rc_afstand"
+        "] & \" \" & [rc_slag] & \" \" & fmtCatCode(nz([rc_geslacht]),nz([rc_leeftijd])) "
+        "& \" (\" & [rc_baanlengte] & \"m)\" AS dsFmt FROM dtLeden INNER JOIN (dtWedstrij"
+        "den INNER JOIN dtRecordsInternal ON dtWedstrijden.[Wedstrijd nummer] = dtRecords"
+        "Internal.RC_Wedstrijdnummer) ON dtLeden.Startnummer = dtRecordsInternal.RC_Start"
+        "nummer WHERE (((dtRecordsInternal.RC_Code)=waarde_rcs()) AND ((dtRecordsInternal"
+        ".RC_IsSuspect)=True)) ORDER BY dtRecordsInternal.RC_Recordnummer DESC;"
+    Caption ="Persoonlijke clubrecords"
+    OnCurrent ="[Event Procedure]"
+    AfterUpdate ="[Event Procedure]"
+    OnOpen ="[Event Procedure]"
+    PrtMip = Begin
+        0xa0050000a0050000a0050000a005000000000000201c0000e010000001000000 ,
+        0x010000006801000000000000a10700000100000001000000
+    End
+    PrtDevMode = Begin
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x010402059c00c40253ef800101000100ea0a6f08640001000f00580202000100 ,
+        0x5802030001004c65747465720000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000010000000000000001000000 ,
+        0x0200000001000000000000000000000000000000000000000000000050524956 ,
+        0xe230000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000180000000000102710271027 ,
+        0x0000102700000000000000000000c40200000000000000000000000000000000 ,
+        0x00000000000000000300000000000000000010005c4b03006843040000000000 ,
+        0x000000000000010000000000000000000000000000000000e7b14b4c03000000 ,
+        0x05000a00ff000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000 ,
+        0x0000000000000000000000000000000000000000000000000000000000000000
+    End
+    PrtDevNames = Begin
+        0x080013001e000100000000000000000000000000000000000000000000005044 ,
+        0x4643726561746f723a00
+    End
+    OnActivate ="[Event Procedure]"
+    OnLoad ="[Event Procedure]"
+    Begin
+        Begin Label
+            BackStyle =0
+        End
+        Begin Line
+            Width =1701
+        End
+        Begin CommandButton
+            TextFontFamily =2
+            Width =1701
+            Height =283
+        End
+        Begin CheckBox
+            SpecialEffect =2
+            LabelX =230
+            LabelY =-30
+        End
+        Begin TextBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin ComboBox
+            Width =1701
+            LabelX =-1701
+        End
+        Begin FormHeader
+            Height =360
+            BackColor =16776960
+            Name ="FormHeader1"
+            Begin
+                Begin Label
+                    OverlapFlags =85
+                    Left =60
+                    Top =113
+                    Width =335
+                    Height =240
+                    Name ="Text10"
+                    Caption ="Nr:"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =2837
+                    Top =120
+                    Width =1500
+                    Height =240
+                    Name ="Text11"
+                    Caption ="Afstand / Slag / Cat"
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =4983
+                    Top =113
+                    Width =420
+                    Height =240
+                    Name ="Text14"
+                    Caption ="Tijd "
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =967
+                    Top =113
+                    Width =567
+                    Height =240
+                    Name ="Text15"
+                    Caption ="Naam:"
+                End
+            End
+        End
+        Begin Section
+            Height =267
+            BackColor =16776960
+            Name ="Detail0"
+            Begin
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =93
+                    Left =967
+                    Width =1812
+                    Height =267
+                    TabIndex =1
+                    Name ="naam"
+                    ControlSource ="naam"
+                End
+                Begin TextBox
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    Left =60
+                    Width =846
+                    Height =267
+                    ColumnWidth =855
+                    Name ="Club record nr"
+                    ControlSource ="RC_Recordnummer"
+                    Format ="0000-000"
+                    DefaultValue ="=recNewNr(waarde_rcs())"
+                    InputMask ="0000\\-000;0;\" \""
+                    EventProcPrefix ="Club_record_nr"
+                End
+                Begin TextBox
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =2837
+                    Width =2031
+                    Height =267
+                    ColumnWidth =1020
+                    TabIndex =3
+                    Name ="dsFmt"
+                    ControlSource ="dsFmt"
+                End
+                Begin TextBox
+                    Enabled = NotDefault
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    TextAlign =1
+                    BackStyle =0
+                    Left =5723
+                    Width =2706
+                    Height =267
+                    TabIndex =5
+                    Name ="wedDes"
+                    ControlSource ="=IIf(IsNull([rc_wedstrijdnummer]),\"\",[rc_wedstrijdnummer] & \" - \" & Format(n"
+                        "z([Datum]),\"dd-mm-yyyy\") & \" - \" & nz([plaats]))"
+                    StatusBarText ="Datum wedstrijd (dd-mm-jj)"
+                End
+                Begin TextBox
+                    Locked = NotDefault
+                    OldBorderStyle =0
+                    OverlapFlags =85
+                    Left =4980
+                    Width =681
+                    Height =267
+                    ColumnWidth =870
+                    TabIndex =4
+                    Name ="rc_Tijd"
+                    ControlSource ="RC_Tijd"
+                    Format ="# 00.0#"
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    Locked = NotDefault
+                    OverlapFlags =247
+                    IMESentenceMode =3
+                    Left =1534
+                    Width =291
+                    TabIndex =2
+                    Name ="RC_Code"
+                    ControlSource ="RC_Code"
+                    DefaultValue ="=waarde_rcs()"
+                    GUID = Begin
+                        0x4bab00512ada2240945858ac17c54445
+                    End
+                End
+                Begin TextBox
+                    Locked = NotDefault
+                    OverlapFlags =85
+                    IMESentenceMode =3
+                    Left =8614
+                    Width =4416
+                    Height =267
+                    TabIndex =6
+                    Name ="RC_SuspectReason"
+                    ControlSource ="RC_SuspectReason"
+                    GUID = Begin
+                        0xf4df23888e0cb74abce8400edd0c9169
+                    End
+                End
+            End
+        End
+        Begin FormFooter
+            Height =566
+            BackColor =16776960
+            Name ="FormFooter2"
+            Begin
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =70
+                    Left =56
+                    Top =114
+                    Width =1030
+                    Height =349
+                    Name ="btnFilter"
+                    Caption ="&Filter..."
+                    OnClick ="[Event Procedure]"
+                    UnicodeAccessKey =70
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =1189
+                    Top =114
+                    Width =1030
+                    Height =349
+                    TabIndex =1
+                    Name ="btnFilterOff"
+                    Caption ="Filter uit"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x63b2362865938443881980bb54c7451e
+                    End
+                End
+                Begin CheckBox
+                    OverlapFlags =85
+                    Left =2430
+                    Top =200
+                    TabIndex =2
+                    Name ="blShowInvalid"
+                    DefaultValue ="True"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xe0ca8cba8338e542bf21ed2d8b3eef4e
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =2655
+                            Top =165
+                            Width =2205
+                            Height =240
+                            Name ="Label53"
+                            Caption ="Ongeldige records weergeven"
+                            GUID = Begin
+                                0x42076f8ec628d940a4e709ad9dbc4d87
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    OverlapFlags =85
+                    Left =5040
+                    Top =196
+                    TabIndex =3
+                    Name ="blShowDubious"
+                    DefaultValue ="True"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x74488ffdd88b4744b692cb2d213aac09
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =5263
+                            Top =165
+                            Width =2175
+                            Height =240
+                            Name ="Label55"
+                            Caption ="Onzekere records weergeven"
+                            GUID = Begin
+                                0x42fd4703b2c43e42af9462c4b130889b
+                            End
+                        End
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =7605
+                    Top =135
+                    Width =2451
+                    Height =328
+                    TabIndex =4
+                    Name ="btnApprove"
+                    Caption ="Records Goedkeuren..."
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xafbac08a590df745a5136c0f1b9a1938
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =10155
+                    Top =120
+                    Width =2376
+                    Height =343
+                    TabIndex =5
+                    Name ="btnDelete"
+                    Caption ="Records Verwijderen..."
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0xab5a54a9504ec949b09505953358f865
+                    End
+                End
+            End
+        End
+    End
+End
+CodeBehindForm
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = True
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Compare Database   'Use database order for string comparisons
+Option Explicit
+
+Private curRSInfo As RECSET_BASIC_INFO
+Private recAges(0 To MAX_N_REC_AGES) As Long
+Private nRecAges As Integer
+
+
+Private Sub updateView()
+On Error Resume Next
+
+Dim sql As String
+sql = "SELECT dtRecordsInternal.*, fmtName(nz([voornaam]),nz([voegsel]),nz([achternaam])) AS naam, " & _
+"dtWedstrijden.*, dtLeden.Geslacht, dtLeden.Geboortedatum, dtLeden.vereniging, " & _
+"fmtCatCode(nz([rc_geslacht]),nz([rc_leeftijd])) AS sqlCat, [rc_afstand] & "" "" & [rc_slag] & "" "" & fmtCatCode(nz([rc_geslacht]),nz([rc_leeftijd])) & "" ("" & [rc_baanlengte] & ""m)"" AS dsFmt " & _
+"FROM dtLeden INNER JOIN (dtWedstrijden INNER JOIN dtRecordsInternal ON " & _
+"dtWedstrijden.[Wedstrijd nummer] = dtRecordsInternal.RC_Wedstrijdnummer) ON dtLeden.Startnummer = " & _
+"dtRecordsInternal.RC_Startnummer WHERE (((dtRecordsInternal.RC_Code)=waarde_rcs()) AND " & _
+"((dtRecordsInternal.RC_IsSuspect)=True)) "
+
+Dim optShowInvalid As Boolean, optShowDubious As Boolean
+optShowInvalid = Nz(Me.blShowInvalid)
+optShowDubious = Nz(Me.blShowDubious)
+
+If (optShowInvalid And optShowDubious) Then
+  
+ElseIf (optShowInvalid) Then
+  sql = sql & " and dtRecordsInternal.rc_SuspectCode = " & REC_SUSPECT_INVALID_REC
+ElseIf (optShowDubious) Then
+  sql = sql & " and dtRecordsInternal.rc_SuspectCode = " & REC_SUSPECT_UNKNOWN_SEQ
+Else
+  sql = sql & " and dtRecordsInternal.rc_isSuspect = false "
+End If
+
+If (sql <> "") Then
+  sql = sql & " ORDER BY dtRecordsInternal.RC_Recordnummer DESC;"
+End If
+
+
+Me.RecordSource = sql
+Me.Requery
+
+
+End Sub
+
+
+
+
+
+
+
+
+Private Sub blShowDubious_Click()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub blShowInvalid_Click()
+On Error Resume Next
+updateView
+End Sub
+
+Private Sub btnApprove_Click()
+On Error Resume Next
+Dim sRecType As String, lRecNr As Long
+sRecType = Nz([rc_code])
+lRecNr = Nz([RC_Recordnummer])
+
+If (lRecNr <> 0) Then
+
+  If Not recSuspPerformAction(True, sRecType, lRecNr, Me.RecordsetClone) Then
+    Exit Sub
+  End If
+  
+  Me.Requery
+  
+End If
+
+
+End Sub
+
+Private Sub btnDelete_Click()
+On Error Resume Next
+Dim sRecType As String, lRecNr As Long
+sRecType = Nz([rc_code])
+lRecNr = Nz([RC_Recordnummer])
+
+If (lRecNr <> 0) Then
+
+  If Not recSuspPerformAction(False, sRecType, lRecNr, Me.RecordsetClone) Then
+    Exit Sub
+  End If
+  
+  Me.Requery
+  
+End If
+
+End Sub
+
+Private Sub btnFilterOff_Click()
+On Error Resume Next
+Me.FilterOn = False
+End Sub
+
+
+
+
+
+
+
+
+
+Private Sub Form_Activate()
+On Error Resume Next
+Me.OrderBy = ""
+
+End Sub
+
+
+
+Private Sub Form_AfterDelConfirm(Status As Integer)
+On Error Resume Next
+notifyRecordChange
+End Sub
+
+Private Sub Form_AfterUpdate()
+On Error Resume Next
+notifyRecordChange
+End Sub
+
+Private Sub Form_BeforeDelConfirm(Cancel As Integer, Response As Integer)
+    On Error Resume Next
+   Dim answer As Integer
+    Const OKCANCEL = 1, OKDELETE = 1, CANCELDELETE = 2
+    Response = DATA_ERRCONTINUE ' Suppress default delete confirm dialog box.
+
+    answer = MsgBox("Record echt verwijderen?", 33, "Hupswim")
+    If answer = CANCELDELETE Then Cancel = True
+End Sub
+
+
+Private Sub Form_Current()
+On Error Resume Next
+
+End Sub
+
+
+
+Private Sub Form_Load()
+On Error Resume Next
+Dim isFnd As Boolean
+If Not rcsLookup(waarde_rcs(), isFnd, curRSInfo, nRecAges, recAges()) Then
+  Exit Sub
+End If
+
+
+updateView
+
+
+End Sub
+
+Private Sub Form_Open(Cancel As Integer)
+On Error Resume Next
+setBackground Me
+End Sub
+
+
+
+
+
+Private Sub btnFilter_Click()
+On Error Resume Next
+Dim fltSQL As String, isOK As Boolean
+
+If Not fltGetRecFilter(isOK, fltSQL) Then
+  Exit Sub
+End If
+
+If (isOK) Then
+  Me.filter = fltSQL
+  Me.FilterOn = True
+End If
+    
+End Sub

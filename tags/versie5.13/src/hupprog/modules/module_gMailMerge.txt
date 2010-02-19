@@ -1,0 +1,966 @@
+Option Explicit
+Option Compare Database
+
+'This is the maximum due to #control limitations on access reports.
+Public Const MAX_N_LAB_HRZ = 9
+Public Const MAX_N_LAB_VRT = 16
+Public Const MAX_N_LAB_PAGE = MAX_N_LAB_HRZ * MAX_N_LAB_VRT
+
+'Utilities for dealing with mail merge.
+
+Private Function mmPrepareLabels_createTables(tbName As String)
+On Error GoTo fout
+mmPrepareLabels_createTables = False
+
+DoCmd.DeleteObject acTable, tbName
+DoCmd.DeleteObject acTable, tbName & "_details"
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("LB_Page", dbLong)
+
+Dim i As Integer
+For i = 1 To MAX_N_LAB_PAGE
+  tb.Fields.Append tb.CreateField("LB_Idx_" & CStr(i), dbLong)
+Next i
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+idx.Fields.Append tb.CreateField("LB_Page", dbLong)
+tb.Indexes.Append idx
+Set idx = Nothing
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Set tb = db.CreateTableDef(tbName & "_details")
+
+  tb.Fields.Append tb.CreateField("LB_Idx", dbLong)
+  
+  tb.Fields.Append tb.CreateField("LB_Line1", dbText, 255)
+  tb.Fields.Append tb.CreateField("LB_Line2", dbText, 255)
+  tb.Fields.Append tb.CreateField("LB_Line3", dbText, 255)
+  tb.Fields.Append tb.CreateField("LB_Line4", dbText, 255)
+
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+idx.Fields.Append tb.CreateField("LB_Idx", dbLong)
+tb.Indexes.Append idx
+Set idx = Nothing
+
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+
+mmPrepareLabels_createTables = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then
+  Resume Next
+End If
+MsgBox Err & " mmPrepareLabels_createTables" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function mmPrepareLabels_output(ByRef curNOutput As Long, ByVal nHrz As Integer, ByVal nVert As Integer, ByVal blSkipTopBottom As Boolean, ByVal blSkipLeftRight As Boolean, ByRef rsOut As Recordset, ByRef rsOutDetails As Recordset, _
+  ByVal sName As String, ByVal sAd1 As String, ByVal sAd2 As String, ByVal sPostcode As String, ByVal sCity As String, ByVal sNation As String, _
+  ByVal lIdx As Long, ByVal blUseAuxData As Boolean, ByRef auxPropertyNames() As String, ByRef rsAuxData As Recordset) As Boolean
+On Error GoTo fout
+mmPrepareLabels_output = False
+
+
+Dim nPerPage As Long
+
+Dim tpNVert As Long, tpNHrz As Long
+tpNVert = nVert
+tpNHrz = nHrz
+If (blSkipTopBottom) Then
+  tpNVert = nVert - 2
+End If
+If (blSkipLeftRight) Then
+  tpNHrz = nHrz - 2
+End If
+
+nPerPage = tpNVert * tpNHrz
+  
+
+Dim pageNr As Integer
+Dim posOnPage As Integer
+pageNr = 1 + (curNOutput \ nPerPage)
+posOnPage = 1 + (curNOutput Mod nPerPage)
+
+'first calculate relative coordinates
+Dim tpX As Integer, tpY As Integer
+tpX = (posOnPage - 1) Mod tpNHrz
+tpY = (posOnPage - 1) \ tpNHrz
+
+
+'Now use the full coordinates
+If (blSkipTopBottom) Then
+  tpY = tpY + 1
+End If
+
+If (blSkipLeftRight) Then
+  tpX = tpX + 1
+End If
+
+
+posOnPage = 1 + tpY * nHrz + tpX
+
+
+rsOut.Seek "=", pageNr
+If rsOut.NoMatch Then
+  rsOut.AddNew
+Else
+  rsOut.Edit
+End If
+
+
+rsOut("LB_Page") = pageNr
+rsOut("LB_Idx_" & posOnPage) = curNOutput + 1
+rsOut.Update
+
+
+
+rsOutDetails.AddNew
+rsOutDetails("LB_Idx") = curNOutput + 1
+
+If (Not blUseAuxData) Then
+  rsOutDetails("LB_Line1") = hzn(sName)
+  rsOutDetails("LB_Line2") = hzn(sAd1)
+  If (sAd2 <> "") Then
+    rsOutDetails("LB_Line3") = hzn(sAd2)
+    
+    Dim tpLn4 As String
+    tpLn4 = sPostcode & " " & sCity
+    If (sNation <> "NED") And (sNation <> "") Then
+      tpLn4 = tpLn4 & " " & sNation
+    End If
+    
+    rsOutDetails("LB_Line4") = hzn(tpLn4)
+  Else
+    rsOutDetails("LB_Line3") = hzn(sPostcode & " " & sCity)
+    If (sNation <> "NED") And (sNation <> "") Then
+      rsOutDetails("LB_Line4") = hzn(sNation)
+    Else
+      rsOutDetails("LB_Line4") = Null
+    End If
+  End If
+  
+Else
+
+  'need to lookup aux data and use this
+  Dim i As Integer
+  For i = 0 To 3
+    rsAuxData.Seek "=", lIdx, auxPropertyNames(i)
+    Dim tpS As String
+    If (rsAuxData.NoMatch) Then
+      tpS = ""
+    Else
+      tpS = Nz(rsAuxData("MM_PropertyValue"))
+    End If
+    rsOutDetails("LB_Line" & (i + 1)) = hzn(tpS)
+  Next i
+
+  
+
+End If 'if not blUseAuxData
+  
+  
+rsOutDetails.Update
+
+curNOutput = curNOutput + 1
+
+mmPrepareLabels_output = True
+Exit Function
+fout:
+MsgBox Err & " mmPrepareLabels_output" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function mmPrepareLabels(ByVal nEmpty As Long, ByVal nCnt As Long, ByVal nHrz As Long, ByVal nVert As Long, ByVal blSkipTopBottom As Boolean, ByVal blSkipLeftRight As Boolean, ByVal blUseAuxData As Boolean, ByRef auxLabelPropertyNames() As String) As Boolean
+On Error GoTo fout
+mmPrepareLabels = False
+
+
+'First check dimensions
+If (nEmpty < 0) Then
+  Err.Raise 1, , "Aantal lege etiketten moet >= 0 zijn"
+End If
+
+If (nCnt < 1) Then
+  Err.Raise 1, , "Aantal etiketten per persoon moet >= 1 zijn"
+End If
+
+If (nHrz < 1) Or (nHrz > MAX_N_LAB_HRZ) Then
+  Err.Raise 1, , "Aantal kolommen moet tussen 1 en " & MAX_N_LAB_HRZ & " zijn"
+End If
+
+If (nVert < 1) Or (nVert > MAX_N_LAB_VRT) Then
+  Err.Raise 1, , "Aantal rijen moet tussen 1 en " & MAX_N_LAB_VRT & " zijn"
+End If
+
+If (blSkipTopBottom) And (nVert < 3) Then
+  Err.Raise 1, , "Bovenste en onderste rij overslaan alleen toegestaan als aantal rijen >= 3"
+End If
+
+If (blSkipLeftRight) And (nHrz < 3) Then
+  Err.Raise 1, , "Linker en rechter rij overslaan alleen toegestaan als aantal kolommen >= 3"
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gMailMergeOptions")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+Else
+  rs.AddNew
+End If
+  
+  rs("MMO_EmptyCnt") = nEmpty
+  rs("MMO_LabelCnt") = nCnt
+  rs("MMO_HrzCnt") = nHrz
+  rs("MMO_VertCnt") = nVert
+  rs("MMO_blSkipTopBottom") = blSkipTopBottom
+  rs("MMO_blSkipLeftRight") = blSkipLeftRight
+
+rs.Update
+
+
+appCleanRS rs
+
+
+If Not mmPrepareLabels_createTables("~mm_labels") Then
+  Exit Function
+End If
+
+
+'Now need to output data from gMailMerge to ~mm_labels
+
+
+Dim rsAux As Recordset
+If (blUseAuxData) Then
+  Set rsAux = CurrentDb().OpenRecordset("gMailMergeAuxData")
+  rsAux.Index = "PrimaryKey"
+End If
+
+
+
+Dim rsInp As Recordset, rsOut As Recordset
+Set rsInp = CurrentDb().OpenRecordset("select * from gMailMerge where mm_isSelected = true order by mm_sort_key;")
+
+Set rsOut = CurrentDb().OpenRecordset("~mm_labels")
+rsOut.Index = "PrimaryKey"
+
+Dim rsOutDetails As Recordset
+Set rsOutDetails = CurrentDb().OpenRecordset("~mm_labels_details")
+
+
+Dim curNOutput As Long
+curNOutput = 0
+
+
+
+If (nEmpty > 0) Then
+  Dim i As Integer
+  Dim sDummy(0 To 0) As String
+  For i = 0 To nEmpty - 1
+    If Not mmPrepareLabels_output(curNOutput, nHrz, nVert, blSkipTopBottom, blSkipLeftRight, rsOut, rsOutDetails, "", "", "", "", "", "", -1, False, sDummy, rsAux) Then
+      Exit Function
+    End If
+  Next i
+End If
+
+rsInp.MoveFirst
+Do Until rsInp.EOF
+  
+  Dim tpIdx As Long
+  Dim tpName As String, tpAd1 As String, tpAd2 As String, tpPostCode As String, tpCity As String, tpNation As String
+  
+  tpIdx = Nz(rsInp("MM_Idx"))
+  tpName = Nz(rsInp("MM_Name"))
+  tpAd1 = Nz(rsInp("MM_Adres1"))
+  tpAd2 = Nz(rsInp("MM_Adres2"))
+  tpPostCode = Nz(rsInp("MM_Postcode"))
+  tpCity = Nz(rsInp("MM_City"))
+  tpNation = Nz(rsInp("MM_Nation"))
+
+  For i = 0 To nCnt - 1
+    If Not mmPrepareLabels_output(curNOutput, nHrz, nVert, blSkipTopBottom, blSkipLeftRight, rsOut, rsOutDetails, tpName, tpAd1, tpAd2, tpPostCode, tpCity, tpNation, tpIdx, blUseAuxData, auxLabelPropertyNames, rsAux) Then
+      Exit Function
+    End If
+  Next i
+
+  rsInp.MoveNext
+Loop
+
+
+
+mmPrepareLabels = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " mmPrepareLabels" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+
+
+
+Private Function mmPrepareEnvelopes_createTable(tbName As String)
+On Error GoTo fout
+mmPrepareEnvelopes_createTable = False
+
+DoCmd.DeleteObject acTable, tbName
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+
+Set tb = db.CreateTableDef(tbName)
+
+  tb.Fields.Append tb.CreateField("EV_Idx", dbLong)
+  
+  tb.Fields.Append tb.CreateField("EV_Line1", dbText, 255)
+  tb.Fields.Append tb.CreateField("EV_Line2", dbText, 255)
+  tb.Fields.Append tb.CreateField("EV_Line3", dbText, 255)
+  tb.Fields.Append tb.CreateField("EV_Line4", dbText, 255)
+
+Dim idx As Index
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+idx.Fields.Append tb.CreateField("EV_Idx", dbLong)
+tb.Indexes.Append idx
+Set idx = Nothing
+
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+
+mmPrepareEnvelopes_createTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then
+  Resume Next
+End If
+MsgBox Err & " mmPrepareEnvelopes_createTable" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function mmPrepareEnvelopes_output(ByRef curNOutput As Long, ByRef rsOut As Recordset, _
+  ByVal sName As String, ByVal sAd1 As String, ByVal sAd2 As String, ByVal sPostcode As String, ByVal sCity As String, ByVal sNation As String) As Boolean
+On Error GoTo fout
+mmPrepareEnvelopes_output = False
+
+
+
+
+
+rsOut.AddNew
+rsOut("EV_Idx") = curNOutput + 1
+rsOut("EV_Line1") = hzn(sName)
+rsOut("EV_Line2") = hzn(sAd1)
+If (sAd2 <> "") Then
+  rsOut("EV_Line3") = hzn(sAd2)
+  
+  Dim tpLn4 As String
+  tpLn4 = sPostcode & " " & sCity
+  If (sNation <> "NED") And (sNation <> "") Then
+    tpLn4 = tpLn4 & " " & sNation
+  End If
+  
+  rsOut("EV_Line4") = hzn(tpLn4)
+Else
+  rsOut("EV_Line3") = hzn(sPostcode & " " & sCity)
+  If (sNation <> "NED") And (sNation <> "") Then
+    rsOut("EV_Line4") = hzn(sNation)
+  Else
+    rsOut("EV_Line4") = Null
+  End If
+End If
+  
+rsOut.Update
+
+curNOutput = curNOutput + 1
+
+mmPrepareEnvelopes_output = True
+Exit Function
+fout:
+MsgBox Err & " mmPrepareEnvelopes_output" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Public Function mmPrepareEnvelopes(blCustomMargins As Boolean, blShowAfz As Boolean, dAdresLft As Double, dAdresTop As Double, dAfzLft As Double, dAfzTop As Double) As Boolean
+On Error GoTo fout
+mmPrepareEnvelopes = False
+
+
+'First check dimensions
+If (blCustomMargins) Then
+  If (dAdresLft <= 1) Then
+    Err.Raise 1, , "Linker afstand voor adres moet >= 1.0cm zijn"
+  End If
+  
+  If (dAdresLft >= 16) Then
+    Err.Raise 1, , "Linker afstand voor adres moet < 16.0cm zijn"
+  End If
+  
+  If (dAdresTop <= 1) Then
+    Err.Raise 1, , "Boven afstand voor adres moet >= 1.0cm zijn"
+  End If
+  
+  If (dAdresTop >= 21) Then
+    Err.Raise 1, , "Boven afstand voor adres moet < 21.0cm zijn"
+  End If
+  
+  
+  If (blShowAfz) Then
+    If (dAfzLft <= 1) Then
+      Err.Raise 1, , "Linker afstand voor adres afzender moet >= 1.0cm zijn"
+    End If
+    
+    If (dAfzLft >= 16) Then
+      Err.Raise 1, , "Linker afstand voor adres afzender moet < 16.0cm zijn"
+    End If
+    
+    If (dAfzTop <= 1) Then
+      Err.Raise 1, , "Boven afstand voor adres afzender moet > 1.0cm zijn"
+    End If
+  
+    If (dAfzTop >= 21) Then
+      Err.Raise 1, , "Boven afstand voor adres afzender moet < 21.0cm zijn"
+    End If
+  End If
+  
+End If
+  
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gMailMergeOptions")
+rs.MoveFirst
+
+If Not rs.EOF Then
+  rs.Edit
+Else
+  rs.AddNew
+End If
+
+  rs("MMO_blCustomEnvMargins") = blCustomMargins
+  rs("MMO_blEnvShowAfz") = blShowAfz
+  rs("MMO_EnvAdresLft") = dAdresLft
+  rs("MMO_EnvAdresTop") = dAdresTop
+  rs("MMO_EnvAfzLft") = dAfzLft
+  rs("MMO_EnvAfzTop") = dAfzTop
+rs.Update
+
+appCleanRS rs
+
+
+If Not mmPrepareEnvelopes_createTable("~mm_envelopes") Then
+  Exit Function
+End If
+
+
+'Now need to output data from gMailMerge to ~mm_labels
+
+
+
+Dim rsInp As Recordset, rsOut As Recordset
+Set rsInp = CurrentDb().OpenRecordset("select * from gMailMerge where mm_isSelected = true order by mm_sort_key;")
+
+Set rsOut = CurrentDb().OpenRecordset("~mm_envelopes")
+
+
+Dim curNOutput As Long
+curNOutput = 0
+
+
+rsInp.MoveFirst
+Do Until rsInp.EOF
+  
+  Dim tpName As String, tpAd1 As String, tpAd2 As String, tpPostCode As String, tpCity As String, tpNation As String
+  
+  tpName = Nz(rsInp("MM_Name"))
+  tpAd1 = Nz(rsInp("MM_Adres1"))
+  tpAd2 = Nz(rsInp("MM_Adres2"))
+  tpPostCode = Nz(rsInp("MM_Postcode"))
+  tpCity = Nz(rsInp("MM_City"))
+  tpNation = Nz(rsInp("MM_Nation"))
+
+  If Not mmPrepareEnvelopes_output(curNOutput, rsOut, tpName, tpAd1, tpAd2, tpPostCode, tpCity, tpNation) Then
+    Exit Function
+  End If
+
+
+  rsInp.MoveNext
+Loop
+
+
+
+mmPrepareEnvelopes = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " mmPrepareEnvelopes" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function mmPrepareEmails() As Boolean
+On Error GoTo fout
+mmPrepareEmails = False
+
+Dim sEmail As String
+Dim sUnknown As String
+
+sEmail = ""
+sUnknown = ""
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset("select * from gMailmerge where mm_isSelected order by mm_sort_key;")
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpEmail As String
+  tpEmail = Nz(rs("MM_Email"))
+  If (tpEmail <> "") Then
+    If (sEmail <> "") Then
+      sEmail = sEmail & ";"
+    End If
+    sEmail = sEmail & tpEmail
+  Else
+    If (sUnknown <> "") Then
+      sUnknown = sUnknown & "; "
+    End If
+    
+    Dim tpName As String
+    tpName = Nz(rs("MM_Name"))
+    sUnknown = sUnknown & tpName
+  End If
+
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+
+Set rs = CurrentDb().OpenRecordset("gMailMergeEmail")
+
+rs.MoveFirst
+If (rs.EOF) Then
+  rs.AddNew
+Else
+  rs.Edit
+End If
+  rs("MME_Emails") = hzn(sEmail)
+  rs("MME_Unknown") = hzn(sUnknown)
+rs.Update
+
+appCleanRS rs
+
+
+
+mmPrepareEmails = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " mmPrepareEmails" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Private Function mmExport_format(ByVal s As String, ByVal blUseQuotation As Boolean) As String
+If (Not blUseQuotation) Then
+  mmExport_format = s
+  Exit Function
+End If
+
+Dim tpS As String
+tpS = ""
+Dim i As Integer
+Dim ascCode As Integer
+For i = 1 To Len(s)
+  Dim tpChar As String
+  tpChar = Mid(s, i, 1)
+  
+  If (tpChar = """") Then
+    tpS = tpS & """"""
+  Else
+    tpS = tpS & tpChar
+  End If
+  
+Next i
+mmExport_format = tpS
+
+End Function
+
+
+Private Function mmExport_outputLine(fNr As Integer, ByVal nTokens As Integer, ByRef sTokens() As String, ByVal blUseQuotation As Boolean, ByVal blUseSemicolon As Boolean) As Boolean
+On Error GoTo fout
+mmExport_outputLine = False
+
+
+Dim blOpS As String, blClS As String, blSepS As String
+blOpS = ""
+blClS = ""
+blSepS = ","
+
+If (blUseQuotation) Then
+  blOpS = """"
+  blClS = """"
+End If
+If (blUseSemicolon) Then
+  blSepS = ";"
+End If
+
+
+Dim i As Integer
+For i = 0 To nTokens - 1
+  If (i > 0) Then
+    Print #fNr, blSepS;
+  End If
+  Print #fNr, blOpS & mmExport_format(sTokens(i), blUseQuotation) & blClS;
+Next i
+'Close up line
+Print #fNr,
+
+
+
+
+
+mmExport_outputLine = True
+Exit Function
+
+fout:
+MsgBox Err & " mmExport_outputline" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function mmExport(ByVal blPromptSettings As Boolean, ByVal blSuggestCurSettings As Boolean, fName As String, blUseSemicolon As Boolean, blUseQuotation As Boolean, ByVal blIncludeFixFields As Boolean, ByVal blIncludeAuxProps As Boolean, ByVal nAuxProps As Integer, ByRef auxPropNames() As String)
+On Error GoTo fout
+mmExport = False
+
+If (blPromptSettings) Then
+  Dim rs As Recordset
+  Set rs = CurrentDb().OpenRecordset("gMailMergeOptions")
+  rs.MoveFirst
+  
+  If Not rs.EOF Then
+    rs.Edit
+  Else
+    rs.AddNew
+  End If
+ 
+  
+    If (blSuggestCurSettings) Then
+      rs("MMO_ExpFileName") = hzn(fName)
+      rs("MMO_ExpUseSemicolon") = blUseSemicolon
+      rs("MMO_ExpUseQuotation") = blUseQuotation
+    Else
+      rs("MMO_ExpFileName") = directory_goedmaak(dbdir()) & "\export_mailmerge.txt"
+      rs("MMO_ExpUseSemicolon") = False
+      rs("MMO_ExpUseQuotation") = True
+    End If
+    rs("MMO_ExpOK") = False
+  
+  rs.Update
+  
+  appCleanRS rs
+    
+  DoCmd.OpenForm "gMM_DLG_Export", , , , , acDialog
+  
+  Dim blIsOK As Boolean
+  blIsOK = False
+  
+  blIsOK = Nz(DLookup("MMO_ExpOK", "gMailMergeOptions"))
+  
+  If (Not blIsOK) Then
+    Exit Function
+  End If
+  
+  fName = Nz(DLookup("MMO_ExpFileName", "gMailMergeOptions"))
+  blUseQuotation = Nz(DLookup("MMO_ExpUseQuotation", "gMailMergeOptions"))
+  blUseSemicolon = Nz(DLookup("MMO_ExpUseSemicolon", "gMailMergeOptions"))
+  
+  
+End If
+
+
+If Not mmExport_perform(fName, blUseSemicolon, blUseQuotation, blIncludeFixFields, blIncludeAuxProps, nAuxProps, auxPropNames) Then
+  Exit Function
+End If
+
+
+
+mmExport = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " mmExport" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+
+Private Function mmExport_perform(fName As String, blUseSemicolon As Boolean, blUseQuotation As Boolean, ByVal blIncludeFixFields As Boolean, ByVal blIncludeAuxProps As Boolean, ByVal nAuxProps As Integer, ByRef auxPropNames() As String)
+On Error GoTo fout
+mmExport_perform = False
+
+
+
+Dim fNr As Integer
+fNr = FreeFile
+Open fName For Output As #fNr
+
+
+
+
+Dim sCurLine(0 To 1000) As String
+Dim nTokens As Integer
+
+nTokens = 0
+
+If (blIncludeFixFields) Then
+  sCurLine(0) = "Name"
+  sCurLine(1) = "Adres1"
+  sCurLine(2) = "Adres2"
+  sCurLine(3) = "Postcode"
+  sCurLine(4) = "Plaats"
+  sCurLine(5) = "Land"
+  sCurLine(6) = "SorteerSleutel"
+  nTokens = 7
+End If
+
+If (blIncludeAuxProps) Then
+  Dim i As Integer
+  For i = 0 To nAuxProps - 1
+    sCurLine(nTokens) = auxPropNames(i)
+    nTokens = nTokens + 1
+  Next i
+End If
+
+If Not mmExport_outputLine(fNr, nTokens, sCurLine, blUseQuotation, blUseSemicolon) Then
+  Close #fNr
+  Exit Function
+End If
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gMailMerge where mm_isSelected order by mm_sort_key")
+
+
+Dim rsAux As Recordset
+If (blIncludeAuxProps) Then
+  Set rsAux = CurrentDb().OpenRecordset("gMailMergeAuxData")
+  rsAux.Index = "PrimaryKey"
+End If
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  nTokens = 0
+  If (blIncludeFixFields) Then
+    sCurLine(0) = Nz(rs("MM_Name"))
+    sCurLine(1) = Nz(rs("MM_Adres1"))
+    sCurLine(2) = Nz(rs("MM_Adres2"))
+    sCurLine(3) = Nz(rs("MM_Postcode"))
+    sCurLine(4) = Nz(rs("MM_City"))
+    sCurLine(5) = Nz(rs("MM_Nation"))
+    sCurLine(6) = Nz(rs("MM_Sort_key"))
+    nTokens = 7
+  End If
+  
+  If (blIncludeAuxProps) Then
+    Dim lIdx As Long
+    lIdx = Nz(rs("MM_Idx"))
+    For i = 0 To nAuxProps - 1
+      rsAux.Seek "=", lIdx, auxPropNames(i)
+      If (rsAux.NoMatch) Then
+        sCurLine(nTokens) = ""
+      Else
+        sCurLine(nTokens) = Nz(rsAux("MM_PropertyValue"))
+      End If
+      nTokens = nTokens + 1
+    Next i
+  End If
+  
+  If Not mmExport_outputLine(fNr, nTokens, sCurLine, blUseQuotation, blUseSemicolon) Then
+    Close #fNr
+    appCleanRS rs
+    Exit Function
+  End If
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+Close #fNr
+
+mmExport_perform = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Close #fNr
+MsgBox Err & " mmExport_perform" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+Public Function mmAddProperty(ByRef rsMMAux As Recordset, mmIdx As Long, mmPropName As String, mmPropValue As String) As Boolean
+On Error GoTo fout
+mmAddProperty = False
+
+
+rsMMAux.AddNew
+  rsMMAux("MM_Idx") = mmIdx
+  rsMMAux("MM_PropertyName") = hzn(mmPropName)
+  rsMMAux("MM_PropertyValue") = hzn(mmPropValue)
+rsMMAux.Update
+
+
+mmAddProperty = True
+Exit Function
+
+fout:
+MsgBox Err & " mmAddProperty" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function mmClean() As Boolean
+On Error GoTo fout
+mmClean = False
+
+DoCmd.SetWarnings False
+
+Dim sql As String
+
+sql = "delete * from gMailMerge"
+DoCmd.RunSQL sql
+
+sql = "delete * from gMailMergeAuxData"
+DoCmd.RunSQL sql
+
+
+
+DoCmd.SetWarnings True
+
+mmClean = True
+Exit Function
+
+fout:
+
+DoCmd.SetWarnings True
+
+MsgBox Err & " mmClean" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+'Example function of how to manipulate  areport
+Private Function mmBuildLabelsHasControl(ByRef rep As Report, sName As String) As Boolean
+On Error GoTo fout
+mmBuildLabelsHasControl = False
+
+Dim ctl As Control
+Set ctl = rep.Controls(sName)
+
+mmBuildLabelsHasControl = True
+Exit Function
+fout:
+Exit Function
+End Function
+
+
+'This procedure may give "cannot find control xxx errors"
+'Simply copy the report with a new name and retry (a couple of times
+'due to irritating non-reclaiming of bogus controls and a control limitation of 750 controls
+
+Public Function mmBuildLabels() '''
+Dim ctl As Control
+Dim i As Integer, j As Integer
+
+Dim rptName As String
+rptName = "rptMMLabels_bck4"
+
+Dim rep As Report
+Set rep = Reports(rptName)
+
+
+For i = 1 To 4
+  For j = 1 To MAX_N_LAB_HRZ * MAX_N_LAB_VRT
+    Dim sNameIntended As String
+    sNameIntended = "LB_Line" & i & "_" & j
+    If Not mmBuildLabelsHasControl(rep, sNameIntended) Then
+      Set ctl = CreateReportControl(rptName, acTextBox, acDetail, , , 1 * 567, 1 * 567, 567, 567)
+      ctl.name = sNameIntended
+      Set ctl = Nothing
+    End If
+ Next j
+Next i
+
+For j = 1 To MAX_N_LAB_HRZ * MAX_N_LAB_VRT
+  sNameIntended = "LB_Idx" & "_" & j
+  If Not mmBuildLabelsHasControl(rep, sNameIntended) Then
+    Set ctl = CreateReportControl(rptName, acTextBox, acDetail, , , 7 * 567, 1 * 567, 567, 567)
+    ctl.name = sNameIntended
+    Dim txtBox As TextBox
+    Set txtBox = ctl
+    txtBox.ControlSource = "LB_IDX_" & j
+    txtBox.Visible = False
+    Set txtBox = Nothing
+    Set ctl = Nothing
+  End If
+Next j
+
+End Function

@@ -1,0 +1,347 @@
+Option Compare Database
+Option Explicit
+
+
+Private Function clnUnusedEstafs() As Boolean
+On Error GoTo fout
+clnUnusedEstafs = False
+
+Dim skGZT As Recordset
+Dim skRec As Recordset
+
+Set skGZT = CurrentDb().OpenRecordset("dtTijden")
+skGZT.Index = "EST_GUID"
+Set skRec = CurrentDb().OpenRecordset("dtRecordsInternal")
+skRec.Index = "RC_EST_GUID"
+
+
+Dim rsEst As Recordset
+Set rsEst = CurrentDb().OpenRecordset("select * from dtEstafettes order by est_guid")
+
+
+Dim curGUID As Long
+curGUID = -1
+Dim curGUIDValid As Boolean
+curGUIDValid = False
+
+rsEst.MoveFirst
+Do Until rsEst.EOF
+  Dim tpGUID As Long
+  tpGUID = Nz(rsEst("EST_Guid"))
+  
+  If (tpGUID <> curGUID) Then
+    curGUIDValid = True
+    skGZT.Seek "=", tpGUID
+    If (skGZT.NoMatch) Then
+      skRec.Seek "=", tpGUID
+      If (skRec.NoMatch) Then
+        curGUIDValid = False
+      End If
+    End If
+    curGUID = tpGUID
+  End If
+  
+  If (Not curGUIDValid) Then
+    rsEst.Delete
+  End If
+    
+
+
+  rsEst.MoveNext
+Loop
+
+appCleanRS rsEst
+appCleanRS skGZT
+appCleanRS skRec
+
+
+clnUnusedEstafs = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " clnUnusedEstafs" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function clnOldTimes(ByVal endDate As Date) As Boolean
+On Error GoTo fout
+clnOldTimes = False
+
+DAO.DBEngine.setOption dbMaxLocksPerFile, 1000000
+
+
+If (endDate > clnPrvYear()) Then
+  Err.Raise 1, , "De datum: " & Format(endDate, "mm\-dd\-yyyy") & " is te recent." & vbCrLf & _
+  "Kies een datum voor: " & Format(clnPrvYear, "mm\-dd\-yyyy")
+End If
+
+
+
+Dim sql As String
+sql = "select [dtTijden].*, [dtWedstrijden].datum, [dtWedstrijden].baanlengte from [dtTijden] inner join [dtWedstrijden] " & _
+"on [dtTijden].[wedstr nr] = [dtWedstrijden].[wedstrijd nummer] " & _
+"order by [start nr], [afstand], [slag], [baanlengte],  [datum] desc, [wedstrijd nummer] desc, [tijd] "
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+Dim curStart As String, curAf As String, curSl As String, curBn As Integer
+Dim curAfSlFstTime As Double
+curStart = ""
+
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpStart As String, tpAf As String, tpSl As String, tpBn As Integer, tpTime As Double
+  
+  tpStart = Nz(rs("start nr"))
+  tpAf = Nz(rs("afstand"))
+  tpSl = Nz(rs("slag"))
+  tpBn = Nz(rs("baanlengte"))
+  tpTime = Nz(rs("tijd"))
+  
+  If (tpStart <> curStart) Or (tpAf <> curAf) Or (tpSl <> curSl) Or (tpBn <> curBn) Then
+    curAfSlFstTime = 0
+    curStart = tpStart
+    curAf = tpAf
+    curSl = tpSl
+    curBn = tpBn
+  End If
+  
+  
+  Dim curTimeIsFst As Boolean
+  curTimeIsFst = False
+  
+  If (curStart <> "00-000") Then
+    If (swtIsValid(tpTime)) Then
+      If Not swtIsValid(curAfSlFstTime) Then
+        curTimeIsFst = True
+        curAfSlFstTime = tpTime
+      ElseIf tpTime < curAfSlFstTime Then
+        curTimeIsFst = True
+        curAfSlFstTime = tpTime
+      End If
+    End If
+  End If
+  
+  If (Not curTimeIsFst) Then
+    Dim tpDate As Date
+    tpDate = Nz(rs("datum"), #1/1/1900#)
+    If (tpDate < endDate) Then
+      'Delete the time
+      rs.Delete
+    End If
+  End If
+  
+
+
+  rs.MoveNext
+Loop
+
+
+clnOldTimes = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " clnOldTimes" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function clnOldOpstelling(endDate As Date) As Boolean
+On Error GoTo fout
+
+
+If (endDate > clnPrvThreeMonth()) Then
+  Err.Raise 1, , "De datum: " & Format(endDate, "mm\-dd\-yyyy") & " is te recent." & vbCrLf & _
+  "Kies een datum voor: " & Format(clnPrvThreeMonth, "mm\-dd\-yyyy")
+End If
+
+
+
+Dim sql As String
+
+
+sql = "DELETE dtUitslagenPers.* FROM dtUitslagenPers LEFT JOIN [dtWedstrijden] " & _
+"ON dtUitslagenPers.TY_Wedstrijdnummer = [dtWedstrijden].[Wedstrijd nummer] " & _
+"WHERE [dtWedstrijden].Datum<#" & Format(endDate, "mm\-dd\-yyyy") & "# AND TY_Overgezet=""J"";"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "DELETE dtUitslagenEst.* FROM dtUitslagenEst LEFT JOIN [dtWedstrijden] " & _
+"ON dtUitslagenEst.TY_Wedstrijdnummer = [dtWedstrijden].[Wedstrijd nummer] " & _
+"WHERE [dtWedstrijden].Datum<#" & Format(endDate, "mm\-dd\-yyyy") & "# AND TY_Overgezet=""J"";"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "DELETE [dtDeelnemers].* FROM [dtDeelnemers] INNER JOIN " & _
+"[dtWedstrijden] ON [dtDeelnemers].Wedstrijdnr = " & _
+"[dtWedstrijden].[Wedstrijd nummer] " & _
+"WHERE [dtWedstrijden].Datum<#" & Format(endDate, "mm\-dd\-yyyy") & "#;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "DELETE [dtProgrammanummers].* FROM [dtProgrammanummers] INNER JOIN " & _
+"[dtWedstrijden] ON [dtProgrammanummers].Wedstrijdnr = " & _
+"[dtWedstrijden].[Wedstrijd nummer] " & _
+"WHERE [dtWedstrijden].Datum<#" & Format(endDate, "mm\-dd\-yyyy") & "#;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+sql = "DELETE [dtWedstrijdGegevens].* " & _
+"FROM [dtWedstrijden] RIGHT JOIN [dtWedstrijdGegevens] ON " & _
+"[dtWedstrijden].[Wedstrijd nummer] = [dtWedstrijdGegevens].Wedstrijdnummer " & _
+"WHERE [dtWedstrijden].Datum<#" & Format(endDate, "mm\-dd\-yyyy") & "#;"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+clnOldOpstelling = True
+Exit Function
+
+fout:
+MsgBox Err & " clnOldOpstelling" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+
+Public Function clnPrvThreeMonth() As Date
+clnPrvThreeMonth = DateAdd("m", -3, Now())
+End Function
+
+Public Function clnPrvYear() As Date
+clnPrvYear = DateSerial(CInt(val(Format(Now(), "yyyy"))) - 1, 1, 1)
+End Function
+
+
+
+
+Private Function clnHandleInvalidVlinderTimes() As Boolean
+On Error GoTo fout
+clnHandleInvalidVlinderTimes = False
+
+'This procedure repairs unwanted vlinderslag tussentijden on wisselslag nummers
+'that appeared as a result of a bug in versions 5.0 through 5.07
+
+
+Dim sql As String
+
+sql = "SELECT dtTijden.* FROM dtWedstrijden INNER JOIN dtTijden ON dtWedstrijden.[Wedstrijd nummer] = dtTijden.[Wedstr nr] " & _
+   "WHERE (((dtWedstrijden.Datum)>=#8/1/2008# And (dtWedstrijden.Datum)<=#3/1/2009#) AND ((dtTijden.Slag)=""VLINDER"") AND ((dtTijden.IsTusTijd)=True));"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset(TNM_PR)
+skProg.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpAf As String, tpWed As Long, tpProg As String
+  tpAf = Nz(rs("Afstand"))
+  tpWed = Nz(rs("wedstr nr"))
+  tpProg = Nz(rs("programmanummer"))
+  
+  Dim blTimeInValid As Boolean
+  blTimeInValid = False
+  
+  If (tpProg <> "") Then
+    skProg.Seek "=", tpWed, tpProg
+    If (Not skProg.NoMatch) Then
+      Dim tpProgAf As String, tpProgSl As String
+      tpProgAf = Nz(skProg(FNM_PR_AF))
+      tpProgSl = Nz(skProg(FNM_PR_SL))
+      
+      If (tpProgSl = "WISSEL") Then
+        If (tpProgAf = "100") And (tpAf = "50") Then
+          blTimeInValid = True
+        ElseIf (tpProgAf = "200") And (tpAf = "100") Then
+          blTimeInValid = True
+        ElseIf (tpProgAf = "400") And (tpAf = "200") Then
+          blTimeInValid = True
+        ElseIf (tpProgAf = "400") And (tpAf = "300") Then
+          blTimeInValid = True
+        End If
+      End If
+    End If 'if not skProg.noMatch
+  End If 'if tpProg <> ""
+  
+  If (blTimeInValid) Then
+    rs.Delete
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skProg
+
+
+clnHandleInvalidVlinderTimes = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "clnHandleInvalidVlinderTimes", errInf
+
+appCleanRS rs
+appCleanRS skProg
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function clnPerformMaintenance() As Boolean
+On Error GoTo fout
+
+clnPerformMaintenance = False
+
+If Not clnUnusedEstafs() Then
+  Exit Function
+End If
+
+If Not clnHandleInvalidVlinderTimes() Then
+  Exit Function
+End If
+
+clnPerformMaintenance = True
+Exit Function
+fout:
+MsgBox Err & " clnPerformMaintenance" & vbCrLf & Error$, 16
+Exit Function
+End Function

@@ -1,0 +1,2590 @@
+Option Compare Database
+Option Explicit
+
+Public Function swmMayDeleteMultiple(ByRef startNrs() As String, ByRef zwmDelete() As Boolean, ByVal nZwms As Integer) As Boolean
+On Error GoTo fout
+swmMayDeleteMultiple = False
+
+
+'Handle multiple deletions
+
+
+
+
+
+
+Dim blIsFirstDeletion As Boolean
+Dim blDeleteIsCancelled As Boolean
+Dim blSuppressWarnings As Boolean
+Dim blWarningDisplayed As Boolean
+Dim blSuppressPrompted As Boolean
+
+
+
+blIsFirstDeletion = True
+blDeleteIsCancelled = False
+blSuppressWarnings = False
+blWarningDisplayed = False
+blSuppressPrompted = False
+
+
+
+
+Dim i As Integer
+For i = 0 To nZwms - 1
+
+  zwmDelete(i) = True
+
+  If (blIsFirstDeletion) Then
+  
+    blIsFirstDeletion = False
+    If (MsgBox("Geselecteerde zwemmer(s) verwijderen?", vbOKCancel + vbQuestion) = vbCancel) Then
+      blDeleteIsCancelled = True
+    End If
+  End If
+
+  If (blDeleteIsCancelled) Then
+    zwmDelete(i) = False
+  Else
+    Dim isGlobalCancel As Boolean, isWarning As Boolean
+    
+    If (Not blSuppressWarnings) And (blWarningDisplayed) Then
+      If Not blSuppressPrompted Then
+        blSuppressPrompted = True
+        If MsgBox("Wilt u evt waarschuwingen onderdrukken voor de volgende wedstrijden die worden verwijderd?", _
+          vbQuestion + vbYesNo + vbDefaultButton2) = vbYes Then
+          blSuppressWarnings = True
+        End If
+      End If
+    End If
+
+        
+    If Not swmMayDelete_prompt(startNrs(i), True, blSuppressWarnings, True, isWarning, isGlobalCancel) Then
+      zwmDelete(i) = False
+    End If
+
+    If (isGlobalCancel) Then
+      blDeleteIsCancelled = True
+    End If
+
+    If (isWarning) Then
+      blWarningDisplayed = True
+    End If
+  End If 'if blDeleteIsCancelled
+  
+Next i
+
+
+Dim blCancelAll As Boolean
+blCancelAll = False
+ 
+
+
+  
+  For i = 0 To nZwms - 1
+    If (Not blCancelAll) Then
+      If zwmDelete(i) Then
+        If Not swmMayDelete_prepareDelete(startNrs(i)) Then
+          blCancelAll = True
+        End If
+      End If
+    End If
+  Next i
+  
+If (blCancelAll) Then
+  For i = 0 To nZwms - 1
+    zwmDelete(i) = False
+  Next i
+End If
+
+
+
+swmMayDeleteMultiple = True
+Exit Function
+fout:
+MsgBox Err & " swmMayDeleteMultiple" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+Public Function swmMayDelete(startnr As String) As Boolean
+On Error GoTo fout
+swmMayDelete = False
+
+Dim blDummy As Boolean
+
+If Not swmMayDelete_prompt(startnr, False, False, False, blDummy, blDummy) Then
+  Exit Function
+End If
+
+If Not swmMayDelete_prepareDelete(startnr) Then
+  Exit Function
+End If
+
+
+
+
+swmMayDelete = True
+Exit Function
+fout:
+MsgBox Err & " swmMayDelete" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function swmMayDelete_prompt(startnr As String, ByVal blSupressInitialPrompt As Boolean, blSupressWarning As Boolean, blAllowGlobalCancel As Boolean, ByRef isWarning As Boolean, ByRef isGlobalCancel As Boolean) As Boolean
+'Return true als lid verwijderd moet worden, false anders...
+'Deze functie zoekt eerst uit of een lid verwijderd kan worden en zo ja, maakt alles klaar om het te verwijderen.
+'Bedoeld om in zwm_master na het drukken op Delete eerst een voorbereiding tot deleten te initiëren.
+'Deze functie kijkt eerst naar Clubrecords tbl of er clubrecords staan.
+
+'Wel of niet teruggeven of de clubrecords echt clubrecords zijn...
+
+On Error GoTo fout
+
+swmMayDelete_prompt = False
+
+isGlobalCancel = False
+isWarning = False
+
+
+Dim intTel As Integer
+Dim intTelHouder As Integer
+Dim intEstTel As Integer
+Dim intEstTelHouder As Integer
+
+intTel = 0
+intTelHouder = 0
+intEstTelHouder = 0
+intEstTel = 0
+
+
+If Not blSupressInitialPrompt Then
+  If MsgBox("Weet u zeker dat u deze zwemmer met startnr: " & startnr & vbCrLf & "inclusief gezwommen tijden wilt verwijderen?", 33) = vbCancel Then
+    Exit Function
+  End If
+End If
+  
+
+If Not recMarkRecords(#1/1/2099#, -1) Then
+  Exit Function
+End If
+
+
+
+
+Dim sql As String
+sql = "Select * from dtRecordsInternal where rc_startnummer=""" & startnr & """;"
+
+Dim geg As Recordset
+
+Set geg = CurrentDb().OpenRecordset(sql, dbOpenDynaset)
+
+
+
+
+  
+geg.MoveFirst
+Do Until geg.EOF
+  If Nz(geg("RC_IsMarked")) Then
+    intTelHouder = intTelHouder + 1
+  End If
+  intTel = intTel + 1
+  geg.MoveNext
+Loop
+  
+  
+sql = "select * from dtEstafettes inner join dtRecordsInternal on dtEstafettes.est_guid = dtRecordsInternal.rc_est_guid where est_startnummer = """ & startnr & """"
+Set geg = CurrentDb().OpenRecordset(sql)
+
+geg.MoveFirst
+Do Until geg.EOF
+  If Nz(geg("RC_IsMarked")) Then
+    intEstTelHouder = intEstTelHouder + 1
+  End If
+  intEstTel = intEstTel + 1
+  geg.MoveNext
+Loop
+  
+
+
+  Dim msgstr As String
+  msgstr = "Deze zwemmer met startnummer: " & startnr & vbCrLf & "heeft " & intTel & " records gezwommen, waarvan er op dit moment" & Chr$(13) & intTelHouder & _
+    " nog steeds (als snelste) staan." & Chr$(13) & "Ook heeft deze zwemmer deelgenomen aan " & intEstTel & " estafette records, " & Chr$(13) & _
+    " waarvan er " & intEstTelHouder & " nog steeds (als snelste) staan." & vbCrLf & _
+    "Deze records moeten worden verwijderd indien u de zwemmer wilt verwijderen." & Chr$(13) & "Wilt u doorgaan?"
+    
+'Alleen als er clubrecords zijn gezwommen vragen of ze verwijderd moeten worden en zo ja, verwijderen...
+If intTel + intEstTel > 0 Then
+  isWarning = True
+  If (Not blSupressWarning) Then
+    If (blAllowGlobalCancel) Then
+      msgstr = msgstr & vbCrLf & vbCrLf & "NB: No = Alleen deze zwemmer niet verwijderen" & vbCrLf & "NB: Cancel = Proces afbreken"
+      Dim answer As Integer
+      answer = MsgBox(msgstr, vbYesNoCancel + vbDefaultButton2 + vbQuestion, "Records verwijderen?")
+      If (answer = vbCancel) Then
+        isGlobalCancel = True
+      End If
+      If (answer <> vbYes) Then
+        Exit Function
+      End If
+    Else
+      If MsgBox(msgstr, vbOKCancel + vbDefaultButton2 + vbQuestion, "Records verwijderen?") = vbCancel Then
+        Exit Function
+      End If
+    End If
+  End If
+End If
+
+
+
+'Nu zijn we helemaal klaar
+swmMayDelete_prompt = True
+
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " swmMayDelete_prompt" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function swmMayDelete_prepareDelete(startnr As String) As Boolean
+'Return true als lid verwijderd moet worden, false anders...
+'Deze functie zoekt eerst uit of een lid verwijderd kan worden en zo ja, maakt alles klaar om het te verwijderen.
+'Bedoeld om in zwm_master na het drukken op Delete eerst een voorbereiding tot deleten te initiëren.
+'Deze functie kijkt eerst naar Clubrecords tbl of er clubrecords staan.
+
+'Wel of niet teruggeven of de clubrecords echt clubrecords zijn...
+
+On Error GoTo fout
+
+swmMayDelete_prepareDelete = False
+
+
+
+  'records daadwerkelijk verwijderen
+  'estafettes gebeuren automatisch.
+
+Dim sql As String
+  
+sql = "Delete * from dtRecordsInternal where rc_startnummer =""" & startnr & """;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+'Nu nog alle dingen in dtUitslagenEst veranderen...
+'TY_Start1 en TY_Start2 op 00-000 zetten...
+sql = "UPDATE dtUitslagenEst SET dtUitslagenEst.TY_start1 = ""00-000"" WHERE (((dtUitslagenEst.TY_start1)=""" & startnr & """));"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+'Wijziging dd 11 september 2000 ... (dit waren we nog even vergeten. Oeps)...
+sql = "UPDATE dtUitslagenEst SET dtUitslagenEst.TY_start2 = ""00-000"" WHERE (((dtUitslagenEst.TY_start2)=""" & startnr & """));"
+DoCmd.RunSQL sql
+
+
+'Nu zijn we helemaal klaar
+swmMayDelete_prepareDelete = True
+
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " swmMayDelete_prepareDelete" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Function swmAddInvulTimes() As Boolean
+On Error GoTo fout
+swmAddInvulTimes = False
+
+notifyTimeChange
+
+
+Dim maxWedNr As Long
+maxWedNr = Nz(DMax("[Wedstrijd nummer]", "dtWedstrijden", "[wedstrijd nummer]  < 1905000"), 0)
+maxWedNr = maxWedNr + 1
+
+
+Dim sql As String
+sql = "select * from hsoTdInvul order by baanlengte, datum, plaats"
+
+Dim curWedBn As Integer
+Dim curWedPl As String
+Dim curWedDat As Date
+Dim curWedNr As Long
+
+
+Dim wed As Recordset
+Set wed = CurrentDb().OpenRecordset("dtWedstrijden", dbOpenDynaset)
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("dtTijden")
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+curWedNr = -1
+curWedBn = -1
+curWedPl = ""
+curWedDat = #1/1/1900#
+
+rs.MoveFirst
+Do Until rs.EOF
+ Dim tpWedDat As Date
+ Dim tpWedBn As Integer
+ Dim tpWedPl As String
+ 
+ tpWedDat = Nz(rs("datum"), #1/1/1900#)
+ tpWedBn = Nz(rs("Baanlengte"))
+ tpWedPl = Nz(rs("Plaats"))
+ 
+ If (tpWedDat <> curWedDat) Or (tpWedBn <> curWedBn) Or (tpWedPl <> curWedPl) Then
+   wed.FindFirst "[datum] = #" & Format(tpWedDat, "mm\-dd\-yyyy") & "# and plaats=""" & tpWedPl & """ and baanlengte = " & tpWedBn
+   If wed.NoMatch Then
+      curWedNr = maxWedNr
+      wed.AddNew
+        wed("Wedstrijd nummer") = maxWedNr
+        maxWedNr = maxWedNr + 1
+        If (lenDateIsValid(tpWedDat)) Then
+          wed("Datum") = tpWedDat
+          wed("Seizoen") = ssGetSeason(tpWedDat)
+        Else
+          wed("Datum") = Null
+          wed("Seizoen") = Null
+        End If
+        wed("Plaats") = hzn(tpWedPl)
+        wed("Baanlengte") = hzn(tpWedBn)
+      wed.Update
+   Else
+     curWedNr = Nz(wed("Wedstrijd nummer"))
+   End If
+     
+ End If
+
+
+
+  outp.AddNew
+    outp("Start nr") = rs("Start nr")
+    outp("Afstand") = rs("afstand")
+    outp("Slag") = rs("Slag")
+    outp("Diskw code") = rs("Diskw code")
+    outp("Wedstr nr") = curWedNr
+    outp("Categorie") = Null
+    outp("Tijd") = rs("Tijd")
+    
+  outp.Update
+  
+  
+  rs.MoveNext
+Loop
+
+
+'Nu nog even alle tijden weggooien uit de tijdelijke tabel...
+
+
+sql = "delete * from hsoTdInvul;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+swmAddInvulTimes = True
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+
+MsgBox Err & " swmAddInvulTimes" & vbCrLf & Error$, 16
+Exit Function
+
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
+Public Function waarde_zwemmer() As String
+On Error Resume Next
+waarde_zwemmer = Forms![zwm_master]![Startnummer]
+End Function
+
+
+Private Function swmBuildList_createTable(tbName As String) As Boolean
+On Error GoTo fout
+swmBuildList_createTable = False
+
+
+DoCmd.DeleteObject acTable, tbName
+DoCmd.DeleteObject acTable, tbName & "_stats"
+
+
+Dim db As Database, tb As TableDef
+
+Set db = CurrentDb()
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("SL_Startnummer", dbText, 10)
+tb.Fields.Append tb.CreateField("SL_GRP_CatCode", dbLong)
+tb.Fields.Append tb.CreateField("SL_GRP_CatDescription", dbText, 255)
+tb.Fields.Append tb.CreateField("SL_GRP_Vereniging", dbText, 255)
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Set tb = db.CreateTableDef(tbName & "_stats")
+
+tb.Fields.Append tb.CreateField("SL_GrpPerVer", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_GrpPerLS", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_OnlyActive", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_RestrictVer", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_RestrictVerName", dbText, 50)
+tb.Fields.Append tb.CreateField("SL_RestrictLS", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_RestrictLSCode", dbLong)
+tb.Fields.Append tb.CreateField("SL_RestrictBirthDate", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_BirthStartDate", dbDate)
+tb.Fields.Append tb.CreateField("SL_BirthEndDate", dbDate)
+tb.Fields.Append tb.CreateField("SL_RestrictEntryDate", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_EntryStartDate", dbDate)
+tb.Fields.Append tb.CreateField("SL_EntryEndDate", dbDate)
+tb.Fields.Append tb.CreateField("SL_RestrictExitDate", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_ExitStartDate", dbDate)
+tb.Fields.Append tb.CreateField("SL_ExitEndDate", dbDate)
+tb.Fields.Append tb.CreateField("SL_RestrictMonthOfBirth", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_BirthStartMonth", dbLong)
+tb.Fields.Append tb.CreateField("SL_BirthEndMonth", dbLong)
+tb.Fields.Append tb.CreateField("SL_SortYear", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_SortBirthday", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_IncludeDates", dbBoolean)
+tb.Fields.Append tb.CreateField("SL_IncludeEmail", dbBoolean)
+
+db.TableDefs.Append tb
+Set tb = Nothing
+
+
+
+
+
+Set db = Nothing
+
+
+swmBuildList_createTable = True
+Exit Function
+fout:
+If (Err = 3011) Or (Err = 7874) Then
+  Resume Next
+End If
+MsgBox Err & " swmBuildList_createTable" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Sub swmBuildList_appendClause(ByRef sqlWhereClause As String, newCondition As String)
+If (Len(sqlWhereClause) > 0) Then
+  sqlWhereClause = sqlWhereClause & " and "
+Else
+  sqlWhereClause = sqlWhereClause & "WHERE "
+End If
+sqlWhereClause = sqlWhereClause & newCondition
+End Sub
+
+
+
+Private Function swmBuildList_outputStats(ByVal tbNameStats As String, ByVal blListPerLS As Boolean, ByVal blRestrictLS As Long, ByVal lsMask As Long, ByVal blOnlyActive As Boolean, _
+  ByVal blRestrictEntryDate As Boolean, ByVal dEntryStartDate As Date, dEntryEndDate As Date, _
+  ByVal blRestrictExitDate As Boolean, ByVal dExitStartDate As Date, dExitEndDate As Date, _
+  ByVal blRestrictBirthDate As Boolean, ByVal dBirthStartDate As Date, ByVal dBirthEndDate As Date, _
+  ByVal blRestrictMonthOfBirth As Boolean, ByVal iMonthStart As Integer, iMonthEnd As Integer, _
+  ByVal blRestrictVer As Boolean, ByVal sVer As String) As Boolean
+
+On Error GoTo fout
+swmBuildList_outputStats = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(tbNameStats)
+rs.AddNew
+  rs("SL_GrpPerLS") = blListPerLS
+  rs("SL_OnlyActive") = blOnlyActive
+  rs("SL_RestrictLS") = blRestrictLS
+  rs("SL_RestrictLSCode") = lsMask
+  rs("SL_RestrictBirthDate") = blRestrictBirthDate
+  rs("SL_BirthStartDate") = dBirthStartDate
+  rs("SL_BirthEndDate") = dBirthEndDate
+  
+  rs("SL_RestrictEntryDate") = blRestrictEntryDate
+  rs("SL_EntryStartDate") = dEntryStartDate
+  rs("SL_EntryEndDate") = dEntryEndDate
+  
+  rs("SL_RestrictExitDate") = blRestrictExitDate
+  rs("SL_ExitStartDate") = dExitStartDate
+  rs("SL_ExitEndDate") = dExitEndDate
+  
+  rs("SL_RestrictMonthOfBirth") = blRestrictMonthOfBirth
+  rs("SL_BirthStartMonth") = iMonthStart
+  rs("SL_BirthEndMonth") = iMonthEnd
+  
+  rs("SL_RestrictVer") = blRestrictVer
+  If (blRestrictVer) Then
+    rs("SL_RestrictVerName") = hzn(sVer)
+  End If
+  
+rs.Update
+
+swmBuildList_outputStats = True
+Exit Function
+
+fout:
+MsgBox Err & " swmBuildList_outputStats" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Public Function swmBuildList(ByVal blListPerLS As Boolean, ByVal blRestrictLS As Long, ByVal lsMask As Long, ByVal blOnlyActive As Boolean, _
+  ByVal blRestrictEntryDate As Boolean, ByVal dEntryStartDate As Date, dEntryEndDate As Date, _
+  ByVal blRestrictExitDate As Boolean, ByVal dExitStartDate As Date, dExitEndDate As Date, _
+  ByVal blRestrictBirthDate As Boolean, ByVal dBirthStartDate As Date, ByVal dBirthEndDate As Date, _
+  ByVal blRestrictMonthOfBirth As Boolean, ByVal iMonthStart As Integer, ByVal iMonthEnd As Integer, _
+  ByVal blRestrictVer As Boolean, ByVal sVer As String) As Boolean
+On Error GoTo fout
+  
+If Not swmBuildList_createTable("~SwimList") Then
+  Exit Function
+End If
+
+Dim catValidCodes(0 To 1000) As Long
+Dim catValidDes(0 To 1000) As String
+Dim nCatValidCodes As Integer
+nCatValidCodes = 0
+
+If (blListPerLS) Then
+  Dim rsCat As Recordset
+  Set rsCat = CurrentDb().OpenRecordset("dtLidsoorten")
+  rsCat.MoveFirst
+  Do Until rsCat.EOF
+    Dim tpCode As Long
+    tpCode = Nz(rsCat("Cat_nr"))
+    Dim blUseCode As Boolean
+    blUseCode = False
+    If (blRestrictLS) Then
+      If (lsIsMatchSingle(lsMask, tpCode)) Then
+        blUseCode = True
+      End If
+    Else
+      blUseCode = True
+    End If
+    If (blUseCode) Then
+      Dim tpDes As String
+      tpDes = Nz(rsCat("Beschrijving"))
+      catValidCodes(nCatValidCodes) = tpCode
+      catValidDes(nCatValidCodes) = tpDes
+      nCatValidCodes = nCatValidCodes + 1
+    End If
+    rsCat.MoveNext
+  Loop
+  
+  appCleanRS rsCat
+  
+End If
+
+
+Dim sqlWhereClause As String
+sqlWhereClause = ""
+If (blOnlyActive) Then
+  swmBuildList_appendClause sqlWhereClause, "[actief lid] = true"
+End If
+
+If (blRestrictBirthDate) Then
+  If (lenDateIsValid(dBirthStartDate)) Then
+    swmBuildList_appendClause sqlWhereClause, "[geboortedatum]>=#" & fmtDateSQL(dBirthStartDate) & "#"
+  End If
+  If (lenDateIsValid(dBirthEndDate)) Then
+    swmBuildList_appendClause sqlWhereClause, "[geboortedatum]<=#" & fmtDateSQL(dBirthEndDate) & "#"
+  End If
+End If
+
+If (blRestrictEntryDate) Then
+  If (lenDateIsValid(dEntryStartDate)) Then
+    swmBuildList_appendClause sqlWhereClause, "[entree datum]>=#" & fmtDateSQL(dEntryStartDate) & "#"
+  End If
+  If (lenDateIsValid(dEntryEndDate)) Then
+    swmBuildList_appendClause sqlWhereClause, "[entree datum]<=#" & fmtDateSQL(dEntryEndDate) & "#"
+  End If
+End If
+
+If (blRestrictExitDate) Then
+  If (lenDateIsValid(dExitStartDate)) Then
+    swmBuildList_appendClause sqlWhereClause, "[exit datum]>=#" & fmtDateSQL(dExitStartDate) & "#"
+  End If
+  If (lenDateIsValid(dExitEndDate)) Then
+    swmBuildList_appendClause sqlWhereClause, "[exit datum]<=#" & fmtDateSQL(dExitEndDate) & "#"
+  End If
+End If
+
+
+If (blRestrictVer) Then
+  swmBuildList_appendClause sqlWhereClause, "[vereniging]=""" & sVer & """"
+End If
+
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~SwimList")
+
+
+Dim rsZwm As Recordset
+Set rsZwm = CurrentDb().OpenRecordset("select * from [dtLeden] " & sqlWhereClause)
+
+rsZwm.MoveFirst
+Do Until rsZwm.EOF
+
+  Dim tpStart As String, tpOpm As Long, tpGebDate As Date, tpVer As String
+  tpStart = Nz(rsZwm("Startnummer"))
+  tpOpm = Nz(rsZwm("opm"))
+  tpGebDate = Nz(rsZwm("Geboortedatum"))
+  tpVer = Nz(rsZwm("Vereniging"))
+  
+  Dim tpValID As Boolean
+  tpValID = True
+  
+  If (tpStart = "00-000") Then
+    tpValID = False
+  End If
+    
+  If (tpValID) Then
+    If (blRestrictMonthOfBirth) Then
+      Dim mn As Long
+      mn = CLng(val(Format(tpGebDate, "mm")))
+    
+      If (mn < iMonthStart) Or (mn > iMonthEnd) Then
+        tpValID = False
+      End If
+    End If
+  End If
+  
+  If (tpValID) Then
+    If (blRestrictLS) Then
+      If Not lsIsMatch(tpOpm, lsMask) Then
+        tpValID = False
+      End If
+    End If
+  End If
+  
+  
+  If (tpValID) Then
+    If (blListPerLS) Then
+      Dim i As Integer
+      For i = 0 To nCatValidCodes - 1
+        If (lsIsMatchSingle(tpOpm, catValidCodes(i))) Then
+          outp.AddNew
+            outp("SL_Startnummer") = hzn(tpStart)
+            outp("SL_GRP_Vereniging") = hzn(tpVer)
+            outp("SL_GRP_CatCode") = catValidCodes(i)
+            outp("SL_GRP_CatDescription") = catValidDes(i)
+          outp.Update
+        End If
+      Next i
+    Else
+      outp.AddNew
+        outp("SL_Startnummer") = hzn(tpStart)
+        outp("SL_GRP_Vereniging") = hzn(tpVer)
+      outp.Update
+    End If
+  End If 'if tpValid
+  
+  rsZwm.MoveNext
+Loop
+
+appCleanRS rsZwm
+appCleanRS outp
+
+If Not swmBuildList_outputStats("~SwimList_Stats", blListPerLS, blRestrictLS, lsMask, blOnlyActive, blRestrictEntryDate, dEntryStartDate, _
+  dEntryEndDate, blRestrictExitDate, dExitStartDate, dExitEndDate, blRestrictBirthDate, dBirthStartDate, dBirthEndDate, blRestrictMonthOfBirth, _
+  iMonthStart, iMonthEnd, blRestrictVer, sVer) Then
+  Exit Function
+End If
+
+
+
+
+swmBuildList = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " swmBuildList" & vbCrLf & Error$, 16
+Exit Function
+
+  
+  
+End Function
+
+Public Function swmListToMailMerge() As Boolean
+On Error GoTo fout
+swmListToMailMerge = False
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+
+
+Dim sql As String
+sql = "Delete * from gMailMerge"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+Dim lIdx As Long
+lIdx = 0
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select sl_startnummer from [~swimList] group by sl_startnummer")
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gMailMerge")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpStart As String
+  tpStart = Nz(rs("SL_Startnummer"))
+  
+  skZwm.Seek "=", tpStart
+  If (skZwm.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  lIdx = lIdx + 1
+  
+  outp.AddNew
+    outp("MM_Idx") = lIdx
+    outp("MM_Name") = hzn(fmtName(Nz(skZwm("voornaam")), Nz(skZwm("voegsel")), Nz(skZwm("achternaam"))))
+    outp("MM_Adres1") = skZwm("Adres")
+    outp("MM_Postcode") = skZwm("Postcode")
+    outp("MM_City") = skZwm("Plaats")
+    outp("MM_Nation") = Null
+    outp("MM_Email") = skZwm("Email")
+    outp("MM_IsSelected") = True
+    outp("MM_Find_KEY") = hzn(Nz(skZwm("Achternaam")) & ", " & Nz(skZwm("voornaam")) & " " & Nz(skZwm("voegsel")))
+    outp("MM_Sort_KEY") = hzn(Nz(skZwm("Achternaam")) & Nz(skZwm("startnummer")))
+  outp.Update
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS outp
+appCleanRS skZwm
+
+
+swmListToMailMerge = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " swmListToMailMerge" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+'Prerequisite: facCalcFees should have been called
+Public Function swmDeelnemersToMailMerge() As Boolean
+On Error GoTo fout
+swmDeelnemersToMailMerge = False
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("dtLeden")
+skZwm.Index = "PrimaryKey"
+
+
+
+Dim sql As String
+sql = "Delete * from gMailMerge"
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim lIdx As Long
+lIdx = 0
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select as_startnummer from [gFaktuurHoofd] group by as_startnummer")
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("gMailMerge")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpStart As String
+  tpStart = Nz(rs("AS_Startnummer"))
+  
+  skZwm.Seek "=", tpStart
+  If (skZwm.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  
+  lIdx = lIdx + 1
+  outp.AddNew
+    outp("MM_Idx") = lIdx
+    outp("MM_Name") = hzn(fmtName(Nz(skZwm("voornaam")), Nz(skZwm("voegsel")), Nz(skZwm("achternaam"))))
+    outp("MM_Adres1") = skZwm("Adres")
+    outp("MM_Postcode") = skZwm("Postcode")
+    outp("MM_City") = skZwm("Plaats")
+    outp("MM_Nation") = Null
+    outp("MM_Email") = skZwm("Email")
+    outp("MM_IsSelected") = True
+    outp("MM_Find_KEY") = hzn(Nz(skZwm("Achternaam")) & ", " & Nz(skZwm("voornaam")) & " " & Nz(skZwm("voegsel")))
+    outp("MM_Sort_KEY") = hzn(Nz(skZwm("Achternaam")) & Nz(skZwm("startnummer")))
+  outp.Update
+  
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS outp
+appCleanRS skZwm
+
+
+swmDeelnemersToMailMerge = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " swmDeelnemersToMailMerge" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+Private Function swmCheckDuplicates_createTables(tbName As String) As Boolean
+On Error GoTo fout
+swmCheckDuplicates_createTables = False
+
+DoCmd.DeleteObject acTable, tbName
+DoCmd.DeleteObject acTable, tbName & "_dupStarts"
+DoCmd.DeleteObject acTable, tbName & "_allStarts"
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+
+Set tb = db.CreateTableDef(tbName)
+
+tb.Fields.Append tb.CreateField("VAL_ID", dbLong)
+tb.Fields.Append tb.CreateField("VAL_NewStartnummer", dbText, 20)
+tb.Fields.Append tb.CreateField("VAL_NewVereniging", dbText, 50)
+tb.Fields.Append tb.CreateField("VAL_NewName", dbText, 255)
+tb.Fields.Append tb.CreateField("VAL_Description", dbMemo)
+tb.Fields.Append tb.CreateField("VAL_Verwerk", dbBoolean)
+tb.Fields.Append tb.CreateField("VAL_IsAmbiguous", dbBoolean)
+
+Dim idx As Index
+
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+idx.Fields.Append idx.CreateField("VAL_ID", dbLong)
+
+tb.Indexes.Append idx
+
+Set idx = Nothing
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Set tb = db.CreateTableDef(tbName & "_dupStarts")
+
+tb.Fields.Append tb.CreateField("VLS_ID", dbLong)
+tb.Fields.Append tb.CreateField("VLS_Startnummer", dbText, 20)
+tb.Fields.Append tb.CreateField("VLS_Geslacht", dbText, 1)
+tb.Fields.Append tb.CreateField("VLS_Vereniging", dbText, 50)
+tb.Fields.Append tb.CreateField("VLS_DateLastTime", dbDate)
+tb.Fields.Append tb.CreateField("VLS_Name", dbText, 255)
+tb.Fields.Append tb.CreateField("VLS_INT_NewStartnummer", dbText, 20)
+
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+
+idx.Fields.Append idx.CreateField("VLS_Startnummer", dbText, 20)
+
+tb.Indexes.Append idx
+
+Set idx = Nothing
+
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Set tb = db.CreateTableDef(tbName & "_allStarts")
+
+tb.Fields.Append tb.CreateField("VLA_NormalizedName", dbText, 255)
+tb.Fields.Append tb.CreateField("VLA_Startnummer", dbText, 20)
+tb.Fields.Append tb.CreateField("VLA_Geslacht", dbText, 1)
+tb.Fields.Append tb.CreateField("VLA_Vereniging", dbText, 50)
+tb.Fields.Append tb.CreateField("VLA_DateLastTime", dbDate)
+tb.Fields.Append tb.CreateField("VLA_Name", dbText, 255)
+tb.Fields.Append tb.CreateField("VLA_ID", dbLong)
+
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Primary = True
+
+idx.Fields.Append idx.CreateField("VLA_NormalizedName", dbText, 255)
+
+tb.Indexes.Append idx
+
+Set idx = Nothing
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+
+Set db = Nothing
+
+
+
+
+
+swmCheckDuplicates_createTables = True
+Exit Function
+
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next ' could not find object to delete
+MsgBox Err & " swmCheckDuplicates_createTables" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function swmStandardizeNormalizedVoegsel(vg As String) As String
+swmStandardizeNormalizedVoegsel = vg
+
+Select Case vg
+  Case "vander", "vanden", "vande", "vd"
+    swmStandardizeNormalizedVoegsel = "VD"
+  Case "de", "d", "den"
+    swmStandardizeNormalizedVoegsel = "DE"
+  Case "opden", "opde"
+    swmStandardizeNormalizedVoegsel = "OPDE"
+  Case "vant", "vanhet"
+    swmStandardizeNormalizedVoegsel = "VH"
+  Case "t", "het"
+    swmStandardizeNormalizedVoegsel = "T"
+End Select
+
+End Function
+
+
+Public Function swmNormalizeToken(ByRef inp As String) As String
+Dim tpS As String
+tpS = ""
+Dim i As Integer
+Dim ascCode As Integer
+
+Dim inpLen As Integer
+inpLen = Len(inp)
+For i = 1 To inpLen
+ ascCode = Asc(Mid(inp, i, 1))
+ If (ascCode >= Asc("A")) And (ascCode <= Asc("Z")) Then
+   tpS = tpS & Chr(ascCode)
+ ElseIf (ascCode >= Asc("a")) And (ascCode <= Asc("z")) Then
+   tpS = tpS & Chr(ascCode)
+ ElseIf (ascCode = 233) Or (ascCode = 201) Then  ' é or É
+   tpS = tpS & "e"
+  ElseIf (ascCode = 232) Or (ascCode = 200) Then ' è or È
+    tpS = tpS & "e"
+  ElseIf (ascCode = 235) Or (ascCode = 203) Then ' ë or ë
+    tpS = tpS & "e"
+  ElseIf (ascCode = 234) Or (ascCode = 202) Then ' ê or Ê
+    tpS = tpS & "e"
+  ElseIf (ascCode = 243) Or (ascCode = 211) Then ' ó or Ó
+    tpS = tpS & "o"
+  ElseIf (ascCode = 242) Or (ascCode = 210) Then ' ò or Ò
+    tpS = tpS & "o"
+  ElseIf (ascCode = 246) Or (ascCode = 214) Then ' ö or Ö
+    tpS = tpS & "o"
+  ElseIf (ascCode = 244) Or (ascCode = 212) Then ' ô or Ô
+    tpS = tpS & "o"
+  ElseIf (ascCode = 237) Or (ascCode = 205) Then ' í or Í
+    tpS = tpS & "i"
+  ElseIf (ascCode = 236) Or (ascCode = 204) Then ' ì or Ì
+    tpS = tpS & "i"
+  ElseIf (ascCode = 239) Or (ascCode = 207) Then ' ï or Ï
+    tpS = tpS & "i"
+  ElseIf (ascCode = 238) Or (ascCode = 206) Then ' î or Î
+    tpS = tpS & "i"
+  ElseIf (ascCode = 225) Or (ascCode = 193) Then ' á or Á
+    tpS = tpS & "a"
+  ElseIf (ascCode = 224) Or (ascCode = 192) Then ' à or À
+    tpS = tpS & "a"
+  ElseIf (ascCode = 228) Or (ascCode = 196) Then ' ä or Ä
+    tpS = tpS & "a"
+  ElseIf (ascCode = 226) Or (ascCode = 194) Then ' â or Â
+    tpS = tpS & "a"
+  ElseIf (ascCode = 250) Or (ascCode = 218) Then ' ú or Ú
+    tpS = tpS & "u"
+  ElseIf (ascCode = 249) Or (ascCode = 217) Then ' ù or Ù
+    tpS = tpS & "u"
+  ElseIf (ascCode = 252) Or (ascCode = 220) Then ' ü or Ü
+    tpS = tpS & "u"
+  ElseIf (ascCode = 251) Or (ascCode = 219) Then ' û or Û
+    tpS = tpS & "u"
+  ElseIf (ascCode = 231) Or (ascCode = 199) Then ' ç or Ç
+    tpS = tpS & "c"
+  ElseIf (ascCode = 241) Or (ascCode = 209) Then ' ñ or Ñ
+    tpS = tpS & "n"
+  End If
+  
+Next i
+swmNormalizeToken = tpS
+End Function
+
+
+
+Private Function swmNormalizeName(vn As String, vg As String, an As String) As String
+
+Dim tpNormVN As String, tpNormVG As String, tpNormAN As String
+
+tpNormVN = swmNormalizeToken(vn)
+tpNormVG = swmStandardizeNormalizedVoegsel(swmNormalizeToken(vg))
+tpNormAN = swmNormalizeToken(an)
+
+swmNormalizeName = tpNormVN & tpNormVG & tpNormAN
+
+
+End Function
+
+Public Function swmDuplicatesValID() As Long
+On Error Resume Next
+swmDuplicatesValID = Forms![swm_dup_master].subfrm![VAL_ID]
+End Function
+
+Public Function swmCheckDuplicates() As Boolean
+On Error GoTo fout
+
+swmCheckDuplicates = False
+
+
+If Not swmCheckDuplicates_createTables("~duplicates") Then
+  Exit Function
+End If
+
+If Not swmCheckDuplicates_findDuplicates() Then
+  Exit Function
+End If
+
+
+If Not swmCheckDuplicates_analyzeDuplicates() Then
+  Exit Function
+End If
+
+
+swmCheckDuplicates = True
+Exit Function
+
+fout:
+If Err = 3021 Then Resume Next ' no current record.
+MsgBox Err & " swmCheckDuplicates " & vbCrLf & Error$, 16
+Exit Function
+
+
+Exit Function
+
+End Function
+
+
+
+Private Function swmCheckDuplicates_findDuplicates() As Boolean
+On Error GoTo fout
+
+swmCheckDuplicates_findDuplicates = False
+
+
+
+
+Dim nNormalizedNames As Integer
+
+nNormalizedNames = 0
+
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("dtLeden")
+
+
+Dim maxUsedValID As Long
+maxUsedValID = 0
+
+
+Dim skAllStarts As Recordset
+Set skAllStarts = CurrentDb().OpenRecordset("~duplicates_allStarts")
+skAllStarts.Index = "PrimaryKey"
+
+
+Dim rsDupStarts As Recordset
+Set rsDupStarts = CurrentDb().OpenRecordset("~duplicates_dupStarts")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpStart As String
+  Dim tpVN As String, tpVG As String, tpAN As String
+  Dim tpVer As String
+  Dim tpName As String
+  
+  tpStart = Nz(rs("startnummer"))
+  tpVN = Nz(rs("voornaam"))
+  tpVG = Nz(rs("voegsel"))
+  tpAN = Nz(rs("Achternaam"))
+  
+  tpVer = Nz(rs("vereniging"))
+  
+  tpName = fmtName(tpVN, tpVG, tpAN)
+  
+  Dim tpNormalizedName As String
+  
+  tpNormalizedName = swmNormalizeName(tpVN, tpVG, tpAN)
+  
+  
+  If (tpNormalizedName <> "") Then
+    
+    Dim tpGes As String, tpDate As Date
+    
+    tpGes = Nz(rs("geslacht"))
+    
+    'need to find latest occurence date
+    
+    Dim lWedNr As Long
+    lWedNr = Nz(DMax("[wedstr nr]", "dtTijden", "[start nr] = """ & tpStart & """"), -1)
+    
+    tpDate = #1/1/1900#
+    
+    If (lWedNr > 0) Then
+      skWed.Seek "=", lWedNr
+      If Not (skWed.NoMatch) Then
+        tpDate = Nz(skWed("datum"), #1/1/1900#)
+      End If
+    End If
+      
+     
+     
+    skAllStarts.Seek "=", tpNormalizedName
+    
+    If (skAllStarts.NoMatch) Then
+      skAllStarts.AddNew
+        skAllStarts("VLA_NormalizedName") = hzn(tpNormalizedName)
+        skAllStarts("VLA_Startnummer") = hzn(tpStart)
+        skAllStarts("VLA_Vereniging") = hzn(tpVer)
+        skAllStarts("VLA_Geslacht") = hzn(tpGes)
+        skAllStarts("VLA_Name") = hzn(tpName)
+        skAllStarts("VLA_DateLastTime") = tpDate
+        skAllStarts("VLA_ID") = -1
+      skAllStarts.Update
+    
+    Else
+    
+      'we found it
+      Dim tpValID As Long
+      tpValID = skAllStarts("VLA_ID")
+      If tpValID = -1 Then
+        'create a new val id
+        tpValID = maxUsedValID + 1
+        maxUsedValID = tpValID
+        skAllStarts.Edit
+          skAllStarts("VLA_ID") = tpValID
+        skAllStarts.Update
+        
+        'Need to add old issue
+        rsDupStarts.AddNew
+          rsDupStarts("VLS_Id") = tpValID
+          rsDupStarts("VLS_Startnummer") = skAllStarts("VLA_Startnummer")
+          rsDupStarts("VLS_Vereniging") = skAllStarts("VLA_Vereniging")
+          rsDupStarts("VLS_Name") = skAllStarts("VLA_Name")
+          rsDupStarts("VLS_Geslacht") = skAllStarts("VLA_Geslacht")
+          rsDupStarts("VLS_DateLastTime") = skAllStarts("VLA_DateLastTime")
+        rsDupStarts.Update
+        
+      End If
+      
+      'Need to add new issue
+      rsDupStarts.AddNew
+        rsDupStarts("VLS_Id") = tpValID
+        rsDupStarts("VLS_Startnummer") = hzn(tpStart)
+        rsDupStarts("VLS_Vereniging") = hzn(tpVer)
+        rsDupStarts("VLS_Name") = hzn(tpName)
+        rsDupStarts("VLS_Geslacht") = hzn(tpGes)
+        rsDupStarts("VLS_DateLastTime") = tpDate
+      rsDupStarts.Update
+        
+      
+    End If
+  
+  
+  End If 'if tpNormalizedName <> ""
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsDupStarts
+appCleanRS skAllStarts
+
+
+appCleanRS skWed
+
+
+swmCheckDuplicates_findDuplicates = True
+
+Exit Function
+
+fout:
+If Err = 3021 Then Resume Next ' no current record.
+
+MsgBox Err & " swmCheckDuplicates_findDuplicates" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+Private Function swmCheckDuplicates_startnrStrength(ByVal start As String) As Integer
+On Error GoTo fout
+swmCheckDuplicates_startnrStrength = 0
+
+Dim iLn As Integer
+iLn = Len(start)
+
+If (iLn <> 8) And (iLn <> 6) Then
+  Exit Function
+End If
+
+If (Mid(start, 3, 1) <> "-") Then
+  Exit Function
+End If
+
+'Check to see if startnr is fully numeric.
+Dim tpLS As Long, tpLE As Long
+tpLS = CLng(Left(start, 2))
+
+If (iLn = 8) Then
+  tpLE = CLng(Right(start, 5))
+  swmCheckDuplicates_startnrStrength = 3
+ElseIf (iLn = 6) Then
+  tpLE = CLng(Right(start, 3))
+  'Make sure we give the 00-xxx startnummers a low priority.
+  If (tpLS <> 0) Then
+    swmCheckDuplicates_startnrStrength = 2
+  Else
+    swmCheckDuplicates_startnrStrength = 1
+  End If
+End If
+
+
+
+Exit Function
+fout:
+If (Err = 13) Then
+  'type mismatch error -> startnr is invalid
+  Exit Function
+End If
+MsgBox Err & " swmCheckDuplicates_startIsValid" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Private Function swmCheckDuplicates_analyzeDuplicates() As Boolean
+On Error GoTo fout
+swmCheckDuplicates_analyzeDuplicates = False
+
+
+Dim rsOut As Recordset
+Set rsOut = CurrentDb().OpenRecordset("~duplicates")
+
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset("select * from [~duplicates_dupStarts] order by vls_id;")
+
+Dim curID As Long
+
+Dim curHasPrvSwm As Boolean
+Dim curDes As String
+Dim curGes As String
+Dim curBestStart As String
+Dim curBestVer As String
+Dim curBestStartLastDate As Date
+Dim curBestName As String
+Dim curIsAmbiguous As Boolean
+
+
+curID = -1
+
+
+rs.MoveFirst
+
+Dim blDone As Boolean
+blDone = rs.EOF
+
+Do Until blDone
+  Dim tpID As Long
+  
+  If (rs.EOF) Then
+    tpID = -1
+  Else
+    tpID = Nz(rs("VLS_ID"))
+  End If
+  
+  If (tpID <> curID) Then
+  
+    If (curID <> -1) Then
+      'wrap up the previous id
+      
+      rsOut.AddNew
+        rsOut("VAL_ID") = curID
+        rsOut("VAL_Newstartnummer") = hzn(curBestStart)
+        rsOut("VAL_NewVereniging") = hzn(curBestVer)
+        rsOut("VAL_NewName") = hzn(curBestName)
+        rsOut("VAL_Description") = hzn(curDes)
+        rsOut("VAL_Verwerk") = Not curIsAmbiguous
+        rsOut("VAL_IsAmbiguous") = curIsAmbiguous
+      rsOut.Update
+    
+    End If
+    
+    curDes = ""
+    curBestStart = ""
+    curBestName = ""
+    curBestVer = ""
+    curIsAmbiguous = False
+    curBestStartLastDate = #1/1/1900#
+    curHasPrvSwm = False
+    
+    curID = tpID
+  End If
+  
+  
+  
+  If (Not rs.EOF) Then
+  
+    Dim tpStart As String
+    Dim tpGes As String
+    Dim tpVer As String
+    Dim tpName As String
+    Dim tpLastDate As Date
+    
+    tpStart = Nz(rs("VLS_startnummer"))
+    tpGes = Nz(rs("VLS_Geslacht"))
+    tpVer = Nz(rs("VLS_Vereniging"))
+    tpLastDate = Nz(rs("VLS_DateLastTime"))
+    tpName = Nz(rs("VLS_Name"))
+    
+    If (curHasPrvSwm) Then
+      curDes = curDes & vbCrLf
+    End If
+    
+    curDes = curDes & rxpTxtPadString(tpStart, 10) & rxpTxtPadString(tpGes, 2) & rxpTxtPadString(tpName, 25) & " " & rxpTxtPadString(tpVer, 15)
+    If (lenDateIsValid(tpLastDate)) Then
+      curDes = curDes & " Recentste tijd: " & fmtDate(tpLastDate)
+    Else
+      curDes = curDes & " Geen tijden gevonden"
+    End If
+    
+    
+    If (Not curHasPrvSwm) Then
+      curBestStart = tpStart
+      curBestStartLastDate = tpLastDate
+      curBestVer = tpVer
+      curBestName = tpName
+      curGes = tpGes
+    Else
+      If (curGes <> tpGes) Or (stnrExtractYOB(tpStart, Now(), #1/1/1900#) <> stnrExtractYOB(curBestStart, Now(), #1/1/1900#)) Then
+        curIsAmbiguous = True
+      End If
+      
+      Dim iPrvStStrength As Integer, iNewStStrength As Integer
+      iPrvStStrength = swmCheckDuplicates_startnrStrength(curBestStart)
+      iNewStStrength = swmCheckDuplicates_startnrStrength(tpStart)
+      
+      If (iNewStStrength > iPrvStStrength) Then
+        curBestStart = tpStart
+        curBestStartLastDate = tpLastDate
+        curBestVer = tpVer
+        curBestName = tpName
+      ElseIf (iNewStStrength = iPrvStStrength) Then
+        'Compare the dates
+        If (lenDateIsValid(tpLastDate)) Then
+          If (Not lenDateIsValid(curBestStartLastDate)) Then
+            curBestStart = tpStart
+            curBestStartLastDate = tpLastDate
+            curBestVer = tpVer
+            curBestName = tpName
+          ElseIf (curBestStartLastDate < tpLastDate) Then
+            curBestStart = tpStart
+            curBestStartLastDate = tpLastDate
+            curBestVer = tpVer
+            curBestName = tpName
+          End If
+        End If
+      End If
+        
+      
+      
+    End If 'if not curHasPrvSwm
+    
+    
+    
+    
+    curHasPrvSwm = True
+  End If 'if not rs.eof
+  
+  
+  If (Not rs.EOF) Then
+    rs.MoveNext
+  Else
+    blDone = True
+  End If
+
+Loop
+
+appCleanRS rs
+appCleanRS rsOut
+
+
+
+
+swmCheckDuplicates_analyzeDuplicates = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " swmCheckDuplicates_analyzeDuplicates" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+Public Function swmCheckDuplicates_clean() As Boolean
+On Error GoTo fout
+swmCheckDuplicates_clean = False
+
+DoCmd.DeleteObject acTable, "~duplicates"
+DoCmd.DeleteObject acTable, "~duplicates_allStarts"
+DoCmd.DeleteObject acTable, "~duplicates_curStarts"
+DoCmd.DeleteObject acTable, "~duplicates_dupStarts"
+
+swmCheckDuplicates_clean = True
+Exit Function
+
+fout:
+If (Err = 3011) Or (Err = 7874) Then Resume Next ' could not find object to delete
+MsgBox Err & " swmCheckDuplicates_clean" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+'to become obsoleted
+Private Function swmMergeDuplicates_performSQL_createSQL(ByVal tbName As String, ByVal stFieldName As String) As String
+On Error Resume Next
+swmMergeDuplicates_performSQL_createSQL = "Update [" & tbName & "] inner join [~duplicates_dupstarts] on [" & tbName & "].[" & stFieldName & "] = [~duplicates_dupStarts].VLS_Startnummer " & _
+"set [" & tbName & "].[" & stFieldName & "] = vls_int_newStartnummer;"
+End Function
+
+Private Function swmMergeDuplicates_performSQL_updateTable(ByVal tbName As String, ByVal stFieldName As String) As Boolean
+On Error GoTo fout
+swmMergeDuplicates_performSQL_updateTable = False
+
+Dim sql As String
+sql = "select [" & tbName & "].* , vls_int_newStartnummer " & _
+  " from [" & tbName & "] inner join [~duplicates_dupstarts] on [" & tbName & "].[" & stFieldName & "] = [~duplicates_dupStarts].VLS_Startnummer; "
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpNewStart As String
+  tpNewStart = Nz(rs("vls_int_newStartnummer"))
+  Dim tpCurStart As String
+  tpCurStart = Nz(rs(stFieldName))
+  
+  If (tpCurStart <> tpNewStart) Then
+    rs.Edit
+      rs(stFieldName) = hzn(tpNewStart)
+    rs.Update
+  End If
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+swmMergeDuplicates_performSQL_updateTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+'In case of duplicate key problems, simply delete the record and continue
+If (Err = 3399) Or (Err = 3022) Then
+  rs.Delete
+  Resume Next
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "swmMergeDuplicates_performSQL_updateTable", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Private Function swmMergeDuplicates_performSQL() As Boolean
+On Error GoTo fout
+swmMergeDuplicates_performSQL = False
+
+
+If Not swmMergeDuplicates_performSQL_updateTable("dtDeelnemers", "startnummer") Then
+  appRaiseSilentError
+End If
+
+
+'dtEstafettes
+If Not swmMergeDuplicates_performSQL_updateTable("dtEstafettes", "EST_Startnummer") Then
+  appRaiseSilentError
+End If
+
+
+
+'Records internal
+If Not swmMergeDuplicates_performSQL_updateTable("dtRecordsInternal", "RC_Startnummer") Then
+  appRaiseSilentError
+End If
+
+
+'dtTijden
+If Not swmMergeDuplicates_performSQL_updateTable("dtTijden", "start nr") Then
+  appRaiseSilentError
+End If
+
+
+
+'dtUitslagenEst_start1
+If Not swmMergeDuplicates_performSQL_updateTable("dtUitslagenEst", "TY_Start1") Then
+  appRaiseSilentError
+End If
+
+
+'dtUitslagenEst_start2
+If Not swmMergeDuplicates_performSQL_updateTable("dtUitslagenEst", "TY_Start2") Then
+  appRaiseSilentError
+End If
+
+
+'dtUitslagenPers
+If Not swmMergeDuplicates_performSQL_updateTable("dtUitslagenPers", "TY_Startnummer") Then
+  appRaiseSilentError
+End If
+
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+'dtLeden
+sql = "DELETE dtLeden.* " & _
+"FROM dtLeden INNER JOIN [~duplicates_dupStarts] ON dtLeden.Startnummer = [~duplicates_dupStarts].VLS_Startnummer " & _
+"WHERE ((([~duplicates_dupStarts].VLS_Startnummer)<>[vls_int_newstartnummer])); "
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+
+swmMergeDuplicates_performSQL = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "swmMergeDuplicates_performSQL", errInf
+
+DoCmd.SetWarnings True
+
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Public Function swmMergeDuplicates() As Boolean
+On Error GoTo fout
+swmMergeDuplicates = False
+
+
+notifyGlobalChange
+
+Dim rs As Recordset
+Dim skDups As Recordset
+
+Set skDups = CurrentDb().OpenRecordset("~duplicates")
+skDups.Index = "PrimaryKey"
+
+Set rs = CurrentDb().OpenRecordset("~duplicates_dupstarts")
+
+rs.MoveFirst
+
+Do Until rs.EOF
+
+  Dim tpValID As Long
+  tpValID = Nz(rs("VLS_ID"))
+  
+  skDups.Seek "=", tpValID
+  
+  If (skDups.NoMatch) Then
+    Err.Raise 1, , "Internal error"
+  End If
+  
+  Dim blVerwerk As Boolean, sNewStart As String
+  blVerwerk = Nz(skDups("VAL_Verwerk"))
+  sNewStart = Nz(skDups("VAL_Newstartnummer"))
+  
+  If (Not blVerwerk) Then
+    rs.Delete
+  Else
+  
+    If (sNewStart = "") Then
+    
+      Dim tpName As String
+      tpName = Nz(skDups("VAL_NewName"))
+      
+      Err.Raise 1, , "U heeft bij " & tpName & " geen nieuw startnummer gekozen."
+    End If
+  
+    rs.Edit
+      rs("VLS_INT_NewStartnummer") = hzn(sNewStart)
+    rs.Update
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS skDups
+
+
+
+
+If Not swmMergeDuplicates_performSQL() Then
+  appRaiseSilentError
+End If
+
+
+swmMergeDuplicates = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "swmMergeDuplicates", errInf
+
+appCleanRS rs
+appCleanRS skDups
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+'to become obsolete
+Private Function swmMerge_buildSQL(tbName As String, sFldName As String, stnrSrc As String, stnrTgt As String) As String
+On Error Resume Next
+swmMerge_buildSQL = "update [" & tbName & "] set [" & sFldName & "] = """ & stnrTgt & """ where [" & sFldName & "] = """ & stnrSrc & """;"
+End Function
+
+
+Private Function swmMerge_updateTable(ByVal tbName As String, ByVal stFieldName As String, ByVal stnrSrc As String, ByVal stnrTgt As String) As Boolean
+On Error GoTo fout
+swmMerge_updateTable = False
+
+Dim sql As String
+sql = "select * from [" & tbName & "] where [" & stFieldName & "] = """ & stnrSrc & """;"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpNewStart As String
+  tpNewStart = stnrTgt
+  Dim tpCurStart As String
+  tpCurStart = Nz(rs(stFieldName))
+  
+  If (tpCurStart <> tpNewStart) Then
+    rs.Edit
+      rs(stFieldName) = hzn(tpNewStart)
+    rs.Update
+  End If
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+swmMerge_updateTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+'In case of duplicate key problems, simply delete the record and continue
+If (Err = 3399) Or (Err = 3022) Then
+  rs.Delete
+  Resume Next
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "swmMerge_updateTable", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function swmMerge(stnrSrc As String, stnrTgt As String) As Boolean
+On Error GoTo fout
+swmMerge = False
+
+
+notifyGlobalChange
+
+
+'dtDeelnemers
+If Not swmMerge_updateTable("dtDeelnemers", "startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
+
+'dtEstafettes
+If Not swmMerge_updateTable("dtEstafettes", "EST_Startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
+
+'Records internal
+If Not swmMerge_updateTable("dtRecordsInternal", "RC_Startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
+'dtTijden
+If Not swmMerge_updateTable("dtTijden", "start nr", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
+
+'dtUitslagenEst_start1
+If Not swmMerge_updateTable("dtUitslagenEst", "TY_Start1", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
+'dtUitslagenEst_start2
+If Not swmMerge_updateTable("dtUitslagenEst", "TY_Start2", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
+'dtUitslagenPers
+If Not swmMerge_updateTable("dtUitslagenPers", "TY_Startnummer", stnrSrc, stnrTgt) Then
+  appRaiseSilentError
+End If
+
+
+Dim sql As String
+
+DoCmd.SetWarnings False
+
+sql = "Delete * from dtLeden where startnummer = """ & stnrSrc & """;"
+DoCmd.RunSQL sql
+
+DoCmd.SetWarnings True
+
+
+swmMerge = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "swmMerge", errInf
+
+DoCmd.SetWarnings True
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function lsClean() As Boolean
+On Error GoTo fout
+lsClean = False
+DoCmd.DeleteObject acTable, "~LS_TEMP"
+lsClean = True
+Exit Function
+fout:
+If Err = 3011 Or Err = 7874 Then 'could not find object to delete
+  Resume Next
+End If
+MsgBox Err & " " & Error$, 16
+End Function
+Public Function lsBuildTable() As Boolean
+On Error GoTo fout
+lsBuildTable = False
+
+If Not lsClean Then Exit Function
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim tb As TableDef
+Set tb = db.CreateTableDef("~LS_temp")
+
+tb.Fields.Append tb.CreateField("LS_Startnummer", dbText, 10)
+tb.Fields.Append tb.CreateField("LS_CurCode", dbLong)
+tb.Fields.Append tb.CreateField("LS_YOB", dbLong)
+tb.Fields.Append tb.CreateField("LS_Naam", dbText, 255)
+tb.Fields.Append tb.CreateField("LS_Vereniging", dbText, 50)
+tb.Fields.Append tb.CreateField("LS_VerCode", dbText, 3)
+tb.Fields.Append tb.CreateField("LS_Voldoet", dbBoolean)
+tb.Fields.Append tb.CreateField("LS_Voldoet_Org", dbBoolean)
+
+db.TableDefs.Append tb
+
+
+lsBuildTable = True
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lsApplySelection(blRestrictYOB As Boolean, yobMin As Long, yobMax As Long, blRestrictVer As Boolean, verString As String, blRestrictCode As Boolean, lMultiLSCode As Long, blSelOverwrite As Boolean, blSelExtend As Boolean, blSelRestrict As Boolean, blUseValid As Boolean) As Boolean
+On Error GoTo fout
+lsApplySelection = False
+
+
+Dim yobTempSw As Long
+If (yobMax < yobMin) Then
+  yobTempSw = yobMax
+  yobMax = yobMin
+  yobMin = yobTempSw
+End If
+
+
+Dim rsVerNames As Recordset
+Set rsVerNames = CurrentDb().OpenRecordset("dtVerenigingen")
+
+rsVerNames.Index = "Afkorting"
+
+'first have to parse ver string and build a table.
+Dim verNames(0 To 100) As String
+Dim nVers As Integer
+Dim verExclude As Boolean
+Dim verExcludeName As String
+nVers = 0
+verExclude = False
+
+Dim tpVerCode As String, tpVerName As String
+Dim blAllowed As Boolean
+tpVerCode = extractToken(verString, ",")
+While (nVers < 100 And tpVerCode <> "")
+
+ blAllowed = True
+ If Left(tpVerCode, 1) = "~" Then
+   blAllowed = False
+   tpVerCode = Trim(Right(tpVerCode, Len(tpVerCode) - 1))
+ End If
+ 
+ rsVerNames.Seek "=", tpVerCode
+ If (Not rsVerNames.NoMatch) Then
+   tpVerName = rsVerNames("V_Naam")
+ Else
+   Err.Raise 1, , "Ongeldige verenigingscode: " & tpVerCode
+ End If
+ 
+ If (Not blAllowed) Then
+   verExclude = True
+   verExcludeName = tpVerName
+ Else
+   Dim insPos As Integer
+   insPos = insString(tpVerName, nVers, verNames)
+   If (insPos = -1) Then
+     Err.Raise 1, , "Internal error. Error inserting string."
+   End If
+ End If
+ 
+ tpVerCode = extractToken(verString, ",")
+Wend
+
+'Finished parsing verString.
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [~LS_temp]")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpYOB As Long
+  Dim tpLSCode As Long
+  Dim tpVer As String
+  
+  tpYOB = Nz(rs("LS_YOB"))
+  tpLSCode = Nz(rs("LS_CurCode"))
+  tpVer = Nz(rs("LS_Vereniging"))
+  
+  'now check.
+  Dim blValid As Boolean
+  blValid = True
+  
+  If (blRestrictYOB) Then
+    If (tpYOB < yobMin Or tpYOB > yobMax) Then
+      blValid = False
+    End If
+  End If
+  
+  If (blRestrictVer) Then
+    If (verExclude) Then
+      If (tpVer = verExcludeName) Then
+        blValid = False
+      End If
+    Else
+      Dim lkpPos As Integer
+      lkpPos = bSearchString(tpVer, nVers, verNames)
+      If (lkpPos < 0) Then
+        blValid = False
+      End If
+    End If
+  End If
+  
+  If (blRestrictCode) Then
+    If Not lsIsMatch(tpLSCode, lMultiLSCode) Then
+      blValid = False
+    End If
+  End If
+  
+  
+  Dim blCurSelStatus As Boolean
+  blCurSelStatus = Nz(rs("LS_Voldoet"))
+  Dim blNewSelStatus As Boolean
+  blNewSelStatus = selGetNewStatus(blCurSelStatus, blValid, blSelOverwrite, blSelExtend, blSelRestrict, blUseValid)
+  
+  If (blNewSelStatus <> blCurSelStatus) Then
+    rs.Edit
+    rs("LS_Voldoet") = blNewSelStatus
+    rs.Update
+  End If
+  
+  
+  rs.MoveNext
+Loop
+
+
+
+
+lsApplySelection = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next  ' no current record.
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+Public Function lsApplyTable(isVer As Boolean, verName As String, lsSelectNr As Long) As Boolean
+On Error GoTo fout
+lsApplyTable = False
+
+notifyGlobalChange
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("Select * from [~ls_temp] where nz([ls_voldoet]) <> nz([ls_voldoet_org])")
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("dtLeden")
+
+outp.Index = "PrimaryKey"
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim st As String
+  st = Nz(rs("LS_Startnummer"))
+  
+  outp.Seek "=", st
+  
+  If outp.NoMatch Then
+    Err.Raise 1, , "Could not find: " & st
+  End If
+  
+  Dim blVal As Boolean
+  blVal = Nz(rs("LS_Voldoet"))
+  
+  Dim lsCode As Long
+  lsCode = Nz(rs("LS_CurCode"))
+  
+  outp.Edit
+    If (isVer) Then
+      If (blVal) Then
+        outp("vereniging") = hzn(verName)
+      ElseIf (Nz(outp("vereniging")) = verName) Then
+        outp("vereniging") = Null
+      End If
+    Else
+      Dim newLSCode As Long
+      newLSCode = lsModify(lsCode, lsSelectNr, blVal)
+      outp("opm") = newLSCode
+    End If
+  outp.Update
+  
+
+  rs.MoveNext
+Loop
+
+
+
+lsApplyTable = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Public Function lsFillTable(isVer As Boolean, verName As String, lsSelectNr As Long) As Boolean
+On Error GoTo fout
+lsFillTable = False
+
+Dim rs As Recordset
+Dim sql As String
+
+sql = "SELECT [dtLeden].*, dtVerenigingen.V_Afkorting FROM [dtLeden] LEFT JOIN dtVerenigingen " & _
+"ON [dtLeden].vereniging = dtVerenigingen.V_Naam WHERE ((([dtLeden].[Actief lid]) = True)) " & _
+"ORDER BY [dtLeden].Startnummer;"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+Dim vr As String, lsCode As Long, blValid As Boolean
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~LS_Temp")
+
+rs.MoveFirst
+Do Until rs.EOF
+  lsCode = Nz(rs("opm"))
+  vr = Nz(rs("vereniging"))
+  
+  blValid = False
+  If (isVer) Then
+    If (vr = verName) Then
+       blValid = True
+    End If
+  Else
+    If (lsIsMatchSingle(lsCode, lsSelectNr)) Then
+      blValid = True
+    End If
+  End If
+  
+  
+  outp.AddNew
+    outp("LS_Startnummer") = rs("startnummer")
+    outp("LS_YOB") = hzn(stnrExtractYOB(Nz(rs("startnummer")), Now(), Nz(rs("geboortedatum"), #1/1/1900#)))
+    outp("LS_CurCode") = rs("opm")
+    outp("LS_Naam") = hzn(fmtName(Nz(rs("Voornaam")), Nz(rs("voegsel")), Nz(rs("achternaam"))))
+    outp("LS_Vereniging") = rs("vereniging")
+    outp("LS_VerCode") = rs("V_Afkorting")
+    outp("LS_Voldoet") = blValid
+    outp("LS_Voldoet_Org") = blValid
+  outp.Update
+
+  rs.MoveNext
+Loop
+
+lsFillTable = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record.
+MsgBox Err & " " & Error$, 16
+
+Exit Function
+
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Public Function lsModify(lsOld As Long, nrModify As Long, blInclude As Boolean) As Long
+On Error GoTo fout
+'Dit was de oude manier die we nu nog willen behouden
+lsModify = lsOld
+
+
+'lidsoort = lidsoortnr van de zwemmer -> 2-macht gedoe etc
+'nr = lidsoortnr dat we willen hebben -> simpel
+
+If nrModify <= 0 Then
+  Exit Function
+End If
+
+
+If (lsModify = 0) Then
+  'Need to upgrade to ALL.
+  lsModify = 2 ^ 31 - 1
+End If
+
+If (lsModify < 0) Then
+  lsModify = 0
+End If
+
+
+
+Dim mask As Long
+mask = 2 ^ (nrModify - 1)
+
+Dim resAnd As Long
+resAnd = (lsModify And mask)
+
+If (resAnd > 0) And Not blInclude Then
+  lsModify = lsModify - mask
+ElseIf (resAnd = 0) And blInclude Then
+  lsModify = lsModify + mask
+End If
+
+
+
+
+If (lsModify = 0) Then
+  lsModify = -1
+End If
+
+Exit Function
+fout:
+MsgBox Err & " " & Error$, 16
+
+End Function
+
+
+Public Function lsPromptUser_Simple(ByVal curCode As Long, ByRef isOK As Boolean, ByRef lkpCode As Long) As Boolean
+On Error GoTo fout
+lsPromptUser_Simple = False
+
+
+
+Dim sql As String
+sql = "Delete * from hsoLSSimpleOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoLSSimpleOpzoek")
+
+rs.AddNew
+  rs("LSS_OK") = False
+rs.Update
+
+appCleanRS rs
+
+sql = "Delete * from hsoLSSimpleOpzoekLS"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+sql = "insert into hsoLSSimpleOpzoekLS (LSS_Code, LSS_Description) select [cat_nr], [beschrijving] from [dtLidsoorten]"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+If Not lsWriteToTable_Simple(curCode) Then
+  Exit Function
+End If
+
+
+DoCmd.OpenForm "hsoLS_SimpleOpzoek", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hsoLSSimpleOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hsoLSSimpeOpzoek is leeg."
+End If
+
+isOK = Nz(rs("LSS_OK"))
+
+appCleanRS rs
+
+If (isOK) Then
+  'Need to read from table
+  lkpCode = lsReadFromTable_Simple()
+End If
+
+lsPromptUser_Simple = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " lsPromptUser_simple" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+
+
+Public Function lsPromptUser(ByVal isSelectMode As Boolean, ByVal curCode As Long, ByRef isOK As Boolean, ByRef lkpCode As Long) As Boolean
+On Error GoTo fout
+lsPromptUser = False
+
+If (isSelectMode) Then
+  If (Not lsWriteToTable(curCode)) Then
+    Exit Function
+  End If
+End If
+
+Dim sql As String
+sql = "Delete * from hsoLSOpzoek;"
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoLSOpzoek")
+
+rs.AddNew
+  rs("LS_IsSelectMode") = isSelectMode
+  rs("LS_OK") = False
+rs.Update
+
+rs.Close
+
+DoCmd.OpenForm "hsoLS_Master", , , , , acDialog
+
+Set rs = CurrentDb().OpenRecordset("hsoLSOpzoek")
+
+rs.MoveFirst
+If rs.EOF Then
+  Err.Raise 1, , "Intern probleem. Tabel hsoLSOpzoek is leeg."
+End If
+
+isOK = Nz(rs("LS_OK"))
+
+
+rs.Close
+
+appCleanRS rs
+
+If (isOK) Then
+  lkpCode = lsReadFromTable()
+End If
+
+lsPromptUser = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+MsgBox Err & " lsPromptUser" & vbCrLf & Error$, 16
+DoCmd.SetWarnings True
+Exit Function
+End Function
+
+
+Public Function lsMaxCode() As Long
+On Error Resume Next
+Dim mydb As Database, geg As Recordset
+Set mydb = CurrentDb()
+Set geg = mydb.OpenRecordset("dtLidsoorten")
+
+Dim tpResult As Long
+tpResult = 0
+
+geg.MoveFirst
+Do Until geg.EOF
+    tpResult = tpResult + (2 ^ (geg("Cat_nr") - 1))
+    geg.MoveNext
+Loop
+
+lsMaxCode = tpResult
+Exit Function
+
+End Function
+
+Private Function lsReadFromTable() As Long ' 0 betekent:=iedereen mag meedoen.
+On Error GoTo fout
+lsReadFromTable = -1
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("dtLidsoorten", dbOpenDynaset)
+
+Dim tpResult As Long
+tpResult = 0
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpResult = tpResult + (IIf(geg("Teltmee"), 1, 0)) * (2 ^ (geg("Cat_nr") - 1))
+  geg.MoveNext
+Loop
+
+lsReadFromTable = tpResult
+
+Exit Function
+
+fout:
+If Err = 3021 Or Err = 3022 Then 'no current record
+   Resume Next
+End If
+
+MsgBox Err & " lsReadFromTable" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+Private Function lsReadFromTable_Simple() As Long ' 0 betekent:=iedereen mag meedoen.
+On Error GoTo fout
+lsReadFromTable_Simple = -1
+
+Dim geg As Recordset
+Set geg = CurrentDb().OpenRecordset("hsoLSSimpleOpzoekLS", dbOpenDynaset)
+
+Dim tpResult As Long
+tpResult = 0
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpResult = tpResult + (IIf(geg("LSS_IsSelected"), 1, 0)) * (2 ^ (geg("LSS_Code") - 1))
+  geg.MoveNext
+Loop
+
+appCleanRS geg
+
+
+
+lsReadFromTable_Simple = tpResult
+
+Exit Function
+
+fout:
+If Err = 3021 Or Err = 3022 Then 'no current record
+   Resume Next
+End If
+
+MsgBox Err & " lsReadFromTable_Simple" & vbCrLf & Error$, 16
+
+Exit Function
+
+End Function
+
+Private Function lsWriteToTable(ByVal Nr As Long) As Boolean
+On Error GoTo fout
+
+lsWriteToTable = False
+
+Dim geg As Recordset
+
+Set geg = CurrentDb().OpenRecordset("dtLidsoorten", dbOpenDynaset)
+
+Dim blAllesTrue As Boolean
+
+If Nr = 0 Then
+    blAllesTrue = True
+Else
+    blAllesTrue = False
+End If
+
+Dim tpGetal As Integer
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpGetal = geg("Cat_Nr")
+  geg.Edit
+  If blAllesTrue Or (Nr Mod 2 ^ tpGetal >= 2 ^ (tpGetal - 1)) Then
+    geg("Teltmee") = True
+  Else
+    geg("Teltmee") = False
+  End If
+  geg.Update
+  geg.MoveNext
+Loop
+
+appCleanRS geg
+
+lsWriteToTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lsWriteToTable" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+Private Function lsWriteToTable_Simple(ByVal Nr As Long) As Boolean
+On Error GoTo fout
+
+lsWriteToTable_Simple = False
+
+Dim geg As Recordset
+
+Set geg = CurrentDb().OpenRecordset("hsoLSSimpleOpzoekLS", dbOpenDynaset)
+
+Dim blAllesTrue As Boolean
+
+If Nr = 0 Then
+    blAllesTrue = True
+Else
+    blAllesTrue = False
+End If
+
+Dim tpGetal As Integer
+
+geg.MoveFirst
+Do Until geg.EOF
+  tpGetal = geg("LSS_Code")
+  geg.Edit
+  If blAllesTrue Or (Nr Mod 2 ^ tpGetal >= 2 ^ (tpGetal - 1)) Then
+    geg("LSS_IsSelected") = True
+  Else
+    geg("LSS_IsSelected") = False
+  End If
+  geg.Update
+  geg.MoveNext
+Loop
+
+appCleanRS geg
+
+lsWriteToTable_Simple = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lsWriteToTable_Simple" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+'Check to see if lsCode matches lsMask
+Public Function lsIsMatch(lsCode As Long, lsMask As Long) As Boolean
+On Error Resume Next
+
+lsIsMatch = False
+'Dit was de oude manier
+
+'New addition.
+If (lsCode = -1) Then
+  Exit Function
+End If
+
+If lsCode <= 0 Or lsMask <= 0 Then
+    lsIsMatch = True
+    Exit Function
+End If
+
+
+If ((lsCode And lsMask) > 0) Then 'op een bit positie zijn beide 1 -> we hebben een geldige match
+    lsIsMatch = True
+End If
+
+End Function
+
+Public Function lsIsMatchSingle(lsCode As Long, lsSingleNr As Long)
+On Error Resume Next
+
+lsIsMatchSingle = False
+
+'New addition.
+If (lsCode = -1) Then
+  Exit Function
+End If
+
+
+
+If lsCode <= 0 Or lsSingleNr <= 0 Then
+    lsIsMatchSingle = True
+    Exit Function
+End If
+
+If lsCode Mod 2 ^ lsSingleNr >= 2 ^ (lsSingleNr - 1) Then
+    lsIsMatchSingle = True
+End If
+
+
+End Function

@@ -1,0 +1,790 @@
+Option Compare Database
+Option Explicit
+
+
+Private Function objExists(objType As Integer, objName As String) As Boolean
+On Error GoTo fout
+objExists = False
+
+Dim db As Database
+Set db = CurrentDb()
+
+Dim obj As AccessObject
+Select Case objType
+  Case acForm
+    Set obj = Application.CurrentProject.AllForms(objName)
+  Case acReport
+    Set obj = Application.CurrentProject.AllReports(objName)
+  Case acModule
+    Set obj = Application.CurrentProject.AllModules(objName)
+  Case acMacro
+    Set obj = Application.CurrentProject.AllMacros(objName)
+  Case acTable
+    Dim tb As TableDef
+    Set tb = db.TableDefs(objName)
+  Case acQuery
+    Dim qry As QueryDef
+    Set qry = db.QueryDefs(objName)
+End Select
+
+objExists = True
+
+Exit Function
+fout:
+Exit Function
+
+End Function
+
+Private Function retrieveObjects(sImpLocation As String, objType As Integer, objFilePfx As String) As Boolean
+On Error GoTo fout
+retrieveObjects = False
+
+Dim s As String
+s = dir(sImpLocation & objFilePfx & "*.txt")
+While s <> ""
+  Dim fFullName As String, fFileName As String
+  Dim fObjName As String
+  fObjName = Mid(s, Len(objFilePfx) + 1, Len(s) - Len(objFilePfx) - 4)
+  fFullName = sImpLocation & s
+  fFileName = s
+  
+  
+  
+  
+  If Not objExists(objType, fObjName) Then
+    Application.LoadFromText objType, fObjName, fFullName
+  End If
+  
+  s = dir()
+Wend
+
+retrieveObjects = True
+Exit Function
+
+fout:
+MsgBox Err & " retrieveObjects" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+
+Private Function restoreExtractToken(ByRef s As String, ByVal sep As String) As String
+On Error Resume Next
+Dim PS  As Integer
+PS = InStr(1, s, sep)
+If PS = 0 Then
+  restoreExtractToken = s
+  s = ""
+  Exit Function
+End If
+restoreExtractToken = Left(s, PS - 1)
+s = Right(s, Len(s) - PS + 1 - Len(sep))
+End Function
+
+
+Private Sub parseProperty(ByVal sString As String, ByRef sPropName As String, iPropType As Integer, sPropValue As String)
+
+sPropName = Trim(restoreExtractToken(sString, "::"))
+iPropType = CInt(Trim(restoreExtractToken(sString, "::")))
+sPropValue = Trim(sString)
+
+
+End Sub
+
+Private Sub restoreObjects_readTableStructure(ByRef tb As TableDef, ByVal fNr As Long, ByRef nExtProps As Integer, ByRef sExtPropFieldName() As String, ByRef pExtProp() As Property)
+
+
+nExtProps = 0
+
+Dim sLine As String
+
+Dim sPropName As String, iPropType As Integer, sPropValue As String
+
+Line Input #fNr, sLine
+  
+While (Trim(sLine) <> "End")
+
+
+  If (Trim(sLine) = "Begin Field") Then
+    
+    Dim fld As Field
+    Set fld = tb.CreateField()
+    
+    Dim sFormat As String, sInputMask As String
+    restoreObjects_readField fld, fNr, nExtProps, sExtPropFieldName, pExtProp
+       
+    
+    
+    tb.Fields.Append fld
+    
+    
+    Set fld = Nothing
+    
+  ElseIf (Trim(sLine) = "Begin Index") Then
+  
+    Dim idx As Index
+    Set idx = tb.CreateIndex()
+    
+    restoreObjects_readIndex idx, fNr
+    
+    tb.Indexes.Append idx
+    
+    Set idx = Nothing
+  
+  Else
+
+    parseProperty sLine, sPropName, iPropType, sPropValue
+  
+    Select Case sPropName
+  
+      Case "ValidationRule"
+        tb.ValidationRule = sPropValue
+      Case "ValidationText"
+        tb.ValidationText = sPropValue
+      
+    End Select
+    
+  End If
+
+
+  Line Input #fNr, sLine
+Wend
+
+
+End Sub
+
+Private Sub restoreObjects_readIndex(ByRef idx As Index, ByVal fNr As Long)
+
+Dim sLine As String
+
+Dim sPropName As String, iPropType As Integer, sPropValue As String
+
+Line Input #fNr, sLine
+  
+While (Trim(sLine) <> "End")
+
+
+  If (Trim(sLine) = "Begin Field") Then
+  
+    Dim fld As Field
+    Set fld = idx.CreateField()
+    
+    Dim nDummy As Integer, sDummy(0 To 0) As String, pDummy(0 To 0) As Property
+    restoreObjects_readField fld, fNr, nDummy, sDummy, pDummy
+    
+    idx.Fields.Append fld
+    
+    Set fld = Nothing
+  
+  Else
+
+    parseProperty sLine, sPropName, iPropType, sPropValue
+    
+    Select Case sPropName
+    
+      Case "Name"
+        idx.name = sPropValue
+      Case "Unique"
+        If (sPropValue = "True") Then
+          idx.Unique = True
+        Else
+          idx.Unique = False
+        End If
+      Case "Primary"
+        If (sPropValue = "True") Then
+          idx.Primary = True
+        Else
+          idx.Primary = False
+        End If
+      Case "IgnoreNulls"
+        If (sPropValue = "True") Then
+          idx.IgnoreNulls = True
+        Else
+          idx.IgnoreNulls = False
+        End If
+    End Select
+    
+  End If
+
+
+  Line Input #fNr, sLine
+Wend
+
+
+End Sub
+
+
+
+
+
+'Assumes that name is one of the first properties.
+Private Sub restoreObjects_readField(ByRef fld As Field, ByVal fNr As Long, ByRef nExtProps As Integer, ByRef sExtPropFieldName() As String, ByRef pExtProp() As Property)
+On Error GoTo fout
+
+
+
+Dim sLine As String
+
+Dim sPropName As String, iPropType As Integer, sPropValue As String
+
+Line Input #fNr, sLine
+  
+While (Trim(sLine) <> "End")
+
+  parseProperty sLine, sPropName, iPropType, sPropValue
+  
+  Select Case sPropName
+  
+    Case "Name"
+      fld.name = sPropValue
+    Case "ForeignName"
+      fld.ForeignName = sPropValue
+    Case "Attributes"
+      fld.Attributes = CLng(sPropValue)
+    Case "Type"
+      fld.type = CLng(sPropValue)
+    Case "Size"
+      fld.Size = CLng(sPropValue)
+    Case "DefaultValue"
+      fld.DefaultValue = sPropValue
+    Case "ValidationRule"
+      fld.ValidationRule = sPropValue
+    Case "ValidationText"
+      fld.ValidationText = sPropValue
+    Case "Required"
+      If sPropValue = "True" Then
+        fld.Required = True
+      Else
+        fld.Required = False
+      End If
+    Case "AllowZeroLength"
+      If sPropValue = "True" Then
+        fld.AllowZeroLength = True
+      Else
+        fld.AllowZeroLength = False
+      End If
+    Case "Format"
+      If (sPropValue <> "") Then
+        sExtPropFieldName(nExtProps) = fld.name
+        Set pExtProp(nExtProps) = fld.CreateProperty("Format", dbText, sPropValue)
+        nExtProps = nExtProps + 1
+      End If
+    Case "InputMask"
+      If (sPropValue <> "") Then
+        sExtPropFieldName(nExtProps) = fld.name
+        Set pExtProp(nExtProps) = fld.CreateProperty("InputMask", dbText, sPropValue)
+        nExtProps = nExtProps + 1
+      End If
+    Case "Description"
+      If (sPropValue <> "") Then
+        sExtPropFieldName(nExtProps) = fld.name
+        Set pExtProp(nExtProps) = fld.CreateProperty("Description", dbText, sPropValue)
+        nExtProps = nExtProps + 1
+      End If
+    Case "DisplayControl"
+      If (sPropValue <> "") Then
+        sExtPropFieldName(nExtProps) = fld.name
+        Set pExtProp(nExtProps) = fld.CreateProperty("DisplayControl", dbInteger, CInt(sPropValue))
+        nExtProps = nExtProps + 1
+      End If
+      
+  End Select
+
+
+  Line Input #fNr, sLine
+Wend
+
+Exit Sub
+fout:
+If (Err = 3219) Then
+  Resume Next
+End If
+
+On Error GoTo 0
+Err.Raise Err, Error$
+
+End Sub
+
+
+
+Private Sub restoreObjects_readRelation(ByRef rel As Relation, ByVal fNr As Long)
+
+Dim sLine As String
+
+Dim sPropName As String, iPropType As Integer, sPropValue As String
+
+Line Input #fNr, sLine
+  
+While (Trim(sLine) <> "End")
+
+  If Trim(sLine) = "Begin Field" Then
+    Dim fld As Field
+    Set fld = rel.CreateField()
+    
+    
+    Dim nDummy As Integer, sDummy(0 To 0) As String, pDummy(0 To 0) As Property
+    restoreObjects_readField fld, fNr, nDummy, sDummy, pDummy
+    
+    rel.Fields.Append fld
+    
+    Set fld = Nothing
+  
+  Else
+  
+    parseProperty sLine, sPropName, iPropType, sPropValue
+    
+  
+    Select Case sPropName
+    
+      Case "Name"
+        rel.name = sPropValue
+      Case "Table"
+        rel.Table = sPropValue
+      Case "ForeignTable"
+        rel.ForeignTable = sPropValue
+      Case "attributes"
+        rel.Attributes = CLng(sPropValue)
+    End Select
+  
+  End If
+
+
+  Line Input #fNr, sLine
+Wend
+
+
+End Sub
+
+Private Function restoreRelationships(ByVal fName As String) As Boolean
+On Error GoTo fout
+restoreRelationships = False
+
+
+Dim db As Database
+Set db = CurrentDb()
+
+
+Dim blFOpen As Boolean
+blFOpen = False
+
+Dim fNr As Long
+fNr = FreeFile
+
+Open fName For Input As #fNr
+
+
+Dim sLine As String
+
+Line Input #fNr, sLine
+
+If sLine <> "Begin Relations" Then
+  Err.Raise 1, , "Invalid file structure"
+End If
+
+Line Input #fNr, sLine
+
+While sLine <> "End"
+
+  If Trim(sLine) <> "Begin Relation" Then
+    Err.Raise 1, , "Invalid file structure"
+  End If
+  
+  Dim rel As Relation
+
+  Set rel = db.CreateRelation()
+  
+  restoreObjects_readRelation rel, fNr
+
+  db.Relations.Append rel
+  
+  Set rel = Nothing
+  
+
+  Line Input #fNr, sLine
+  
+Wend
+
+Set db = Nothing
+
+Close #fNr
+
+blFOpen = False
+
+
+
+restoreRelationships = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " restoreRelationships" & vbCrLf & Error$
+
+If (blFOpen) Then
+  Close #fNr
+End If
+
+MsgBox msg, 16
+Exit Function
+End Function
+
+
+Private Function restoreTableStructure(ByVal tbName As String, ByVal fName As String) As Boolean
+On Error GoTo fout
+restoreTableStructure = False
+
+
+Dim db As Database
+Set db = CurrentDb()
+
+
+Dim blFOpen As Boolean
+blFOpen = False
+
+Dim fNr As Long
+fNr = FreeFile
+
+Open fName For Input As #fNr
+blFOpen = True
+
+
+Dim sLine As String
+
+Line Input #fNr, sLine
+
+If sLine <> "Begin Table" Then
+  Err.Raise 1, , "Invalid file structure"
+End If
+
+Dim tb As TableDef
+Set tb = db.CreateTableDef(tbName)
+
+
+Dim nExtProps As Integer
+Dim sExtPropFldNames(0 To 1000) As String
+Dim pExtProps(0 To 1000) As Property
+
+
+restoreObjects_readTableStructure tb, fNr, nExtProps, sExtPropFldNames, pExtProps
+
+db.TableDefs.Append tb
+
+Set tb = Nothing
+
+
+Dim i As Integer
+For i = 0 To nExtProps - 1
+  Dim fld As Field
+  Set fld = db.TableDefs(tbName).Fields(sExtPropFldNames(i))
+  fld.Properties.Append fld.CreateProperty(pExtProps(i).name, pExtProps(i).type, pExtProps(i).value)
+  Set fld = Nothing
+  Set pExtProps(i) = Nothing
+Next i
+
+
+
+
+Set db = Nothing
+
+
+Close #fNr
+blFOpen = False
+
+
+restoreTableStructure = True
+Exit Function
+
+fout:
+Dim msg As String
+msg = Err & " restoreTableStructure" & vbCrLf & Error$
+
+If (blFOpen) Then
+  Close #fNr
+End If
+
+MsgBox msg, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
+
+
+Private Function retrieveTableStructures(sImpLocation As String, objFilePfx As String) As Boolean
+On Error GoTo fout
+ retrieveTableStructures = False
+
+Dim s As String
+s = dir(sImpLocation & objFilePfx & "*.txt")
+While s <> ""
+  Dim fFullName As String, fFileName As String
+  Dim fObjName As String
+  fObjName = Mid(s, Len(objFilePfx) + 1, Len(s) - Len(objFilePfx) - 4)
+  fFullName = sImpLocation & s
+  fFileName = s
+  
+    
+  
+  If Not objExists(acTable, fObjName) Then
+    If Not restoreTableStructure(fObjName, fFullName) Then
+      Exit Function
+    End If
+  End If
+  
+  s = dir()
+Wend
+
+ retrieveTableStructures = True
+Exit Function
+
+fout:
+MsgBox Err & " retrieveTableStructures" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+
+Private Function retrieveTableData(sImpLocation As String, objFilePfx As String) As Boolean
+On Error GoTo fout
+ retrieveTableData = False
+
+Dim s As String
+s = dir(sImpLocation & objFilePfx & "*.txt")
+While s <> ""
+  Dim fFullName As String, fFileName As String
+  Dim fObjName As String
+  fObjName = Mid(s, Len(objFilePfx) + 1, Len(s) - Len(objFilePfx) - 4)
+  fFullName = sImpLocation & s
+  fFileName = s
+  
+    
+  
+  
+  'Application.ImportXML fFullName, acAppendData
+  If Not gXMLReader.importXMLTable(fFullName, fObjName, False) Then
+    Exit Function
+  End If
+    
+  s = dir()
+Wend
+
+retrieveTableData = True
+Exit Function
+
+fout:
+MsgBox Err & " retrieveTableData" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+Public Function sysImportSourceTree(ByVal blSilent As Boolean) As Boolean
+On Error GoTo fout
+
+sysImportSourceTree = False
+
+
+Dim sSrcDir As String
+sSrcDir = Command()
+
+If (sSrcDir = "") Then
+  Err.Raise 1, , "Command-line argument specifying source dir was not found"
+End If
+
+If Not sysImportSourceTree_perform(sSrcDir, blSilent) Then
+  Exit Function
+End If
+
+
+sysImportSourceTree = False
+
+Exit Function
+
+fout:
+
+MsgBox Err & " sysImportSourceTree" & vbCrLf & Error$, 16
+Exit Function
+
+
+End Function
+
+
+
+Private Function sysImportSourceTree_fillTables() As Boolean
+On Error GoTo fout
+sysImportSourceTree_fillTables = False
+
+Dim blIsHupswim As Boolean
+blIsHupswim = objExists(acModule, "hsApplication")
+
+Dim blIsHupprog As Boolean
+blIsHupprog = objExists(acModule, "hpApplication")
+
+Dim rs As Recordset
+
+If (blIsHupswim) Then
+  Set rs = CurrentDb().OpenRecordset("dtLeden")
+  rs.AddNew
+    rs("startnummer") = "00-000"
+    rs("geslacht") = "M"
+    rs("voornaam") = "Estafette"
+  rs.Update
+  
+  rs.Close
+  Set rs = Nothing
+  
+  Set rs = CurrentDb().OpenRecordset("dtWedstrijden")
+  rs.AddNew
+    rs("wedstrijd nummer") = 0
+  rs.Update
+  
+  rs.Close
+  Set rs = Nothing
+  
+  
+  Set rs = CurrentDb().OpenRecordset("dtWedstrijdGegevens")
+  rs.AddNew
+    rs("wedstrijdnummer") = 0
+  rs.Update
+  
+  rs.Close
+  Set rs = Nothing
+  
+  
+  Set rs = CurrentDb().OpenRecordset("dtSettings")
+  rs.AddNew
+    rs("dir") = "c:\zwem\diskette"
+  rs.Update
+  
+  rs.Close
+  Set rs = Nothing
+  
+End If
+
+
+
+If (blIsHupprog) Then
+  
+  Set rs = CurrentDb().OpenRecordset("dtSettings")
+  rs.AddNew
+    rs("dir") = "c:\zwem\diskette"
+  rs.Update
+  
+  rs.Close
+  Set rs = Nothing
+  
+End If
+
+
+
+
+sysImportSourceTree_fillTables = True
+Exit Function
+
+fout:
+MsgBox Err & " sysImportSourceTree_fillTables" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+
+
+
+Private Function sysImportSourceTree_perform(ByVal sSrcDir As String, ByVal blSilent As Boolean) As Boolean
+On Error GoTo fout
+
+sysImportSourceTree_perform = False
+
+
+If Not blSilent Then
+
+  If MsgBox("Restore all database objects from sourceTree" & vbCrLf & sSrcDir & " ?") = vbCancel Then
+    Exit Function
+  End If
+
+End If
+
+Dim sImpLocation As String
+sImpLocation = sSrcDir  'Do not forget the closing back slash!
+
+
+SysCmd acSysCmdSetStatus, "Building table structures..."
+
+If Not retrieveTableStructures(sSrcDir & "\TableStructures\", "TableStructure_") Then
+  Exit Function
+End If
+
+SysCmd acSysCmdSetStatus, "Building relations..."
+
+If Not restoreRelationships(sSrcDir & "\Relationships\Relationships.txt") Then
+  Exit Function
+End If
+
+SysCmd acSysCmdSetStatus, "Restoring table data..."
+
+If Not retrieveTableData(sSrcDir & "\TableData\", "TableData_") Then
+  Exit Function
+End If
+
+SysCmd acSysCmdSetStatus, "Building queries..."
+
+If Not retrieveObjects(sSrcDir & "\Queries\", acQuery, "Query_") Then
+  Exit Function
+End If
+
+
+SysCmd acSysCmdSetStatus, "Building forms..."
+
+If Not retrieveObjects(sSrcDir & "\Forms\", acForm, "FORM_") Then
+  Exit Function
+End If
+
+
+SysCmd acSysCmdSetStatus, "Building reports..."
+
+If Not retrieveObjects(sSrcDir & "\Reports\", acReport, "REPORT_") Then
+  Exit Function
+End If
+
+SysCmd acSysCmdSetStatus, "Building modules..."
+
+If Not retrieveObjects(sSrcDir & "\Modules\", acModule, "MODULE_") Then
+  Exit Function
+End If
+
+
+SysCmd acSysCmdSetStatus, "Building macros..."
+
+If Not retrieveObjects(sSrcDir & "\Macros\", acMacro, "Macro_") Then
+  Exit Function
+End If
+
+SysCmd acSysCmdClearStatus
+
+
+
+
+
+If Not sysImportSourceTree_fillTables() Then
+  Exit Function
+End If
+
+
+
+
+
+
+sysImportSourceTree_perform = True
+
+Exit Function
+fout:
+MsgBox Err & " sysImportSourceTree_perform" & vbCrLf & Error$, 16
+SysCmd acSysCmdClearStatus
+Exit Function
+End Function
