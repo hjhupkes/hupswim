@@ -1,0 +1,744 @@
+Option Compare Database
+Option Explicit
+
+Public Const DSV_FILE_TYPE_DLN = 0
+Public Const DSV_FILE_TYPE_UIT = 1
+
+Public Const DSV_VALID = -1
+Public Const DSV_UNKNOWN_FILE = 1
+Public Const DSV_UNEXPECTED_EXTENSION = 2
+Public Const DSV_UNKNOWN_FAILURE = 5
+
+
+
+
+'Read the external files.
+Private Function dsvAnalyzeFile_Perform(ByVal fName As String, ByVal blDisplayErrDlg As Boolean, ByRef dsvValid As Boolean, ByRef dsvInvalidReason As Integer, ByRef dsvInvalidString As String, ByRef dsvWedDate As Date, ByRef dsvWedPlaats As String, ByRef dsvWedDescription As String, ByRef dsvFileDateS As String, ByRef dsvFileTimeS As String, ByRef dsvFileType As Integer) As Boolean
+On Error GoTo fout
+dsvAnalyzeFile_Perform = False
+
+
+dsvValid = False
+dsvInvalidString = ""
+dsvInvalidReason = DSV_VALID
+
+
+
+If fName = "" Or Not FileExists(fName) Then
+  dsvInvalidReason = DSV_UNKNOWN_FILE
+  dsvInvalidString = "Het bestand: " & vbCrLf & fName & vbCrLf & "kon niet worden gevonden."
+  Err.Raise 1, , dsvInvalidString
+End If
+
+
+If Not Right(fName, 3) = "dsv" Then
+  dsvInvalidReason = DSV_UNEXPECTED_EXTENSION
+  dsvInvalidString = "Expected dsv file. Found: " & vbCrLf & fName
+  
+  Err.Raise 1, , dsvInvalidString
+End If
+
+dsvFileType = DSV_FILE_TYPE_DLN
+
+
+
+
+dsvFileTimeS = FileTimeStr(fName)
+dsvFileDateS = FileDateStr(fName)
+
+dsvValid = True
+  
+
+dsvAnalyzeFile_Perform = True
+Exit Function
+
+fout:
+
+
+Dim msg As String
+Dim errCode As Long
+errCode = Err
+
+msg = errCode & " dsvAnayzeFile_perform" & Error$
+
+
+If (errCode = 1) Then
+  'Deze fout is niet kritiek.
+  If (blDisplayErrDlg) Then
+    MsgBox msg, 16
+  End If
+  dsvAnalyzeFile_Perform = True
+Else
+  'Dit is een critical failure.
+  MsgBox "An unexpected error has occurred. " & vbCrLf & vbCrLf & msg, 16
+End If
+
+Exit Function
+
+
+
+End Function
+
+
+'Read the external files and extract some statistics
+Public Function dsvAnalyzeFile(ByVal fName As String, ByRef blValid As Boolean, ByRef dsvInvalidReason As Integer, ByRef sInvalidString As String, ByRef dsvWedDate As Date, ByRef dsvPlaats As String, ByRef dsvDescription As String, ByRef dsvFileDateS As String, ByRef dsvFileTimeS As String, ByRef dsvFileType As Integer) As Boolean
+On Error GoTo fout
+dsvAnalyzeFile = False
+
+'Delegate to perform function with default arguments.
+
+If Not dsvAnalyzeFile_Perform(fName, False, blValid, dsvInvalidReason, sInvalidString, dsvWedDate, dsvPlaats, dsvDescription, dsvFileDateS, dsvFileTimeS, dsvFileType) Then
+  Exit Function
+End If
+
+dsvAnalyzeFile = True
+Exit Function
+fout:
+MsgBox Err & " dsvAnalyzeFile" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+
+
+Public Function dsvImpFillLenTransTables(ByVal fName As String, ByVal lOpenWedNr As Long) As Boolean
+On Error GoTo fout
+dsvImpFillLenTransTables = False
+
+
+Dim dsvFileType As Integer
+
+Dim dsvWedDate As Date, dsvWedPlaats As String, dsvWedDes As String
+Dim dsvIsValid As Boolean, dsvInvalidReason As Integer, dsvInvalidString As String
+Dim dsvFileTimeS As String, dsvFileDateS As String
+
+If Not dsvAnalyzeFile_Perform(fName, True, dsvIsValid, dsvInvalidReason, dsvInvalidString, dsvWedDate, dsvWedPlaats, dsvWedDes, dsvFileDateS, dsvFileTimeS, dsvFileType) Then
+  Exit Function
+End If
+
+If Not dsvIsValid Then
+  'error dialog has already been displayed
+  appRaiseSilentError
+End If
+
+
+Select Case dsvFileType
+  Case DSV_FILE_TYPE_DLN
+    Err.Raise 1, , "Not supported yet"
+End Select
+
+
+dsvImpFillLenTransTables = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "dsvImpFillLenTransTables", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function dsvExpFromLenTransTables(ByVal fName As String, ByVal dsvFileType As Integer) As Boolean
+On Error GoTo fout
+dsvExpFromLenTransTables = False
+
+Select Case dsvFileType
+  Case WAS_FILE_TYPE_DLN
+    If Not dsvExpDln(fName) Then
+      Exit Function
+    End If
+End Select
+
+
+dsvExpFromLenTransTables = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "dsvExpFromLenTransTables", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function dsvStripSemiColons(ByVal s As String) As String
+dsvStripSemiColons = ""
+While (s <> "")
+  dsvStripSemiColons = dsvStripSemiColons & extractToken(s, ";")
+Wend
+End Function
+
+Private Function dsvFormatGes(ByVal sGes As String) As String
+  If (sGes = "M") Then
+    dsvFormatGes = "M"
+  ElseIf (sGes = "V") Then
+    dsvFormatGes = "W"
+  Else
+    dsvFormatGes = "X"
+  End If
+End Function
+
+Private Function dsvFormatSlag(ByVal sSlag As String) As String
+If sSlag = "RUG" Then
+  dsvFormatSlag = "R"
+ElseIf sSlag = "SCHOOL" Then
+  dsvFormatSlag = "B"
+ElseIf sSlag = "VLINDER" Then
+  dsvFormatSlag = "S"
+ElseIf sSlag = "VRIJ" Then
+  dsvFormatSlag = "F"
+ElseIf sSlag = "WISSEL" Then
+  dsvFormatSlag = "L"
+Else
+  dsvFormatSlag = "F"
+End If
+End Function
+
+Private Function dsvFormatTime(ByVal d As Double) As String
+If Not swtIsValid(d) Then
+  dsvFormatTime = "0:00,00"
+Else
+  Dim tpTime As Long
+  tpTime = CLng(d * 100)
+  Dim tpHr As Long, tpMin As Long, tpSec As Long, tpHun As Long
+  
+  tpHun = tpTime Mod 100
+  tpTime = tpTime \ 100
+  
+  tpSec = tpTime Mod 100
+  tpTime = tpTime \ 100
+  
+  tpMin = tpTime Mod 100
+  tpTime = tpTime \ 100
+  
+  tpHr = tpTime Mod 100
+  tpTime = tpTime \ 100
+  
+  If (tpHr > 0) Then
+    dsvFormatTime = tpHr & ":" & Format(tpMin, "00") & ":" & Format(tpSec, "00") & "," & Format(tpHun, "00")
+  Else
+    dsvFormatTime = tpMin & ":" & Format(tpSec, "00") & "," & Format(tpHun, "00")
+  End If
+  
+End If
+End Function
+
+
+
+
+Private Function dsvExpDln_handleDlns(ByVal fNr As Integer) As Boolean
+On Error GoTo fout
+dsvExpDln_handleDlns = False
+
+'just iterate through the dlns list; per ver_id, zw_id, relay_id.
+
+
+Dim skVer As Recordset
+Set skVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+skVer.Index = "PrimaryKey"
+
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
+skProg.Index = "PrimaryKey"
+
+Dim skZwm As Recordset
+Set skZwm = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+skZwm.Index = "PrimaryKey"
+
+Dim skEst As Recordset
+Set skEst = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+skEst.Index = "PrimaryKey"
+
+Dim skPll As Recordset
+Set skPll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+skPll.Index = "IndexByPloegVolg"
+
+
+
+
+Dim sql As String
+sql = "select * from gIMP_LEN_deelnemers order by de_ver_id, de_ploeg_id, de_zwemmer_id, de_prog_id"
+
+
+Dim curVerID As Long
+curVerID = -1
+
+Dim curZwmID As Long, curPlgID As Long
+curZwmID = -1
+curPlgID = -1
+
+Dim curStartsDes As String
+curStartsDes = ""
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+
+rs.MoveFirst
+
+Dim blDone As Boolean
+blDone = rs.EOF
+
+Do Until blDone
+
+  Dim tpZwmID As Long, tpPlgID As Long, tpVerID As Long
+  
+  Dim tpProgID As Long
+  Dim tpProg As String, tpProgAf As String
+    
+    
+  If (rs.EOF) Then
+    tpVerID = -1
+    tpPlgID = -1
+    tpZwmID = -1
+    
+    tpProgID = -1
+    tpProg = ""
+    tpProgAf = ""
+  Else
+  
+    tpProgID = Nz(rs("DE_Prog_ID"))
+    tpVerID = Nz(rs("DE_Ver_ID"))
+    
+    tpPlgID = Nz(rs("DE_Ploeg_ID"), -1)
+    tpZwmID = Nz(rs("DE_Zwemmer_ID"), -1)
+    
+    skProg.Seek "=", tpProgID
+    If skProg.NoMatch Then
+      Err.Raise 1, , "Internal error: could not find progid: " & tpProgID
+    End If
+    
+    tpProg = Nz(skProg("PR_Programmanummer"))
+    tpProgAf = Nz(skProg("PR_Afstand"))
+    
+  End If
+  
+  Dim blIsNewVer As Boolean, blIsNewSwm As Boolean, blIsNewPlg As Boolean
+  blIsNewVer = False
+  blIsNewSwm = False
+  blIsNewPlg = False
+  
+  If (tpVerID <> curVerID) Then
+    blIsNewVer = True
+    blIsNewSwm = True
+    blIsNewPlg = True
+  Else
+    If (tpPlgID <> curPlgID) Then
+      blIsNewPlg = True
+    End If
+    If (tpZwmID <> curZwmID) Then
+      blIsNewSwm = True
+    End If
+  End If
+  
+  If (blIsNewSwm) Or (blIsNewPlg) Then
+    'finish up old swimmer / old ploeg
+    If (curZwmID <> -1) Or (curPlgID <> -1) Then
+      Print #fNr, "STARTS:" & curStartsDes
+    End If
+  End If
+  
+  
+  If (Not rs.EOF) Then
+    
+    If (blIsNewVer) Then
+      'start new ver
+      
+      Dim tpVerName As String, tpVerNation As String
+      
+      skVer.Seek "=", tpVerID
+      If skVer.NoMatch Then
+        Err.Raise 1, , "internal error"
+      End If
+      
+      tpVerName = Nz(skVer("V_Naam"))
+      tpVerNation = Nz(skVer("V_Land"))
+      If (tpVerNation = "") Then
+        tpVerNation = "NED"
+      End If
+      
+      Print #fNr, "VEREIN:" & dsvStripSemiColons(tpVerName) & ";VNKENNZAHL:0000;LSV:00;NATION:" & dsvStripSemiColons(tpVerNation) & ";"
+      Print #fNr, "ANSPRECHPARTNER:,;;;;;;;;"
+      
+      curVerID = tpVerID
+    End If
+    
+    If (blIsNewPlg) And (tpPlgID <> -1) Then
+      'start new ploeg
+      
+      Dim nPll As Integer
+      nPll = afstand_n_zwemmers(tpProgAf)
+      
+      Dim tpPlgNr As Integer, tpMinYOB As Long, tpMaxYOB As Long
+      
+      skEst.Seek "=", tpPlgID
+      If skEst.NoMatch Then
+        Err.Raise 1, , "internal error"
+      End If
+      
+      tpPlgNr = Nz(skEst("PL_Nummer"))
+      
+      tpMinYOB = 2100
+      tpMaxYOB = 1900
+      
+      If (nPll > MAX_ESTAF_CNT) Then
+        nPll = MAX_ESTAF_CNT
+      End If
+      
+      Dim i As Integer
+      For i = 1 To nPll
+        skPll.Seek "=", tpPlgID, i
+        If Not skPll.NoMatch Then
+          Dim tpPllZwmID As Long
+          tpPllZwmID = Nz(skPll("PLL_Zwemmer_ID"))
+          skZwm.Seek "=", tpPllZwmID
+          If skZwm.NoMatch Then
+            Err.Raise 1, , "internal error"
+          End If
+          Dim tpPllYOB As Long
+          tpPllYOB = Nz(skZwm("ZW_Jaartal"))
+          If (tpPllYOB > 0) Then
+            If (tpPllYOB > tpMaxYOB) Then
+              tpMaxYOB = tpPllYOB
+            End If
+            If (tpPllYOB < tpMinYOB) Then
+              tpMinYOB = tpPllYOB
+            End If
+          End If
+        End If
+      Next i
+      
+      If (tpMinYOB = 2100) Then
+        tpMinYOB = CLng(val(Format(Now(), "yyyy")))
+      End If
+      If (tpMaxYOB = 1900) Then
+        tpMaxYOB = CLng(val(Format(Now(), "yyyy")))
+      End If
+      
+      Print #fNr, "STMELDUNG:" & tpPlgNr & ";JG:" & tpMinYOB & "-" & tpMaxYOB & ";"
+      
+      curPlgID = tpPlgID
+      curZwmID = -1
+      curStartsDes = ""
+    End If
+    
+    If (blIsNewSwm) And (tpZwmID <> -1) Then
+      'start new swimmer
+      
+      Dim tpYOB As Long, tpVN As String, tpVG As String, tpAN As String, tpGeslacht As String
+      
+      skZwm.Seek "=", tpZwmID
+      If skZwm.NoMatch Then
+        Err.Raise 1, , "Internal error: could not find zwemmerid: " & tpZwmID
+      End If
+    
+      tpYOB = Nz(skZwm("ZW_Jaartal"))
+      tpVN = Nz(skZwm("ZW_Voornaam"))
+      tpVG = Nz(skZwm("ZW_Voegsel"))
+      tpAN = Nz(skZwm("ZW_Achternaam"))
+      tpGeslacht = Nz(skZwm("ZW_Geslacht"))
+      
+      Print #fNr, "PNMELDUNG:" & dsvStripSemiColons(Trim(tpVG & " " & tpAN & ", " & tpVN)) & _
+        ";000000;" & IIf(tpGeslacht = "M", "M", "W") & ";" & tpYOB & ";;"
+      
+      curZwmID = tpZwmID
+      curPlgID = -1
+      curStartsDes = ""
+    End If
+    
+  End If
+    
+  
+  
+  If (Not rs.EOF) Then
+  
+    'extract data for this start
+    Dim tpProgNumPart As Long
+    tpProgNumPart = CLng(val(tpProg))
+    
+    Dim tpInsTime As Double
+    tpInsTime = Nz(rs("DE_Inschrijftijd"))
+    
+    curStartsDes = curStartsDes & tpProgNumPart & ";" & dsvFormatTime(tpInsTime) & ";"
+    
+    rs.MoveNext
+    
+  Else
+    blDone = True
+  End If
+Loop
+
+
+appCleanRS rs
+
+appCleanRS skZwm
+appCleanRS skVer
+appCleanRS skProg
+appCleanRS skEst
+appCleanRS skPll
+
+
+dsvExpDln_handleDlns = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+Dim errInf As ERR_INFO
+appRecordError "dsvExpDln_handleDlns", errInf
+
+appCleanRS rs
+
+appCleanRS skZwm
+appCleanRS skVer
+appCleanRS skProg
+appCleanRS skEst
+appCleanRS skPll
+
+
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvExpDln_testProgs() As Boolean
+On Error GoTo fout
+dsvExpDln_testProgs = False
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma order by pr_id")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpProg As String, tpProgNumPart As Long
+  
+  tpProg = Nz(rs("PR_Programmanummer"))
+  tpProgNumPart = CLng(val(tpProg))
+  
+  If (tpProg <> CStr(tpProgNumPart)) Then
+    Err.Raise 1, , "Deze wedstrijd is niet geschikt voor export naar dsv-formaat." & vbCrLf & _
+      "Het programmanummer: " & tpProg & " bevat niet numerieke tekens."
+  End If
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+dsvExpDln_testProgs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+Dim errInf As ERR_INFO
+appRecordError "dsvExpDln_testProgs", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function dsvExpDln_handleProgs(ByVal fNr As Integer, ByRef lWedIDs() As Long, ByVal nWedIDs As Long) As Boolean
+On Error GoTo fout
+dsvExpDln_handleProgs = False
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma order by pr_id")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpProg As String, tpProgNumPart As Long, tpWedID As Long, tpProgAf As String, tpProgSl As String
+  Dim tpProgCat As String
+  
+  tpProg = Nz(rs("PR_Programmanummer"))
+  tpProgNumPart = CLng(val(tpProg))
+  
+  tpWedID = Nz(rs("PR_WED_ID"))
+  
+  Dim tpWedDSVNr As Integer
+  tpWedDSVNr = 1 + bSearchLong(tpWedID, nWedIDs, lWedIDs)
+  
+  If (tpWedDSVNr <= 0) Then
+    Err.Raise 1, , "internal error"
+  End If
+  
+  
+  tpProgAf = Nz(rs("PR_Afstand"))
+  tpProgSl = Nz(rs("PR_Slag"))
+  tpProgCat = Nz(rs("PR_Categorie"))
+  
+  Dim tpProgGes As String
+  tpProgGes = m_of_v(tpProgCat)
+  
+  Print #fNr, "WETTKAMPF:" & tpProgNumPart & ";" & tpWedDSVNr & ";" & tpProgAf & " " & dsvFormatSlag(tpProgSl) & " " & _
+    dsvFormatGes(tpProgGes) & ";"
+  
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+dsvExpDln_handleProgs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+Dim errInf As ERR_INFO
+appRecordError "dsvExpDln_handleProgs", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function dsvExpDln_handleWeds(ByVal fNr As Integer, ByRef lWedIDs() As Long, ByRef nWedIDs As Long) As Boolean
+On Error GoTo fout
+dsvExpDln_handleWeds = False
+
+nWedIDs = 0
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Wedstrijden  order by We_id")
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim tpWed As Long
+  
+  tpWed = Nz(rs("WE_ID"))
+  
+  lWedIDs(nWedIDs) = tpWed
+  nWedIDs = nWedIDs + 1
+    
+  
+  Dim tpDate As Date, tpAv As Date
+  
+  tpDate = Nz(rs("WE_Datum"), #1/1/1900#)
+  tpAv = Nz(rs("WE_Aanvang"), #12:00:00 AM#)
+  
+  
+  Print #fNr, "ABSCHNITT:" & nWedIDs & ";" & Format(tpDate, "dd.mm.yyyy") & ";" & Format(tpAv, "hh:nn") & ";"
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+dsvExpDln_handleWeds = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next ' no current record
+
+Dim errInf As ERR_INFO
+appRecordError "dsvExpDln_handleWeds", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function dsvExpDln(ByVal fName As String) As Boolean
+On Error GoTo fout
+dsvExpDln = False
+
+
+If (fName = "") Then
+  Err.Raise 1, , "Geen bestandsnaam opgegeven."
+End If
+
+If FileExists(fName) Then
+  If MsgBox("Het bestand: " & vbCrLf & fName & vbCrLf & "bestaat al. Wilt u het overschrijven?", vbOKCancel + vbQuestion) = vbCancel Then
+    appRaiseSilentError
+  End If
+End If
+    
+    
+
+
+If Not dsvExpDln_testProgs() Then
+  appRaiseSilentError
+End If
+
+
+Dim tpMeetName As String
+Dim tpMeetPlaats As String
+
+tpMeetName = Nz(DLookup("WE_Beschrijving", "gIMP_LEN_Wedstrijden", "not nz([we_partOfTimeArchive])"))
+tpMeetPlaats = Nz(DLookup("WE_Plaats", "gIMP_LEN_Wedstrijden", "not nz([we_partOfTimeArchive])"))
+
+Dim fNr As Integer
+fNr = FreeFile
+
+Open fName For Output As #fNr
+
+Print #fNr, "(* Erstellt mit " & appGetName() & " v. " & licentie_versie() & " *)"
+Print #fNr, "VEREINSMELDELISTE:"
+Print #fNr, "FORMAT:5;"
+Print #fNr, "VERANSTALTUNG: " & dsvStripSemiColons(tpMeetName) & ";" & dsvStripSemiColons(tpMeetPlaats) & ";"
+
+Dim nWedIDs As Long
+Dim lWedIDs(0 To 1000) As Long
+
+If Not dsvExpDln_handleWeds(fNr, lWedIDs, nWedIDs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvExpDln_handleProgs(fNr, lWedIDs, nWedIDs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvExpDln_handleDlns(fNr) Then
+  appRaiseSilentError
+End If
+
+Print #fNr, "DATEIENDE"
+
+
+Close #fNr
+fNr = -1
+
+dsvExpDln = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "dsvExpDln", errInf
+
+Close
+
+appDisplayError errInf
+Exit Function
+
+End Function
