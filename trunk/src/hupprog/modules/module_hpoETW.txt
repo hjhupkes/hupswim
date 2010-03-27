@@ -18,6 +18,7 @@ Public Type ETW_GLOBAL_INFO
   dBckTolerance As Double
   blOnlyPrimaryTst As Boolean
   blAddStatusToOpm As Boolean
+  blUseInitials As Boolean
 End Type
 
 
@@ -30,12 +31,12 @@ Select Case sEqpType
 End Select
 End Function
 
-Private Function etwiEqpWriteStartlist(ByVal sEqpType As String, ByRef wedInf As WED_BASIC_INFO) As Boolean
+Private Function etwiEqpWriteStartlist(ByVal sEqpType As String, ByRef wedInf As WED_BASIC_INFO, ByRef etwInf As ETW_GLOBAL_INFO) As Boolean
 Select Case sEqpType
   Case ETW_TYPE_ARES21
-   etwiEqpWriteStartlist = etwAres21WriteStartlist(wedInf)
+   etwiEqpWriteStartlist = etwAres21WriteStartlist(wedInf, etwInf)
  Case ETW_TYPE_ALGE2000
-   etwiEqpWriteStartlist = etwAlge2000WriteStartlist(wedInf)
+   etwiEqpWriteStartlist = etwAlge2000WriteStartlist(wedInf, etwInf)
 End Select
 
 End Function
@@ -141,6 +142,7 @@ etwLookup = False
 etwInf.dBckTolerance = 0.2
 etwInf.blOnlyPrimaryTst = False
 etwInf.blAddStatusToOpm = True
+etwInf.blUseInitials = True
 
 Dim dsData As DIR_SERVER_DATA
 If Not dsInit(dsData, False, "") Then
@@ -183,6 +185,17 @@ End If
 If (sVal <> "") Then
   etwInf.blOnlyPrimaryTst = rxpParseBoolean(sVal)
 End If
+
+
+sPropName = "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\GLB\CFG\USE_INITIALS"
+If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If (sVal <> "") Then
+  etwInf.blUseInitials = rxpParseBoolean(sVal)
+End If
+
 
 
 
@@ -242,6 +255,14 @@ sPropVal = rxpFormatBoolean(etwInf.blOnlyPrimaryTst)
 If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
   appRaiseSilentError
 End If
+
+sPropName = "HUPPROG\WED_AUX_DATA\" & wednr & "\ETW\GLB\CFG\USE_INITIALS"
+sPropVal = rxpFormatBoolean(etwInf.blUseInitials)
+
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
 
 
 
@@ -1502,7 +1523,7 @@ rs.MoveFirst
 Do Until rs.EOF
   
   Dim tpWed As Long, tpProg As String, tpSer As Long, tpBn As Integer
-  Dim blImport As Boolean, lDlnIdx As Long, sDlnDis As String, dDlnManTime As Double
+  Dim blImport As Boolean, lDlnIdx As Long, sDlnDis As String
   
   tpWed = Nz(rs("ETWD_Wedstrijdnummer"))
   tpProg = Nz(rs("ETWD_Programmanummer"))
@@ -1511,6 +1532,7 @@ Do Until rs.EOF
   
   blImport = Nz(rs("ETWD_ACT_Import"))
   lDlnIdx = Nz(rs("ETWD_ACT_DlnIdx"), -1)
+  sDlnDis = Nz(rs("ETWD_ACT_Dis"))
   
   
   sPropName = "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT\" & tpProg & "\" & tpSer & "\" & tpBn & "\ACT_IMPORT"
@@ -2016,7 +2038,7 @@ If (Not blIsCancelled) Then
     appRaiseSilentError
   End If
 
-  If Not etwiEqpWriteStartlist(etwInf.sType, wedInf) Then
+  If Not etwiEqpWriteStartlist(etwInf.sType, wedInf, etwInf) Then
     appRaiseSilentError
   End If
   

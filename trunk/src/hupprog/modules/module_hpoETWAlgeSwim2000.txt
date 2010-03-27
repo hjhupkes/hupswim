@@ -64,7 +64,7 @@ End Function
 
 
 
-Public Function etwAlge2000WriteStartlist(ByRef wedInf As WED_BASIC_INFO) As Boolean
+Public Function etwAlge2000WriteStartlist(ByRef wedInf As WED_BASIC_INFO, ByRef etwInfo As ETW_GLOBAL_INFO) As Boolean
 On Error GoTo fout
 etwAlge2000WriteStartlist = False
 
@@ -75,7 +75,7 @@ If Not algReadInfo(cfgInf, False, opInf, wedInf.wednr) Then
   Exit Function
 End If
 
-If Not algExportMatch(cfgInf.sDBFName, wedInf, opInf) Then
+If Not algExportMatch(cfgInf.sDBFName, wedInf, opInf, etwInfo.blUseInitials) Then
   Exit Function
 End If
 
@@ -571,7 +571,7 @@ End Function
 
 
 'write the match in the transfer tables to the ares21 directory
-Private Function algExportMatch(ByVal sDBFileName As String, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ALGE_OP_INFO) As Boolean
+Private Function algExportMatch(ByVal sDBFileName As String, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ALGE_OP_INFO, ByVal blUseInitials As Boolean) As Boolean
 On Error GoTo fout
 algExportMatch = False
 
@@ -602,7 +602,7 @@ If Not dsInit(dsTmp, True, "__etw__alge_xid_conv_table") Then
 End If
 
 
-If Not algExportMatch_writeCompetitors(dsTmp) Then
+If Not algExportMatch_writeCompetitors(dsTmp, blUseInitials) Then
   appRaiseSilentError
 End If
 
@@ -657,7 +657,7 @@ End Function
 
 
 
-Private Function algExportMatch_writeCompetitors(ByRef dsTmp As DIR_SERVER_DATA) As Boolean
+Private Function algExportMatch_writeCompetitors(ByRef dsTmp As DIR_SERVER_DATA, ByVal blUseInitials As Boolean) As Boolean
 On Error GoTo fout
 algExportMatch_writeCompetitors = False
 
@@ -691,6 +691,12 @@ Do Until rs.EOF
   
   tpLastName = Nz(rs("ZW_Achternaam"))
   tpFirstName = Nz(rs("ZW_Voornaam"))
+  
+  If (blUseInitials) Then
+    If (tpFirstName <> "") Then
+      tpFirstName = Left(tpFirstName, 1) & "."
+    End If
+  End If
   
   tpNation = Nz(rs("ZW_Nation"))
   
