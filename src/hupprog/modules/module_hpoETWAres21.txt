@@ -23,21 +23,7 @@ Private Type ARES21_OP_INFO
 End Type
 
 
-'to be obsoleted
-Public Function etwTest()
-Dim wedInf As WED_BASIC_INFO
-Dim blDummy As Boolean
-wedLookup 200908, blDummy, wedInf
-etwTest = etwAres21WriteStartlist(wedInf)
-End Function
 
-'to be obsoleted
-Public Function etwReadTest()
-Dim wedInf As WED_BASIC_INFO
-Dim blDummy As Boolean
-wedLookup 200908, blDummy, wedInf
-etwReadTest = etwAres21ReadResults(wedInf)
-End Function
 
 
 
@@ -86,7 +72,7 @@ End Function
 
 
 
-Public Function etwAres21WriteStartlist(ByRef wedInf As WED_BASIC_INFO) As Boolean
+Public Function etwAres21WriteStartlist(ByRef wedInf As WED_BASIC_INFO, ByRef etwInf As ETW_GLOBAL_INFO) As Boolean
 On Error GoTo fout
 etwAres21WriteStartlist = False
 
@@ -97,7 +83,7 @@ If Not arReadInfo(cfgInf, False, opInf, wedInf.wednr) Then
   Exit Function
 End If
 
-If Not arExportMatch(cfgInf.sAresDir, wedInf, opInf) Then
+If Not arExportMatch(cfgInf.sAresDir, wedInf, opInf, etwInf.blUseInitials) Then
   Exit Function
 End If
 
@@ -362,7 +348,7 @@ End Function
 
 
 'write the match in the transfer tables to the ares21 directory
-Private Function arExportMatch(ByVal sAresDir As String, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ARES21_OP_INFO) As Boolean
+Private Function arExportMatch(ByVal sAresDir As String, ByRef wedInf As WED_BASIC_INFO, ByRef opInf As ARES21_OP_INFO, ByVal blUseInitials) As Boolean
 On Error GoTo fout
 arExportMatch = False
 
@@ -394,7 +380,7 @@ If Not arExportMatch_writeCats(sAresDir) Then
 End If
 
 
-If Not arExportMatch_writeCompetitors(sAresDir) Then
+If Not arExportMatch_writeCompetitors(sAresDir, blUseInitials) Then
   Exit Function
 End If
 
@@ -713,7 +699,7 @@ End Function
 
 
 
-Private Function arExportMatch_writeCompetitors(ByVal sAresDir As String) As Boolean
+Private Function arExportMatch_writeCompetitors(ByVal sAresDir As String, ByVal blUseInitials As Boolean) As Boolean
 On Error GoTo fout
 arExportMatch_writeCompetitors = False
 
@@ -753,6 +739,12 @@ Do Until rs.EOF
   
   tpLastName = Nz(rs("ZW_Achternaam"))
   tpFirstName = Nz(rs("ZW_Voornaam"))
+  
+  If (blUseInitials) Then
+    If (tpFirstName <> "") Then
+      tpFirstName = Left(tpFirstName, 1) & "."
+    End If
+  End If
   
   Dim tpVG As String
   tpVG = Nz(rs("ZW_Voegsel"))

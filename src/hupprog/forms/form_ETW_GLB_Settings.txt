@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-47409566
+Checksum =385064286
 Begin Form
     AllowFilters = NotDefault
     Modal = NotDefault
@@ -19,11 +19,11 @@ Begin Form
     GridY =10
     Width =10500
     DatasheetFontHeight =10
-    ItemSuffix =68
-    Left =2055
-    Top =495
-    Right =13815
-    Bottom =8040
+    ItemSuffix =71
+    Left =5280
+    Top =780
+    Right =17040
+    Bottom =8325
     DatasheetBackColor =16776960
     DatasheetGridlinesColor =65280
     RecSrcDt = Begin
@@ -119,7 +119,7 @@ Begin Form
             Name ="FormHeader"
         End
         Begin Section
-            Height =3855
+            Height =4365
             BackColor =65280
             Name ="Detail"
             Begin
@@ -128,7 +128,7 @@ Begin Form
                     OverlapFlags =85
                     IMESentenceMode =3
                     Left =4190
-                    Top =566
+                    Top =396
                     Width =786
                     Name ="fldBckTolerance"
                     Format ="General Number"
@@ -141,7 +141,7 @@ Begin Form
                             BackStyle =1
                             OverlapFlags =85
                             Left =340
-                            Top =571
+                            Top =401
                             Width =3720
                             Height =240
                             Name ="Label58"
@@ -155,7 +155,7 @@ Begin Form
                 Begin Label
                     OverlapFlags =85
                     Left =5154
-                    Top =566
+                    Top =396
                     Width =855
                     Height =240
                     Name ="Label59"
@@ -167,7 +167,7 @@ Begin Form
                 Begin Label
                     OverlapFlags =85
                     Left =795
-                    Top =969
+                    Top =799
                     Width =4935
                     Height =210
                     Name ="Label60"
@@ -180,7 +180,7 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =85
                     Left =3288
-                    Top =1700
+                    Top =1530
                     TabIndex =1
                     Name ="blOnlyPrimaryTst"
                     AfterUpdate ="[Event Procedure]"
@@ -192,7 +192,7 @@ Begin Form
                             BackStyle =1
                             OverlapFlags =85
                             Left =340
-                            Top =1644
+                            Top =1474
                             Width =2820
                             Height =240
                             Name ="Label63"
@@ -207,7 +207,7 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =85
                     Left =5550
-                    Top =2749
+                    Top =2579
                     TabIndex =2
                     Name ="blUseOpmForBckManStatus"
                     AfterUpdate ="[Event Procedure]"
@@ -219,7 +219,7 @@ Begin Form
                             BackStyle =1
                             OverlapFlags =85
                             Left =340
-                            Top =2721
+                            Top =2551
                             Width =5070
                             Height =240
                             Name ="Label65"
@@ -233,7 +233,7 @@ Begin Form
                 Begin Label
                     OverlapFlags =85
                     Left =795
-                    Top =2040
+                    Top =1870
                     Width =8730
                     Height =285
                     Name ="Label66"
@@ -246,7 +246,7 @@ Begin Form
                 Begin Label
                     OverlapFlags =85
                     Left =795
-                    Top =3120
+                    Top =2950
                     Width =8265
                     Height =285
                     Name ="Label67"
@@ -254,6 +254,46 @@ Begin Form
                         "vermelden in het vak <Opmerkingen> )"
                     GUID = Begin
                         0x5c0a7b3d3e03b74182f8693cadfb225d
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =3345
+                    Top =3658
+                    TabIndex =3
+                    Name ="blUseVoorletters"
+                    AfterUpdate ="[Event Procedure]"
+                    GUID = Begin
+                        0x39f0dd6b598514489e029aedbdbdd352
+                    End
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =340
+                            Top =3628
+                            Width =2835
+                            Height =240
+                            Name ="Label69"
+                            Caption ="Voorletters gebruiken ipv voornamen:  "
+                            GUID = Begin
+                                0x8f651cd0b4b6c84080e584b8cdc527a5
+                            End
+                        End
+                    End
+                End
+                Begin Label
+                    OverlapFlags =85
+                    Left =795
+                    Top =4020
+                    Width =8805
+                    Height =285
+                    Name ="Label70"
+                    Caption ="( Bij het exporteren van de startlijst naar de etw, voorletters gebruiken ipv vo"
+                        "ornamen om ruimte te besparen op scoreboard )"
+                    GUID = Begin
+                        0x28069758b2391a4190b2070ca3807573
                     End
                 End
             End
@@ -284,6 +324,7 @@ On Error Resume Next
 etwInfo.dBckTolerance = Nz(Me.fldBckTolerance)
 etwInfo.blAddStatusToOpm = Nz(Me.blUseOpmForBckManStatus)
 etwInfo.blOnlyPrimaryTst = Nz(Me.blOnlyPrimaryTst)
+etwInfo.blUseInitials = Nz(Me.blUseVoorletters)
 
 If Not etwWriteInfo(etwInfo, lWedNr) Then
   Exit Sub
@@ -312,6 +353,7 @@ End If
 Me.fldBckTolerance = etwInfo.dBckTolerance
 Me.blOnlyPrimaryTst = etwInfo.blOnlyPrimaryTst
 Me.blUseOpmForBckManStatus = etwInfo.blAddStatusToOpm
+Me.blUseVoorletters = etwInfo.blUseInitials
 
 End Sub
 
@@ -329,6 +371,11 @@ saveChanges True, True
 End Sub
 
 Private Sub blUseOpmForBckManStatus_AfterUpdate()
+On Error Resume Next
+saveChanges False, False
+End Sub
+
+Private Sub blUseVoorletters_AfterUpdate()
 On Error Resume Next
 saveChanges False, False
 End Sub
