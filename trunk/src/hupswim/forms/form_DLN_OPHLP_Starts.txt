@@ -1,13 +1,13 @@
 Version =20
 VersionRequired =20
-Checksum =-285391805
+Checksum =1138427280
 Begin Form
     NavigationButtons = NotDefault
     AllowAdditions = NotDefault
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
     GridY =10
-    Width =5896
+    Width =6236
     DatasheetFontHeight =10
     ItemSuffix =34
     Left =5310
@@ -18,18 +18,19 @@ Begin Form
     BeforeDelConfirm ="[Event Procedure]"
     AfterDelConfirm ="[Event Procedure]"
     RecSrcDt = Begin
-        0xed307599805fe340
+        0x5ddad2af57a9e340
     End
-    RecordSource ="SELECT [dtDeelnemers].Wedstrijdnr, [dtDeelnemers].Programmanr, [dtDeelnemers].St"
-        "artnummer, [dtDeelnemers].[Estafette nummer], [dtDeelnemers].Volgorde, [dtDeelne"
-        "mers].Slag, [dtDeelnemers].Reserve, [dtDeelnemers].Inschrijftijd, [dtDeelnemers]"
-        ".WedstrijdnrInsTijd, [dtDeelnemers].[A/B/C], [dtDeelnemers].BM, [voornaam] & \" "
-        "\" & [voegsel] & \" \" & [achternaam] AS Naam, [dtwedstrijden].Datum FROM [dtwed"
-        "strijden] RIGHT JOIN ([dtLeden] RIGHT JOIN [dtDeelnemers] ON [dtLeden].Startnumm"
-        "er = [dtDeelnemers].Startnummer) ON [dtwedstrijden].[Wedstrijd nummer] = [dtDeel"
-        "nemers].WedstrijdnrInsTijd WHERE ((([dtDeelnemers].Wedstrijdnr)=waarde()) AND (("
-        "[dtDeelnemers].Programmanr)=waarde_prog())) ORDER BY [dtDeelnemers].[Estafette n"
-        "ummer], [dtDeelnemers].Volgorde, [dtDeelnemers].Inschrijftijd;"
+    RecordSource ="SELECT dtDeelnemers.Wedstrijdnr, dtDeelnemers.Programmanr, dtDeelnemers.Startnum"
+        "mer, dtDeelnemers.[Estafette nummer], dtDeelnemers.Volgorde, dtDeelnemers.Slag, "
+        "dtDeelnemers.Reserve, dtDeelnemers.Inschrijftijd, dtDeelnemers.WedstrijdnrInsTij"
+        "d, dtDeelnemers.[A/B/C], dtDeelnemers.BM, [voornaam] & \" \" & [voegsel] & \" \""
+        " & [achternaam] AS Naam, dtwedstrijden.Datum, IIf(IsNull([datum]),\"\",fmtDate(n"
+        "z([datum],#1/1/1900#)) & \" (\" & [baanlengte] & \")\") AS wedDes FROM dtwedstri"
+        "jden RIGHT JOIN (dtLeden RIGHT JOIN dtDeelnemers ON dtLeden.Startnummer = dtDeel"
+        "nemers.Startnummer) ON dtwedstrijden.[Wedstrijd nummer] = dtDeelnemers.Wedstrijd"
+        "nrInsTijd WHERE (((dtDeelnemers.Wedstrijdnr)=waarde()) AND ((dtDeelnemers.Progra"
+        "mmanr)=waarde_prog())) ORDER BY dtDeelnemers.[Estafette nummer], dtDeelnemers.Vo"
+        "lgorde, dtDeelnemers.Inschrijftijd;"
     OnCurrent ="[Event Procedure]"
     AfterUpdate ="[Event Procedure]"
     OnOpen ="[Event Procedure]"
@@ -95,7 +96,7 @@ Begin Form
             LabelX =-1701
         End
         Begin FormHeader
-            Height =266
+            Height =270
             BackColor =16776960
             Name ="FormHeader"
             Begin
@@ -119,16 +120,16 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =85
-                    Left =3174
-                    Top =56
-                    Width =540
+                    Left =3180
+                    Top =60
+                    Width =900
                     Height =210
                     Name ="Label17"
-                    Caption ="Datum"
+                    Caption ="Datum / Bn"
                 End
                 Begin Label
                     OverlapFlags =93
-                    Left =4194
+                    Left =4593
                     Top =56
                     Width =750
                     Height =210
@@ -137,7 +138,7 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =215
-                    Left =4191
+                    Left =4590
                     Top =56
                     Width =540
                     Height =210
@@ -146,7 +147,7 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =85
-                    Left =5106
+                    Left =5505
                     Top =56
                     Width =360
                     Height =210
@@ -155,7 +156,7 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =85
-                    Left =5498
+                    Left =5897
                     Top =56
                     Width =315
                     Height =210
@@ -173,7 +174,7 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =93
                     TextAlign =1
-                    Left =4198
+                    Left =4597
                     Width =381
                     Height =226
                     TabIndex =3
@@ -187,7 +188,7 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =85
                     TextAlign =1
-                    Left =5502
+                    Left =5901
                     Width =276
                     Height =226
                     TabIndex =5
@@ -199,7 +200,7 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =247
                     TextAlign =1
-                    Left =4198
+                    Left =4597
                     Width =276
                     Height =226
                     TabIndex =1
@@ -228,11 +229,11 @@ Begin Form
                     OverlapFlags =85
                     TextAlign =1
                     Left =3174
-                    Width =921
+                    Width =1311
                     Height =226
                     TabIndex =7
-                    Name ="Datum"
-                    ControlSource ="Datum"
+                    Name ="wedDes"
+                    ControlSource ="wedDes"
                     Format ="dd-mm-yyyy"
                     StatusBarText ="Datum wedstrijd (dd-mm-jj)"
                 End
@@ -264,7 +265,7 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =85
                     TextAlign =1
-                    Left =4652
+                    Left =5051
                     Width =261
                     Height =226
                     TabIndex =2
@@ -277,7 +278,7 @@ Begin Form
                     SpecialEffect =0
                     OverlapFlags =85
                     TextAlign =1
-                    Left =5105
+                    Left =5504
                     Width =336
                     Height =226
                     TabIndex =4
@@ -298,7 +299,7 @@ Begin Form
                     Locked = NotDefault
                     SpecialEffect =0
                     OverlapFlags =85
-                    Left =4195
+                    Left =4875
                     Top =113
                     Width =1294
                     FontWeight =700
@@ -384,8 +385,8 @@ If prAf Like "*x*" Then
 End If
 
 Dim sql As String
-sql = "SELECT DISTINCTROW [dtTijden].Tijd, [dtWedstrijden].Datum, [dtWedstrijden].Seizoen, " & _
-"[dtTijden].[Wedstr nr], [dtWedstrijden].Baanlengte " & _
+sql = "SELECT DISTINCTROW [dtTijden].Tijd, [dtWedstrijden].Datum, [dtWedstrijden].baanlengte, " & _
+"[dtTijden].[Wedstr nr], [dtWedstrijden].seizoen " & _
 "FROM [dtWedstrijden] INNER JOIN [dtTijden] ON [dtWedstrijden].[Wedstrijd nummer] = " & _
 "[dtTijden].[Wedstr nr] " & _
 "WHERE ((([dtTijden].Afstand) = """ & af & """) " & _
