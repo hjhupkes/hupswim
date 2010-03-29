@@ -1361,6 +1361,89 @@ Resume
 End Function
 
 
+Public Function levGetLimit(ByVal sLevel As String, ByVal ges As String, ByVal lft As Integer, _
+  ByVal af As String, ByVal sl As String, ByVal bn As Integer, _
+  ByRef fndLimit As Double, _
+  ByVal levNLft As Integer, ByRef levLft() As Long, _
+  ByVal levNLevels As Integer, ByRef levCodes() As String, _
+  ByVal levNAfSl As Integer, ByRef levOrdAf() As String, ByRef levOrdSl() As String, _
+  ByRef levHasTimes25M() As Boolean, ByRef levTimes25M() As Double, _
+  ByRef levHasTimes50M() As Boolean, ByRef levTimes50M() As Double, _
+  ByRef levHasTimes25V() As Boolean, ByRef levTimes25V() As Double, _
+  ByRef levHasTimes50V() As Boolean, ByRef levTimes50V() As Double) As Boolean
+On Error GoTo fout
+levGetLimit = False
+
+fndLimit = 0
+
+Dim afslIdx As Integer
+afslIdx = bSearchAfSlag(af, sl, levOrdAf, levOrdSl, levNAfSl)
+
+If (afslIdx < 0) Then
+  levGetLimit = True
+  Exit Function
+End If
+
+Dim levIdx As Integer
+levIdx = levCodeToInt(sLevel, True)
+
+If (levIdx < 0) Or (levIdx >= MAX_N_LEVELS) Then
+  levGetLimit = True
+  Exit Function
+End If
+
+
+
+
+Dim lftIdx As Integer
+lftIdx = -1
+
+Dim i As Integer
+For i = 0 To levNLft - 1
+  If (levLft(i) >= lft) Then
+    If (bn = 25) Then
+      If (ges = "M") Then
+        If levHasTimes25M(afslIdx, i) Then
+          fndLimit = levTimes25M(afslIdx, i, levIdx)
+          Exit For
+        End If
+      ElseIf (ges = "V") Then
+        If levHasTimes25V(afslIdx, i) Then
+          fndLimit = levTimes25V(afslIdx, i, levIdx)
+          Exit For
+        End If
+      End If
+    ElseIf (bn = 50) Then
+      If (ges = "M") Then
+        If levHasTimes50M(afslIdx, i) Then
+          fndLimit = levTimes50M(afslIdx, i, levIdx)
+          Exit For
+        End If
+      ElseIf (ges = "V") Then
+        If levHasTimes50V(afslIdx, i) Then
+          fndLimit = levTimes50V(afslIdx, i, levIdx)
+          Exit For
+        End If
+      End If
+    End If
+  End If
+Next i
+
+levGetLimit = True
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " levGetLimit" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
 
 
 Public Function tstPromptUser(ByVal sEindAf As String, ByVal wedBaan As Integer, ByVal nProgDefinedTstAf As Integer, ByRef progDefinedTstAf() As Long, ByVal nUserDefinedTstAf As Integer, ByRef userDefinedTstAf() As Long, ByRef userDefinedTstTimes() As Double, ByRef userDefinedEndTime As Double, ByVal curExtTst As String, ByRef blChangeIsOK As Boolean, ByRef newProgDefinedTstTimes() As Double, ByRef newProgEndTime As Double, ByRef newExtTst As String)

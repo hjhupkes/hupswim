@@ -1,23 +1,22 @@
 Version =20
 VersionRequired =20
-Checksum =1301028890
+Checksum =1301466179
 Begin Form
     MaxButton = NotDefault
     MinButton = NotDefault
     ControlBox = NotDefault
     AutoCenter = NotDefault
     NavigationButtons = NotDefault
-    OrderByOn = NotDefault
     ScrollBars =2
     BorderStyle =1
     GridX =5
     GridY =5
     Width =11678
-    ItemSuffix =56
-    Left =4050
-    Top =1245
-    Right =22950
-    Bottom =9630
+    ItemSuffix =59
+    Left =-15
+    Top =1470
+    Right =28485
+    Bottom =16155
     AfterInsert ="[Event Procedure]"
     BeforeDelConfirm ="[Event Procedure]"
     AfterDelConfirm ="[Event Procedure]"
@@ -334,19 +333,20 @@ Begin Form
             End
         End
         Begin FormFooter
-            Height =1474
+            Height =1360
             BackColor =16776960
             Name ="FormFooter2"
             Begin
                 Begin CommandButton
                     OverlapFlags =85
-                    AccessKey =86
-                    Left =2381
-                    Top =1020
-                    Width =1350
+                    Left =3174
+                    Top =907
+                    Width =3060
                     Height =349
+                    TabIndex =3
+                    ForeColor =255
                     Name ="btnVerwerk"
-                    Caption ="&Verwerk..."
+                    Caption ="Deze Lijst -> Startwaardes..."
                     OnClick ="[Event Procedure]"
                 End
                 Begin Label
@@ -358,8 +358,8 @@ Begin Form
                     FontWeight =700
                     ForeColor =255
                     Name ="Label66"
-                    Caption ="NB: Gebruik dit scherm alleen om startwaardes in te kunnen vullen zonder zorgen "
-                        "over wedstrijdnummers / startnummers etc. "
+                    Caption ="NB: Gebruik dit scherm om startwaardes in te kunnen vullen zonder zorgen over we"
+                        "dstrijdnummers / startnummers etc. "
                 End
                 Begin Label
                     OverlapFlags =87
@@ -375,11 +375,11 @@ Begin Form
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =73
-                    Left =8728
-                    Top =1020
-                    Width =1476
+                    Left =8730
+                    Top =907
+                    Width =1251
                     Height =349
-                    TabIndex =1
+                    TabIndex =5
                     Name ="btnInlezen"
                     Caption ="&Inlezen..."
                     OnClick ="[Event Procedure]"
@@ -387,14 +387,17 @@ Begin Form
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =70
-                    Left =113
-                    Top =1020
+                    TextFontFamily =34
+                    Left =9411
+                    Top =113
                     Width =1030
                     Height =349
-                    TabIndex =2
+                    FontSize =8
+                    FontWeight =400
                     Name ="btnFilter"
                     Caption ="&Filter..."
                     OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
                     GUID = Begin
                         0x0e9810633fc158448d4bd7ae7531292b
                     End
@@ -402,16 +405,64 @@ Begin Form
                 End
                 Begin CommandButton
                     OverlapFlags =85
-                    Left =1247
-                    Top =1020
+                    TextFontFamily =34
+                    Left =10545
+                    Top =113
                     Width =1030
                     Height =349
-                    TabIndex =3
+                    FontSize =8
+                    FontWeight =400
+                    TabIndex =1
                     Name ="btnFilterOff"
                     Caption ="Filter uit"
                     OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
                     GUID = Begin
                         0x493c22ddab2a1740bdb547214c392a46
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =71
+                    Left =10091
+                    Top =907
+                    Width =1476
+                    Height =349
+                    TabIndex =6
+                    Name ="btnGenerate"
+                    Caption ="&Genereren..."
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x1fb4ccda4bd7ea4c87e1dae8b90bd91a
+                    End
+                    UnicodeAccessKey =71
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =113
+                    Top =907
+                    Width =2940
+                    Height =349
+                    TabIndex =2
+                    Name ="btnFill"
+                    Caption ="Startwaardes -> Deze Lijst"
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x89ad4ce7a536f042abc6c4ae87d7014b
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =7029
+                    Top =907
+                    Width =1596
+                    Height =349
+                    TabIndex =4
+                    Name ="btnDelete"
+                    Caption ="Verwijderen..."
+                    OnClick ="[Event Procedure]"
+                    GUID = Begin
+                        0x6c13cdb3b92c1a40b9921e36ad56509f
                     End
                 End
             End
@@ -431,6 +482,39 @@ Private curRSInfo As RECSET_BASIC_INFO
 Private recAges(0 To MAX_N_REC_AGES) As Long
 Private nRecAges As Integer
 
+
+Private Sub btnDelete_Click()
+On Error Resume Next
+
+DoCmd.OpenForm "REC_DLG_DelDuplicateStart", , , , , acDialog
+
+Me.Requery
+
+End Sub
+
+Private Sub btnFill_Click()
+On Error Resume Next
+Dim msg As String
+msg = "Deze operatie zal de lijst in dit scherm vullen met de huidige startwaardes (dwz alle clubrecords met nummer < 1905-000 )." & _
+  vbCrLf & vbCrLf & "Alle bestaande items in de lijst zullen worden overschreven." & vbCrLf & vbCrLf & "Wilt u doorgaan?"
+  
+If MsgBox(msg, vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Sub
+End If
+
+If Not recivGenerateTable(waarde_rcs(), True, False, "", "", "", REC_GEN_INIT_VALS_MODE_COPY, 0, 0, "") Then
+  Exit Sub
+End If
+
+Me.Requery
+
+End Sub
+
+Private Sub btnGenerate_Click()
+On Error Resume Next
+DoCmd.OpenForm "REC_DLG_FillStart", , , , , acDialog
+Me.Requery
+End Sub
 
 Private Sub Form_Load()
 On Error Resume Next
