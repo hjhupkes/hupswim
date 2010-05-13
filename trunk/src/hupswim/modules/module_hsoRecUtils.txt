@@ -3498,7 +3498,11 @@ Dim tpRecAf As String
             
               estNames(i) = fmtName(estVoornaam(i), estVoegsel(i), estAchternaam(i))
               If (i > 0) Then
-                estDeelnemers = estDeelnemers & ", "
+                If (i < estCnt - 1) Then
+                  estDeelnemers = estDeelnemers & ", "
+                Else
+                  estDeelnemers = estDeelnemers & " en "
+                End If
               End If
               estDeelnemers = estDeelnemers & estNames(i)
             Else
@@ -4804,13 +4808,28 @@ If (blShouldOutput) Then
     Else
       sOldString = vbTypeS & "oud record van " & fmtRecTime_Decimals(oldRecActTime, oldRecNDecimals, "")
       If (recIsEstaf) Then
-        sOldString = sOldString & " gezwommen door " & oldEstDeelnemers
+        If (rsInfo.blIsMultiVer) Then
+          If (oldEstDeelnemers <> "") Then
+            sOldString = sOldString & " gezwommen door " & oldEstDeelnemers & " van " & oldRecVer
+          Else
+            sOldString = sOldString & " gezwommen door " & oldRecVer
+          End If
+        Else
+          If (oldEstDeelnemers <> "") Then
+            sOldString = sOldString & " gezwommen door " & oldEstDeelnemers
+          Else
+            If (lenDateIsValid(oldRecWedDatum)) Then
+              sOldString = sOldString & " gezwommen"
+            End If
+          End If
+        End If
       Else
         sOldString = sOldString & " gezwommen door " & oldZwmName
+        If (rsInfo.blIsMultiVer) Then
+          sOldString = sOldString & " van " & oldRecVer
+        End If
       End If
-      If (rsInfo.blIsMultiVer) Then
-        sOldString = sOldString & " van " & oldRecVer
-      End If
+      
       
       If (lenDateIsValid(oldRecWedDatum)) Then
         sOldString = sOldString & " op " & Format(oldRecWedDatum, "dd\-mm\-yyyy")
