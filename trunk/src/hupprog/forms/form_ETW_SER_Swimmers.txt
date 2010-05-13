@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1747252153
+Checksum =490891070
 Begin Form
     AllowFilters = NotDefault
     Modal = NotDefault
@@ -20,9 +20,9 @@ Begin Form
     DatasheetFontHeight =10
     ItemSuffix =71
     Left =5010
-    Top =585
+    Top =1365
     Right =16770
-    Bottom =8130
+    Bottom =8910
     DatasheetBackColor =16776960
     DatasheetGridlinesColor =65280
     RecSrcDt = Begin
@@ -293,6 +293,7 @@ Begin Form
                     RowSource ="SELECT fdtgDisCodes.DIS_CODE,fdtgDisCodes.DIS_NAAM FROM fdtgDisCodes ORDER BY DI"
                         "S_CODE;"
                     ColumnWidths ="510;6346"
+                    AfterUpdate ="[Event Procedure]"
                 End
             End
         End
@@ -304,7 +305,7 @@ Begin Form
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =83
-                    Left =113
+                    Left =8220
                     Top =113
                     Width =1476
                     Height =403
@@ -318,7 +319,7 @@ Begin Form
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =68
-                    Left =1700
+                    Left =9807
                     Top =113
                     Width =1521
                     Height =403
@@ -328,6 +329,26 @@ Begin Form
                     OnClick ="[Event Procedure]"
                     GUID = Begin
                         0x944d2112dbdcf84cae334f97984237e8
+                    End
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    AccessKey =80
+                    TextFontFamily =2
+                    Left =56
+                    Top =113
+                    Width =1249
+                    Height =403
+                    FontSize =10
+                    FontWeight =700
+                    TabIndex =2
+                    ForeColor =0
+                    Name ="btnPloeg"
+                    Caption ="&Ploeg..."
+                    OnClick ="[Event Procedure]"
+                    FontName ="System"
+                    GUID = Begin
+                        0x3042ac358d3a39458fb45379b58de24d
                     End
                 End
             End
@@ -357,6 +378,36 @@ DoCmd.DoMenuItem A_FORMBAR, A_FILE, A_SAVERECORD, , A_MENU_VER20
 handleSelection False
 
 handleFullRefresh
+End Sub
+
+Private Sub btnPloeg_Click()
+On Error Resume Next
+Dim lDlnIdx As Long
+lDlnIdx = Nz(Me.cmbCoupledDln.value, -1)
+
+Dim skDlns As Recordset
+Set skDlns = CurrentDb().OpenRecordset("dtDeelnemers")
+skDlns.Index = "PrimaryKey"
+
+Dim sVer As String, iPlg As Integer
+sVer = ""
+iPlg = -1
+  
+
+skDlns.Seek "=", lDlnIdx
+If Not skDlns.NoMatch Then
+  sVer = Nz(skDlns(FNM_DE_EST_VER))
+  iPlg = Nz(skDlns(FNM_DE_EST_ESTNR))
+End If
+
+appCleanRS skDlns
+
+If (sVer <> "") And (iPlg >= 0) Then
+  If Not estEditPloeg(lGlbWedNr, sGlbProgNr, sVer, iPlg, lDlnIdx, True) Then
+    appRaiseSilentError
+  End If
+End If
+
 End Sub
 
 Private Sub btnSelAll_Click()
@@ -406,6 +457,31 @@ On Error Resume Next
 
 handleFullRefresh
 
+End Sub
+
+Private Sub ETWD_ACT_Dis_AfterUpdate()
+On Error Resume Next
+
+Dim sDis As String
+sDis = Nz(Me.ETWD_ACT_Dis)
+Dim sDisOld As String
+sDisOld = Nz(Me.ETWD_ACT_Dis.OldValue)
+
+If (sDis <> sDisOld) Then
+  If disIsNoTime(sDis) Then
+  
+    Dim iBn As Integer
+    iBn = Nz(Me.ETWD_Baan)
+    
+    If Not etwBlockAllTimes(lGlbWedNr, sGlbProgNr, lGlbSerNr, iBn) Then
+      appRaiseSilentError
+    End If
+    
+    handleFullRefresh
+    
+  End If
+End If
+
 
 End Sub
 
@@ -428,6 +504,21 @@ Set mstFrm = Forms("ETW_SER_Master")
 lGlbWedNr = mstFrm.lGlbWedNr
 lGlbSerNr = mstFrm.lGlbSerNr
 sGlbProgNr = mstFrm.sGlbProgNr
+
+
+Me.btnPloeg.Visible = False
+
+Dim prInf As PROG_BASIC_INFO, blFnd As Boolean
+
+If Not prLookup(lGlbWedNr, sGlbProgNr, blFnd, prInf) Then
+  appRaiseSilentError
+End If
+
+If (blFnd And prInf.isEstaf) Then
+  Me.btnPloeg.Visible = True
+End If
+
+
 
 
 Dim sql As String

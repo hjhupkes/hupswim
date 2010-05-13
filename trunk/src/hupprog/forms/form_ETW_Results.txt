@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-829334877
+Checksum =-371453562
 Begin Form
     AllowFilters = NotDefault
     Modal = NotDefault
@@ -20,23 +20,22 @@ Begin Form
     DatasheetFontHeight =10
     ItemSuffix =69
     Left =6045
-    Top =1500
+    Top =2640
     Right =17310
-    Bottom =6645
+    Bottom =7785
     DatasheetBackColor =16776960
     DatasheetGridlinesColor =65280
     RecSrcDt = Begin
-        0x8a497eaf91a3e340
+        0x74e50101f7aee340
     End
     RecordSource ="SELECT hpoETWResSeries.*, [pr_afstand] & \" \" & [pr_slag] & \" \" & [pr_categor"
-        "ie] AS progDes, fmtETWValStatus(nz([etws_val_status])) AS fmtValStatus, IIf([etw"
-        "s_isNew],\"Nieuwe resultaten\",\"Reeds geimporteerd\") AS fmtSerStatus, fmtETWVa"
-        "lIsComplete(nz([etws_val_isComplete],True)) AS fmtCompleteStatus FROM hpoETWResS"
-        "eries LEFT JOIN dtProgramma ON (hpoETWResSeries.ETWS_Programmanummer = dtProgram"
-        "ma.PR_Programmanummer) AND (hpoETWResSeries.ETWS_Wedstrijdnummer = dtProgramma.P"
-        "R_Wedstrijdnummer) ORDER BY hpoETWResSeries.ETWS_Wedstrijdnummer, Val(nz([ETWS_P"
-        "rogrammanummer])), hpoETWResSeries.ETWS_Programmanummer, hpoETWResSeries.ETWS_Se"
-        "rienummer;"
+        "ie] AS progDes, fmtETWValStatus(nz([etws_val_status])) AS fmtValStatus, fmtETWSe"
+        "rStatus(nz([etws_ser_status])) AS fmtSerStatus, fmtETWValIsComplete(nz([etws_val"
+        "_isComplete],True)) AS fmtCompleteStatus FROM hpoETWResSeries LEFT JOIN dtProgra"
+        "mma ON (hpoETWResSeries.ETWS_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) A"
+        "ND (hpoETWResSeries.ETWS_Programmanummer = dtProgramma.PR_Programmanummer) ORDER"
+        " BY hpoETWResSeries.ETWS_Wedstrijdnummer, Val(nz([ETWS_Programmanummer])), hpoET"
+        "WResSeries.ETWS_Programmanummer, hpoETWResSeries.ETWS_Serienummer;"
     OnOpen ="[Event Procedure]"
     DatasheetFontName ="Arial"
     PrtMip = Begin
@@ -376,7 +375,7 @@ Attribute VB_Exposed = False
 Option Compare Database
 Option Explicit
 
-Private blIsUnimportedSeriesMode As Boolean
+Private iSerPriority As Integer
 
 Private Sub setupRecordset()
 On Error Resume Next
@@ -384,15 +383,13 @@ On Error Resume Next
 Dim sql As String
 
 sql = "SELECT hpoETWResSeries.*, [pr_afstand] & "" "" & [pr_slag] & "" "" & [pr_categorie] AS progDes, " & _
-  "fmtETWValStatus(nz([etws_val_status])) AS fmtValStatus, IIf([etws_isNew],""Nieuwe resultaten"",""Oude resultaten"") AS fmtSerStatus, " & _
+  "fmtETWValStatus(nz([etws_val_status])) AS fmtValStatus, fmtETWSerStatus(nz([etws_ser_status])) AS fmtSerStatus, " & _
   "fmtETWValIsComplete(nz([etws_val_isComplete],True)) AS fmtCompleteStatus " & _
   "FROM hpoETWResSeries LEFT JOIN dtProgramma ON (hpoETWResSeries.ETWS_Programmanummer = dtProgramma.PR_Programmanummer) " & _
   "AND (hpoETWResSeries.ETWS_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer) "
   
   
-If (blIsUnimportedSeriesMode) Then
-  sql = sql & " Where not etws_isImported "
-End If
+sql = sql & " Where etws_ser_priority >= " & iSerPriority & " "
 
 sql = sql & "ORDER BY ETWS_Wedstrijdnummer, Val(nz([ETWS_Programmanummer])), ETWS_Programmanummer, ETWS_Serienummer; "
 
@@ -471,7 +468,7 @@ Dim mstFrm As Form_ETW_Master
 
 Set mstFrm = Forms("ETW_Master")
 
-blIsUnimportedSeriesMode = mstFrm.blIsUnimportedSeriesMode
+iSerPriority = mstFrm.iSerPriority
 
 
 setupRecordset
