@@ -694,7 +694,7 @@ Do Until rs.EOF
   
   If (blUseInitials) Then
     If (tpFirstName <> "") Then
-      tpFirstName = Left(tpFirstName, 1) & "."
+      tpFirstName = Left(tpFirstName, 1)
     End If
   End If
   
@@ -702,6 +702,19 @@ Do Until rs.EOF
   
   Dim tpVG As String
   tpVG = Nz(rs("ZW_Voegsel"))
+  
+  If (blUseInitials) Then
+    If (tpVG = "van der") Or (tpVG = "van den") Or (tpVG = "van de") Or (tpVG = "v.d.") Or (tpVG = "vd.") Or (tpVG = "v. d.") Then
+      tpVG = "vd"
+    ElseIf (tpVG = "van") Or (tpVG = "v.") Then
+      tpVG = "v"
+    ElseIf (tpVG = "de") Then
+      tpVG = "d"
+    ElseIf (tpVG = "ten") Or (tpVG = "te") Then
+      tpVG = "t"
+    End If
+  End If
+
   If (tpVG <> "") Then
     tpFirstName = tpFirstName & " " & tpVG
   End If
@@ -1313,6 +1326,7 @@ Do Until rs.EOF
   
   tpTimeHds = CLng(Nz(rs("sngZeit"), 0) * 100000) \ 1000
   
+  
   Dim sPropName As String, sPropValue As String
   Dim blDummy As Boolean, sDummy As String, lDummy As Long
   
@@ -1681,10 +1695,12 @@ Set skProg = CurrentDb().OpenRecordset(TNM_PR)
 skProg.Index = "PrimaryKey"
 
 
-'Process only the automatic times
+'We want to process only the automatic times
+'However, we scan all times and check for [typ]=0 later on,
+'because we also want to see dlns that only have bck times
 
 Dim rs As Recordset
-Set rs = CurrentDb().OpenRecordset("select * from [__etw__alge__times] where [typ] = 0 and not [wende] order by bew_nr, bewTyp, lauf, bahn, sngZeit ")
+Set rs = CurrentDb().OpenRecordset("select * from [__etw__alge__times] where  not [wende] order by bew_nr, bewTyp, lauf, bahn, sngZeit ")
 
 Dim curProgAlgID As Long, curProgAlgTypeID As Long, curSer As Long, curLane As Long
 
@@ -1861,48 +1877,64 @@ Do Until blDone
     Dim tpLapIdx As Long
     Dim tpTimeHds As Long
     
-    tpLapIdx = Nz(rs("zw_nr"))
+    Dim tpTimeType As Integer
     
-    'make sure we do not accidentally round; just throw away any digits that we do not want
-    tpTimeHds = CLng(Nz(rs("sngZeit"), 0) * 100000) \ 1000
-    
-    
-    
-    
-    
-    Dim tpAf As Long
-    
-    If cfgInf.blUseTurnPlates Then
-      tpAf = tpLapIdx * wedInf.baan
-    Else
-      tpAf = tpLapIdx * 2 * wedInf.baan
-    End If
-    
-    If (curProgRefIsShortDistance) Then
-      If (tpAf > wedInf.baan) And (tpLapIdx = 1) Then
-        tpAf = wedInf.baan
-      End If
-    End If
-    
-    Dim tpProgIsShortDist As Boolean
-    tpProgIsShortDist = False
-    
-   
-    
-    Dim dTime As Double
-    
-    dTime = swtFromSeconds(tpTimeHds * 0.01)
+    tpTimeType = Nz(rs("typ"))
     
     'Now check if the time needs processing
     Dim blOK As Boolean
     
     blOK = True
     
-    Dim blTimeValid As Boolean
-    blTimeValid = swtIsValid(dTime)
+    'only process automatic times
+    If (tpTimeType <> 0) Then
+      blOK = False
+    End If
     
     
-    If (Not (blTimeValid)) Then
+    
+    
+    If (blOK) Then
+      tpLapIdx = Nz(rs("zw_nr"))
+      
+      'make sure we do not accidentally round; just throw away any digits that we do not want
+      tpTimeHds = CLng(Nz(rs("sngZeit"), 0) * 100000) \ 1000
+      
+      
+      
+      
+      
+      Dim tpAf As Long
+      
+      If cfgInf.blUseTurnPlates Then
+        tpAf = tpLapIdx * wedInf.baan
+      Else
+        tpAf = tpLapIdx * 2 * wedInf.baan
+      End If
+      
+      If (curProgRefIsShortDistance) Then
+        If (tpAf > wedInf.baan) And (tpLapIdx = 1) Then
+          tpAf = wedInf.baan
+        End If
+      End If
+      
+      Dim tpProgIsShortDist As Boolean
+      tpProgIsShortDist = False
+      
+      
+      
+      Dim dTime As Double
+      
+      dTime = swtFromSeconds(tpTimeHds * 0.01)
+      
+      
+      
+      Dim blTimeValid As Boolean
+      blTimeValid = swtIsValid(dTime)
+    End If 'if blOK
+    
+    
+    If (blOK) And (Not (blTimeValid)) Then
       blOK = False
     End If
     
