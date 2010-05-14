@@ -2255,6 +2255,10 @@ Public Function etwAcquireResults(ByVal lWedNr As Long, ByVal blDisplayErrMsg As
 On Error GoTo fout
 etwAcquireResults = False
 
+SysCmd acSysCmdSetStatus, "Bezig met inlezen tijden uit etw..."
+
+
+
 'First clean all the result tables
 DoCmd.SetWarnings False
 
@@ -2304,7 +2308,7 @@ ElseIf (blDisplayErrMsg) Then
   Err.Raise 1, , sErrMsg
 End If
 
-
+SysCmd acSysCmdClearStatus
 
 
 etwAcquireResults = True
@@ -2315,8 +2319,9 @@ fout:
 Dim errInf As ERR_INFO
 appRecordError "etwAcquireResults", errInf
 
-
 DoCmd.SetWarnings True
+
+SysCmd acSysCmdClearStatus
 
 appDisplayError errInf
 Exit Function
@@ -2416,6 +2421,9 @@ On Error GoTo fout
 etwProcessResults = False
 
 
+SysCmd acSysCmdSetStatus, "Bezig met wegschrijven tijden..."
+
+
 Dim wedInf As WED_BASIC_INFO
 If Not etwiGetWedInf(wedInf, lWedNr) Then
   appRaiseSilentError
@@ -2436,9 +2444,13 @@ If Not wedAppendMissingTimes(wedInf.wednr, False, False, "") Then
 End If
 
 Dim dsData As DIR_SERVER_DATA
-If Not dsInit(dsData, False, "") Then
+If Not dsInit(dsData, False, "", 15000) Then
   appRaiseSilentError
 End If
+
+'If Not dsCacheSubtree(dsData, "HUPPROG\WED_AUX_DATA\" & wedInf.wednr & "\ETW\GLB\PRV_IMPORT") Then
+'  appRaiseSilentError
+'End If
 
 If Not etwiTransferResults_processSers(dsData, etwInf, wedInf) Then
   appRaiseSilentError
@@ -2456,6 +2468,8 @@ End If
 dsClean dsData
 
 
+SysCmd acSysCmdClearStatus
+
 etwProcessResults = True
 Exit Function
 
@@ -2465,6 +2479,8 @@ Dim errInf As ERR_INFO
 appRecordError "etwProcessResults", errInf
 
 dsClean dsData
+
+SysCmd acSysCmdClearStatus
 
 appDisplayError errInf
 Exit Function
