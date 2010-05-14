@@ -1,0 +1,2167 @@
+Option Compare Database
+Option Explicit
+
+
+Public Const RBTREE_MT_LARGEST_STRICT_SMALLER = -2
+Public Const RBTREE_MT_LARGEST_SMALLER_EQUAL = -1
+Public Const RBTREE_MT_EQUAL = 0
+Public Const RBTREE_MT_SMALLEST_LARGER_EQUAL = 1
+Public Const RBTREE_MT_SMALLEST_STRICT_LARGER = 2
+
+
+Private Type RBTreeNode
+  lParent As Long
+  lLeft As Long
+  lRight As Long
+  lSubtreeSize As Long
+  sKey As String
+  sVal As String
+  blColor As Boolean
+End Type
+
+Private Type RBTree
+  nodes() As RBTreeNode
+  
+  nFreeIdx As Integer
+  lFreeIdx() As Long
+  
+  lRoot As Long
+  
+  blUseIdxBasedIns As Boolean
+  blAllowDup As Boolean
+  
+  lCapacity As Long
+  
+End Type
+
+Public Type RB_TREE_DATA
+  tree As RBTree
+End Type
+
+
+Private Type LKP_CND_DATA
+  blFound As Boolean
+  lEC As Long
+  lStartIdx As Long
+  iComparison As Integer
+End Type
+
+Private Type LKP_NEXT_DATA
+  blValid As Boolean
+  iChPos As Integer
+  lChStartIdx As Long
+  lChEC As Long
+End Type
+  
+Private Type INS_DATA
+  blInserted As Boolean
+  lNewEC As Long
+  lNewStartIdx As Long
+  blPrvFnd As Boolean
+  sPrvValue As String
+End Type
+
+
+
+
+
+Private Const RED = False
+Private Const BLACK = True
+
+Private Const RB_MAX_LONG_VALUE As Long = &H7FFFFFFF
+
+Private Const PUT_MODE_KEY = 0
+Private Const PUT_MODE_IDX_SET = 1
+Private Const PUT_MODE_IDX_INS = 2
+
+
+Private Sub cleanEntry(ByRef tree As RBTree, ByVal ec As Long)
+
+  tree.nodes(ec).blColor = BLACK
+  tree.nodes(ec).lLeft = -1
+  tree.nodes(ec).lRight = -1
+  tree.nodes(ec).lParent = -1
+  tree.nodes(ec).lSubtreeSize = 0
+  tree.nodes(ec).sKey = ""
+  tree.nodes(ec).sVal = ""
+  
+End Sub
+
+Private Sub initEntry(ByRef tree As RBTree, ByVal ec As Long, ByVal lParent As Long, ByVal sKey As String, ByVal sVal As String)
+  cleanEntry tree, ec
+  tree.nodes(ec).lParent = lParent
+  tree.nodes(ec).sKey = sKey
+  tree.nodes(ec).sVal = sVal
+End Sub
+
+Private Function getNewEntry(ByRef tree As RBTree, ByRef newNode As Long) As Boolean
+On Error GoTo fout
+getNewEntry = False
+
+
+If (tree.nFreeIdx = 0) Then
+  Err.Raise 1, , "Tree full"
+End If
+
+'todo -> figure out
+newNode = tree.lFreeIdx(tree.nFreeIdx - 1)
+tree.nFreeIdx = tree.nFreeIdx - 1
+
+
+getNewEntry = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "getNewEntry", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Sub recycleEntry(ByRef tree As RBTree, ByVal ec As Long)
+  cleanEntry tree, ec
+  tree.lFreeIdx(tree.nFreeIdx) = ec
+  tree.nFreeIdx = tree.nFreeIdx + 1
+End Sub
+
+
+
+
+Private Function subtreeSizeOf(ByRef tree As RBTree, ByVal ec As Long) As Long
+  If (ec = -1) Then
+    subtreeSizeOf = 0
+  Else
+    subtreeSizeOf = tree.nodes(ec).lSubtreeSize
+  End If
+End Function
+
+
+Private Function subtreeSizeOfLeftChild(ByRef tree As RBTree, ByVal ec As Long) As Long
+
+  If (ec = -1) Then
+    subtreeSizeOfLeftChild = 0
+  Else
+    
+    Dim Left As Long
+    Left = tree.nodes(ec).lLeft
+    
+    subtreeSizeOfLeftChild = subtreeSizeOf(tree, Left)
+    
+  End If
+
+End Function
+
+
+
+Private Function subtreeSizeOfRightChild(ByRef tree As RBTree, ByVal ec As Long) As Long
+
+  If (ec = -1) Then
+    subtreeSizeOfRightChild = 0
+  Else
+    
+    Dim Right As Long
+    Right = tree.nodes(ec).lRight
+    
+    subtreeSizeOfRightChild = subtreeSizeOf(tree, Right)
+      
+  End If
+
+End Function
+
+
+
+
+
+ 
+  
+Private Sub updateSubtreeSize(ByRef tree As RBTree, updEC As Long, delta As Long)
+
+  If (delta <> 0) Then
+    If (updEC <> -1) Then
+      tree.nodes(updEC).lSubtreeSize = tree.nodes(updEC).lSubtreeSize + delta
+    End If
+  End If
+
+End Sub
+        
+Private Sub setSubtreeSize(ByRef tree As RBTree, updEC As Long, sz As Long)
+  If (updEC <> -1) Then
+    tree.nodes(updEC).lSubtreeSize = sz
+  End If
+End Sub
+    
+
+Private Sub notifySubtreeCountChanged(ByRef tree As RBTree, ByVal updEC As Long, ByVal delta As Long)
+
+   Do
+      updateSubtreeSize tree, updEC, delta
+      updEC = tree.nodes(updEC).lParent
+   Loop While (updEC <> -1)
+
+End Sub
+
+
+Private Sub correctSubtreeCount(ByRef tree As RBTree, updECp As Long, ecl As Long, ecr As Long)
+  
+  Dim szl As Long, szR As Long, szP As Long
+  szl = subtreeSizeOf(tree, ecl)
+  szR = subtreeSizeOf(tree, ecr)
+  szP = entrySizeOf(tree, updECp)
+  
+  Dim newSz As Long
+  newSz = szl + szR + szP
+  
+  setSubtreeSize tree, updECp, newSz
+  
+End Sub
+  
+Private Function entrySizeOf(ByRef tree As RBTree, ByVal ec As Long) As Long
+  If (ec = -1) Then
+    entrySizeOf = 0
+  Else
+    entrySizeOf = 1
+  End If
+End Function
+
+Private Function colorOf(ByRef tree As RBTree, ByVal ec As Long) As Boolean
+  If (ec = -1) Then
+   colorOf = BLACK
+  Else
+    colorOf = tree.nodes(ec).blColor
+  End If
+
+End Function
+      
+Private Function parentOf(ByRef tree As RBTree, ByVal ec As Long) As Long
+  If (ec = -1) Then
+    parentOf = -1
+  Else
+    parentOf = tree.nodes(ec).lParent
+  End If
+End Function
+
+Private Sub setColor(ByRef tree As RBTree, ByVal ec As Long, ByVal c As Boolean)
+  If (ec <> -1) Then
+    tree.nodes(ec).blColor = c
+  End If
+End Sub
+      
+Private Function leftOf(ByRef tree As RBTree, ByVal ec As Long) As Long
+  If (ec = -1) Then
+    leftOf = -1
+  Else
+    leftOf = tree.nodes(ec).lLeft
+  End If
+End Function
+
+Private Function rightOf(ByRef tree As RBTree, ByVal ec As Long) As Long
+  If (ec = -1) Then
+    rightOf = -1
+  Else
+    rightOf = tree.nodes(ec).lRight
+  End If
+End Function
+
+
+
+
+Private Function calcIndex(ByRef tree As RBTree, ByVal ec As Long, ByRef lIdx As Long) As Boolean
+On Error GoTo fout
+
+calcIndex = False
+  
+If (ec = -1) Then
+  Err.Raise 1, , "Pointer Invalid"
+End If
+
+
+Dim parNode As Long
+parNode = -1
+
+Dim curNode As Long
+curNode = ec
+
+Dim blDone As Boolean
+blDone = False
+
+
+Dim startIdx As Long
+startIdx = 0
+
+startIdx = subtreeSizeOfLeftChild(tree, curNode)
+If (startIdx = -1) Then
+  Err.Raise 1, , "internal error"
+End If
+
+
+Do Until blDone
+
+  parNode = parentOf(tree, curNode)
+  
+  If (parNode = -1) Then
+    blDone = True
+  Else
+    If (rightOf(tree, parNode) = curNode) Then
+      startIdx = startIdx + entrySizeOf(tree, parNode)
+      startIdx = startIdx + subtreeSizeOfLeftChild(tree, parNode)
+    End If
+  End If
+  
+  curNode = parNode
+
+Loop
+
+
+lIdx = startIdx
+  
+calcIndex = True
+Exit Function
+
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "calcIndex", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function findNextChild_idx(ByRef tree As RBTree, ByVal ec As Long, ByVal idxToFind As Long, ByVal blIsInsertion As Boolean, ByRef cndData As LKP_CND_DATA, ByRef nxData As LKP_NEXT_DATA) As Boolean
+On Error GoTo fout
+findNextChild_idx = False
+
+cndData.blFound = False
+nxData.blValid = False
+
+
+Dim lch As Long, rch As Long
+
+lch = leftOf(tree, ec)
+rch = rightOf(tree, ec)
+
+Dim nKeys As Integer
+nKeys = 1
+
+Dim lCnt As Long
+lCnt = RB_MAX_LONG_VALUE
+
+If (ec <> -1) Then
+  lCnt = subtreeSizeOfLeftChild(tree, ec)
+End If
+If (lCnt = -1) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+Dim szCurKey As Long
+szCurKey = entrySizeOf(tree, ec)
+
+
+Dim nextChPos As Integer
+nextChPos = 0
+
+Dim nxChStIdx As Long
+nxChStIdx = 0
+
+
+
+
+If (idxToFind < lCnt) Then
+  'need to do nothing
+ElseIf (idxToFind < lCnt + szCurKey) Then
+  If (Not blIsInsertion) Then
+    cndData.blFound = True
+    cndData.lEC = ec
+    
+    cndData.lStartIdx = lCnt
+  
+    cndData.iComparison = 0
+  End If
+  
+Else
+  nextChPos = 1
+  nxChStIdx = lCnt + szCurKey
+End If
+  
+  
+
+If (Not cndData.blFound) Then
+  nxData.blValid = True
+  
+  nxData.iChPos = nextChPos
+  nxData.lChStartIdx = nxChStIdx
+
+  If (nextChPos = 0) Then
+    nxData.lChEC = lch
+  Else
+    nxData.lChEC = rch
+  End If
+  
+End If
+
+
+findNextChild_idx = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "findNextChild_idx", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+
+Private Function cumExclSizeOf(ByRef tree As RBTree, ByVal ec As Long, ByVal chPos As Integer) As Long
+
+  If (chPos = 1) Then
+    Dim esz As Long, szl As Long
+    esz = entrySizeOf(tree, ec)
+    szl = subtreeSizeOfLeftChild(tree, ec)
+    cumExclSizeOf = esz + szl
+  ElseIf (chPos = 0) Then
+    cumExclSizeOf = 0
+  Else
+    Err.Raise 1, , "internal error"
+  End If
+    
+End Function
+
+Private Function cumInclSizeOf(ByRef tree As RBTree, ByVal ec As Long, ByVal chPos As Integer) As Long
+  If (chPos = 0) Then
+    cumInclSizeOf = subtreeSizeOfLeftChild(tree, ec)
+  ElseIf (chPos = 1) Then
+    cumInclSizeOf = subtreeSizeOf(tree, ec)
+  Else
+    Err.Raise 1, , "internal error"
+  End If
+End Function
+
+
+
+Private Function findNextChild_key(ByRef tree As RBTree, ByVal ec As Long, ByVal glbMatchType As Integer, ByVal sKey As String, ByRef cndData As LKP_CND_DATA, ByRef nxData As LKP_NEXT_DATA) As Boolean
+On Error GoTo fout
+findNextChild_key = False
+
+
+cndData.blFound = False
+nxData.blValid = False
+
+Dim chl As Long, Chr As Long
+chl = leftOf(tree, ec)
+Chr = rightOf(tree, ec)
+
+Dim cmp As Integer
+cmp = 0
+
+If (ec = -1) Then
+  'special case for an empty tree. Use a virtual top-node with infinite key.
+  cmp = -1
+Else
+  cmp = StrComp(sKey, tree.nodes(ec).sKey, vbTextCompare)
+End If
+
+Dim mt As Integer
+mt = glbMatchType
+
+If (glbMatchType = RBTREE_MT_EQUAL) And (tree.blAllowDup) Then
+  mt = RBTREE_MT_LARGEST_SMALLER_EQUAL
+End If
+
+
+Dim candIsFinal As Boolean
+candIsFinal = False
+
+
+Dim candFound As Boolean
+If (ec <> -1) Then
+  candFound = True
+End If
+
+
+
+Dim nextChPos As Integer
+nextChPos = -1
+
+Select Case mt
+  
+  Case RBTREE_MT_EQUAL
+    If (cmp > 0) Then
+      nextChPos = 1
+      candFound = False
+    ElseIf (cmp < 0) Then
+      candFound = False
+      nextChPos = 0
+    Else
+      If (candFound) Then
+        candIsFinal = True
+      End If
+    End If
+  
+  
+  Case RBTREE_MT_LARGEST_STRICT_SMALLER
+    If (cmp > 0) Then
+      'sKey is too large; move to right child
+      nextChPos = 1
+    Else
+      nextChPos = 0
+    End If
+    If (cmp <= 0) Then
+      candFound = False
+    End If
+  Case RBTREE_MT_LARGEST_SMALLER_EQUAL
+    If (cmp >= 0) Then
+      nextChPos = 1
+    Else
+      nextChPos = 0
+    End If
+    If (cmp < 0) Then
+      candFound = False
+    End If
+  Case RBTREE_MT_SMALLEST_LARGER_EQUAL
+    If (cmp <= 0) Then
+      'sKey is to small
+      nextChPos = 0
+    Else
+      nextChPos = 1
+    End If
+    If (cmp > 0) Then
+      candFound = False
+    End If
+  Case RBTREE_MT_SMALLEST_STRICT_LARGER
+    If (cmp < 0) Then
+      nextChPos = 0
+    Else
+      nextChPos = 1
+    End If
+    If (cmp >= 0) Then
+      candFound = False
+    End If
+  Case Else
+    Err.Raise 1, , "internal error"
+    
+End Select
+
+
+
+
+If (candFound) Then
+
+  cndData.blFound = True
+  cndData.lEC = ec
+
+  cndData.iComparison = IIf(cmp > 0, 1, IIf(cmp = 0, 0, -1))
+  
+  cndData.lStartIdx = subtreeSizeOfLeftChild(tree, ec)
+  
+End If
+
+If Not (candFound And candIsFinal) Then
+  nxData.blValid = True
+  
+  nxData.iChPos = nextChPos
+  nxData.lChStartIdx = cumExclSizeOf(tree, ec, nextChPos)
+  nxData.lChEC = IIf(nextChPos = 0, chl, Chr)
+End If
+  
+  
+findNextChild_key = True
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "findNextChild_key", errInf
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+'to be obsoleted
+'Private Function isIdxInRange(ByRef tree As RBTree, ByVal lIdx As Long, ByVal blAllowNew As Boolean) As Boolean
+'
+'  isIdxInRange = True
+'
+'  If (lIdx < 0) Then
+'    isIdxInRange = False
+'  Else
+'    Dim rootNode As Long
+'    rootNode = tree.lRoot
+'    Dim totSize As Long
+'    totSize = subtreeSizeOf(tree, rootNode)
+'    If (lIdx >= totSize + IIf(blAllowNew, 1, 0)) Then
+'      isIdxInRange = False
+'    End If
+'  End If
+
+'End Function
+
+
+
+
+
+
+Private Function lookupTopDown(ByRef tree As RBTree, ByVal byKey As Boolean, ByVal sKey As String, ByVal lIdx As Long, ByVal matchType As Integer, ByRef cndData As LKP_CND_DATA) As Boolean
+On Error GoTo fout
+
+lookupTopDown = False
+
+cndData.blFound = False
+
+
+Dim byIdx As Boolean
+byIdx = Not byKey
+    
+If (byKey) And (tree.blUseIdxBasedIns) Then
+  Err.Raise 1, , "Key operation unsupported"
+End If
+
+If (byKey) And (matchType = RBTREE_MT_EQUAL) And (tree.blAllowDup) Then
+  Err.Raise 1, , "Key need not be unique"
+End If
+
+
+If (byIdx) Then
+  Dim lTreeSize As Long
+  lTreeSize = subtreeSizeOf(tree, tree.lRoot)
+  If (lIdx >= lTreeSize) Then
+    Err.Raise 1, , "Index out of range"
+  End If
+End If
+
+      
+
+Dim curNode As Long
+curNode = tree.lRoot
+
+Dim curCumIdx As Long
+Dim idxToFind As Long
+
+curCumIdx = 0
+idxToFind = lIdx
+
+
+While curNode <> -1
+  
+  Dim tpCndData As LKP_CND_DATA, tpNxData As LKP_NEXT_DATA
+  
+
+  If (byKey) Then
+    If Not findNextChild_key(tree, curNode, matchType, sKey, tpCndData, tpNxData) Then
+      appRaiseSilentError
+    End If
+  Else
+    If Not findNextChild_idx(tree, curNode, idxToFind, False, tpCndData, tpNxData) Then
+      appRaiseSilentError
+    End If
+  End If
+  
+
+  If tpCndData.blFound Then
+    
+    cndData = tpCndData
+    cndData.lStartIdx = curCumIdx + cndData.lStartIdx
+    
+  End If
+  
+  curNode = -1
+  If (tpNxData.blValid) Then
+    curCumIdx = curCumIdx + tpNxData.lChStartIdx
+    idxToFind = idxToFind - tpNxData.lChStartIdx
+    curNode = tpNxData.lChEC
+  End If
+    
+Wend
+
+
+lookupTopDown = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "lookupTopDown", errInf
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+
+
+
+Private Function insertInOpenSlot(ByRef tree As RBTree, ByVal ec As Long, ByVal insPos As Integer, ByVal sKey As String, ByVal sVal As String, ByRef lNewEC As Long, ByRef lRelStartIdx As Long) As Boolean
+On Error GoTo fout
+insertInOpenSlot = False
+
+   
+
+
+updateSubtreeSize tree, ec, 1
+
+Dim newNode As Long
+
+If Not getNewEntry(tree, newNode) Then
+  appRaiseSilentError
+End If
+
+initEntry tree, newNode, ec, sKey, sVal
+
+setSubtreeSize tree, newNode, 1
+
+If (ec = -1) Then
+  tree.lRoot = newNode
+ElseIf (insPos = 0) Then
+  tree.nodes(ec).lLeft = newNode
+ElseIf (insPos = 1) Then
+  tree.nodes(ec).lRight = newNode
+Else
+  Err.Raise 1, , "internal error"
+End If
+
+lNewEC = newNode
+lRelStartIdx = cumExclSizeOf(tree, ec, insPos)
+
+  
+
+
+
+insertInOpenSlot = True
+
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "insertInOpenSlot", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+Private Function put_perform(ByRef tree As RBTree, ByVal putMode As Integer, ByVal lIdx As Long, ByVal sKey As String, ByVal sVal As String, _
+  ByVal failIfKeyExists As Boolean, ByVal failIfKeyAbsent As Boolean, ByRef insData As INS_DATA) As Boolean
+
+On Error GoTo fout
+put_perform = False
+
+insData.blInserted = False
+insData.blPrvFnd = False
+insData.sPrvValue = ""
+
+
+
+Dim byKey As Boolean, byIdx As Boolean, idxOverwrite As Boolean, idxInsert As Boolean
+byKey = False
+byIdx = False
+idxOverwrite = False
+idxInsert = False
+
+Dim lTreeSize As Long
+lTreeSize = subtreeSizeOf(tree, tree.lRoot)
+
+
+Select Case putMode
+  Case PUT_MODE_KEY
+    byKey = True
+  Case PUT_MODE_IDX_SET
+    byIdx = True
+    If (lIdx = lTreeSize) Then
+      idxInsert = True
+    Else
+      idxOverwrite = True
+    End If
+  Case PUT_MODE_IDX_INS
+    byIdx = True
+    idxInsert = True
+  Case Else
+    Err.Raise 1, , "internal error"
+End Select
+  
+If (byKey) Then
+  If tree.blUseIdxBasedIns Then
+    Err.Raise 1, , "Key operation unsupported"
+  End If
+End If
+
+
+
+If (byIdx) Then
+
+  If (idxOverwrite) Then
+    If (lIdx >= lTreeSize) Then
+      Err.Raise 1, , "Index out of range"
+    End If
+  End If
+  
+  If (idxInsert) Then
+    If (Not tree.blUseIdxBasedIns) Then
+      Err.Raise 1, , "Key operation unsupported"
+    End If
+    If (lIdx > lTreeSize) Then
+      Err.Raise 1, , "Index out of range"
+    End If
+  End If
+  
+End If
+  
+  
+  
+  
+Dim cndData As LKP_CND_DATA
+Dim nxData As LKP_NEXT_DATA
+  
+  
+
+Dim szDelta As Long
+szDelta = 0
+
+Dim blHandled As Boolean
+blHandled = False
+
+If (idxInsert) Then
+  szDelta = 1
+ElseIf (idxOverwrite) Then
+  szDelta = 0
+Else
+  If Not lookupTopDown(tree, byKey, sKey, lIdx, RBTREE_MT_LARGEST_SMALLER_EQUAL, cndData) Then
+    appRaiseSilentError
+  End If
+  Dim blMatchFound As Boolean
+  blMatchFound = cndData.blFound And (cndData.iComparison = 0)
+  
+  If Not (failIfKeyExists Or failIfKeyAbsent) Then
+    If (blMatchFound) And (Not tree.blAllowDup) Then
+      szDelta = 0
+    Else
+      szDelta = 1
+    End If
+  ElseIf (failIfKeyExists) Then
+    If (blMatchFound) Then
+      insData.blPrvFnd = True
+      insData.sPrvValue = tree.nodes(cndData.lEC).sVal
+      blHandled = True
+    Else
+      szDelta = 1
+    End If
+  ElseIf (failIfKeyAbsent) Then
+    If (blMatchFound) Then
+      If (tree.blAllowDup) Then
+        szDelta = 1
+      Else
+        szDelta = 0
+      End If
+    Else
+      'fail
+       blHandled = True
+    End If
+  End If
+End If
+  
+  
+
+If Not blHandled Then
+
+  Dim curNode As Long
+  
+  curNode = tree.lRoot
+  
+  Dim newEC As Long
+  newEC = -1
+  
+  Dim curCumIdx As Long
+  curCumIdx = 0
+  
+  Dim blDone As Boolean
+  blDone = False
+  
+  Dim insPos As Integer, chPos As Integer
+  insPos = -1
+  chPos = -1
+  
+  Dim chRelIdx As Long
+  chRelIdx = -1
+  
+  Dim idxToFind As Long
+  idxToFind = lIdx
+  
+  Do Until blDone
+  
+  
+    If (byKey) Then
+      If Not findNextChild_key(tree, curNode, RBTREE_MT_EQUAL, sKey, cndData, nxData) Then
+        appRaiseSilentError
+      End If
+    Else
+      If Not findNextChild_idx(tree, curNode, idxToFind, idxInsert, cndData, nxData) Then
+        appRaiseSilentError
+      End If
+    End If
+    
+    If (Not nxData.blValid) Then
+      'previous was found and will be replaced
+      If Not (cndData.blFound) Then
+        Err.Raise 1, , "internal error"
+      End If
+      
+      insData.blPrvFnd = True
+      insData.sPrvValue = tree.nodes(cndData.lEC).sVal
+           
+                
+      'Only need to update value
+      insData.blInserted = True
+      insData.lNewEC = cndData.lEC
+      tree.nodes(cndData.lEC).sVal = sVal
+      
+      'mark that we are done
+      blDone = True
+      
+    Else
+      'move to the next position.
+      
+      If (nxData.lChEC = -1) Then
+        
+        Dim lNewRelIdx As Long, lNewEC As Long
+        If Not insertInOpenSlot(tree, curNode, nxData.iChPos, sKey, sVal, lNewEC, lNewRelIdx) Then
+          appRaiseSilentError
+        End If
+        insData.blInserted = True
+        insData.lNewEC = lNewEC
+        insData.lNewStartIdx = curCumIdx + lNewRelIdx
+        
+        If Not fixAfterInsertion(tree, lNewEC) Then
+          appRaiseSilentError
+        End If
+        
+        blDone = True
+      Else
+        'descend to child
+        updateSubtreeSize tree, curNode, szDelta
+        
+        curNode = nxData.lChEC
+        idxToFind = idxToFind - nxData.lChStartIdx
+        curCumIdx = curCumIdx + nxData.lChStartIdx
+        
+      End If
+      
+      
+    End If 'if not nxData.blValid
+    
+  Loop
+    
+End If 'if not blHandled
+
+
+put_perform = True
+
+Exit Function
+
+fout:
+
+Dim errInf As ERR_INFO
+appRecordError "put_perform", errInf
+
+appDisplayError errInf
+Exit Function
+
+
+End Function
+
+Private Function rotateLeft(ByRef tree As RBTree, ecp As Long) As Boolean
+On Error GoTo fout
+rotateLeft = False
+
+
+Dim ecr As Long, ecrl As Long
+ecr = rightOf(tree, ecp)
+ecrl = leftOf(tree, ecr)
+
+Dim ecpp As Long
+ecpp = parentOf(tree, ecp)
+
+tree.nodes(ecp).lRight = ecrl
+If (ecrl <> -1) Then
+  tree.nodes(ecrl).lParent = ecp
+End If
+
+tree.nodes(ecr).lParent = ecpp
+
+If (ecpp = -1) Then
+  tree.lRoot = ecr
+Else
+  Dim ecppl As Long
+  ecppl = leftOf(tree, ecpp)
+  If (ecppl = ecp) Then
+    tree.nodes(ecpp).lLeft = ecr
+  Else
+    tree.nodes(ecpp).lRight = ecr
+  End If
+End If
+
+tree.nodes(ecr).lLeft = ecp
+tree.nodes(ecp).lParent = ecr
+
+Dim oszp As Long, oszr As Long, szrl As Long
+oszp = subtreeSizeOf(tree, ecp)
+oszr = subtreeSizeOf(tree, ecr)
+szrl = subtreeSizeOf(tree, ecrl)
+
+Dim nszr As Long, nszp As Long
+
+nszr = oszp
+nszp = oszp - oszr + szrl
+
+setSubtreeSize tree, ecp, nszp
+setSubtreeSize tree, ecr, nszr
+
+rotateLeft = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rotateLeft", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+Private Function rotateRight(ByRef tree As RBTree, ByVal ecp As Long) As Boolean
+On Error GoTo fout
+rotateRight = False
+
+Dim ecl As Long, eclr As Long
+ecl = leftOf(tree, ecp)
+eclr = rightOf(tree, ecl)
+
+Dim ecpp As Long
+ecpp = parentOf(tree, ecp)
+
+tree.nodes(ecp).lLeft = eclr
+If (eclr <> -1) Then
+  tree.nodes(eclr).lParent = ecp
+End If
+
+
+tree.nodes(ecl).lParent = ecpp
+
+If (ecpp = -1) Then
+  tree.lRoot = ecl
+Else
+  Dim ecppr As Long
+  ecppr = rightOf(tree, ecpp)
+  If (ecppr = ecp) Then
+    tree.nodes(ecpp).lRight = ecl
+  Else
+    tree.nodes(ecpp).lLeft = ecl
+  End If
+End If
+
+tree.nodes(ecl).lRight = ecp
+tree.nodes(ecp).lParent = ecl
+
+Dim oszp As Long, oszl As Long, szlr As Long
+oszp = subtreeSizeOf(tree, ecp)
+oszl = subtreeSizeOf(tree, ecl)
+szlr = subtreeSizeOf(tree, eclr)
+
+Dim nszl As Long, nszp As Long
+
+nszl = oszp
+nszp = oszp - oszl + szlr
+
+setSubtreeSize tree, ecp, nszp
+setSubtreeSize tree, ecl, nszl
+
+
+rotateRight = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rotateRight", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+'note: sizes have already been set correctly.
+Private Function fixAfterInsertion(ByRef tree As RBTree, ecx As Long) As Boolean
+On Error GoTo fout
+fixAfterInsertion = False
+
+
+setColor tree, ecx, RED
+
+Dim ecp As Long, ecpp As Long
+
+ecp = parentOf(tree, ecx)
+ecpp = parentOf(tree, ecp)
+
+While ((ecx <> -1) And (ecx <> tree.lRoot) And colorOf(tree, ecp) = RED)
+
+  If (ecp = leftOf(tree, ecpp)) Then
+    Dim ecy As Long
+    ecy = rightOf(tree, ecpp)
+    
+    If (colorOf(tree, ecy) = RED) Then
+      
+      setColor tree, ecp, BLACK
+      setColor tree, ecy, BLACK
+      setColor tree, ecpp, RED
+      ecx = ecpp
+      ecp = parentOf(tree, ecx)
+      ecpp = parentOf(tree, ecp)
+      
+    Else
+    
+      If (ecx = rightOf(tree, ecp)) Then
+        ecx = ecp
+        If Not rotateLeft(tree, ecx) Then
+          appRaiseSilentError
+        End If
+        
+        ecp = parentOf(tree, ecx)
+        ecpp = parentOf(tree, ecp)
+      End If
+      
+      setColor tree, ecp, BLACK
+      setColor tree, ecpp, RED
+      
+      If (ecpp <> -1) Then
+        If Not rotateRight(tree, ecpp) Then
+          appRaiseSilentError
+        End If
+        
+        ecp = parentOf(tree, ecx)
+        ecpp = parentOf(tree, ecp)
+      End If
+    
+    End If 'if colorOf ecy = Red
+    
+  Else
+  
+    ecy = leftOf(tree, ecpp)
+    
+    If (colorOf(tree, ecy) = RED) Then
+      setColor tree, ecp, BLACK
+      setColor tree, ecy, BLACK
+      setColor tree, ecpp, RED
+      ecx = ecpp
+      ecp = parentOf(tree, ecx)
+      ecpp = parentOf(tree, ecp)
+    Else
+    
+      If (ecx = leftOf(tree, ecp)) Then
+        ecx = ecp
+        If Not rotateRight(tree, ecx) Then
+          appRaiseSilentError
+        End If
+        ecp = parentOf(tree, ecx)
+        ecpp = parentOf(tree, ecp)
+      End If
+      
+      setColor tree, ecp, BLACK
+      setColor tree, ecpp, RED
+      
+      If (ecpp <> -1) Then
+        If Not rotateLeft(tree, ecpp) Then
+          appRaiseSilentError
+        End If
+        ecp = parentOf(tree, ecx)
+        ecpp = parentOf(tree, ecp)
+      End If
+    
+    End If 'if colorOf(ecy) = RED
+    
+  End If 'if ecp = leftOf(ecpp)
+  
+Wend
+  
+setColor tree, tree.lRoot, BLACK
+
+fixAfterInsertion = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "fixAfterInsertion", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function ensureNonFull(ByRef tree As RBTree, ByVal ecp As Long) As Boolean
+On Error GoTo fout
+ensureNonFull = False
+
+
+Dim ecl As Long, ecr As Long
+ecl = leftOf(tree, ecp)
+ecr = rightOf(tree, ecp)
+
+If (ecl = -1) Or (ecr = -1) Then
+  'we are done
+  ensureNonFull = True
+  appRaiseSilentError
+End If
+
+
+Dim scSz As Long
+scSz = 1
+
+
+Dim prvEC As Long, tpEC As Long
+
+prvEC = -1
+tpEC = ecr
+
+While (tpEC <> -1)
+  prvEC = tpEC
+  tpEC = leftOf(tree, tpEC)
+Wend
+
+'we have now found the successor
+Dim ecs As Long
+ecs = prvEC
+
+Dim tpLeft As Long, tpRight As Long, tpParent As Long, tpSubtreeSize As Long, tpColor As Boolean
+tpLeft = leftOf(tree, ecs)
+tpRight = rightOf(tree, ecs)
+tpParent = parentOf(tree, ecs)
+tpSubtreeSize = subtreeSizeOf(tree, ecs)
+tpColor = colorOf(tree, ecs)
+
+setSubtreeSize tree, ecs, subtreeSizeOf(tree, ecp)
+setColor tree, ecs, colorOf(tree, ecp)
+tree.nodes(ecs).lParent = parentOf(tree, ecp)
+tree.nodes(ecs).lLeft = leftOf(tree, ecp)
+
+If (rightOf(tree, ecp) = ecs) Then
+  tree.nodes(ecs).lRight = ecp
+Else
+  tree.nodes(ecs).lRight = rightOf(tree, ecp)
+End If
+
+Dim ecpp As Long
+ecpp = parentOf(tree, ecp)
+
+If (ecpp <> -1) Then
+  If (ecp = leftOf(tree, ecpp)) Then
+    tree.nodes(ecpp).lLeft = ecs
+  Else
+    tree.nodes(ecpp).lRight = ecs
+  End If
+End If
+
+Dim ecsl As Long
+ecsl = leftOf(tree, ecs)
+
+If (ecsl <> -1) Then
+  tree.nodes(ecsl).lParent = ecs
+End If
+
+Dim ecsr As Long
+ecsr = rightOf(tree, ecs)
+
+If (ecsr <> -1) Then
+  tree.nodes(ecsr).lParent = ecs
+End If
+
+If tree.lRoot = ecp Then
+  tree.lRoot = ecs
+End If
+
+   
+If (tpParent = ecp) Then
+  tree.nodes(ecp).lParent = ecs
+Else
+  If (tpParent <> -1) Then
+    If (leftOf(tree, tpParent) = ecs) Then
+      tree.nodes(tpParent).lLeft = ecp
+    Else
+      'this situation is not possible due to nature of
+      'successor and fact that originally we DID NOT have p.right = s.
+      Err.Raise 1, , "Internal error"
+    End If
+  End If
+  tree.nodes(ecp).lParent = tpParent
+End If
+
+If (tpRight <> -1) Then
+  tree.nodes(tpRight).lParent = ecp
+End If
+
+tree.nodes(ecp).lLeft = tpLeft
+tree.nodes(ecp).lRight = tpRight
+
+setSubtreeSize tree, ecp, tpSubtreeSize
+setColor tree, ecp, tpColor
+
+If (leftOf(tree, ecp) <> -1) Then
+  Err.Raise 1, , "Internal error"
+End If
+
+
+
+ensureNonFull = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "ensureNonFull", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+'Delete a node, restoring subtree structure & updating size information
+Private Function deleteNode(ByRef tree As RBTree, ByVal ecp As Long) As Boolean
+deleteNode = False
+
+
+tree.nodes(ecp).sKey = ""
+tree.nodes(ecp).sVal = ""
+
+
+If Not ensureNonFull(tree, ecp) Then
+  appRaiseSilentError
+End If
+
+
+Dim ecpl As Long, ecpr As Long, replacement As Long
+
+ecpl = leftOf(tree, ecp)
+ecpr = rightOf(tree, ecp)
+
+replacement = IIf(ecpl <> -1, ecpl, ecpr)
+
+If (replacement <> -1) Then
+  Dim ecpp As Long
+  ecpp = parentOf(tree, ecp)
+  
+  tree.nodes(replacement).lParent = ecpp
+  
+  If (ecpp = -1) Then
+    tree.lRoot = replacement
+  ElseIf (ecp = leftOf(tree, ecpp)) Then
+    tree.nodes(ecpp).lLeft = replacement
+  Else
+    tree.nodes(ecpp).lRight = replacement
+  End If
+  
+  
+  'One node was deleted. Lowest affected
+  'node is p.parent.
+  If (ecpp <> -1) Then
+    notifySubtreeCountChanged tree, ecpp, -1
+  End If
+  
+  
+  ' Null out links so they are OK to use by fixAfterDeletion.
+  tree.nodes(ecp).lLeft = -1
+  tree.nodes(ecp).lRight = -1
+  tree.nodes(ecp).lParent = -1
+  
+  'fix replacement
+  If (colorOf(tree, ecp) = BLACK) Then
+    If Not fixAfterDeletion(tree, replacement) Then
+      appRaiseSilentError
+    End If
+  End If
+  
+ElseIf parentOf(tree, ecp) = -1 Then
+  tree.lRoot = -1
+Else
+  'No children. Use self as phantom replacement and unlink.
+  If (colorOf(tree, ecp) = BLACK) Then
+    If Not fixAfterDeletion(tree, ecp) Then
+      appRaiseSilentError
+    End If
+  End If
+  
+  'One node was deleted. Lowest affected
+  'node is p.parent.
+  
+  ecpp = parentOf(tree, ecp)
+  If (ecpp <> -1) Then
+    notifySubtreeCountChanged tree, ecpp, -1
+      
+
+    If (ecp = leftOf(tree, ecpp)) Then
+      tree.nodes(ecpp).lLeft = -1
+    ElseIf (ecp = rightOf(tree, ecpp)) Then
+      tree.nodes(ecpp).lRight = -1
+    End If
+    tree.nodes(ecp).lParent = -1
+  End If
+  
+End If
+  
+ 
+
+recycleEntry tree, ecp
+
+
+deleteNode = True
+
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "deleteNode", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+Private Function fixAfterDeletion(ByRef tree As RBTree, ByVal ecx As Long) As Boolean
+On Error GoTo fout
+fixAfterDeletion = False
+
+Dim root As Long, ecp As Long
+
+root = tree.lRoot
+ecp = parentOf(tree, ecx)
+
+
+While (ecx <> root) And colorOf(tree, ecx) = BLACK
+
+  If ecx = leftOf(tree, ecp) Then
+    Dim sib As Long
+    sib = rightOf(tree, ecp)
+    
+    If (colorOf(tree, sib) = RED) Then
+      setColor tree, sib, BLACK
+      setColor tree, ecp, RED
+      
+      If Not rotateLeft(tree, ecp) Then
+        appRaiseSilentError
+      End If
+      
+      ecp = parentOf(tree, ecx)
+      sib = rightOf(tree, ecp)
+    End If
+    
+    Dim ecsl As Long, ecsr As Long
+    ecsl = leftOf(tree, sib)
+    ecsr = rightOf(tree, sib)
+    
+    If colorOf(tree, ecsl) = BLACK And colorOf(tree, ecsr) = BLACK Then
+      setColor tree, sib, RED
+      ecx = ecp
+      ecp = parentOf(tree, ecx)
+    Else
+      If colorOf(tree, ecsr) = BLACK Then
+        setColor tree, ecsl, BLACK
+        setColor tree, sib, RED
+        If Not rotateRight(tree, sib) Then
+          appRaiseSilentError
+        End If
+        ecp = parentOf(tree, ecx)
+        sib = rightOf(tree, ecp)
+      End If
+     
+      setColor tree, sib, colorOf(tree, ecp)
+      setColor tree, ecp, BLACK
+     
+      ecsr = rightOf(tree, sib)
+     
+      setColor tree, ecsr, BLACK
+     
+      If Not rotateLeft(tree, ecp) Then
+        appRaiseSilentError
+      End If
+      
+      
+      ecx = tree.lRoot
+      
+    End If
+    
+    
+    
+     
+  Else
+    'symmetric
+    sib = leftOf(tree, ecp)
+    
+    If (colorOf(tree, sib) = RED) Then
+      setColor tree, sib, BLACK
+      setColor tree, ecp, RED
+      If Not rotateRight(tree, ecp) Then
+        appRaiseSilentError
+      End If
+      
+      ecp = parentOf(tree, ecx)
+      sib = leftOf(tree, ecp)
+    End If
+      
+    ecsl = leftOf(tree, sib)
+    ecsr = rightOf(tree, sib)
+    
+    If colorOf(tree, ecsr) = BLACK And colorOf(tree, ecsl) = BLACK Then
+      setColor tree, sib, RED
+      ecx = ecp
+      ecp = parentOf(tree, ecx)
+      
+    Else
+      If (colorOf(tree, ecsl) = BLACK) Then
+        setColor tree, ecsr, BLACK
+        setColor tree, sib, RED
+      
+        If Not rotateLeft(tree, sib) Then
+          appRaiseSilentError
+        End If
+        
+        ecp = parentOf(tree, ecx)
+        sib = leftOf(tree, ecp)
+      End If
+        
+      setColor tree, sib, colorOf(tree, ecp)
+      setColor tree, ecp, BLACK
+      
+      ecsl = leftOf(tree, sib)
+      
+      setColor tree, ecsl, BLACK
+      If Not rotateRight(tree, ecp) Then
+        appRaiseSilentError
+      End If
+      
+      ecx = tree.lRoot
+    End If
+    
+  End If 'end symmetric case
+  
+  root = tree.lRoot
+  
+Wend
+
+setColor tree, ecx, BLACK
+          
+
+fixAfterDeletion = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "fixAfterDeletion", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+Public Function rbtInit(ByRef rbtData As RB_TREE_DATA, ByVal nCapacity As Integer, ByVal blIsIdxBased As Boolean, ByVal blAllowDuplicateKeys As Boolean) As Boolean
+On Error GoTo fout
+rbtInit = False
+
+rbtData.tree.lCapacity = nCapacity
+
+rbtData.tree.blAllowDup = blAllowDuplicateKeys
+rbtData.tree.blUseIdxBasedIns = blIsIdxBased
+
+rbtData.tree.lRoot = -1
+
+ReDim rbtData.tree.nodes(nCapacity)
+ReDim rbtData.tree.lFreeIdx(nCapacity)
+
+rbtData.tree.nFreeIdx = nCapacity
+
+Dim i As Integer
+For i = 0 To nCapacity - 1
+  rbtData.tree.lFreeIdx(i) = i
+Next i
+
+rbtInit = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtInit", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+Public Function rbtClearAll(ByRef rbtData As RB_TREE_DATA) As Boolean
+On Error GoTo fout
+rbtClearAll = False
+
+rbtData.tree.lRoot = -1
+
+
+rbtData.tree.nFreeIdx = rbtData.tree.lCapacity
+
+Dim i As Integer
+For i = 0 To rbtData.tree.lCapacity - 1
+  cleanEntry rbtData.tree, i
+  rbtData.tree.lFreeIdx(i) = i
+Next i
+
+rbtClearAll = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtClearAll", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+Public Function rbtClean(ByRef rbtData As RB_TREE_DATA) As Boolean
+On Error GoTo fout
+rbtClean = False
+
+ReDim rbtData.tree.nodes(0)
+
+rbtData.tree.nFreeIdx = 0
+rbtData.tree.lRoot = -1
+
+
+rbtClean = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtClean", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+Public Function rbtSize(ByRef rbtData As RB_TREE_DATA) As Long
+rbtSize = subtreeSizeOf(rbtData.tree, rbtData.tree.lRoot)
+End Function
+
+Public Function rbtLookupPointer(ByRef rbtData As RB_TREE_DATA, ByVal ec As Long, ByRef sKey As String, ByRef sVal As String, ByRef lIdx As Long) As Boolean
+On Error GoTo fout
+rbtLookupPointer = False
+                                    
+                                    
+If (ec <= 0) Then
+  Err.Raise 1, , "Invalid pointer"
+End If
+
+sKey = rbtData.tree.nodes(ec).sKey
+sVal = rbtData.tree.nodes(ec).sVal
+
+If Not calcIndex(rbtData.tree, ec, lIdx) Then
+  appRaiseSilentError
+End If
+      
+rbtLookupPointer = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtLookupPointer", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Public Function rbtLookupKey(ByRef rbtData As RB_TREE_DATA, ByVal sKey As String, ByVal iMatchType As Integer, ByRef ec As Long, ByRef sVal As String, ByRef lIdx As Long) As Boolean
+On Error GoTo fout
+rbtLookupKey = False
+                                    
+                                    
+Dim cndData As LKP_CND_DATA
+If Not lookupTopDown(rbtData.tree, True, sKey, -1, iMatchType, cndData) Then
+  appRaiseSilentError
+End If
+
+ec = -1
+sVal = ""
+lIdx = -1
+
+If (cndData.blFound) Then
+  ec = cndData.lEC
+  sVal = rbtData.tree.nodes(cndData.lEC).sVal
+  lIdx = cndData.lStartIdx
+End If
+
+rbtLookupKey = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtLookupKey", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function rbtLookupIdx(ByRef rbtData As RB_TREE_DATA, ByVal lIdx As Long, ByRef ec As Long, ByRef sKey As String, ByRef sVal As String) As Boolean
+On Error GoTo fout
+rbtLookupIdx = False
+                                    
+                                    
+Dim cndData As LKP_CND_DATA
+If Not lookupTopDown(rbtData.tree, False, "", lIdx, RBTREE_MT_EQUAL, cndData) Then
+  appRaiseSilentError
+End If
+
+ec = -1
+sKey = ""
+sVal = ""
+
+If (cndData.blFound) Then
+  ec = cndData.lEC
+  sKey = rbtData.tree.nodes(ec).sKey
+  sVal = rbtData.tree.nodes(ec).sVal
+End If
+
+rbtLookupIdx = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtLookupIdx", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Public Function rbtInsertByIdx(ByRef rbtData As RB_TREE_DATA, ByVal lIdx As Long, ByVal sVal As String, ByRef lNewEC As Long) As Boolean
+On Error GoTo fout
+rbtInsertByIdx = False
+  
+Dim insData As INS_DATA
+If Not put_perform(rbtData.tree, PUT_MODE_IDX_INS, lIdx, "", sVal, False, False, insData) Then
+  appRaiseSilentError
+End If
+lNewEC = insData.lNewEC
+
+rbtInsertByIdx = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtInsertByIdx", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+  
+  
+Public Function rbtSetByIdx(ByRef rbtData As RB_TREE_DATA, ByVal lIdx As Long, ByVal sVal As String, ByRef lNewEC As Long, ByRef blPrvFound As Boolean, ByRef sPrvVal As String) As Boolean
+On Error GoTo fout
+rbtSetByIdx = False
+
+
+  
+Dim insData As INS_DATA
+If Not put_perform(rbtData.tree, PUT_MODE_IDX_SET, lIdx, "", sVal, False, False, insData) Then
+  appRaiseSilentError
+End If
+
+lNewEC = insData.lNewEC
+blPrvFound = insData.blPrvFnd
+sPrvVal = insData.sPrvValue
+
+rbtSetByIdx = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtSetByIdx", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+
+Public Function rbtSetByKey(ByRef rbtData As RB_TREE_DATA, ByVal sKey As String, ByVal sVal As String, _
+  ByVal blFailIfKeyExists As Boolean, ByVal blFailIfKeyAbsent As Boolean, _
+  ByRef blInserted As Boolean, ByRef lEC As Long, ByRef lIdx As Long, ByRef blPrvFound As Boolean, ByRef sPrvVal As String) As Boolean
+On Error GoTo fout
+rbtSetByKey = False
+  
+Dim insData As INS_DATA
+If Not put_perform(rbtData.tree, PUT_MODE_KEY, -1, sKey, sVal, blFailIfKeyExists, blFailIfKeyAbsent, insData) Then
+  appRaiseSilentError
+End If
+
+blInserted = insData.blInserted
+lEC = insData.lNewEC
+lIdx = insData.lNewStartIdx
+blPrvFound = insData.blPrvFnd
+sPrvVal = insData.sPrvValue
+
+
+
+rbtSetByKey = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtSetByKey", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+Public Function rbtSetByPointer(ByRef rbtData As RB_TREE_DATA, ByVal ec As Long, ByVal sVal As String) As Boolean
+On Error GoTo fout
+rbtSetByPointer = False
+  
+If (ec < 0) Then
+  Err.Raise 1, , "Invalid pointer"
+End If
+
+rbtData.tree.nodes(ec).sVal = sVal
+
+rbtSetByPointer = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtSetByPointer", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+Public Function rbtDeleteByIdx(ByRef rbtData As RB_TREE_DATA, ByVal lIdx As Long, ByRef sKey As String, ByRef sVal As String) As Boolean
+On Error GoTo fout
+rbtDeleteByIdx = False
+
+
+Dim cndData As LKP_CND_DATA
+If Not lookupTopDown(rbtData.tree, False, "", lIdx, RBTREE_MT_EQUAL, cndData) Then
+  appRaiseSilentError
+End If
+
+If cndData.blFound Then
+  sKey = rbtData.tree.nodes(cndData.lEC).sKey
+  sVal = rbtData.tree.nodes(cndData.lEC).sVal
+  If Not deleteNode(rbtData.tree, cndData.lEC) Then
+    appRaiseSilentError
+  End If
+End If
+rbtDeleteByIdx = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtDeleteByIdx", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+Public Function rbtDeleteByKey(ByRef rbtData As RB_TREE_DATA, ByVal sKey As String, ByRef lIdx As Long, ByRef sVal As String) As Boolean
+On Error GoTo fout
+rbtDeleteByKey = False
+
+Dim cndData As LKP_CND_DATA
+If Not lookupTopDown(rbtData.tree, True, sKey, lIdx, RBTREE_MT_EQUAL, cndData) Then
+  appRaiseSilentError
+End If
+
+If cndData.blFound Then
+  lIdx = cndData.lStartIdx
+  sVal = rbtData.tree.nodes(cndData.lEC).sVal
+  If Not deleteNode(rbtData.tree, cndData.lEC) Then
+    appRaiseSilentError
+  End If
+End If
+
+rbtDeleteByKey = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtDeleteByKey", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+Public Function rbtDeleteByPointer(ByRef rbtData As RB_TREE_DATA, ByVal ec As Long) As Boolean
+On Error GoTo fout
+rbtDeleteByPointer = False
+  
+If (ec < 0) Then
+  Err.Raise 1, , "Invalid pointer"
+End If
+
+If Not deleteNode(rbtData.tree, ec) Then
+  appRaiseSilentError
+End If
+
+rbtDeleteByPointer = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rbtDeleteByPointer", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+Public Function rbtTest() As Boolean
+
+rbtTest = False
+
+Dim rbt As RB_TREE_DATA
+
+If Not rbtInit(rbt, 100, False, False) Then
+  appRaiseSilentError
+End If
+
+
+Dim i As Integer
+For i = 0 To 25
+  Dim sChr As String
+  sChr = Chr(Asc("A") + i)
+  
+  Dim blDummy As Boolean, sDummy As String
+  Dim blInserted As Boolean, lEC As Long, lIdx As Long
+  If Not rbtSetByKey(rbt, sChr, "Dit is letter: " & sChr, False, False, blInserted, lEC, lIdx, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  If (lIdx <> i) Then
+    appRaiseSilentError
+  End If
+
+Next i
+
+Dim sVal As String
+If Not rbtLookupKey(rbt, "D", RBTREE_MT_EQUAL, lEC, sVal, lIdx) Then
+  appRaiseSilentError
+End If
+If (sVal <> "Dit is letter: D") Then
+  appRaiseSilentError
+End If
+If (lIdx <> 3) Then
+  appRaiseSilentError
+End If
+
+If Not rbtLookupKey(rbt, "Z", RBTREE_MT_EQUAL, lEC, sVal, lIdx) Then
+  appRaiseSilentError
+End If
+If (sVal <> "Dit is letter: Z") Then
+  appRaiseSilentError
+End If
+If (lIdx <> 25) Then
+  appRaiseSilentError
+End If
+
+
+If Not rbtDeleteByKey(rbt, "C", lIdx, sVal) Then
+  appRaiseSilentError
+End If
+If Not rbtDeleteByKey(rbt, "D", lIdx, sVal) Then
+  appRaiseSilentError
+End If
+
+If Not rbtDeleteByKey(rbt, "E", lIdx, sVal) Then
+  appRaiseSilentError
+End If
+
+If Not rbtDeleteByKey(rbt, "F", lIdx, sVal) Then
+  appRaiseSilentError
+End If
+
+Dim lSize As Long
+lSize = rbtSize(rbt)
+
+If (lSize <> 22) Then
+  appRaiseSilentError
+End If
+
+Dim sTotString As String
+sTotString = ""
+For i = 0 To lSize - 1
+  Dim sKey As String
+  If Not rbtLookupIdx(rbt, i, lIdx, sKey, sVal) Then
+    appRaiseSilentError
+  End If
+  sTotString = sTotString & " " & sKey
+Next i
+
+Debug.Print sTotString
+
+
+rbtClean rbt
+
+rbtTest = True
+
+End Function
+
+
+
+Public Function rbtTest2() As Boolean
+
+rbtTest2 = False
+
+Dim rbt As RB_TREE_DATA
+
+If Not rbtInit(rbt, 100, True, False) Then
+  appRaiseSilentError
+End If
+
+
+Dim i As Integer
+For i = 0 To 99
+
+  
+  Dim blDummy As Boolean, sDummy As String
+  Dim blInserted As Boolean, lEC As Long, lIdx As Long
+  If Not rbtSetByIdx(rbt, i, "e:" & i, lEC, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+
+Next i
+
+Dim sKey As String, sVal As String
+If Not rbtLookupIdx(rbt, 5, lEC, sKey, sVal) Then
+  appRaiseSilentError
+End If
+If (sVal <> "e:5") Then
+  appRaiseSilentError
+End If
+
+If Not rbtLookupIdx(rbt, 30, lEC, sKey, sVal) Then
+  appRaiseSilentError
+End If
+If (sVal <> "e:30") Then
+  appRaiseSilentError
+End If
+
+If Not rbtDeleteByIdx(rbt, 99, sKey, sVal) Then
+  appRaiseSilentError
+End If
+If Not rbtDeleteByIdx(rbt, 33, sKey, sVal) Then
+  appRaiseSilentError
+End If
+If Not rbtDeleteByIdx(rbt, 15, sKey, sVal) Then
+  appRaiseSilentError
+End If
+If Not rbtDeleteByIdx(rbt, 5, sKey, sVal) Then
+  appRaiseSilentError
+End If
+If Not rbtDeleteByIdx(rbt, 0, sKey, sVal) Then
+  appRaiseSilentError
+End If
+
+Dim lSize As Long
+lSize = rbtSize(rbt)
+
+If (lSize <> 95) Then
+  appRaiseSilentError
+End If
+
+Dim sTotString As String
+sTotString = ""
+For i = 0 To lSize - 1
+  If Not rbtLookupIdx(rbt, i, lIdx, sKey, sVal) Then
+    appRaiseSilentError
+  End If
+  sTotString = sTotString & " " & sVal
+Next i
+
+Debug.Print sTotString
+
+
+rbtClean rbt
+
+rbtTest2 = True
+
+End Function
+
+Public Function rbtTestSpeed(ByVal nIts As Integer)
+
+rbtTestSpeed = False
+
+Dim rbt As RB_TREE_DATA
+
+If Not rbtInit(rbt, nIts + 1, False, False) Then
+  appRaiseSilentError
+End If
+
+Dim i As Integer
+
+Dim blDummy As Boolean, sDummy As String, lDummy As Long
+For i = 0 To nIts - 1
+  If Not rbtSetByKey(rbt, CStr(i), CStr(i), False, False, blDummy, lDummy, lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+Next i
+
+For i = 0 To nIts - 1
+  Dim sVal As String
+  If Not rbtLookupKey(rbt, CStr(i), RBTREE_MT_EQUAL, lDummy, sVal, lDummy) Then
+    appRaiseSilentError
+  End If
+  If sVal <> CStr(i) Then
+    appRaiseSilentError
+  End If
+Next i
+
+rbtClean rbt
+
+rbtTestSpeed = True
+
+End Function
