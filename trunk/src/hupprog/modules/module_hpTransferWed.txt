@@ -2266,7 +2266,9 @@ blReadingDeelns = True
         curVer = tpVer
       End If
       
-      curEstNr = Nz(pl("PL_NUMMER"), 1)
+      'if number is absent; put to zero instead of one for consistency.
+      'curEstNr = Nz(pl("PL_NUMMER"), 1)
+      curEstNr = Nz(pl("PL_NUMMER"), 0)
       
       outpDln.AddNew
         outpDln("DE_Wedstrijdnummer") = wednr
@@ -2482,7 +2484,8 @@ If (impTd) Then
         dln("DE_Baan") = Nz(td("TY_Baan"), 0)
         
         
-        deBM = "N"
+        'deBM has already been calculated above.
+        'deBM = "N"
       dln.Update
     Else
       'we need the index & we need to check if TY contains that index.
