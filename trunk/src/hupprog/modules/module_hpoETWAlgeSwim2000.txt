@@ -32,12 +32,12 @@ End If
 
 If (algCfg.sDBFName = "") Then
   Err.Raise 1, , "Er is nog geen Alge-Swim2000 wedstrijd ingesteld."
-ElseIf (Not lanFileExists(algCfg.sDBFName, 500)) Then
-  Err.Raise 1, , "De Alge-Swim2000 wedstrijd: " & vbCrLf & algCfg.sDBFName & vbCrLf & "kon niet worden gevonden."
+ElseIf (Not lanTestServerAvailability(algCfg.sDBFName, 500)) Then
+  Err.Raise 1, , "De Alge-Swim2000 computer kon niet worden bereikt."
 End If
 
 Dim msg As String
-msg = "De deelnemers en programmagegevens zullen worden weggeschreven naar de directory: " & _
+msg = "De deelnemers en programmagegevens zullen worden weggeschreven naar het bestand: " & _
   vbCrLf & algCfg.sDBFName & vbCrLf & vbCrLf & "Zorg ervoor dat het Alge Swim2000 Timing-Manager programma op de ETW computer is afgesloten." & _
   vbCrLf & vbCrLf & "Start na de export het Alge Swim2000 Timing-Manager programma weer op om de nieuwe gegevens in te laden." & _
   vbCrLf & vbCrLf & "Wilt u doorgaan?"
@@ -367,6 +367,7 @@ End Function
 Private Sub algCleanLinks()
 On Error Resume Next
 DoCmd.DeleteObject acTable, "__etw__alge__meet"
+DoCmd.DeleteObject acTable, "__etw__alge__config_info"
 DoCmd.DeleteObject acTable, "__etw__alge__sessions"
 DoCmd.DeleteObject acTable, "__etw__alge__prog"
 DoCmd.DeleteObject acTable, "__etw__alge__class"
@@ -394,6 +395,7 @@ algCleanLinks
 
 If (blLinkDlns) Then
   appSafeLinkTable sDBFName, "Allgemein", "__etw__alge__meet"
+  appSafeLinkTable sDBFName, "Daten", "__etw__alge__config_info"
   appSafeLinkTable sDBFName, "Wettkampfgericht", "__etw__alge__sessions"
   appSafeLinkTable sDBFName, "Klassen", "__etw__alge__class"
   appSafeLinkTable sDBFName, "BewToKlassen", "__etw__alge__prog_class"
@@ -444,6 +446,9 @@ DoCmd.SetWarnings False
 Dim sql As String
 
 sql = "delete * from __etw__alge__meet"
+DoCmd.RunSQL sql
+
+sql = "delete * from __etw__alge__config_info"
 DoCmd.RunSQL sql
 
 sql = "delete * from __etw__alge__sessions"
@@ -547,6 +552,23 @@ rs.Update
 appCleanRS rs
 
 
+Set rs = CurrentDb().OpenRecordset("__etw__alge__config_info")
+rs.AddNew
+  rs("MaxTeamSchwimmer") = 2
+  rs("Jahr") = 1999
+  rs("Beschreibung") = "Empty Competition"
+  rs("ProgStatus") = 1
+  rs("Version") = 3.04
+  rs("HalbfinalBahnen") = 8
+  rs("HalbfinalReserve") = 2
+  rs("Finalbahnen") = 8
+  rs("FinalReserve") = 2
+rs.Update
+appCleanRS rs
+
+
+
+
 
 algExportMatch_writeBasicInfo = True
 Exit Function
@@ -577,7 +599,9 @@ algExportMatch = False
 
 
 If Not FileExists(sDBFileName) Then
-  Err.Raise 1, , "De Alge Swim2000 wedstrijd: " & vbCrLf & sDBFileName & vbCrLf & "bestaat niet." & vbCrLf & "Kies een geldige Alge Swim2000 wedstrijd."
+  If Not xdbCreateStructure(sDBFileName, "ALGE_SWIM2000_WED") Then
+    appRaiseSilentError
+  End If
 End If
 
 If Not algLink(sDBFileName, True, False) Then

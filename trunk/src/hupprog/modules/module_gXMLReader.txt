@@ -422,18 +422,18 @@ If (fReadAheadChar = "<") Then
           fCurElmType = ntElmOpen
           fCurNodeIsOpenClose = True
           fCurAttribString = Left(tpS, Len(tpS) - 1)
-          fCurElmString = convertFromUTF(extractTokenFromString(fCurAttribString))
+          fCurElmString = convertFromUTF(extractTokenFromString(fCurAttribString), fIsUTF8Encoded)
         ElseIf (Left(tpS, 1) = "?") Then
           If (Right(tpS, 1) <> "?") Then
             Err.Raise 1, , "Unmatched ? in processing instruction:" & Chr(13) & Left(tpS, 200) & Chr(13) & "Linenr approximately: " & fCurLineNr
           Else
             fCurElmType = ntPI
-            fCurElmString = convertFromUTF(Mid(tpS, 2, Len(tpS) - 2))
+            fCurElmString = convertFromUTF(Mid(tpS, 2, Len(tpS) - 2), fIsUTF8Encoded)
           End If
         Else
           fCurElmType = ntElmOpen
           fCurAttribString = tpS
-          fCurElmString = convertFromUTF(extractTokenFromString(fCurAttribString))
+          fCurElmString = convertFromUTF(extractTokenFromString(fCurAttribString), fIsUTF8Encoded)
         End If
     End If
   Else
@@ -448,11 +448,11 @@ Else
   Dim blReadNodeStart As Boolean
   blReadNodeStart = Len(tpS) > 0 And (Right(tpS, 1) = "<")
   If (blReadNodeStart) Then
-    fCurElmString = convertFromUTF(Left(tpS, Len(tpS) - 1))
+    fCurElmString = convertFromUTF(Left(tpS, Len(tpS) - 1), fIsUTF8Encoded)
     'have to put back readAheadChar
     fReadAheadChar = "<"
   Else
-    fCurElmString = convertFromUTF(tpS)
+    fCurElmString = convertFromUTF(tpS, fIsUTF8Encoded)
   End If
 End If
 
@@ -479,7 +479,7 @@ readUptoIncluding = rbReadUptoAndIncluding(endStr)
 
 'readUptoIncluding = tpS
 End Function
-Private Function convertFromUTF(inp As String) As String
+Public Function convertFromUTF(ByVal inp As String, ByVal blIsUTF8 As Boolean) As String
 On Error GoTo fout
 Dim resS As String
 resS = ""
@@ -495,7 +495,7 @@ While (pos <= Len(inp))
   tpChar = Mid(inp, pos, 1)
   If (tpChar = "&") Then
     If (okPosStart < pos) Then
-      If (fIsUTF8Encoded) Then
+      If (blIsUTF8) Then
         resS = resS & decodeUTF8(Mid(inp, okPosStart, pos - okPosStart))
       Else
         resS = resS & Mid(inp, okPosStart, pos - okPosStart)
@@ -537,7 +537,7 @@ While (pos <= Len(inp))
   End If
 Wend
 If (okPosStart <= Len(inp)) Then
-  If (fIsUTF8Encoded) Then
+  If (blIsUTF8) Then
     resS = resS & decodeUTF8(Mid(inp, okPosStart, Len(inp) - okPosStart + 1))
   Else
     resS = resS & Mid(inp, okPosStart, Len(inp) - okPosStart + 1)
@@ -714,8 +714,8 @@ Public Function readAttribute(ByRef name As String, ByRef val As String, Optiona
     Err.Raise 1, , "Invalude attribute syntax. Missing quotation marks. Found: " & Chr(13) & tpValue & Chr(13) & "Linenr approximately: " & fCurLineNr
   End If
   tpValue = Mid(tpValue, 2, Len(tpValue) - 2)
-  name = convertFromUTF(tpName)
-  val = convertFromUTF(tpValue)
+  name = convertFromUTF(tpName, fIsUTF8Encoded)
+  val = convertFromUTF(tpValue, fIsUTF8Encoded)
   
   If (Len(fCurAttribString) = 0) Then
     readNext
