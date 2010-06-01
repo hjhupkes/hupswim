@@ -905,3 +905,48 @@ fout:
 MsgBox Err & " lenHandleCompleteDSVExportSequence" & vbCrLf & Error$, 16
 Exit Function
 End Function
+
+
+Public Function lenHandleCompleteSplashExportSequence(sFName As String, lWedNr As Long, ByVal blSingleWedOnly As Boolean) As Boolean
+On Error GoTo fout
+lenHandleCompleteSplashExportSequence = False
+
+If Not lnhExportWedstrijd(lWedNr, blSingleWedOnly, True, True, True, True, True) Then
+  appRaiseSilentError
+End If
+
+
+'Make sure that aux fields are transferred to ID fields
+If Not lenApplyCorrectionsUsingAuxData(True, True, True) Then
+  appRaiseSilentError
+End If
+
+If Not splExpFromLenTransTables(sFName) Then
+  appRaiseSilentError
+End If
+
+
+Dim cntWeds As Long
+cntWeds = Nz(DCount("WE_ID", "gIMP_LEN_Wedstrijden"))
+
+Dim msg As String
+msg = "Bestand: " & sFName & " met succes aangemaakt."
+
+If (cntWeds > 1) Then
+  msg = msg & vbCrLf & "Er zijn: " & cntWeds & " wedstrijden geexporteerd."
+ElseIf (cntWeds = 1) Then
+  msg = msg & vbCrLf & "Er is: " & cntWeds & " wedstrijd geexporteerd."
+End If
+
+MsgBox msg, 64
+
+lenHandleCompleteSplashExportSequence = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "lenHandleCompleteSplashExportSequence", errInf
+
+appDisplayError errInf
+Exit Function
+End Function

@@ -1006,3 +1006,63 @@ If (Err = 3021) Then Resume Next ' no current record.
 MsgBox Err & " lenCheckBlockedZwemmers" & vbCrLf & Error$, 16
 Exit Function
 End Function
+
+
+
+'blImpRegion should be a 1..12 array, corresponding to the 12 kringen.
+Public Function lenTestImportKNZBFiles(blImpZwemmers As Boolean, blImpOffs As Boolean) As Boolean
+On Error GoTo fout
+lenTestImportKNZBFiles = False
+
+Dim blImpRegion(0 To 100) As Boolean
+
+Dim i As Integer
+For i = 0 To 100
+  blImpRegion(i) = True
+Next i
+
+'Need to download the files.
+Dim clubLXF As String
+Dim zwmLXF As String
+Dim offLXF As String
+
+clubLXF = "d:\temp\bug\knzb\clubs.lxf"
+zwmLXF = "d:\temp\bug\knzb\athletes_zwemmen.lxf"
+offLXF = "d:\temp\bug\knzb\officials_zwemmen.lxf"
+
+Dim blSingleClub As Boolean
+Dim sClubDepot As String
+Dim blAll As Boolean
+
+blSingleClub = False
+sClubDepot = ""
+blAll = True
+
+
+If Not lenImportKNZBFiles_importClubs(clubLXF, blSingleClub, sClubDepot, blAll, blImpRegion) Then
+  Exit Function
+End If
+
+
+If (blImpZwemmers) Then
+  If Not lenImportKNZBFiles_importZwms(zwmLXF, blSingleClub, sClubDepot, blAll, blImpRegion) Then
+    Exit Function
+  End If
+End If
+ 
+If (blImpOffs) Then
+  If Not lenImportKNZBFiles_importOffs(offLXF, blSingleClub, sClubDepot, blAll, blImpRegion) Then
+    Exit Function
+  End If
+End If
+
+
+
+
+
+lenTestImportKNZBFiles = True
+Exit Function
+fout:
+MsgBox Err & " lenTestImportKNZBFiles" & vbCrLf & Error$, 16
+Exit Function
+End Function

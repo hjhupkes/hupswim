@@ -452,6 +452,15 @@ Else
   splReadSexAsWas = "m"
 End If
 End Function
+Public Function splFormatGes(sGes As String) As Integer
+On Error Resume Next
+splFormatGes = 0
+If (sGes = "M") Then
+  splFormatGes = 1
+ElseIf (sGes = "V") Then
+  splFormatGes = 2
+End If
+End Function
 
 Public Function splReadSex(sex As Integer) As String
 On Error Resume Next
@@ -528,6 +537,24 @@ Select Case stroke
   Case 5
     splReadStrokeAsSlag = "WISSEL"
 End Select
+End Function
+
+Public Function splSlagToStroke(ByVal sSlag As String) As Integer
+On Error Resume Next
+splSlagToStroke = 1
+Select Case sSlag
+  Case "RUG"
+    splSlagToStroke = 2
+  Case "SCHOOL"
+    splSlagToStroke = 3
+  Case "VLINDER"
+    splSlagToStroke = 4
+  Case "VRIJ"
+    splSlagToStroke = 1
+  Case "WISSEL"
+    splSlagToStroke = 5
+End Select
+  
 End Function
 
 Public Function splReadStrokeAsSlag_TM2007(stroke As Integer) As String
@@ -630,6 +657,11 @@ splReadTime_TM2009 = nMin * 100 + nSec + nTen * 0.1 + nHun * 0.01
 Exit Function
 fout:
 MsgBox Err & " " & Error$, 16
+End Function
+
+
+Public Function splFormatTime_TM2009(td As Double) As Long
+splFormatTime_TM2009 = CLng(swtToSeconds(td) * 1000)
 End Function
 
 
@@ -825,36 +857,45 @@ If fName = "" Or Not FileExists(fName) Then
 End If
 
 
-If Not Right(fName, 3) = "zip" Then
-  splInvalidReason = SPL_MM_NOT_ZIP_FILE
-  splInvalidString = "Expected zip file. Found: " & vbCrLf & fName
-  
-  Err.Raise 1, , splInvalidString
-End If
 
-
-Dim cnt As Long
-cnt = countZip(fName)
-  
-  
-splIsMM2007 = False
-  
-'Check file count in archive.
-  
-If (cnt = 1) Then
+If (Right(fName, 3) = "mdb") Then
   splIsMM2007 = True
 Else
-  If cnt <= 3 Then
-    If (cnt > 0) Then
-      splInvalidReason = SPL_MM_INVALID_ZIP_CNT
-      splInvalidString = "Invalid Splash backup file. Archive was expected to contain multiple files. Found: " & cnt & " file(s)."
-    Else
-      splInvalidReason = SPL_MM_UZIP_FAILURE
-      splInvalidString = "Error accessing zip file: " + fName
-    End If
+  
+  If Not Right(fName, 3) = "zip" Then
+    splInvalidReason = SPL_MM_NOT_ZIP_FILE
+    splInvalidString = "Expected zip file. Found: " & vbCrLf & fName
+  
     Err.Raise 1, , splInvalidString
   End If
+  
+  Dim cnt As Long
+  cnt = countZip(fName)
+    
+    
+  splIsMM2007 = False
+    
+  'Check file count in archive.
+    
+  If (cnt = 1) Then
+    splIsMM2007 = True
+  Else
+    If cnt <= 3 Then
+      If (cnt > 0) Then
+        splInvalidReason = SPL_MM_INVALID_ZIP_CNT
+        splInvalidString = "Invalid Splash backup file. Archive was expected to contain multiple files. Found: " & cnt & " file(s)."
+      Else
+        splInvalidReason = SPL_MM_UZIP_FAILURE
+        splInvalidString = "Error accessing zip file: " + fName
+      End If
+      Err.Raise 1, , splInvalidString
+    End If
+  End If
+
+  
 End If
+
+
 
 
 If (splIsMM2007) Then
@@ -2346,6 +2387,1272 @@ fout:
 If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
 
 MsgBox Err & " splMeetList_Cleanup" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
+
+'hjh maintenance function
+Public Function splAcquireStructureFromMMBackup(ByVal sMDBFileName As String)
+On Error GoTo fout
+splAcquireStructureFromMMBackup = False
+
+If Not xdbReadStructure(sMDBFileName, "SPLASH_MM_2007_WED") Then
+  appRaiseSilentError
+End If
+
+Dim db As Database
+Set db = DBEngine.Workspaces(0).OpenDatabase(sMDBFileName)
+
+
+Dim skGlb As Recordset
+Set skGlb = db.OpenRecordset("bsglobal")
+skGlb.Index = "PK_BSGLOBAL"
+
+Dim sVal As String
+Dim sValName As String
+
+sValName = "SPLASH_MM_2007_WED_GLB_AGEGROUPNAMES"
+skGlb.Seek "=", "AgeGroupNames"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSAPPLICATION"
+skGlb.Seek "=", "BSAPPLICATION"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSDB_DDL_VERSION_APPLICATION"
+skGlb.Seek "=", "BSDB_DDL_VERSION_APPLICATION"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSDB_DDL_VERSION_PICTURE"
+skGlb.Seek "=", "BSDB_DDL_VERSION_PICTURE"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSDB_DDL_VERSION_SW_KATALOG"
+skGlb.Seek "=", "BSDB_DDL_VERSION_SW_KATALOG"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_DB_DDL_VERSION_BASE"
+skGlb.Seek "=", "DB_DDL_VERSION_BASE"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_GENERALSETTINGS"
+skGlb.Seek "=", "GENERALSETTINGS"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+
+sValName = "SPLASH_MM_2007_WED_GLB_GUI_SETTINGS"
+skGlb.Seek "=", "GUISETTINGS"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_REPORT_DEFINITION"
+skGlb.Seek "=", "REPORTDEFINITION"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_REPORT_SETTINGS"
+skGlb.Seek "=", "REPORTSETTINGS"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTENTRYLISTDLG"
+skGlb.Seek "=", "SETTINGS_TFREPORTENTRYLISTDLG"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTENTRYSTATISTICSDLG"
+skGlb.Seek "=", "SETTINGS_TFREPORTENTRYSTATISTICSDLG"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTEVENTSTRUCTUREDLG"
+skGlb.Seek "=", "SETTINGS_TFREPORTEVENTSTRUCTUREDLG"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTRESULTLISTDLG"
+skGlb.Seek "=", "SETTINGS_TFREPORTRESULTLISTDLG"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTSTARTLISTDLG"
+skGlb.Seek "=", "SETTINGS_TFREPORTSTARTLISTDLG"
+sVal = Nz(skGlb("DATA"))
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+
+
+
+
+
+
+
+
+appCleanRS skGlb
+
+sValName = "SPLASH_MM_2007_WED_TB_DSQITEM"
+If Not xdbEncodeTable(db, "DSQITEM", sVal) Then
+  appRaiseSilentError
+End If
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+
+sValName = "SPLASH_MM_2007_WED_TB_BSSWKATALOGITEM"
+If Not xdbEncodeTable(db, "BSSWKATALOGITEM", sVal) Then
+  appRaiseSilentError
+End If
+If Not fxsStoreString(sValName, sVal) Then
+  appRaiseSilentError
+End If
+
+
+
+
+
+appCleanDB db
+
+splAcquireStructureFromMMBackup = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splAcquireStructureFromMMBackup", errInf
+
+appCleanRS skGlb
+appCleanDB db
+
+appDisplayError errInf
+End Function
+
+Private Function splExpFromLenTransTables_perform_buildMeetInfoS(ByRef sMeetInfo As String) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_buildMeetInfoS = False
+
+sMeetInfo = ""
+
+Dim dFirstDate As Date
+dFirstDate = Nz(DMin("WE_DATUM", "gIMP_LEN_WEDSTRIJDEN"), #1/1/1900#)
+
+Dim dQlfFrom As Date, dQlfUntil As Date
+dQlfFrom = Nz(DMin("WE_QLF_FROM", "gIMP_LEN_WEDSTRIJDEN"), #1/1/1900#)
+dQlfUntil = Nz(DMin("WE_QLF_UNTIL", "gIMP_LEN_WEDSTRIJDEN"), #1/1/1900#)
+
+
+Dim sWedDes As String
+sWedDes = Nz(DFirst("WE_BESCHRIJVING", "gIMP_LEN_WEDSTRIJDEN"))
+
+sMeetInfo = sMeetInfo & "AGEDISPLAY=I;1"
+sMeetInfo = sMeetInfo & vbCrLf & "LANEMAX=I;6"
+sMeetInfo = sMeetInfo & vbCrLf & "LANEMIN=I;1"
+sMeetInfo = sMeetInfo & vbCrLf & "POINTS=I;3001"
+sMeetInfo = sMeetInfo & vbCrLf & "RESERVECOUNT=I;2"
+sMeetInfo = sMeetInfo & vbCrLf & "STARTMETHOD=I;1"
+sMeetInfo = sMeetInfo & vbCrLf & "TIMING=I;3"
+sMeetInfo = sMeetInfo & vbCrLf & "TOUCHPADMODE=I;1"
+sMeetInfo = sMeetInfo & vbCrLf & "NAME=S;" & sWedDes
+sMeetInfo = sMeetInfo & vbCrLf & "MEETNUMBER=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "CITY=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "STATE=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "NATION=S;NED"
+sMeetInfo = sMeetInfo & vbCrLf & "AGEDATE=D;" & Format(dFirstDate, "yyyymmdd") & "000000000"
+If lenDateIsValid(dQlfFrom) Then
+  sMeetInfo = sMeetInfo & vbCrLf & "QUALIFYFROM=D;" & "18991230" & "000000000"
+Else
+  sMeetInfo = sMeetInfo & vbCrLf & "QUALIFYFROM=D;" & Format(dQlfFrom, "yyyymmdd") & "000000000"
+End If
+If lenDateIsValid(dQlfFrom) Then
+  sMeetInfo = sMeetInfo & vbCrLf & "QUALIFYUNTIL=D;" & Format(dFirstDate, "yyyymmdd") & "000000000"
+Else
+  sMeetInfo = sMeetInfo & vbCrLf & "QUALIFYUNTIL=D;" & Format(dQlfUntil, "yyyymmdd") & "000000000"
+End If
+sMeetInfo = sMeetInfo & vbCrLf & "DEADLINE=D;" & "18991230" & "000000000"
+sMeetInfo = sMeetInfo & vbCrLf & "COURSE=I;2"
+sMeetInfo = sMeetInfo & vbCrLf & "SPECIALFEATURENATION=I;0"
+sMeetInfo = sMeetInfo & vbCrLf & "MEETTYPE=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "AGECACLTYPE=I;3"
+sMeetInfo = sMeetInfo & vbCrLf & "FEECLUB=F;0"
+sMeetInfo = sMeetInfo & vbCrLf & "QUALIFYRELAYMODE=I;0"
+sMeetInfo = sMeetInfo & vbCrLf & "ATHLETECOMMAINNAMES=S;F"
+sMeetInfo = sMeetInfo & vbCrLf & "NAMEOPTIONS=S;1"
+sMeetInfo = sMeetInfo & vbCrLf & "ATHLETENAMESHORTEN=I;1"
+sMeetInfo = sMeetInfo & vbCrLf & "ATHLETELASTNAMEUPPER=S;F"
+sMeetInfo = sMeetInfo & vbCrLf & "ATHLETENAMEORDER=I;2"
+sMeetInfo = sMeetInfo & vbCrLf & "EVENTAGEDISPLAY=I;1"
+sMeetInfo = sMeetInfo & vbCrLf & "CITYEN=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "NAMEEN=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "POINTSHANDICAP=I;1012"
+sMeetInfo = sMeetInfo & vbCrLf & "POINTSMASTER=I;1008"
+sMeetInfo = sMeetInfo & vbCrLf & "QUALIFYCONVERSION=I;0"
+sMeetInfo = sMeetInfo & vbCrLf & "ENTRYTIMEPERCENT=I;0"
+sMeetInfo = sMeetInfo & vbCrLf & "CONTACTPHONE=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "CONTACTFAX=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "NCSPOINTFORDSQ=S;F"
+sMeetInfo = sMeetInfo & vbCrLf & "HOSTCLUBURL=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "ORGANIZERURL=S;"
+sMeetInfo = sMeetInfo & vbCrLf & "RESULTURL=S;"
+
+splExpFromLenTransTables_perform_buildMeetInfoS = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_buildMeetInfoS", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function splExpFromLenTransTables_perform_createDB(ByVal sMDBFileName As String) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_createDB = False
+
+If Not xdbCreateStructure(sMDBFileName, "SPLASH_MM_2007_WED") Then
+  appRaiseSilentError
+End If
+
+Dim db As Database
+Set db = DBEngine.Workspaces(0).OpenDatabase(sMDBFileName)
+
+Dim rs As Recordset
+Set rs = db.OpenRecordset("bsglobal")
+
+Dim sValName As String, sVal As String, blDummy As Boolean
+
+sValName = "SPLASH_MM_2007_WED_GLB_AGEGROUPNAMES"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "AgegroupNames"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSAPPLICATION"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "BSAPPLICATION"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSDB_DDL_VERSION_APPLICATION"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "BSDB_DDL_VERSION_APPLICATION"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSDB_DDL_VERSION_PICTURE"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "BSDB_DDL_VERSION_PICTURE"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_BSDB_DDL_VERSION_SW_KATALOG"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "BSDB_DDL_VERSION_SW_KATALOG"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_DB_DDL_VERSION_BASE"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "DB_DDL_VERSION_BASE"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_GENERAL_SETTINGS"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "GeneralSettings"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+
+sValName = "SPLASH_MM_2007_WED_GLB_GUI_SETTINGS"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "GUISettings"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+If Not splExpFromLenTransTables_perform_buildMeetInfoS(sVal) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "MEETVALUES"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+
+sValName = "SPLASH_MM_2007_WED_GLB_REPORT_DEFINITION"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "REPORTDEFINITION"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_REPORT_SETTINGS"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "REPORTSETTINGS"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTENTRYLISTDLG"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "SETTINGS_TFReportEntryListDlg"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTENTRYSTATISTICSDLG"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "SETTINGS_TFReportEntryStatisticsDlg"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTEVENTSTRUCTUREDLG"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "SETTINGS_TFReportEventStructureDlg"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTRESULTLISTDLG"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "SETTINGS_TFReportResultListDlg"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+sValName = "SPLASH_MM_2007_WED_GLB_SETTINGS_TFREPORTSTARTLISTDLG"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+rs.AddNew
+  rs("Name") = "SETTINGS_TFReportStartListDlg"
+  rs("Data") = hzn(sVal)
+rs.Update
+
+
+appCleanRS rs
+
+
+Set rs = db.OpenRecordset("BSUIDTABLE")
+
+rs.AddNew
+  rs("NAME") = "BS_GLOBAL_UID"
+  rs("LASTUID") = 1476
+rs.Update
+
+rs.AddNew
+  rs("NAME") = "LAYOUT"
+  rs("LASTUID") = 13
+rs.Update
+
+rs.AddNew
+  rs("NAME") = "RELAYCODE"
+  rs("LASTUID") = 0
+rs.Update
+
+appCleanRS rs
+
+
+sValName = "SPLASH_MM_2007_WED_TB_DSQITEM"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+If Not xdbWriteEncodedStringToTable(db, sVal, "DSQITEM") Then
+  appRaiseSilentError
+End If
+
+sValName = "SPLASH_MM_2007_WED_TB_BSSWKATALOGITEM"
+If Not fxsReadString(sValName, sVal, blDummy) Then
+  appRaiseSilentError
+End If
+If Not xdbWriteEncodedStringToTable(db, sVal, "BSSWKATALOGITEM") Then
+  appRaiseSilentError
+End If
+
+appCleanDB db
+
+splExpFromLenTransTables_perform_createDB = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_createDB", errInf
+
+appCleanRS rs
+appCleanDB db
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function splExpFromLenTransTables_perform_writeProgs_getSwimStyleID(ByVal sAf As String, ByVal sSl As String, ByVal lUnqID As Long, ByRef muSwmID As Long, _
+  ByRef nSws As Integer, ByRef sSwsAf() As String, _
+  ByRef sSwsSl() As String, ByRef lSwsUnqID() As Long, ByRef lSwsID() As Long) As Long
+
+Dim lkpPos As Integer
+lkpPos = bSearchAfSlag(sAf, sSl, sSwsAf, sSwsSl, nSws)
+
+If (lkpPos < 0) Then
+
+  Dim insPos As Integer
+  insPos = insAfSlag(sAf, sSl, nSws, sSwsAf, sSwsSl)
+  
+  shiftRightLong insPos, 1, nSws - 1, lSwsUnqID
+  shiftRightLong insPos, 1, nSws - 1, lSwsID
+  
+  muSwmID = muSwmID + 1
+  lSwsID(insPos) = muSwmID
+  
+  lSwsUnqID(insPos) = lUnqID
+  
+  splExpFromLenTransTables_perform_writeProgs_getSwimStyleID = lSwsID(insPos)
+  
+Else
+  splExpFromLenTransTables_perform_writeProgs_getSwimStyleID = lSwsID(lkpPos)
+End If
+
+End Function
+
+Private Function splExpFromLenTransTables_perform_prepareSwimStyles(ByRef muSwsID As Long, ByRef nSws As Integer, ByRef sSwsAf() As String, _
+ ByRef sSwsSl() As String, ByRef lSwsUnqID() As Long, ByRef lSwsID() As Long) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_prepareSwimStyles = False
+
+nSws = 0
+
+muSwsID = 1000
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from fdtgSplashStyleConversion")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpAf As String, tpSl As String, tpUnqID As Long
+  tpAf = Nz(rs("afstand"))
+  tpSl = Nz(rs("slag"))
+  tpUnqID = Nz(rs("FSNID"))
+  
+  splExpFromLenTransTables_perform_writeProgs_getSwimStyleID tpAf, tpSl, tpUnqID, muSwsID, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  tpAf = Nz(rs("pr_afstand"))
+  tpSl = Nz(rs("pr_slag"))
+  tpUnqID = -1
+  
+  splExpFromLenTransTables_perform_writeProgs_getSwimStyleID tpAf, tpSl, tpUnqID, muSwsID, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+splExpFromLenTransTables_perform_prepareSwimStyles = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_prepareSwimStyles", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+Private Function splExpFromLenTransTables_perform_exportSwimStyles(ByRef db As Database, _
+ ByRef nSws As Integer, ByRef sSwsAf() As String, _
+ ByRef sSwsSl() As String, ByRef lSwsUnqID() As Long, ByRef lSwsID() As Long) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_exportSwimStyles = False
+
+Dim rsOut As Recordset
+Set rsOut = db.OpenRecordset("SWIMSTYLE")
+
+Dim i As Integer
+For i = 0 To nSws - 1
+
+  rsOut.AddNew
+    rsOut("SWIMSTYLEID") = lSwsID(i)
+    rsOut("Distance") = afstand_ind_part(sSwsAf(i))
+    rsOut("RELAYCOUNT") = afstand_n_zwemmers(sSwsAf(i))
+    rsOut("Stroke") = splSlagToStroke(sSwsSl(i))
+    rsOut("SORTCODE") = (i + 1)
+    If (lSwsUnqID(i) <> -1) Then
+      rsOut("UNIQUEID") = lSwsUnqID(i)
+    End If
+  rsOut.Update
+
+Next i
+
+
+
+appCleanRS rsOut
+
+splExpFromLenTransTables_perform_exportSwimStyles = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_exportSwimStyles", errInf
+
+appCleanRS rsOut
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function splExpFromLenTransTables_perform_writeCats_getCats(ByRef nCats As Integer, ByRef sCats() As String, ByRef lCatProgIDs() As Long, ByRef iCatSortOrders() As Integer) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_writeCats_getCats = False
+
+nCats = 0
+
+Dim rs As Recordset
+
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
+rs.MoveFirst
+
+Do Until rs.EOF
+  Dim tpCat As String, tpProgID As Long
+  tpCat = Nz(rs("PR_Categorie"))
+  tpProgID = Nz(rs("PR_ID"))
+  If Not catIsMCat(tpCat) Then
+    sCats(nCats) = tpCat
+    lCatProgIDs(nCats) = tpProgID
+    iCatSortOrders(nCats) = 1
+    nCats = nCats + 1
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Leeftijdsgroepen order by lf_pr_id, lf_id")
+rs.MoveFirst
+
+
+Dim curProgID As Long
+curProgID = -1
+Dim muSortOrder As Integer
+muSortOrder = 0
+
+Do Until rs.EOF
+  tpCat = Nz(rs("LF_Categorie"))
+  tpProgID = Nz(rs("LF_PR_ID"))
+  
+  If (tpProgID <> curProgID) Then
+    curProgID = tpProgID
+    muSortOrder = 0
+  End If
+  
+  If Not catIsMCat(tpCat) Then
+    sCats(nCats) = tpCat
+    lCatProgIDs(nCats) = tpProgID
+    
+    muSortOrder = muSortOrder + 1
+    iCatSortOrders(nCats) = muSortOrder
+    
+    nCats = nCats + 1
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+splExpFromLenTransTables_perform_writeCats_getCats = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_writeCats_getCats", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Sub splFormatCat(ByVal sCat As String, ByVal wedAgeDate As Date, ByVal lftModeBep As String, _
+  ByRef iGender As Integer, ByRef ageMin As Integer, ByRef ageMax As Integer, ByRef isTotAge As Boolean)
+
+Dim catMinAge As Integer, catMaxAge As Integer
+If Not catGetAllowedAgeRange_bare(sCat, catMinAge, catMaxAge, wedAgeDate, lftModeBep, lftModeBep, True) Then
+  appRaiseSilentError
+End If
+
+isTotAge = False
+
+
+If (catIsEstafTotalAge(sCat)) Then
+  isTotAge = True
+End If
+    
+If (catMinAge <= 0) Then
+  ageMin = -1
+Else
+  ageMin = catMinAge
+End If
+If (catMaxAge >= CAT_MAX_AGE) Then
+  ageMax = -1
+Else
+  ageMax = catMaxAge
+End If
+
+Dim sGes As String
+sGes = m_of_v(sCat)
+
+iGender = splFormatGes(sGes)
+
+End Sub
+
+
+Private Function splExpFromLenTransTables_perform_writeCats_exportCats(ByRef db As Database, ByVal dAgeDate As Date, sLftBep As String, ByVal nCats As Integer, ByRef sCats() As String, ByRef lCatProgIDs() As Long, ByRef iCatSortOrders() As Integer) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_writeCats_exportCats = False
+
+Dim rsOut As Recordset
+
+Dim muAgeID As Long
+muAgeID = 1000
+
+Set rsOut = db.OpenRecordset("AGEGROUP")
+
+Dim i As Integer
+For i = 0 To nCats - 1
+
+  muAgeID = muAgeID + 1
+  
+  Dim tpCat As String
+  tpCat = sCats(i)
+  
+  Dim iMinAge As Integer, iMaxAge As Integer, iGender As Integer, blIsTotAge As Boolean
+  
+  splFormatCat tpCat, dAgeDate, sLftBep, iGender, iMinAge, iMaxAge, blIsTotAge
+  
+  rsOut.AddNew
+    rsOut("AGEGROUPID") = muAgeID
+    rsOut("SWIMEVENTID") = lCatProgIDs(i)
+    
+    rsOut("AGEBYTOTAL") = IIf(blIsTotAge, "T", "F")
+    rsOut("AGEMAX") = iMaxAge
+    rsOut("AGEMIN") = iMinAge
+    rsOut("FORCEPRELIM") = "F"
+    rsOut("GENDER") = iGender
+    rsOut("SCORETYPE") = 1
+    rsOut("SORTCODE") = iCatSortOrders(i)
+    rsOut("USEFORMEDALS") = "T"
+    rsOut("MASTERS") = IIf((iMinAge >= 20), "T", "F")
+    rsOut("USEFORSCORING") = "F"
+        
+  rsOut.Update
+    
+Next i
+
+appCleanRS rsOut
+
+splExpFromLenTransTables_perform_writeCats_exportCats = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_writeCats_exportCats", errInf
+
+appCleanRS rsOut
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function splExpFromLenTransTables_perform_writeCats(ByRef db As Database, ByVal dAgeDate As Date, ByVal sLftBep As String) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_writeCats = False
+
+Dim sCats(0 To MAX_N_PROGS) As String
+Dim lCatProgIDs(0 To MAX_N_PROGS) As Long
+Dim iCatSortOrders(0 To MAX_N_PROGS) As Integer
+
+Dim nCats As Integer
+
+If Not splExpFromLenTransTables_perform_writeCats_getCats(nCats, sCats, lCatProgIDs, iCatSortOrders) Then
+  appRaiseSilentError
+End If
+
+If Not splExpFromLenTransTables_perform_writeCats_exportCats(db, dAgeDate, sLftBep, nCats, sCats, lCatProgIDs, iCatSortOrders) Then
+  appRaiseSilentError
+End If
+
+splExpFromLenTransTables_perform_writeCats = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_writeCats", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function splExpFromLenTransTables_perform_writeProgs(ByRef db As Database, _
+  ByRef nSws As Integer, ByRef sSwsAf() As String, _
+  ByRef sSwsSl() As String, ByRef lSwsUnqID() As Long, ByRef lSwsID() As Long) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_writeProgs = False
+
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Programma order by val([pr_programmanummer]), pr_programmanummer")
+
+Dim rsOut As Recordset
+Set rsOut = db.OpenRecordset("SWIMEVENT")
+
+Dim muProgNum As Long
+muProgNum = 0
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpWedID As Long, tpPrID As Long
+  Dim tpProg As String
+  Dim tpPrSplashNr As Long
+  
+  Dim tpAf As String, tpSl As String, tpCat As String
+  
+  tpWedID = Nz(rs("PR_WED_ID"))
+  tpPrID = Nz(rs("PR_ID"))
+  tpProg = Nz(rs("PR_Programmanummer"))
+  
+  tpPrSplashNr = CLng(val(tpProg))
+  If (tpPrSplashNr <= muProgNum) Then
+    muProgNum = muProgNum + 1
+    tpPrSplashNr = muProgNum
+  Else
+    muProgNum = tpPrSplashNr
+  End If
+  
+  tpAf = Nz(rs("PR_Afstand"))
+  tpSl = Nz(rs("PR_Slag"))
+  tpCat = Nz(rs("PR_Categorie"))
+  
+  Dim iPrSplGes As Integer, lPrSwsID As Long
+  
+  iPrSplGes = splFormatGes(m_of_v(tpCat))
+  lPrSwsID = splExpFromLenTransTables_perform_writeProgs_getSwimStyleID(tpAf, tpSl, -1, -1, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID)
+  
+  rsOut.AddNew
+  
+    rsOut("SWIMEVENTID") = tpPrID
+    rsOut("SWIMSESSIONID") = tpWedID
+    rsOut("EVENTNUMBER") = tpPrSplashNr
+    rsOut("FINALORDER") = 1
+    rsOut("GENDER") = iPrSplGes
+    rsOut("SORTCODE") = tpPrSplashNr
+    
+    rsOut("PREVEVENTID") = -1
+    rsOut("ROUND") = 1
+    
+    rsOut("SWIMSTYLEID") = lPrSwsID
+    rsOut("SEEDINGGLOBAL") = "T"
+    rsOut("TWOPERLANE") = "F"
+    rsOut("PFINEIGNORE") = "F"
+    rsOut("SEEDEXHLAST") = "F"
+    rsOut("SEEDBONUSLAST") = "F"
+    
+  rsOut.Update
+    
+  rs.MoveNext
+Loop
+
+
+
+appCleanRS rs
+appCleanRS rsOut
+
+splExpFromLenTransTables_perform_writeProgs = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_writeProgs", errInf
+
+appCleanRS rs
+appCleanRS rsOut
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function splExpFromLenTransTables_perform_writeSessions(ByRef db As Database) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_writeSessions = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("select * from gIMP_LEN_Wedstrijden order by we_id")
+
+Dim rsOut As Recordset
+Set rsOut = db.OpenRecordset("SWIMSESSION")
+
+Dim nWeds As Integer
+nWeds = 0
+
+rs.MoveFirst
+Do Until rs.EOF
+  rsOut.AddNew
+    rsOut("SWIMSESSIONID") = rs("WE_ID")
+    rsOut("STARTDATE") = rs("WE_datum")
+    rsOut("DAYTIME") = rs("WE_Aanvang")
+    rsOut("NAME") = rs("WE_Beschrijving")
+    rsOut("COURSE") = IIf(Nz(rs("WE_Baanlengte")) = 50, 1, 2)
+    
+    rsOut("LANEMIN") = 1
+    rsOut("LANEMAX") = 6
+    rsOut("POOLGLOBAL") = "T"
+    rsOut("SESSIONNUMBER") = (nWeds + 1)
+    rsOut("TIMING") = 3
+    rsOut("TOUCHPADMODE") = 1
+    rsOut("MAXENTRIESATHLETE") = 0
+    rsOut("MAXENTRIESRELAY") = 0
+    
+  rsOut.Update
+  
+  nWeds = nWeds + 1
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+appCleanRS rsOut
+
+splExpFromLenTransTables_perform_writeSessions = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_writeSessions", errInf
+
+appCleanRS rs
+appCleanRS rsOut
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+
+
+Private Sub splExpFromLenTransTables_perform_writeTimeStds_add(ByRef rsLists As Recordset, ByRef rsTimes As Recordset, _
+  ByRef muListID As Long, nLists As Integer, ByRef sListDes() As String, ByRef lListIDs() As Long, _
+  ByVal iMinAge As Integer, iMaxAge As Integer, iSplGes As Integer, iSplType As Integer, iBn As Integer, dTime As Double, _
+  ByVal lSwsID As Long)
+
+
+If swtIsValid(dTime) Then
+
+  Dim sPropName As String, sPropVal As String
+  Dim blDummy As Boolean, lDummy As Long, sDummy As String
+  
+  Dim iSplBn As Integer
+  iSplBn = IIf(iBn = 50, 1, 2)
+  
+  Dim tpListDes As String
+  tpListDes = iMinAge & "_" & iMaxAge & "_" & iSplGes & "_" & iSplBn & "_" & iSplType
+  
+  Dim lListID As Long
+  Dim lkpPos As Integer
+  
+  lkpPos = bSearchString(tpListDes, nLists, sListDes)
+  
+  If (lkpPos < 0) Then
+    muListID = muListID + 1
+    lListID = muListID
+    
+    Dim insPos As Integer
+    insPos = insString(tpListDes, nLists, sListDes)
+    shiftRightLong insPos, 1, nLists - 1, lListIDs
+    
+    lListIDs(insPos) = lListID
+    
+    'add new list
+    rsLists.AddNew
+      rsLists("TIMESTANDARDLISTID") = lListID
+      rsLists("GROUPING") = lListID
+      rsLists("AGEMAX") = iMaxAge
+      rsLists("AGEMIN") = iMinAge
+      rsLists("COURSE") = iSplBn
+      rsLists("GENDER") = iSplGes
+      rsLists("NAME") = IIf(iSplType < 2, "Limiet", "Vervangende tijd")
+      rsLists("STANDARDTYPE") = iSplType
+    rsLists.Update
+    
+  Else
+    lListID = lListIDs(lkpPos)
+  End If
+  
+  rsTimes.AddNew
+    rsTimes("TIMESTANDARDLISTID") = lListID
+    rsTimes("SWIMSTYLEID") = lSwsID
+    rsTimes("SWIMTIME") = splFormatTime_TM2009(dTime)
+  rsTimes.Update
+  
+End If
+
+End Sub
+
+Private Sub splExpFromLenTransTables_perform_writeTimeStds_handle(ByRef rsLists As Recordset, ByRef rsTimes As Recordset, _
+  ByRef muListID As Long, nLists As Integer, ByRef sListDes() As String, ByRef lListIDs() As Long, _
+  ByVal dWedAgeDate As Date, ByVal sLftBep As String, _
+  ByVal sCat As String, ByVal lSwsID As Long, ByVal iLimBaan As Integer, ByVal dLimTime As Double, ByVal blLimIsVVT As Boolean, ByVal blLimIsMin As Boolean, ByVal blLimIsMax As Boolean)
+
+
+Dim blDummy As Boolean
+
+Dim iMinAge As Integer, iMaxAge As Integer, iSplGes As Integer
+splFormatCat sCat, dWedAgeDate, sLftBep, iSplGes, iMinAge, iMaxAge, blDummy
+
+
+If (blLimIsMax) Then
+  splExpFromLenTransTables_perform_writeTimeStds_add rsLists, rsTimes, muListID, nLists, sListDes, lListIDs, iMinAge, iMaxAge, iSplGes, 0, iLimBaan, dLimTime, lSwsID
+End If
+
+If (blLimIsMin) Then
+  splExpFromLenTransTables_perform_writeTimeStds_add rsLists, rsTimes, muListID, nLists, sListDes, lListIDs, iMinAge, iMaxAge, iSplGes, 1, iLimBaan, dLimTime, lSwsID
+End If
+
+If (blLimIsVVT) Then
+  splExpFromLenTransTables_perform_writeTimeStds_add rsLists, rsTimes, muListID, nLists, sListDes, lListIDs, iMinAge, iMaxAge, iSplGes, 2, iLimBaan, dLimTime, lSwsID
+End If
+
+
+End Sub
+
+Private Function splExpFromLenTransTables_perform_writeTimeStds(ByRef db As Database, _
+  ByRef nSws As Integer, ByRef sSwsAf() As String, _
+  ByRef sSwsSl() As String, ByRef lSwsUnqID() As Long, ByRef lSwsID() As Long, _
+  ByVal iWedBn As Integer, ByVal dWedAgeDate As Date, ByVal sLftBep As String) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform_writeTimeStds = False
+
+
+Dim rsListsOut As Recordset, rsTimesOut As Recordset
+Set rsListsOut = db.OpenRecordset("TIMESTANDARDLIST")
+Set rsTimesOut = db.OpenRecordset("TIMESTANDARD")
+
+Dim nLists As Integer
+Dim sListDes(0 To 10000) As String
+Dim lListIDs(0 To 10000) As Long
+nLists = 0
+
+Dim muListID As Long
+muListID = 1000
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("gIMP_LEN_LIMIETEN")
+rs.MoveFirst
+
+Do Until rs.EOF
+
+  Dim tpCat As String, tpAf As String, tpSl As String
+  tpCat = Nz(rs("LIM_Categorie"))
+  tpAf = Nz(rs("LIM_Afstand"))
+  tpSl = Nz(rs("LIM_Slag"))
+  
+  Dim tpSwsID As Long
+  tpSwsID = splExpFromLenTransTables_perform_writeProgs_getSwimStyleID(tpAf, tpSl, -1, -1, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID)
+  
+  Dim tpLimTime As Double, tpLimBaan As Integer, tpLimIsVVT As Boolean, tpLimIsMin As Boolean, tpLimIsMax As Boolean
+  
+  tpLimTime = Nz(rs("LIM_Tijd"))
+  tpLimBaan = Nz(rs("LIM_Baan"))
+  tpLimIsVVT = Nz(rs("LIM_IsVVT"))
+  tpLimIsMin = Nz(rs("LIM_IsMinLim"))
+  tpLimIsMax = Nz(rs("LIM_IsMaxLim"))
+  
+  splExpFromLenTransTables_perform_writeTimeStds_handle rsListsOut, rsTimesOut, muListID, nLists, sListDes, lListIDs, _
+        dWedAgeDate, sLftBep, tpCat, tpSwsID, tpLimBaan, tpLimTime, tpLimIsVVT, tpLimIsMin, tpLimIsMax
+
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+appCleanRS rsListsOut
+appCleanRS rsTimesOut
+
+splExpFromLenTransTables_perform_writeTimeStds = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform_writeTimeStds", errInf
+
+appCleanRS rs
+
+appCleanRS rsListsOut
+appCleanRS rsTimesOut
+
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+Private Function splExpFromLenTransTables_perform(ByVal sMDBFileName As String) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables_perform = False
+
+If Not splExpFromLenTransTables_perform_createDB(sMDBFileName) Then
+  appRaiseSilentError
+End If
+
+Dim db As Database
+Set db = DBEngine.Workspaces(0).OpenDatabase(sMDBFileName)
+
+If Not splExpFromLenTransTables_perform_writeSessions(db) Then
+  appRaiseSilentError
+End If
+
+Dim muSwsID As Long
+Dim nSws As Integer
+Dim sSwsAf(0 To MAX_N_PROGS) As String
+Dim sSwsSl(0 To MAX_N_PROGS) As String
+Dim lSwsUnqID(0 To MAX_N_PROGS) As Long
+Dim lSwsID(0 To MAX_N_PROGS) As Long
+
+If Not splExpFromLenTransTables_perform_prepareSwimStyles(muSwsID, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID) Then
+  appRaiseSilentError
+End If
+
+If Not splExpFromLenTransTables_perform_exportSwimStyles(db, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID) Then
+  appRaiseSilentError
+End If
+
+
+
+If Not splExpFromLenTransTables_perform_writeProgs(db, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID) Then
+  appRaiseSilentError
+End If
+
+Dim dAgeDate As Date
+Dim sLftBep As String
+
+dAgeDate = Nz(DMin("WE_LeeftijdsDatum", "gIMP_LEN_WEDSTRIJDEN"), #1/1/1900#)
+If Not lenDateIsValid(dAgeDate) Then
+  dAgeDate = Nz(DMin("WE_Datum", "gIMP_LEN_WEDSTRIJDEN"), #1/1/1900#)
+End If
+sLftBep = Nz(DMin("WE_Leeftijdsbepaling", "gIMP_LEN_WEDSTRIJDEN"))
+
+Dim iWedBn As Integer
+iWedBn = Nz(DMin("WE_Baanlengte", "gIMP_LEN_WEDSTRIJDEN"), 25)
+
+
+
+If Not splExpFromLenTransTables_perform_writeCats(db, dAgeDate, sLftBep) Then
+  appRaiseSilentError
+End If
+
+If Not splExpFromLenTransTables_perform_writeTimeStds(db, nSws, sSwsAf, sSwsSl, lSwsUnqID, lSwsID, iWedBn, dAgeDate, sLftBep) Then
+  appRaiseSilentError
+End If
+
+
+appCleanDB db
+
+splExpFromLenTransTables_perform = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables_perform", errInf
+
+appCleanDB db
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function splExpFromLenTransTables(ByVal fName As String) As Boolean
+On Error GoTo fout
+splExpFromLenTransTables = False
+
+Dim sMDBFileName As String
+
+Dim zipData As ZIP_INTERNAL
+
+If Not zipWrite(fName, "mdb", "zip", sMDBFileName, zipData) Then
+  Exit Function
+End If
+
+On Error GoTo fout_cleanup
+
+Dim isOK As Boolean
+
+isOK = splExpFromLenTransTables_perform(sMDBFileName)
+
+
+
+On Error GoTo fout
+
+
+Dim sDummy As String, isPackedOK As Boolean
+
+If (Not isOK) Then
+  If Not zipWrite_finish(False, isPackedOK, False, sDummy, zipData) Then
+    appRaiseSilentError
+  End If
+Else
+  If Not zipWrite_finish(True, isPackedOK, True, sDummy, zipData) Then
+    appRaiseSilentError
+  End If
+  If Not isPackedOK Then
+    appRaiseSilentError
+  End If
+End If
+
+
+  
+If (Not isOK) Then
+  appRaiseSilentError
+End If
+
+
+splExpFromLenTransTables = True
+
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "splExpFromLenTransTables", errInf
+
+appDisplayError errInf
+Exit Function
+
+fout_cleanup:
+appRecordError "splExpFromLenTransTables", errInf
+
+zipWrite_finish False, isPackedOK, False, sDummy, zipData
+
+appDisplayError errInf
 Exit Function
 
 End Function

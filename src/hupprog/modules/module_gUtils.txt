@@ -91,6 +91,17 @@ End If
 
 End Sub
 
+Public Sub appCleanDB(ByRef db As Database)
+On Error Resume Next
+
+If Not db Is Nothing Then
+  db.Close
+  Set db = Nothing
+End If
+
+End Sub
+
+
 Public Function changeProperty(strPropName As String, varPropType As Variant, varPropValue As Variant) As Boolean
 On Error GoTo fout
 
@@ -668,7 +679,7 @@ End If
 
 End Function
 
-Private Function lanTestServerAvailability(sPath As String, ByVal lTimeOut As Long) As Boolean
+Public Function lanTestServerAvailability(sPath As String, ByVal lTimeOut As Long) As Boolean
 
 lanTestServerAvailability = False
 
@@ -792,3 +803,1497 @@ tbDef.SourceTableName = sSrcName
 db.TableDefs.Append tbDef
 
 End Sub
+
+
+Private Function xdbReadStructure_IsValidTbProp(ByVal sPropName As String) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "Name"
+    tpRes = True
+  Case "ValidationRule"
+    tpRes = True
+  Case "ValidationText"
+    tpRes = True
+End Select
+
+xdbReadStructure_IsValidTbProp = tpRes
+
+End Function
+
+Private Function xdbReadStructure_IsValidFldProp(ByVal sPropName As String, ByVal blIsRelField As Boolean, ByVal blIsIdx) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "ValidationRule"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "ValidationText"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Name"
+    tpRes = True
+  Case "Type"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Attributes"
+    tpRes = Not blIsRelField
+  Case "Size"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "ForeignName"
+    tpRes = blIsRelField
+  Case "DefaultValue"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Required"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "AllowZeroLength"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Format"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "InputMask"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "Description"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  Case "DisplayControl"
+    tpRes = Not (blIsRelField Or blIsIdx)
+  
+End Select
+
+xdbReadStructure_IsValidFldProp = tpRes
+
+End Function
+
+Private Function xdbReadStructure_IsValidIdxProp(ByVal sPropName As String) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "Name"
+    tpRes = True
+  Case "Unique"
+    tpRes = True
+  Case "Primary"
+    tpRes = True
+  Case "IgnoreNulls"
+    tpRes = True
+  
+End Select
+
+xdbReadStructure_IsValidIdxProp = tpRes
+
+End Function
+
+Private Function xdbReadStructure_IsValidRelProp(ByVal sPropName As String) As Boolean
+Dim tpRes As Boolean
+tpRes = False
+
+Select Case sPropName
+  Case "Name"
+    tpRes = True
+  Case "Table"
+    tpRes = True
+  Case "ForeignTable"
+    tpRes = True
+  Case "Attributes"
+    tpRes = True
+End Select
+
+xdbReadStructure_IsValidRelProp = tpRes
+
+End Function
+
+
+Private Sub xdbReadStructure_exportProp(ByRef dsData As DIR_SERVER_DATA, ByRef prp As Property, ByVal sPropBaseName As String)
+
+Dim blDummy As Boolean, sDummy As String, lDummy As Long
+Dim sPropName As String, sPropValue As String
+
+sPropName = sPropBaseName & "\" & prp.name
+If prp.type = dbBoolean Then
+  sPropValue = rxpFormatBoolean(prp.value)
+Else
+  sPropValue = CStr(prp.value)
+End If
+  
+If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+
+
+End Sub
+
+
+Private Function xdbReadStructure_readField(ByRef dsData As DIR_SERVER_DATA, ByRef fld As Field, ByVal sPropBaseName As String, ByVal blIsRelField As Boolean, blIsIdxField As Boolean) As Boolean
+On Error GoTo fout
+xdbReadStructure_readField = False
+
+Dim prp As Property
+For Each prp In fld.Properties
+  If xdbReadStructure_IsValidFldProp(prp.name, blIsRelField, blIsIdxField) Then
+    xdbReadStructure_exportProp dsData, prp, sPropBaseName
+  End If
+Next prp
+
+xdbReadStructure_readField = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbReadStructure_readField", errInf
+
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function xdbReadStructure_readIndex(ByRef dsData As DIR_SERVER_DATA, ByRef idx As Index, ByVal sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbReadStructure_readIndex = False
+
+Dim prp As Property
+For Each prp In idx.Properties
+  If xdbReadStructure_IsValidIdxProp(prp.name) Then
+    xdbReadStructure_exportProp dsData, prp, sPropBaseName
+  End If
+Next prp
+
+Dim nFields As Integer
+nFields = idx.Fields.Count
+
+
+Dim lDummy As Long, blDummy As Boolean, sDummy As String
+
+Dim sPropName As String, sPropVal As String
+
+sPropName = sPropBaseName & "\N_FIELDS"
+sPropVal = CStr(nFields)
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  Dim fld As Field
+  Set fld = idx.Fields(iff)
+  
+  Dim sFldPropName As String
+  sFldPropName = sPropBaseName & "\FIELD_" & iff
+  
+  If Not xdbReadStructure_readField(dsData, fld, sFldPropName, False, True) Then
+    appRaiseSilentError
+  End If
+  
+  
+  Set fld = Nothing
+Next iff
+
+
+xdbReadStructure_readIndex = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbReadStructure_readIndex", errInf
+
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function xdbReadStructure_readTable(ByRef dsData As DIR_SERVER_DATA, ByRef tb As TableDef, ByVal sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbReadStructure_readTable = False
+
+
+
+Dim prp As Property
+For Each prp In tb.Properties
+  If xdbReadStructure_IsValidTbProp(prp.name) Then
+    xdbReadStructure_exportProp dsData, prp, sPropBaseName
+  End If
+Next prp
+
+
+
+Dim nFields As Integer
+nFields = tb.Fields.Count
+
+
+Dim blDummy As Boolean, lDummy As Long, sDummy As String
+
+Dim sPropName As String, sPropVal As String
+
+
+sPropName = sPropBaseName & "\N_FIELDS"
+sPropVal = CStr(nFields)
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  Dim fld As Field
+  Set fld = tb.Fields(iff)
+  
+  Dim sFldPropName As String
+  sFldPropName = sPropBaseName & "\FIELD_" & iff
+  
+  If Not xdbReadStructure_readField(dsData, fld, sFldPropName, False, False) Then
+    appRaiseSilentError
+  End If
+  
+  
+  Set fld = Nothing
+Next iff
+
+
+
+
+Dim nIdx As Integer
+nIdx = tb.Indexes.Count
+
+sPropName = sPropBaseName & "\N_INDEXES"
+sPropVal = CStr(nIdx)
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+
+Dim iIdx As Integer
+For iIdx = 0 To nIdx - 1
+  Dim idx As Index
+  Set idx = tb.Indexes(iIdx)
+  
+  Dim sIdxPropName As String
+  sIdxPropName = sPropBaseName & "\INDEX_" & iIdx
+  
+  If Not xdbReadStructure_readIndex(dsData, idx, sIdxPropName) Then
+    appRaiseSilentError
+  End If
+  
+  
+  Set idx = Nothing
+Next iIdx
+
+
+xdbReadStructure_readTable = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbReadStructure_readTable", errInf
+
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function xdbReadStructure_readTables(ByRef db As Database, ByRef dsData As DIR_SERVER_DATA, ByVal sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbReadStructure_readTables = False
+
+
+
+
+Dim nTables As Integer
+nTables = db.TableDefs.Count
+
+Dim nExpTables As Integer
+nExpTables = 0
+
+Dim it As Integer
+For it = 0 To nTables - 1
+  Dim tb As TableDef
+  Set tb = db.TableDefs(it)
+  
+  Dim blExp As Boolean
+  blExp = True
+  
+  If (dbSystemObject And tb.Attributes) <> 0 Or (dbHiddenObject And tb.Attributes) <> 0 Then
+    blExp = False
+  End If
+  
+  If (blExp) Then
+    Dim sTbBaseName As String
+    sTbBaseName = sPropBaseName & "\TABLE_" & nExpTables
+  
+    If Not xdbReadStructure_readTable(dsData, tb, sTbBaseName) Then
+      appRaiseSilentError
+    End If
+    
+    nExpTables = nExpTables + 1
+    
+  End If
+  
+  Set tb = Nothing
+  
+Next it
+
+Dim blDummy As Boolean, sDummy As String, lDummy As Long
+
+Dim sPropName As String, sPropVal As String
+
+
+sPropName = sPropBaseName & "\N_TABLES"
+sPropVal = CStr(nExpTables)
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+
+
+
+
+xdbReadStructure_readTables = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbReadStructure_readTables", errInf
+
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function xdbReadStructure_readRelation(ByRef dsData As DIR_SERVER_DATA, ByRef rel As Relation, ByVal sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbReadStructure_readRelation = False
+
+
+
+Dim prp As Property
+For Each prp In rel.Properties
+  If xdbReadStructure_IsValidRelProp(prp.name) Then
+    xdbReadStructure_exportProp dsData, prp, sPropBaseName
+  End If
+Next prp
+
+
+
+Dim nFields As Integer
+nFields = rel.Fields.Count
+
+Dim blDummy As Boolean, sDummy As String, lDummy As Long
+
+Dim sPropName As String, sPropVal As String
+
+sPropName = sPropBaseName & "\N_FIELDS"
+sPropVal = CStr(nFields)
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  Dim fld As Field
+  Set fld = rel.Fields(iff)
+  
+  Dim sFldPropName As String
+  sFldPropName = sPropBaseName & "\FIELD_" & iff
+  
+  If Not xdbReadStructure_readField(dsData, fld, sFldPropName, True, False) Then
+    appRaiseSilentError
+  End If
+  
+  
+  Set fld = Nothing
+Next iff
+
+
+
+
+xdbReadStructure_readRelation = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbReadStructure_readRelation", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function xdbReadStructure_readRelations(ByRef db As Database, ByRef dsData As DIR_SERVER_DATA, ByVal sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbReadStructure_readRelations = False
+
+
+Dim nRels As Integer
+nRels = db.Relations.Count
+
+Dim blDummy As Boolean, sDummy As String, lDummy As Long
+
+Dim sPropName As String, sPropVal As String
+
+sPropName = sPropBaseName & "\N_RELATIONS"
+sPropVal = CStr(nRels)
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+
+Dim iRel As Integer
+For iRel = 0 To nRels - 1
+  
+  Dim rel As Relation
+  Set rel = db.Relations(iRel)
+  
+  Dim sRelBaseName As String
+  sRelBaseName = sPropBaseName & "\RELATION_" & iRel
+  
+  If Not xdbReadStructure_readRelation(dsData, rel, sRelBaseName) Then
+    appRaiseSilentError
+  End If
+  
+  Set rel = Nothing
+
+Next iRel
+
+
+
+
+xdbReadStructure_readRelations = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbReadStructure_readRelations", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+
+
+'To be called only by HJH at design time
+Public Function xdbReadStructure(ByVal sFileName As String, sExpName As String) As Boolean
+On Error GoTo fout
+xdbReadStructure = False
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "fdtgExpDBStructures") Then
+  appRaiseSilentError
+End If
+
+
+Dim sPropBaseName As String
+sPropBaseName = "EXP_DB_STRUCTURES\" & sExpName
+
+Dim blDummy As Boolean, sDummy As String, lDummy As Long
+
+If Not dsDeletePropertyByName(dsData, sPropBaseName, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+Dim db As Database
+Set db = DBEngine.Workspaces(0).OpenDatabase(sFileName)
+
+Dim lVersionCode As Long
+
+If val(db.Version) >= 4 Then
+  lVersionCode = 64 'dbVersion40; hardcoded to allow compile in access97
+Else
+  lVersionCode = 32 'dbVersion30;
+End If
+
+Dim sPropName As String, sPropVal As String
+
+sPropName = sPropBaseName & "\DB_VERSION"
+sPropVal = CStr(lVersionCode)
+If Not dsSetPropertyByName(dsData, sPropName, sPropVal, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+If Not xdbReadStructure_readTables(db, dsData, sPropBaseName) Then
+  appRaiseSilentError
+End If
+
+If Not xdbReadStructure_readRelations(db, dsData, sPropBaseName) Then
+  appRaiseSilentError
+End If
+
+
+appCleanDB db
+dsClean dsData
+
+xdbReadStructure = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbReadStructure", errInf
+
+appCleanDB db
+dsClean dsData
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+'HJH maintenance function; To be called only by HJH at design time
+Public Function fxsStoreString(ByVal sName As String, ByVal sValue As String) As Boolean
+On Error GoTo fout
+fxsStoreString = False
+
+If (sName = "") Then
+  Err.Raise 1, , "Illegal string name"
+End If
+
+Dim skFxs As Recordset
+
+Set skFxs = CurrentDb().OpenRecordset("fdtgFixedStrings")
+skFxs.Index = "PrimaryKey"
+
+skFxs.Seek "=", sName
+
+If (skFxs.NoMatch) Then
+  skFxs.AddNew
+  skFxs("FS_Name") = hzn(sName)
+Else
+  skFxs.Edit
+End If
+
+  skFxs("FS_Value") = hzn(sValue)
+
+skFxs.Update
+
+appCleanRS skFxs
+
+fxsStoreString = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "fxsStoreString", errInf
+
+appCleanRS skFxs
+
+appDisplayError errInf
+Exit Function
+End Function
+
+Public Function fxsReadString(ByVal sName As String, ByRef sValue As String, ByRef blPresent As Boolean) As Boolean
+On Error GoTo fout
+fxsReadString = False
+
+blPresent = False
+sValue = ""
+
+If (sName = "") Then
+  Err.Raise 1, , "Illegal string name"
+End If
+
+Dim skFxs As Recordset
+
+Set skFxs = CurrentDb().OpenRecordset("fdtgFixedStrings")
+skFxs.Index = "PrimaryKey"
+
+skFxs.Seek "=", sName
+
+If (Not skFxs.NoMatch) Then
+  blPresent = True
+  sValue = Nz(skFxs("FS_VALUE"))
+End If
+
+appCleanRS skFxs
+
+fxsReadString = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "fxsReadString", errInf
+
+appCleanRS skFxs
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+Private Function xdbCreateStructure_writeField(ByRef dsData As DIR_SERVER_DATA, ByRef fld As Field, ByVal sPropBaseName As String, ByRef nExtProps As Integer, ByRef sExtPropFieldName() As String, ByRef pExtProp() As Property) As Boolean
+On Error GoTo fout
+xdbCreateStructure_writeField = False
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+
+sPropName = sPropBaseName & "\Name"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+fld.name = sPropVal
+
+sPropName = sPropBaseName & "\ForeignName"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  fld.ForeignName = sPropVal
+End If
+
+sPropName = sPropBaseName & "\Attributes"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  fld.Attributes = CLng(sPropVal)
+End If
+
+sPropName = sPropBaseName & "\Type"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  fld.type = CLng(sPropVal)
+End If
+
+sPropName = sPropBaseName & "\Size"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  fld.Size = CLng(sPropVal)
+End If
+
+sPropName = sPropBaseName & "\DefaultValue"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  fld.DefaultValue = sPropVal
+End If
+
+sPropName = sPropBaseName & "\ValidationRule"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  fld.ValidationRule = sPropVal
+End If
+
+sPropName = sPropBaseName & "\ValidationText"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  fld.ValidationText = sPropVal
+End If
+
+
+sPropName = sPropBaseName & "\Required"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  If (rxpParseBoolean(sPropVal)) Then
+    fld.Required = True
+  Else
+    fld.Required = False
+  End If
+End If
+
+sPropName = sPropBaseName & "\AllowZeroLength"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  If (rxpParseBoolean(sPropVal)) Then
+    fld.AllowZeroLength = True
+  Else
+    fld.AllowZeroLength = False
+  End If
+End If
+
+sPropName = sPropBaseName & "\Format"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (sPropVal <> "") Then
+  sExtPropFieldName(nExtProps) = fld.name
+  Set pExtProp(nExtProps) = fld.CreateProperty("Format", dbText, sPropVal)
+  nExtProps = nExtProps + 1
+End If
+
+sPropName = sPropBaseName & "\InputMask"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (sPropVal <> "") Then
+  sExtPropFieldName(nExtProps) = fld.name
+  Set pExtProp(nExtProps) = fld.CreateProperty("InputMask", dbText, sPropVal)
+  nExtProps = nExtProps + 1
+End If
+
+sPropName = sPropBaseName & "\Description"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (sPropVal <> "") Then
+  sExtPropFieldName(nExtProps) = fld.name
+  Set pExtProp(nExtProps) = fld.CreateProperty("Description", dbText, sPropVal)
+  nExtProps = nExtProps + 1
+End If
+
+sPropName = sPropBaseName & "\DisplayControl"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (sPropVal <> "") Then
+  sExtPropFieldName(nExtProps) = fld.name
+  Set pExtProp(nExtProps) = fld.CreateProperty("DisplayControl", dbInteger, CInt(sPropVal))
+  nExtProps = nExtProps + 1
+End If
+
+
+
+
+xdbCreateStructure_writeField = True
+Exit Function
+
+fout:
+If (Err = 3219) Then
+  Resume Next
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_writeField", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function xdbCreateStructure_writeIndex(ByRef dsData As DIR_SERVER_DATA, ByRef idx As Index, sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbCreateStructure_writeIndex = False
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+
+sPropName = sPropBaseName & "\Name"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+idx.name = sPropVal
+
+sPropName = sPropBaseName & "\Unique"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  If (rxpParseBoolean(sPropVal)) Then
+    idx.Unique = True
+  Else
+    idx.Unique = False
+  End If
+End If
+
+sPropName = sPropBaseName & "\Primary"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  If (rxpParseBoolean(sPropVal)) Then
+    idx.Primary = True
+  Else
+    idx.Primary = False
+  End If
+End If
+
+
+sPropName = sPropBaseName & "\IgnoreNulls"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  If (rxpParseBoolean(sPropVal)) Then
+    idx.IgnoreNulls = True
+  Else
+    idx.IgnoreNulls = False
+  End If
+End If
+
+
+
+sPropName = sPropBaseName & "\N_FIELDS"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim nFields As Integer
+nFields = CInt(sPropVal)
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  Dim fld As Field
+  Set fld = idx.CreateField()
+  
+  Dim sFldPropName As String
+  sFldPropName = sPropBaseName & "\FIELD_" & iff
+  
+  Dim nDummy As Integer, sDummy(0 To 0) As String, pDummy(0 To 0) As Property
+  
+  If Not xdbCreateStructure_writeField(dsData, fld, sFldPropName, nDummy, sDummy, pDummy) Then
+    appRaiseSilentError
+  End If
+  
+  idx.Fields.Append fld
+  Set fld = Nothing
+Next iff
+
+
+xdbCreateStructure_writeIndex = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_writeIndex", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function xdbCreateStructure_writeTable(ByRef dsData As DIR_SERVER_DATA, ByRef tb As TableDef, ByVal sPropBaseName As String, ByRef nExtProps As Integer, ByRef sExtPropFieldName() As String, ByRef pExtProp() As Property) As Boolean
+On Error GoTo fout
+xdbCreateStructure_writeTable = False
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+
+sPropName = sPropBaseName & "\Name"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+tb.name = sPropVal
+
+sPropName = sPropBaseName & "\ValidationRule"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  tb.ValidationRule = sPropVal
+End If
+
+sPropName = sPropBaseName & "\ValidationText"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  tb.ValidationText = sPropVal
+End If
+
+
+
+sPropName = sPropBaseName & "\N_FIELDS"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim nFields As Integer
+nFields = CInt(sPropVal)
+
+nExtProps = 0
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  Dim fld As Field
+  Set fld = tb.CreateField()
+  
+  Dim sFldPropName As String
+  sFldPropName = sPropBaseName & "\FIELD_" & iff
+  
+  If Not xdbCreateStructure_writeField(dsData, fld, sFldPropName, nExtProps, sExtPropFieldName, pExtProp) Then
+    appRaiseSilentError
+  End If
+  
+  tb.Fields.Append fld
+  Set fld = Nothing
+Next iff
+
+
+sPropName = sPropBaseName & "\N_INDEXES"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim nIdx As Integer
+nIdx = CInt(sPropVal)
+
+Dim iIdx As Integer
+For iIdx = 0 To nIdx - 1
+  Dim idx As Index
+  Set idx = tb.CreateIndex()
+  
+  Dim sIdxPropName As String
+  sIdxPropName = sPropBaseName & "\INDEX_" & iIdx
+  
+  If Not xdbCreateStructure_writeIndex(dsData, idx, sIdxPropName) Then
+    appRaiseSilentError
+  End If
+  
+  tb.Indexes.Append idx
+  Set idx = Nothing
+Next iIdx
+
+
+xdbCreateStructure_writeTable = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_writeTable", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function xdbCreateStructure_writeTables(ByRef dsData As DIR_SERVER_DATA, ByRef db As Database, sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbCreateStructure_writeTables = False
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+sPropName = sPropBaseName & "\N_TABLES"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim nTables As Integer
+nTables = CInt(sPropVal)
+
+Dim it As Integer
+For it = 0 To nTables - 1
+  Dim tbDef As TableDef
+  Set tbDef = db.CreateTableDef()
+  
+  Dim sTbPropName As String
+  sTbPropName = sPropBaseName & "\TABLE_" & it
+  
+  Dim nExtProps As Integer
+  Dim sExtPropFldNames(0 To 1000) As String
+  Dim pExtProps(0 To 1000) As Property
+  
+  If Not xdbCreateStructure_writeTable(dsData, tbDef, sTbPropName, nExtProps, sExtPropFldNames, pExtProps) Then
+    appRaiseSilentError
+  End If
+  
+  Dim tpTableName As String
+  tpTableName = tbDef.name
+  
+  db.TableDefs.Append tbDef
+  Set tbDef = Nothing
+  
+  Dim ip As Integer
+  For ip = 0 To nExtProps - 1
+    Dim fld As Field
+    Set fld = db.TableDefs(tpTableName).Fields(sExtPropFldNames(ip))
+    fld.Properties.Append fld.CreateProperty(pExtProps(ip).name, pExtProps(ip).type, pExtProps(ip).value)
+    Set fld = Nothing
+    Set pExtProps(ip) = Nothing
+  Next ip
+  
+Next it
+
+
+xdbCreateStructure_writeTables = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_writeTables", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function xdbCreateStructure_writeRelation(ByRef dsData As DIR_SERVER_DATA, ByRef rel As Relation, ByVal sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbCreateStructure_writeRelation = False
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+
+sPropName = sPropBaseName & "\Name"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+rel.name = sPropVal
+
+sPropName = sPropBaseName & "\Table"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  rel.Table = sPropVal
+End If
+
+sPropName = sPropBaseName & "\ForeignTable"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  rel.ForeignTable = sPropVal
+End If
+
+sPropName = sPropBaseName & "\Attributes"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+If (blPresent) Then
+  rel.Attributes = CLng(sPropVal)
+End If
+
+
+
+
+sPropName = sPropBaseName & "\N_FIELDS"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim nFields As Integer
+nFields = CInt(sPropVal)
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  Dim fld As Field
+  Set fld = rel.CreateField()
+  
+  Dim sFldPropName As String
+  sFldPropName = sPropBaseName & "\FIELD_" & iff
+  
+  Dim nDummy As Integer, sDummy(0 To 0) As String, pDummy(0 To 0) As Property
+  
+  If Not xdbCreateStructure_writeField(dsData, fld, sFldPropName, nDummy, sDummy, pDummy) Then
+    appRaiseSilentError
+  End If
+  
+  rel.Fields.Append fld
+  Set fld = Nothing
+Next iff
+
+
+xdbCreateStructure_writeRelation = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_writeRelation", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function xdbCreateStructure_writeRelations(ByRef dsData As DIR_SERVER_DATA, ByRef db As Database, sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbCreateStructure_writeRelations = False
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+sPropName = sPropBaseName & "\N_RELATIONS"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim nRelations As Integer
+nRelations = CInt(sPropVal)
+
+Dim ir As Integer
+For ir = 0 To nRelations - 1
+  Dim rel As Relation
+  Set rel = db.CreateRelation()
+  
+  Dim sRelPropName As String
+  sRelPropName = sPropBaseName & "\RELATION_" & ir
+  
+  If Not xdbCreateStructure_writeRelation(dsData, rel, sRelPropName) Then
+    appRaiseSilentError
+  End If
+  
+  Dim blAddingRel As Boolean
+  
+  blAddingRel = True
+    db.Relations.Append rel
+  blAddingRel = False
+  
+  Set rel = Nothing
+  
+Next ir
+
+xdbCreateStructure_writeRelations = True
+Exit Function
+
+fout:
+
+If (blAddingRel) And (Err = 3284) Then
+  rel.name = "__relationship__number__" & ir
+  Resume
+End If
+  
+
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_writeRelations", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Public Function xdbCreateStructure(ByVal sFileName As String, sExpName As String) As Boolean
+On Error GoTo fout
+xdbCreateStructure = False
+
+
+
+If FileExists(sFileName) Then
+  FileSystem.Kill sFileName
+End If
+
+
+
+Dim dsData As DIR_SERVER_DATA
+
+If Not dsInit(dsData, False, "fdtgExpDBStructures") Then
+  appRaiseSilentError
+End If
+
+Dim sPropBaseName As String
+sPropBaseName = "EXP_DB_STRUCTURES\" & sExpName
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blDummy As Boolean, lDummy As Long
+
+Dim lVersionCode As Long
+lVersionCode = dbVersion30
+
+sPropName = sPropBaseName & "\DB_VERSION"
+If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If (sPropVal <> "") Then
+  lVersionCode = CLng(sPropVal)
+End If
+
+'create the database
+Dim db As Database
+Set db = DBEngine.Workspaces(0).CreateDatabase(sFileName, DB_LANG_GENERAL, lVersionCode)
+
+
+If Not xdbCreateStructure_writeTables(dsData, db, sPropBaseName) Then
+  appRaiseSilentError
+End If
+
+If Not xdbCreateStructure_writeRelations(dsData, db, sPropBaseName) Then
+  appRaiseSilentError
+End If
+
+
+
+appCleanDB db
+dsClean dsData
+
+xdbCreateStructure = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure", errInf
+
+appCleanDB db
+dsClean dsData
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function xdbEncodeTable(ByRef db As Database, ByVal sTbName As String, ByRef sData As String) As Boolean
+On Error GoTo fout
+xdbEncodeTable = False
+
+sData = ""
+
+Dim rs As Recordset
+Set rs = db.OpenRecordset(sTbName)
+
+
+Const ftype_string = 1
+Const ftype_num = 2
+Const ftype_dec = 3
+Const ftype_log = 4
+Const ftype_date = 5
+
+Dim sFieldNames(0 To 1000) As String
+Dim iFieldTypes(0 To 1000) As Integer
+Dim nFields As Integer
+
+nFields = rs.Fields.Count
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  sFieldNames(iff) = rs.Fields(iff).name
+  Select Case rs.Fields(iff).type
+    Case dbInteger, dbLong
+      iFieldTypes(iff) = ftype_num
+    Case dbDouble, dbCurrency, dbSingle, dbFloat
+      iFieldTypes(iff) = ftype_dec
+    Case dbBoolean
+      iFieldTypes(iff) = ftype_log
+    Case dbDate
+      iFieldTypes(iff) = ftype_date
+    Case Else
+      iFieldTypes(iff) = ftype_string
+  End Select
+Next iff
+
+
+rs.MoveFirst
+Do Until rs.EOF
+  Dim sEncVal As String
+  sData = sData & "<xdb-rec>"
+  For iff = 0 To nFields - 1
+    sEncVal = ""
+    If (Not IsNull(rs.Fields(iff))) Then
+      Select Case iFieldTypes(iff)
+        Case ftype_string
+          sEncVal = Nz(rs.Fields(iff))
+        Case ftype_num
+          sEncVal = CStr(Nz(rs.Fields(iff)))
+        Case ftype_dec
+          sEncVal = CStr(Nz(rs.Fields(iff)))
+          Dim tpDecPos As Integer
+          tpDecPos = InStr(1, sEncVal, ",")
+          If (tpDecPos > 0) Then
+            sEncVal = Left(sEncVal, tpDecPos - 1) & "." & Right(sEncVal, Len(sEncVal) - tpDecPos)
+          End If
+        Case ftype_log
+          sEncVal = IIf(Nz(rs.Fields(iff), False), "true", "false")
+        Case ftype_date
+          sEncVal = Format(Nz(rs.Fields(iff), #1/1/1900#), "yyyy\-mm\-dd")
+        Case Else
+          sEncVal = Nz(rs.Fields(iff))
+      End Select
+    End If
+    
+    sData = sData & "<xdb-fld-" & sFieldNames(iff) & ">"
+    If (Len(sEncVal) > 0) Then
+      sData = sData & gXMLWriter.convertToUTF(sEncVal, False)
+    End If
+    sData = sData & "</xdb-fld-" & sFieldNames(iff) & ">"
+  Next iff
+  sData = sData & "</xdb-rec>"
+  rs.MoveNext
+Loop
+
+
+appCleanRS rs
+
+xdbEncodeTable = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "xdbEncodeTable", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+Public Function xdbWriteEncodedStringToTable(ByRef db As Database, ByVal sData As String, ByVal sTbName As String) As Boolean
+On Error GoTo fout
+xdbWriteEncodedStringToTable = False
+
+Dim rs As Recordset
+Set rs = db.OpenRecordset(sTbName)
+
+
+Const ftype_string = 1
+Const ftype_num = 2
+Const ftype_dec = 3
+Const ftype_log = 4
+Const ftype_date = 5
+
+Dim iFieldTypes(0 To 1000) As Integer
+Dim nFields As Integer
+
+Dim sOrdFieldNames(0 To 1000) As String
+Dim iOrdFieldIdx(0 To 1000) As Integer
+
+nFields = rs.Fields.Count
+
+'Need to use extra counter to the fields here,
+'since insstring updates the field count,
+'hence cannot use loop counter for this purpose
+
+Dim tpNFields As Integer
+tpNFields = 0
+
+Dim iff As Integer
+For iff = 0 To nFields - 1
+  Dim tpFieldName As String
+  tpFieldName = rs.Fields(iff).name
+  
+  Dim insPos As Integer
+  
+  insPos = insString(tpFieldName, tpNFields, sOrdFieldNames)
+  shiftRightInt insPos, 1, tpNFields - 1, iOrdFieldIdx
+  iOrdFieldIdx(insPos) = iff
+  
+  
+  Select Case rs.Fields(iff).type
+    Case dbInteger, dbLong
+      iFieldTypes(iff) = ftype_num
+    Case dbDouble, dbCurrency, dbSingle, dbFloat
+      iFieldTypes(iff) = ftype_dec
+    Case dbBoolean
+      iFieldTypes(iff) = ftype_log
+    Case dbDate
+      iFieldTypes(iff) = ftype_date
+    Case Else
+      iFieldTypes(iff) = ftype_string
+  End Select
+Next iff
+
+While (sData <> "")
+  extractToken sData, "<xdb-rec>"
+  Dim sRecString As String
+  sRecString = extractToken(sData, "</xdb-rec>")
+  
+  rs.AddNew
+  While (sRecString <> "")
+    'simple xml; do not allow single item zero emtries such as <xdb-fld-empty-fld/>.
+    extractToken sRecString, "<xdb-fld-"
+    Dim tpField As String
+    Dim tpVal As String
+    tpField = extractToken(sRecString, ">")
+    tpVal = gXMLReader.convertFromUTF(extractToken(sRecString, "</xdb-fld-" & tpField & ">"), False)
+    
+    Dim tpLkpPos As Integer
+    tpLkpPos = bSearchString(tpField, nFields, sOrdFieldNames)
+    If (tpLkpPos >= 0) Then
+      Dim tpFldIdx As Integer
+      tpFldIdx = iOrdFieldIdx(tpLkpPos)
+      
+      If (tpVal = "") Then
+        rs.Fields(tpFldIdx) = Null
+      Else
+        Select Case iFieldTypes(tpFldIdx)
+          Case ftype_date
+            If (Not IsDate(tpVal)) Then
+              Err.Raise 1, , "The string: " & Chr(13) & tpVal & Chr(13) & "cannot be converted to a date."
+            Else
+              rs(tpFldIdx) = CDate(tpVal)
+            End If
+          Case ftype_log
+            rs(tpFldIdx) = (tpVal = "true")
+          Case ftype_num
+            rs(tpFldIdx) = hzn(tpVal)
+          Case ftype_dec
+            rs(tpFldIdx) = val(tpVal)
+          Case ftype_string
+            rs(tpFldIdx) = hzn(tpVal)
+        End Select
+      End If 'if tpVal <> ""
+    End If 'if tpLkpPos >= 0
+  Wend
+  rs.Update
+Wend
+
+
+appCleanRS rs
+
+xdbWriteEncodedStringToTable = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbWriteEncodedStringToTable", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+End Function
