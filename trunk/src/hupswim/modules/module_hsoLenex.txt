@@ -33,6 +33,8 @@ tbDef.Fields.Append tbDef.CreateField("EST_ActVereniging", dbText, 50)
 
 tbDef.Fields.Append tbDef.CreateField("EST_Inschrijftijd", dbDouble)
 
+tbDef.Fields.Append tbDef.CreateField("EST_BaanInschrijftijd", dbInteger)
+
 tbDef.Fields.Append tbDef.CreateField("EST_UseExtInsTime", dbBoolean)
 tbDef.Fields.Append tbDef.CreateField("EST_ExtInsWedNr", dbLong)
 
@@ -105,7 +107,9 @@ If Not addToExistingTable Then
   If Not analyzeEstafsCreateTable(tbName, blAppInsTdOptions) Then Exit Function
 End If
 
-
+Dim skWed As Recordset
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
 
 
 
@@ -153,11 +157,13 @@ Dim curEstSZActVer As String
 Dim curEstIsValid As Boolean
 Dim curEstInvalidReason As String
 Dim curEstTimeValid As Boolean
+Dim curEstTimeBn As Integer
 Dim curEstTimeTotSecs As Double
 Dim curEstGes As String
 Dim curEstGesDefined As Boolean
 Dim curEstUseExtInsTime As Boolean
 Dim curEstExtInsTime As Double
+Dim curEstExtInsBn As Integer
 Dim curEstExtInsWedNr As Long
 
 
@@ -172,6 +178,7 @@ Dim curEstIsCompleteRes As Boolean
 Dim curEstResIsValid As Boolean
 Dim curEstResInvalidReason As String
 Dim curEstResTimeValid As Boolean
+Dim curEstResTimeBn As Integer
 Dim curEstResTimeTotSecs As Double
 Dim curEstResGes As String
 Dim curEstResGesDefined As Boolean
@@ -181,6 +188,7 @@ Dim curEstResMaxYOB As Long
 Dim curEstResSumYOB As Long
 Dim curEstResUseExtInsTime As Boolean
 Dim curEstResExtInsTime As Double
+Dim curEstResExtInsBn As Integer
 Dim curEstResExtInsWedNr As Long
 
 
@@ -348,14 +356,17 @@ Do Until fin
           If (curEstResUseExtInsTime) Then
             outp("EST_UseExtInsTime") = True
             outp("EST_Inschrijftijd") = curEstResExtInsTime
+            outp("EST_BaanInschrijftijd") = curEstResExtInsBn
             outp("EST_ExtInsWedNr") = curEstResExtInsWedNr
           Else
             outp("EST_UseExtInsTime") = False
             'Use normal inschrijftijd
             If (curEstResTimeValid) Then
               outp("EST_Inschrijftijd") = swtFromSeconds(curEstResTimeTotSecs)
+              outp("EST_BaanInschrijftijd") = curEstResTimeBn
             Else
               outp("EST_Inschrijftijd") = 0
+              outp("EST_BaanInschrijftijd") = 0
             End If
           End If
           
@@ -455,14 +466,17 @@ Do Until fin
           If (curEstUseExtInsTime) Then
             outp("EST_UseExtInsTime") = True
             outp("EST_Inschrijftijd") = curEstExtInsTime
+            outp("EST_BaanInschrijftijd") = curEstExtInsBn
             outp("EST_ExtInsWedNr") = curEstExtInsWedNr
           Else
             outp("EST_UseExtInsTime") = False
             'Use normal inschrijftijd
             If (curEstTimeValid) Then
               outp("EST_Inschrijftijd") = swtFromSeconds(curEstTimeTotSecs)
+              outp("EST_BaanInschrijftijd") = curEstTimeBn
             Else
               outp("EST_Inschrijftijd") = 0
+              outp("EST_BaanInschrijftijd") = 0
             End If
           End If
           
@@ -552,6 +566,7 @@ Do Until fin
     curEstInvalidReason = ""
     curEstTimeTotSecs = 0
     curEstTimeValid = True
+    curEstTimeBn = 50
     curEstGesDefined = False
     curEstMaxClubAge = -1
     curEstLastValidVolg = 0
@@ -567,6 +582,7 @@ Do Until fin
     
     curEstUseExtInsTime = False
     curEstExtInsTime = 0
+    curEstExtInsBn = 0
     curEstExtInsWedNr = 0
     
     curEstIsCompleteRes = True
@@ -574,12 +590,14 @@ Do Until fin
     curEstResInvalidReason = ""
     curEstResTimeTotSecs = 0
     curEstResTimeValid = True
+    curEstResTimeBn = 50
     curEstResGesDefined = False
     curEstResMaxClubAge = -1
     curEstResLastValidVolg = 0
     
     curEstResUseExtInsTime = False
     curEstResExtInsTime = 0
+    curEstResExtInsBn = 0
     curEstResExtInsWedNr = 0
     
     curEstMinYOB = -1
@@ -618,6 +636,8 @@ Do Until fin
   gb = Nz(rs("geboortedatum"))
   Dim td As Double
   td = Nz(rs("inschrijftijd"))
+  Dim lWedNrInsTijd As Long
+  lWedNrInsTijd = Nz(rs("WedstrijdnrInsTijd"))
   
   Dim tpUseExtInsTime As Boolean
   Dim tpExtInsTime As Double
@@ -721,8 +741,18 @@ Do Until fin
         curEstResLastValidVolg = vg
         'tijd mee tellen.
         If (curEstResTimeValid) Then
-          If (td > 1 And td < 8888) Then
+          If (swtIsValid(td)) Then
             curEstResTimeTotSecs = curEstResTimeTotSecs + swtToSeconds(td)
+            If (curEstResTimeBn = 50) Then
+              skWed.Seek "=", lWedNrInsTijd
+              If Not skWed.NoMatch Then
+                If (Nz(skWed("baanlengte")) <> 50) Then
+                  curEstResTimeBn = 25
+                End If
+              Else
+                curEstResTimeBn = 25
+              End If
+            End If
           Else
             curEstResTimeValid = False
           End If
@@ -733,6 +763,10 @@ Do Until fin
         curEstResUseExtInsTime = True
         curEstResExtInsTime = tpExtInsTime
         curEstResExtInsWedNr = tpExtInsWedNr
+        skWed.Seek "=", curEstResExtInsWedNr
+        If Not skWed.NoMatch Then
+          curEstResExtInsBn = Nz(skWed("baanlengte"))
+        End If
       End If
       
       
@@ -791,8 +825,18 @@ Do Until fin
       curEstLastValidVolg = vg
       'tijd mee tellen.
       If (curEstTimeValid) Then
-        If (td > 1 And td < 8888) Then
+        If (swtIsValid(td)) Then
           curEstTimeTotSecs = curEstTimeTotSecs + swtToSeconds(td)
+          If (curEstTimeBn = 50) Then
+            skWed.Seek "=", lWedNrInsTijd
+            If Not skWed.NoMatch Then
+              If (Nz(skWed("baanlengte")) <> 50) Then
+                curEstTimeBn = 25
+              End If
+            Else
+              curEstTimeBn = 25
+            End If
+          End If
         Else
           curEstTimeValid = False
         End If
@@ -805,6 +849,10 @@ Do Until fin
       curEstUseExtInsTime = True
       curEstExtInsTime = tpExtInsTime
       curEstExtInsWedNr = tpExtInsWedNr
+      skWed.Seek "=", curEstExtInsWedNr
+      If Not skWed.NoMatch Then
+        curEstExtInsBn = Nz(skWed("baanlengte"))
+      End If
     End If
     
     
@@ -822,6 +870,9 @@ Loop
 
 
 
+appCleanRS rs
+appCleanRS skWed
+appCleanRS outp
 
 analyzeEstafs_Perform = True
 Exit Function

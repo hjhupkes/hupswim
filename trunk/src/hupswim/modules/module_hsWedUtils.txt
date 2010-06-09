@@ -800,19 +800,19 @@ sEstafsTBName = "~AN_ESTAFS" & sAnEstafsSfx
 
 
 If (blHuidigProg) Then
-  dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+  dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM, wedIns.Datum AS INSDat, EST_BaanInschrijftijd AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
   "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE " & _
   "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN  [" & sEstafsTBName & "] ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) ON wedIns.[Wedstrijd nummer] = [" & sEstafsTBName & "].EST_ExtInsWedNr " & _
   "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") and ([dtProgrammanummers].programmanummer=""" & curProg & """)  )"
 ElseIf (blUseSelection) Then
   If (blMeet) Then
-    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*,""N"" as BM, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*,""N"" as BM, wedIns.Datum AS INSDat, EST_BaanInschrijftijd AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
                              "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE  " & _
                  "FROM (([dtWedstrijden] INNER JOIN ([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN  [" & sEstafsTBName & "]  ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) LEFT JOIN [dtWedstrijden] AS wedIns ON [" & sEstafsTBName & "].EST_ExtInsWedNr = wedIns.[Wedstrijd nummer] " & _
                  "WHERE ( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") AND (([gSelProgs].TP_Teltmee)=True)) )"
 
   Else
-    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM,wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM,wedIns.Datum AS INSDat, EST_BaanInschrijftijd AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
                              "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE  " & _
               "FROM [dtWedstrijden] AS wedIns RIGHT JOIN (([dtProgrammanummers] INNER JOIN [gSelProgs] ON ([dtProgrammanummers].Wedstrijdnr = [gSelProgs].TP_Wedstrijdnummer) AND ([dtProgrammanummers].Programmanummer = [gSelProgs].TP_Programmanummer)) INNER JOIN  [" & sEstafsTBName & "]  ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) ON wedIns.[Wedstrijd nummer] = [" & sEstafsTBName & "].EST_ExtInsWedNr " & _
               "WHERE ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") AND (([gSelProgs].TP_Teltmee)=True))"
@@ -820,13 +820,13 @@ ElseIf (blUseSelection) Then
   End If
 Else
   If (blMeet) Then
-    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*,""N"" as BM, wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*,""N"" as BM, wedIns.Datum AS INSDat, EST_BaanInschrijftijd AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
                              "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet , [dtProgrammanummers].RES_MARGE " & _
                  "FROM (([dtWedstrijden] INNER JOIN [dtProgrammanummers] ON [dtWedstrijden].[Wedstrijd nummer] = [dtProgrammanummers].Wedstrijdnr) INNER JOIN  [" & sEstafsTBName & "] ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) LEFT JOIN [dtWedstrijden] AS wedIns ON [" & sEstafsTBName & "].EST_ExtInsWedNr = wedIns.[Wedstrijd nummer] " & _
                  "WHERE ( ((([dtProgrammanummers].Wedstrijdnr)=" & curMeetNr & ") ) OR ((([dtWedstrijden].MainWedstrijdNummer)=" & curMeetNr & ") ) )"
 
   Else
-    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM,wedIns.Datum AS INSDat, wedIns.Baanlengte AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
+    dlnGetDeelnemersEstSQL = "SELECT [" & sEstafsTBName & "].*, ""N"" as BM,wedIns.Datum AS INSDat, EST_BaanInschrijftijd AS InsBaan, wedIns.Plaats AS InsPlaats, " & _
                              "[dtProgrammanummers].Afstand, [dtProgrammanummers].Slag as PROGSLAG, [dtProgrammanummers].Categorie, [dtProgrammanummers].Opmerking, [dtProgrammanummers].Limiet, [dtProgrammanummers].RES_MARGE  " & _
               "FROM [dtWedstrijden] AS wedIns RIGHT JOIN ([dtProgrammanummers] INNER JOIN  [" & sEstafsTBName & "] ON ([dtProgrammanummers].Programmanummer = [" & sEstafsTBName & "].EST_Programmanummer) AND ([dtProgrammanummers].Wedstrijdnr = [" & sEstafsTBName & "].EST_Wedstrijdnummer)) ON wedIns.[Wedstrijd nummer] = [" & sEstafsTBName & "].EST_ExtInsWedNr  " & _
               "WHERE  ((([dtProgrammanummers].Wedstrijdnr)=" & curWedNr & ") )"

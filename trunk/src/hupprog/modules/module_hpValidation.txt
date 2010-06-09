@@ -1,0 +1,20 @@
+Option Compare Database
+Option Explicit
+Public Function valPrepareValidation(ByRef wedInf As WED_BASIC_INFO, ByVal blEntireMeet As Boolean) As Boolean
+On Error GoTo fout
+valPrepareValidation = False
+
+If Not wedCalcEstQlfBn(wedInf, False, blEntireMeet, "") Then
+  appRaiseSilentError
+End If
+
+valPrepareValidation = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "valPrepareValidation", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
