@@ -29,6 +29,8 @@ Public Const REP_REC_CERT_MULTI = "rptRecCertificates"
 Public Const REP_AAN = "rptAanschrijving"
 Public Const REP_AAN_SMALL = "rptAanschrijving_klein"
 Public Const REP_AAN_PER_DEELN = "rptAanschrijving_perdeeln"
+Public Const REP_AAN_MEET = "rptAanschrijving_meet"
+Public Const REP_AAN_MEET_PER_DEELN = "rptAanschrijving_meet_perdeeln"
 
 Public Const REP_VLB_AAN = "rptVoorbladAanschrijvingen"
 Public Const REP_WED_OV = "rptWedstrijdenOverzicht"
@@ -355,6 +357,10 @@ Select Case rptName
     If Not blUseSuppFileName Then
       fName = dbdir() & "\" & wedSuggestBaseFName() & "_aanschrijving" & fExt
     End If
+  Case REP_AAN_MEET, REP_AAN_MEET_PER_DEELN
+    If Not blUseSuppFileName Then
+      fName = dbdir() & "\" & wedSuggestBaseFNameMeet() & "_aanschrijving" & fExt
+    End If
   Case REP_INS, REP_INS_SMALL
     If Not blUseSuppFileName Then
       fName = dbdir() & "\" & wedSuggestBaseFNameVer() & "_inschrijving" & fExt
@@ -511,6 +517,22 @@ If (isHandled) Then
         Select Case rxpFormat
           Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
             If Not expRepPV(fName, RXP_PV_TYPE_AAN, rxpFormat) Then
+              Exit Function
+            End If
+           isExp = True
+        End Select
+      Case REP_AAN_MEET
+        Select Case rxpFormat
+          Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
+            If Not expRepPV(fName, RXP_PV_TYPE_AAN_MEET, rxpFormat) Then
+              Exit Function
+            End If
+           isExp = True
+        End Select
+      Case REP_AAN_MEET_PER_DEELN
+        Select Case rxpFormat
+          Case RXP_FORMAT_TXT, RXP_FORMAT_HTM, RXP_FORMAT_XML
+            If Not expRepPV(fName, RXP_PV_TYPE_AAN_MEET_PER_DEELN, rxpFormat) Then
               Exit Function
             End If
            isExp = True

@@ -559,13 +559,25 @@ Dim rs As Recordset
 Set rs = CurrentDb().OpenRecordset("select * from gMailmerge where mm_isSelected order by mm_sort_key;")
 rs.MoveFirst
 Do Until rs.EOF
-  Dim tpEmail As String
+  Dim tpEmail As String, tpEmail2 As String
   tpEmail = Nz(rs("MM_Email"))
-  If (tpEmail <> "") Then
-    If (sEmail <> "") Then
-      sEmail = sEmail & ";"
+  tpEmail2 = Nz(rs("MM_Email2"))
+  If (tpEmail <> "") Or (tpEmail2 <> "") Then
+  
+    If (tpEmail <> "") Then
+      If (sEmail <> "") Then
+        sEmail = sEmail & ";"
+      End If
+      sEmail = sEmail & tpEmail
     End If
-    sEmail = sEmail & tpEmail
+    
+    If (tpEmail2 <> "") Then
+      If (sEmail <> "") Then
+        sEmail = sEmail & ";"
+      End If
+      sEmail = sEmail & tpEmail2
+    End If
+    
   Else
     If (sUnknown <> "") Then
       sUnknown = sUnknown & "; "

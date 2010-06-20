@@ -6,10 +6,12 @@ Option Explicit
 'This module supports the following exports:
 Public Const RXP_PV_TYPE_AAN = 0
 Public Const RXP_PV_TYPE_AAN_PER_DEELN = 1
-Public Const RXP_PV_TYPE_INS = 2
-Public Const RXP_PV_TYPE_INS_PER_DEELN = 3
-Public Const RXP_PV_TYPE_UIT = 4
-Public Const RXP_PV_TYPE_UIT_PP = 5
+Public Const RXP_PV_TYPE_AAN_MEET = 2
+Public Const RXP_PV_TYPE_AAN_MEET_PER_DEELN = 3
+Public Const RXP_PV_TYPE_INS = 4
+Public Const RXP_PV_TYPE_INS_PER_DEELN = 5
+Public Const RXP_PV_TYPE_UIT = 6
+Public Const RXP_PV_TYPE_UIT_PP = 7
 
 
 
@@ -77,6 +79,22 @@ Private Const RXP_PV_FLD_S_WED_ZWMBD = "WedstrijdZwembad"
 Private Const RXP_PV_FLD_S_WED_ADRES = "WedstrijdAdres"
 Private Const RXP_PV_FLD_M_WED_OPM_VOOR = "WedstrijdOpmVoor"
 Private Const RXP_PV_FLD_M_WED_OPM_NA = "WedstrijdOpmNa"
+
+
+
+
+Private Const RXP_PV_BNDH_PV_OP_MEET_HEAD = "PVOpstellingPerMeetKop"
+
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_SFX = "OpPerMeet"
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_DES = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & "MeetDes"
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_DAT_LONG = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & "MeetDateLong"
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ZWMB = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & RXP_PV_FLD_S_WED_ZWMBD
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ADRES = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & RXP_PV_FLD_S_WED_ADRES
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_CITY = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & RXP_PV_FLD_S_WED_CITY
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_FMT = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & RXP_PV_FLD_S_WED_KOST_FMT
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_SPEC_FMT = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & RXP_PV_FLD_S_WED_KOST_SPEC_FMT
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_AFSCHR_FMT = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & RXP_PV_FLD_S_WED_AFSCHR_FMT
+Private Const RXP_PV_FLD_S_OP_MEET_HEAD_MEET_BOETE_FMT = RXP_PV_FLD_S_OP_MEET_HEAD_SFX & RXP_PV_FLD_S_WED_BOETE_FMT
 
 
 Private Const RXP_PV_BNDH_PV_OP_DLN_HEAD = "PVOpstellingPerDlnKop"
@@ -358,6 +376,8 @@ Private Const RXP_PV_BNDT_PV_OP_PRG_TAIL = "PVOpstellingPerProgStaart"
 
 Private Const RXP_PV_BNDT_PV_OP_DLN_TAIL = "PVOpstellingPerDlnStaart"
 
+Private Const RXP_PV_BNDT_PV_OP_MEET_TAIL = "PVOpstellingPerMeetStaart"
+
 Private Const RXP_PV_BNDT_UIT_TAIL = "PVUitslagStaart"
 
 Private Const RXP_PV_BNDT_PV_TAIL = "PVStaart"
@@ -410,7 +430,43 @@ Private Const RXP_PV_ARG_UIT_AF = "GlbUitslagAfstanden"
 
 
 
+Private Sub expOpstelling_writeTable_processSet_openWedBand(ByRef geg As Recordset, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long, ByRef rxpPnt As RXP_Pointer)
 
+rxpOpenBand RXP_PV_BNDH_WED_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+        
+rxpSetProperty RXP_PV_FLD_S_WED_DAT_INT, Format(Nz(geg("OP_WedDatum")), "yyyy\-mm\-dd"), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_DAT_NL, Format(Nz(geg("OP_WedDatum")), "dd\-mm\-yyyy"), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_DAT_LNG, fmtDateLong(Nz(geg("OP_WedDatum"))), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_DES, Nz(geg("OP_WedBeschrijving")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_CITY, Nz(geg("OP_WedPlaats")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_I_WED_BN, Nz(geg("OP_WedBaanlengte")), rxpRS, maxUsedRXID
+If Not IsNull(geg("op_wedAanvang")) Then
+  rxpSetProperty RXP_PV_FLD_S_WED_AANV, Format(Nz(geg("op_wedAanvang")), "hh:nn"), rxpRS, maxUsedRXID
+End If
+If Not IsNull(geg("op_wedVerzamelen")) Then
+  rxpSetProperty RXP_PV_FLD_S_WED_VZ, Format(Nz(geg("op_wedVerzamelen")), "hh:nn"), rxpRS, maxUsedRXID
+End If
+If Not IsNull(geg("OP_wedInzwemmen")) Then
+  rxpSetProperty RXP_PV_FLD_S_WED_INZ, Format(Nz(geg("OP_wedInzwemmen")), "hh:nn"), rxpRS, maxUsedRXID
+End If
+rxpSetProperty RXP_PV_FLD_S_WED_AANV_INZ_FMT, Nz(geg("OP_WedDisplayAanvangInzwemmeN")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_MELDEN, Nz(geg("OP_WedMelden")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_PLOEGLEIDER, Nz(geg("OP_WedPloegleider")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_KOST_FMT, Nz(geg("OP_WedDisplayKosten")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_KOST_SPEC_FMT, Nz(geg("OP_WedDisplayKostenSpecificatie")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_AFSCHR_FMT, Nz(geg("OP_WedDisplayAfschrijvingen")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_BOETE_FMT, Nz(geg("OP_WedDisplayBoete")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_DATE_AFSCHR_FMT, Nz(geg("OP_WedDisplayDateAndAfschrijven")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_AFSCHR_GLB_FMT, Nz(geg("OP_WedDisplayAfschrijvingenGlobal")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_ZWMBD, Nz(geg("OP_WedZwembad")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_S_WED_ADRES, Nz(geg("OP_WedAdres")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_M_WED_OPM_VOOR, Nz(geg("OP_WedOpmVoor")), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_M_WED_OPM_NA, Nz(geg("OP_WedOpmNa")), rxpRS, maxUsedRXID
+
+  
+rxpCloseBand RXP_PV_BNDH_WED_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+
+End Sub
 
 
 Private Function expOpstelling_writeTable_processSet(ByVal sql As String, ByVal blGroupOnSwm As Boolean, ByVal blGroupOnWed As Boolean, ByVal blCombineProgDln As Boolean, ByRef rxpRS As Recordset, ByRef maxUsedRXID As Long, ByRef rxpPnt As RXP_Pointer) As Boolean
@@ -672,41 +728,8 @@ Do Until blProgsDone
       End If
   
   
-      rxpOpenBand RXP_PV_BNDH_WED_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
-    
-        
-      rxpSetProperty RXP_PV_FLD_S_WED_DAT_INT, Format(Nz(geg("OP_WedDatum")), "yyyy\-mm\-dd"), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_DAT_NL, Format(Nz(geg("OP_WedDatum")), "dd\-mm\-yyyy"), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_DAT_LNG, fmtDateLong(Nz(geg("OP_WedDatum"))), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_DES, Nz(geg("OP_WedBeschrijving")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_CITY, Nz(geg("OP_WedPlaats")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_I_WED_BN, Nz(geg("OP_WedBaanlengte")), rxpRS, maxUsedRXID
-      If Not IsNull(geg("op_wedAanvang")) Then
-        rxpSetProperty RXP_PV_FLD_S_WED_AANV, Format(Nz(geg("op_wedAanvang")), "hh:nn"), rxpRS, maxUsedRXID
-      End If
-      If Not IsNull(geg("op_wedVerzamelen")) Then
-        rxpSetProperty RXP_PV_FLD_S_WED_VZ, Format(Nz(geg("op_wedVerzamelen")), "hh:nn"), rxpRS, maxUsedRXID
-      End If
-      If Not IsNull(geg("OP_wedInzwemmen")) Then
-        rxpSetProperty RXP_PV_FLD_S_WED_INZ, Format(Nz(geg("OP_wedInzwemmen")), "hh:nn"), rxpRS, maxUsedRXID
-      End If
-      rxpSetProperty RXP_PV_FLD_S_WED_AANV_INZ_FMT, Nz(geg("OP_WedDisplayAanvangInzwemmeN")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_MELDEN, Nz(geg("OP_WedMelden")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_PLOEGLEIDER, Nz(geg("OP_WedPloegleider")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_KOST_FMT, Nz(geg("OP_WedDisplayKosten")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_KOST_SPEC_FMT, Nz(geg("OP_WedDisplayKostenSpecificatie")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_AFSCHR_FMT, Nz(geg("OP_WedDisplayAfschrijvingen")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_BOETE_FMT, Nz(geg("OP_WedDisplayBoete")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_DATE_AFSCHR_FMT, Nz(geg("OP_WedDisplayDateAndAfschrijven")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_AFSCHR_GLB_FMT, Nz(geg("OP_WedDisplayAfschrijvingenGlobal")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_ZWMBD, Nz(geg("OP_WedZwembad")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_S_WED_ADRES, Nz(geg("OP_WedAdres")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_M_WED_OPM_VOOR, Nz(geg("OP_WedOpmVoor")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_PV_FLD_M_WED_OPM_NA, Nz(geg("OP_WedOpmNa")), rxpRS, maxUsedRXID
-    
-        
-      rxpCloseBand RXP_PV_BNDH_WED_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
-    
+      expOpstelling_writeTable_processSet_openWedBand geg, rxpRS, maxUsedRXID, rxpPnt
+  
       blIsWedOpen = True
     End If 'if blGroupOnWed
     curWed = tpWed
@@ -878,15 +901,22 @@ Do Until blProgsDone
   End If 'if blIsNewProg and not blCombineDln
   
   
+  
+  Dim blDlnValid As Boolean
+  blDlnValid = Nz(geg("OP_Int_dln_valid"))
+  
+  
   If (blIsNewRes) Then
     If (Not blCombineProgDln) Then
-      rxpOpenBand RXP_PV_BNDH_RES_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
-    
-      rxpSetProperty RXP_PV_FLD_B_RES_ISRES, tpIsRes, rxpRS, maxUsedRXID
-    
-      rxpCloseBand RXP_PV_BNDH_RES_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
-    
-      blIsResOpen = True
+      If (blDlnValid) Then
+        rxpOpenBand RXP_PV_BNDH_RES_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+      
+        rxpSetProperty RXP_PV_FLD_B_RES_ISRES, tpIsRes, rxpRS, maxUsedRXID
+      
+        rxpCloseBand RXP_PV_BNDH_RES_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+      
+        blIsResOpen = True
+      End If
     End If 'if not blCombineProgDln
     curIsRes = tpIsRes
   End If
@@ -895,28 +925,29 @@ Do Until blProgsDone
     If (Not blCombineProgDln) Then
       'Conditionally open new estafette.
       If (curProgIsEstaf) Then
-        rxpOpenBand RXP_PV_BNDH_EST_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
-      
-        rxpSetProperty RXP_PV_FLD_I_EST_NR, Nz(geg("OP_int_estafettenummer")), rxpRS, maxUsedRXID
-        rxpSetProperty RXP_PV_FLD_B_EST_PLOEG_RES, Nz(geg("OP_int_est_reserve")), rxpRS, maxUsedRXID
-        If (Nz(geg("OP_Int_reserve")) And (Not Nz(geg("OP_int_est_reserve")))) Then
-          rxpSetProperty RXP_PV_FLD_B_EST_IS_PARTIAL, True, rxpRS, maxUsedRXID
-        Else
-          rxpSetProperty RXP_PV_FLD_B_EST_IS_PARTIAL, False, rxpRS, maxUsedRXID
+        If (blDlnValid) Then
+          rxpOpenBand RXP_PV_BNDH_EST_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+        
+          rxpSetProperty RXP_PV_FLD_I_EST_NR, Nz(geg("OP_int_estafettenummer")), rxpRS, maxUsedRXID
+          rxpSetProperty RXP_PV_FLD_B_EST_PLOEG_RES, Nz(geg("OP_int_est_reserve")), rxpRS, maxUsedRXID
+          If (Nz(geg("OP_Int_reserve")) And (Not Nz(geg("OP_int_est_reserve")))) Then
+            rxpSetProperty RXP_PV_FLD_B_EST_IS_PARTIAL, True, rxpRS, maxUsedRXID
+          Else
+            rxpSetProperty RXP_PV_FLD_B_EST_IS_PARTIAL, False, rxpRS, maxUsedRXID
+          End If
+        
+          rxpCloseBand RXP_PV_BNDH_EST_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+        
+          curEstNr = tpEstNr
+          blIsEstOpen = True
         End If
-      
-        rxpCloseBand RXP_PV_BNDH_EST_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
-      
-        curEstNr = tpEstNr
-        blIsEstOpen = True
       End If
     End If 'if not blCombineProgDln
   End If
   
 
 
-  Dim blDlnValid As Boolean
-  blDlnValid = Nz(geg("OP_Int_dln_valid"))
+  
 
   If (Not blCombineProgDln) Then
 
@@ -1081,8 +1112,8 @@ rxpOpenBand "", RXP_BNDTYPE_GLOBAL, rxpRS, maxUsedRXID
 rxpSetProperty RXP_PV_FLD_GLB_B_OPT_DP_LINES, rxpGetUserArg(rxpPnt, RXP_PV_ARG_OPT_DP_LINES), rxpRS, maxUsedRXID
 
 rxpSetProperty RXP_PV_FLD_GLB_B_IS_GRP_ZWM_WED, rxpFormatBoolean(pvType = RXP_PV_TYPE_AAN And optSortPerDeeln), rxpRS, maxUsedRXID
-rxpSetProperty RXP_PV_FLD_GLB_B_IS_GRP_WED_PROG, rxpFormatBoolean((pvType = RXP_PV_TYPE_AAN And Not optSortPerDeeln) Or (pvType = RXP_PV_TYPE_INS)), rxpRS, maxUsedRXID
-rxpSetProperty RXP_PV_FLD_GLB_B_IS_GRP_MEET_ZWM, rxpFormatBoolean((pvType = RXP_PV_TYPE_AAN_PER_DEELN) Or (pvType = RXP_PV_TYPE_INS_PER_DEELN)), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_GLB_B_IS_GRP_WED_PROG, rxpFormatBoolean((pvType = RXP_PV_TYPE_AAN And Not optSortPerDeeln) Or (pvType = RXP_PV_TYPE_INS) Or (pvType = RXP_PV_TYPE_AAN_MEET)), rxpRS, maxUsedRXID
+rxpSetProperty RXP_PV_FLD_GLB_B_IS_GRP_MEET_ZWM, rxpFormatBoolean((pvType = RXP_PV_TYPE_AAN_PER_DEELN) Or (pvType = RXP_PV_TYPE_INS_PER_DEELN) Or (pvType = RXP_PV_TYPE_AAN_MEET_PER_DEELN)), rxpRS, maxUsedRXID
 rxpSetProperty RXP_PV_FLD_GLB_B_IS_PERIOD, rxpGetUserArg(rxpPnt, RXP_PV_ARG_IS_PERIOD), rxpRS, maxUsedRXID
 
 
@@ -1093,7 +1124,7 @@ rxpOpenCloseBand RXP_PV_BNDH_PV_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
 
 
 
-If (optSortPerDeeln) Then
+If (pvType = RXP_PV_TYPE_AAN) And (optSortPerDeeln) Then
 
   rxpOpenBand RXP_PV_BNDH_PV_ZWM_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
   
@@ -1159,6 +1190,27 @@ Else
   
   
       rxpCloseBand RXP_PV_BNDH_PV_OP_PRG_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+      
+    
+    Case RXP_PV_TYPE_AAN_MEET, RXP_PV_TYPE_AAN_MEET_PER_DEELN
+    
+      rxpOpenBand RXP_PV_BNDH_PV_OP_MEET_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+  
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_DES, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_BES), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_DAT_LONG, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_DAT_LNG), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ZWMB, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_ZWMB), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ADRES, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_ADRES), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_CITY, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_PLAATS), rxpRS, maxUsedRXID
+      
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_FMT, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_KOSTEN_FMT), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_SPEC_FMT, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_KOSTEN_SPEC_FMT), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_AFSCHR_FMT, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_AFSCHR_FMT), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_PV_FLD_S_OP_MEET_HEAD_MEET_BOETE_FMT, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_BOETE_FMT), rxpRS, maxUsedRXID
+      
+  
+      rxpCloseBand RXP_PV_BNDH_PV_OP_MEET_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+    
+    
   Case Else
     Err.Raise 1, , "Internal error"
   End Select
@@ -1181,9 +1233,11 @@ srcSQL = "Select * from [~Opstelling]"
 
 
 Select Case pvType
-  Case RXP_PV_TYPE_AAN
-  
-    If (optSortPerDeeln) Then
+  Case RXP_PV_TYPE_AAN, RXP_PV_TYPE_AAN_MEET
+    If (pvType = RXP_PV_TYPE_AAN_MEET) Then
+      blGroupOnWed = True
+      srcSQL = "Select * from [~Opstelling] Order by op_wedstrijdnummer, op_programmanummerNumPart, op_programmanummer, op_rnk_primary, op_rnk_secondary; "
+    ElseIf (optSortPerDeeln) Then
       blGroupOnZwm = True
       blGroupOnWed = True
       srcSQL = "Select * from [~Opstelling] where [op_int_dln_valid] =true Order by op_dlnAchternaam, op_dlnStartnummer, op_wedstrijdnummer, op_programmanummerNumPart, op_programmanummer; "
@@ -1238,6 +1292,78 @@ Select Case pvType
     
     rxpOpenCloseBand RXP_PV_BNDT_EST_STARTS_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
     
+  Case RXP_PV_TYPE_AAN_MEET_PER_DEELN
+    'need to order per match first
+    Dim sql As String
+    sql = "SELECT OP_Wedstrijdnummer FROM [~Opstelling] WHERE OP_Int_dln_valid GROUP BY OP_Wedstrijdnummer ORDER BY op_wedstrijdnummer;"
+
+    Dim rs As Recordset
+    Set rs = CurrentDb().OpenRecordset(sql)
+    rs.MoveFirst
+    Do Until rs.EOF
+      Dim tpWedNr As Long
+      tpWedNr = Nz(rs("op_wedstrijdnummer"))
+      
+      
+      'create a header band for the match
+      
+      sql = "select * from [~opstelling] where [op_wedstrijdnummer] = " & tpWedNr
+      Dim tpRS As Recordset
+      Set tpRS = CurrentDb().OpenRecordset(sql)
+      
+      tpRS.MoveFirst
+      If tpRS.EOF Then
+        Err.Raise 1, , "Internal error"
+      End If
+            
+      expOpstelling_writeTable_processSet_openWedBand tpRS, rxpRS, maxUsedRXID, rxpPnt
+      
+      appCleanRS tpRS
+            
+      
+      blGroupOnZwm = True
+      blCombineProgDln = True
+      srcSQL = "Select * from [~Opstelling] where op_wedstrijdnummer = " & tpWedNr & " and [op_int_prog_estaf] = false and [op_int_dln_valid] = true order by op_dlnAchternaam, op_dlnStartnummer, op_wedstrijdnummer, op_programmanummerNumPart, op_programmanummer;"
+    
+      'Open a group for the persoonlijke starts part
+    
+      rxpOpenCloseBand RXP_PV_BNDH_PRS_STARTS_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+    
+      If Not expOpstelling_writeTable_processSet(srcSQL, blGroupOnZwm, blGroupOnWed, blCombineProgDln, rxpRS, maxUsedRXID, rxpPnt) Then
+        Exit Function
+      End If
+        
+      rxpOpenCloseBand RXP_PV_BNDT_PRS_STARTS_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
+    
+    
+    
+      'Now go for the estafette starts
+    
+      blGroupOnZwm = False
+      blCombineProgDln = False
+    
+      srcSQL = "Select * from [~Opstelling] where op_wedstrijdnummer = " & tpWedNr & " and [op_int_prog_estaf] = true and [op_int_dln_valid] = true order by op_wedstrijdnummer, op_programmanummerNumPart, op_programmanummer, op_rnk_primary, op_rnk_secondary;"
+        
+      rxpOpenCloseBand RXP_PV_BNDH_EST_STARTS_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
+    
+      If Not expOpstelling_writeTable_processSet(srcSQL, blGroupOnZwm, blGroupOnWed, blCombineProgDln, rxpRS, maxUsedRXID, rxpPnt) Then
+        Exit Function
+      End If
+    
+      rxpOpenCloseBand RXP_PV_BNDT_EST_STARTS_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
+      
+      
+      
+      'create a footer band for the match
+      rxpOpenCloseBand RXP_PV_BNDT_WED_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
+      
+      
+      rs.MoveNext
+    Loop
+    
+    appCleanRS rs
+      
+    
   Case Else
     Err.Raise 1, , "Internal error"
 End Select
@@ -1246,7 +1372,7 @@ End Select
 'Now close the report
 
 
-If (optSortPerDeeln) Then
+If (pvType = RXP_PV_TYPE_AAN) And (optSortPerDeeln) Then
   rxpOpenCloseBand RXP_PV_BNDT_PV_ZWM_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
 Else
   Select Case pvType
@@ -1254,6 +1380,8 @@ Else
       rxpOpenCloseBand RXP_PV_BNDT_PV_OP_DLN_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
     Case RXP_PV_TYPE_AAN, RXP_PV_TYPE_INS
       rxpOpenCloseBand RXP_PV_BNDT_PV_OP_PRG_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
+    Case RXP_PV_TYPE_AAN_MEET, RXP_PV_TYPE_AAN_MEET_PER_DEELN
+      rxpOpenCloseBand RXP_PV_BNDT_PV_OP_MEET_TAIL, RXP_BNDTYPE_TAIL, rxpRS, maxUsedRXID
   End Select
 End If
 
@@ -1294,7 +1422,7 @@ On Error GoTo fout
 cbExpOpstelling_TxtRegDefaultFormat = False
 
 Select Case bandName
-  Case RXP_PV_BNDH_PV_OP_DLN_HEAD, RXP_PV_BNDH_PV_OP_PRG_HEAD, RXP_PV_BNDH_WED_HEAD
+  Case RXP_PV_BNDH_PV_OP_DLN_HEAD, RXP_PV_BNDH_PV_OP_PRG_HEAD, RXP_PV_BNDH_PV_OP_MEET_HEAD, RXP_PV_BNDH_WED_HEAD
     'Delegate to custom processer
   Case RXP_PV_BNDH_PROG_HEAD
     bndColFields(0) = RXP_PV_FLD_S_PROG_NR
@@ -1325,10 +1453,15 @@ Select Case bandName
     If (dbUitslagRecsVerbergen()) Then
       blIgnoreBand = True
     Else
-      bndColFields(0) = RXP_PV_FLD_S_CAT_TITLE
-      bndColWidths(0) = RXP_AANINS_TXT_FULL_WIDTH
-      bndColMultiLine(0) = True
-      bndNCols = 1
+      bndColFields(0) = ""
+      bndColFields(1) = RXP_PV_FLD_S_CAT_TITLE
+      
+      bndColWidths(0) = 7
+      bndColWidths(1) = RXP_AANINS_TXT_FULL_WIDTH
+      
+      bndColMultiLine(1) = True
+      
+      bndNCols = 2
     End If
     
   Case RXP_PV_BNDD_CAT_RECORD
@@ -1444,29 +1577,39 @@ Exit Function
 End Function
 
 
-Private Function expOpstelling_WriteTxtAanHeader(ByVal fNr As Integer, ByVal sFldSfx As String, ByVal blForPeriod As Boolean, ByRef rxpPnt As RXP_Pointer) As Boolean
+Private Function expOpstelling_WriteTxtAanHeader(ByVal fNr As Integer, ByVal sFldSfx As String, ByVal blForPeriod As Boolean, ByVal blForMeet As Boolean, ByRef rxpPnt As RXP_Pointer) As Boolean
 On Error GoTo fout
 expOpstelling_WriteTxtAanHeader = False
 
 If (blForPeriod) Then
   Print #fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DES, rxpPnt)
   Print #fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DATE_AFSCHR_FMT, rxpPnt)
+ElseIf (blForMeet) Then
+  Print #fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DES, rxpPnt)
+  Print #fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DAT_LNG, rxpPnt)
 Else
   Print #fNr, "Aanschrijving " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DES, rxpPnt)
   Print #fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DAT_LNG, rxpPnt)
 End If
 
-Print #fNr,
-Print #fNr, rxpTxtPadString("Zwembad:", 15), rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ZWMBD, rxpPnt) & ", " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ADRES, rxpPnt) & " " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_CITY, rxpPnt)
-Print #fNr, rxpTxtPadString("Aanvang:", 15), rxpTxtPadString(rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_AANV_INZ_FMT, rxpPnt), 30);
-Print #fNr, rxpTxtPadString("Melden: ", 15), rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_MELDEN, rxpPnt)
-
-Print #fNr, rxpTxtPadString("Verzamelen:", 15), rxpTxtPadString(rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_VZ, rxpPnt), 30);
-Print #fNr, rxpTxtPadString("Ploegleider:", 15), rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_PLOEGLEIDER, rxpPnt)
 
 Print #fNr,
 
-If (Not blForPeriod) Then
+
+If Not blForMeet Then
+  Print #fNr, rxpTxtPadString("Zwembad:", 15) & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ZWMBD, rxpPnt) & ", " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ADRES, rxpPnt) & " " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_CITY, rxpPnt)
+End If
+
+Print #fNr, rxpTxtPadString("Aanvang:", 15) & rxpTxtPadString(rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_AANV_INZ_FMT, rxpPnt), 30);
+Print #fNr, rxpTxtPadString("Melden: ", 15) & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_MELDEN, rxpPnt)
+
+Print #fNr, rxpTxtPadString("Verzamelen:", 15) & rxpTxtPadString(rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_VZ, rxpPnt), 30);
+Print #fNr, rxpTxtPadString("Ploegleider:", 15) & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_PLOEGLEIDER, rxpPnt)
+
+
+Print #fNr,
+
+If (Not blForPeriod) And (Not blForMeet) Then
   Print #fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_AFSCHR_FMT, rxpPnt)
   Print #fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_BOETE_FMT, rxpPnt)
   Print #fNr,
@@ -1541,6 +1684,20 @@ cbExpOpstelling_TxtProcess = False
 
 
 Select Case bndName
+  Case RXP_PV_BNDH_PV_OP_MEET_HEAD
+    Print #fNr, "Aanschrijving " & rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_DES, rxpPnt)
+    Print #fNr, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_DAT_LONG, rxpPnt)
+    Print #fNr,
+    
+    Print #fNr, rxpTxtPadString("Zwembad:", 15) & rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ZWMB, rxpPnt) & ", " & rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ADRES, rxpPnt) & " " & rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_CITY, rxpPnt)
+    Print #fNr, rxpTxtPadString("Kosten:", 15) & rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_FMT, rxpPnt)
+    Print #fNr, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_SPEC_FMT, rxpPnt)
+    Print #fNr,
+    
+    Print #fNr, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_AFSCHR_FMT, rxpPnt)
+    Print #fNr, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_BOETE_FMT, rxpPnt)
+    Print #fNr,
+    
   Case RXP_PV_BNDH_PV_OP_DLN_HEAD, RXP_PV_BNDH_PV_OP_PRG_HEAD
     Dim pvType As Integer
     pvType = CInt(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_TYPE))
@@ -1551,7 +1708,7 @@ Select Case bndName
       sFldSfx = RXP_PV_FLD_S_OP_PRG_HEAD_WED_SFX
     End If
     If (pvType = RXP_PV_TYPE_AAN) Or (pvType = RXP_PV_TYPE_AAN_PER_DEELN) Then
-      If Not expOpstelling_WriteTxtAanHeader(fNr, sFldSfx, False, rxpPnt) Then
+      If Not expOpstelling_WriteTxtAanHeader(fNr, sFldSfx, False, False, rxpPnt) Then
         Exit Function
       End If
     ElseIf (pvType = RXP_PV_TYPE_INS) Or (pvType = RXP_PV_TYPE_INS_PER_DEELN) Then
@@ -1586,8 +1743,11 @@ Select Case bndName
     Print #fNr,
     blSkipDefaultOutput = True
   Case RXP_PV_BNDH_WED_HEAD
+    pvType = CInt(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_TYPE))
+    Dim isForMeet As Boolean
+    isForMeet = (pvType = RXP_PV_TYPE_AAN_MEET) Or (pvType = RXP_PV_TYPE_AAN_MEET_PER_DEELN)
     isPeriod = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_IS_PERIOD))
-    If Not expOpstelling_WriteTxtAanHeader(fNr, "", isPeriod, rxpPnt) Then
+    If Not expOpstelling_WriteTxtAanHeader(fNr, "", isPeriod, isForMeet, rxpPnt) Then
       Exit Function
     End If
     blSkipDefaultOutput = True
@@ -1632,7 +1792,7 @@ Exit Function
 End Function
 
 
-Private Function expOpstelling_WriteHTMLAanHeader(ByVal fNr As Integer, ByVal sFldSfx As String, ByVal blIncludeWedName As Boolean, ByVal blForPeriod As Boolean, ByRef rxpPnt As RXP_Pointer) As Boolean
+Private Function expOpstelling_WriteHTMLAanHeader(ByVal fNr As Integer, ByVal sFldSfx As String, ByVal blIncludeWedName As Boolean, ByVal blForPeriod As Boolean, ByVal blForMeet As Boolean, ByRef rxpPnt As RXP_Pointer) As Boolean
 On Error GoTo fout
 expOpstelling_WriteHTMLAanHeader = False
 
@@ -1641,6 +1801,16 @@ If (blForPeriod) Then
     Exit Function
   End If
   If Not rxpHTMLTableRow(fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DATE_AFSCHR_FMT, rxpPnt), 10, True, False) Then
+    Exit Function
+  End If
+  If Not rxpHTMLEmptyTableRow(fNr, 10) Then
+    Exit Function
+  End If
+ElseIf (blForMeet) Then
+  If Not rxpHTMLTableRow(fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DES, rxpPnt), 10, True, False) Then
+    Exit Function
+  End If
+  If Not rxpHTMLTableRow(fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_DAT_LNG, rxpPnt), 10, True, False) Then
     Exit Function
   End If
   If Not rxpHTMLEmptyTableRow(fNr, 10) Then
@@ -1658,24 +1828,30 @@ ElseIf (blIncludeWedName) Then
   End If
 End If
 
-Dim tpZwmS As String
-tpZwmS = rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ZWMBD, rxpPnt) & ", " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ADRES, rxpPnt) & " " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_CITY, rxpPnt)
-      
-'Zwembad row
-If Not rxpHTMLOpenTableRow(fNr) Then
-  Exit Function
-End If
 
-  If Not rxpHTMLWriteTableCell(fNr, 4, "Zwembad:", False, False) Then
+If (Not blForMeet) Then
+  Dim tpZwmS As String
+  tpZwmS = rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ZWMBD, rxpPnt) & ", " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_ADRES, rxpPnt) & " " & rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_CITY, rxpPnt)
+      
+      
+   
+  'Zwembad row
+  If Not rxpHTMLOpenTableRow(fNr) Then
+    Exit Function
+  End If
+
+    If Not rxpHTMLWriteTableCell(fNr, 4, "Zwembad:", False, False) Then
+      Exit Function
+    End If
+    
+    If Not rxpHTMLWriteTableCell(fNr, 6, tpZwmS, False, False) Then
+      Exit Function
+    End If
+
+  If Not rxpHTMLCloseTableRow(fNr) Then
     Exit Function
   End If
   
-  If Not rxpHTMLWriteTableCell(fNr, 6, tpZwmS, False, False) Then
-    Exit Function
-  End If
-
-If Not rxpHTMLCloseTableRow(fNr) Then
-  Exit Function
 End If
 
 'Aanvang + Melden
@@ -1732,16 +1908,18 @@ If Not rxpHTMLEmptyTableRow(fNr, 10) Then
   Exit Function
 End If
    
-If Not rxpHTMLTableRow(fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_AFSCHR_FMT, rxpPnt), 10, False, False) Then
-  Exit Function
-End If
-
-If Not rxpHTMLTableRow(fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_BOETE_FMT, rxpPnt), 10, False, False) Then
-  Exit Function
-End If
-
-If Not rxpHTMLEmptyTableRow(fNr, 10) Then
-  Exit Function
+If (Not blForMeet) And (Not blForPeriod) Then
+  If Not rxpHTMLTableRow(fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_AFSCHR_FMT, rxpPnt), 10, False, False) Then
+    Exit Function
+  End If
+  
+  If Not rxpHTMLTableRow(fNr, rxpExtractField(sFldSfx & RXP_PV_FLD_S_WED_BOETE_FMT, rxpPnt), 10, False, False) Then
+    Exit Function
+  End If
+  
+  If Not rxpHTMLEmptyTableRow(fNr, 10) Then
+    Exit Function
+  End If
 End If
 
 
@@ -1847,7 +2025,7 @@ Select Case bandName
   Case RXP_PV_BNDH_PV_HEAD
     useTable = False
     'defer to custom handler
-  Case RXP_PV_BNDH_PV_OP_PRG_HEAD, RXP_PV_BNDH_PV_OP_DLN_HEAD
+  Case RXP_PV_BNDH_PV_OP_PRG_HEAD, RXP_PV_BNDH_PV_OP_DLN_HEAD, RXP_PV_BNDH_PV_OP_MEET_HEAD
     'defer to custom handler
   Case RXP_PV_BNDH_WED_HEAD
     'defer to custom handler
@@ -1881,10 +2059,15 @@ Select Case bandName
     If (dbUitslagRecsVerbergen()) Then
       blIgnoreBand = True
     Else
-      bndColSpans(0) = 10
+      bndColSpans(0) = 2
+      bndColSpans(1) = 8
       
-      bndColFields(0) = RXP_PV_FLD_S_CAT_TITLE
-      bndNCols = 1
+      bndColFields(0) = ""
+      bndColFields(1) = RXP_PV_FLD_S_CAT_TITLE
+      
+      bndColItalic(1) = True
+      
+      bndNCols = 2
     End If
     
   Case RXP_PV_BNDD_CAT_RECORD
@@ -1962,6 +2145,11 @@ Select Case bandName
     bndColFields(3) = RXP_PV_FLD_S_DLN_EST_INS_DAT_NL
     bndColFields(4) = RXP_PV_FLD_S_DLN_EST_INS_PLAATS
     
+    bndColBold(1) = True
+    bndColBold(2) = True
+    bndColBold(3) = True
+    bndColBold(4) = True
+    
     bndNCols = 5
   Case RXP_PV_BNDT_PROG_TAIL
     'This ensures that an empty line is printed.
@@ -2010,16 +2198,86 @@ Select Case bndName
     blGrpZwmWed = rxpParseBoolean(rxpExtractField(RXP_PV_FLD_GLB_B_IS_GRP_ZWM_WED, rxpPnt))
     blGrpMeetZwm = rxpParseBoolean(rxpExtractField(RXP_PV_FLD_GLB_B_IS_GRP_MEET_ZWM, rxpPnt))
     
-    If (blGrpZwmWed) Then
+    If (pvType = RXP_PV_TYPE_AAN_MEET) Or (pvType = RXP_PV_TYPE_AAN_MEET_PER_DEELN) Then
+      If Not rxpHTMLWriteHeader(fNr, "Opstelling " & rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_BES)) Then
+        Exit Function
+      End If
+      If Not rxpHTMLWriteSubHeader(fNr, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_DAT_LNG)) Then
+        Exit Function
+      End If
+    ElseIf (blGrpZwmWed) Then
       'cannot output header
     Else
       'output header
       'Cheat here somewhat by using the user args. The normal data is not yet available in this band.
       'Todo -> output the data in this band.
-      If Not rxpHTMLWriteHeader(fNr, "Opstelling " & rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_BES) & " " & rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_DAT_NL)) Then
+      If Not rxpHTMLWriteHeader(fNr, "Opstelling " & rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_BES)) Then
+        Exit Function
+      End If
+      If Not rxpHTMLWriteSubHeader(fNr, rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_DAT_LNG)) Then
         Exit Function
       End If
     End If
+  Case RXP_PV_BNDH_PV_OP_MEET_HEAD
+  
+  
+    If Not rxpHTMLOpenTableRow(fNr) Then
+      Exit Function
+    End If
+
+    If Not rxpHTMLWriteTableCell(fNr, 4, "Zwembad:", False, False) Then
+      Exit Function
+    End If
+    
+    Dim tpZwmS As String
+    tpZwmS = rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ZWMB, rxpPnt) & ", " & rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_ADRES, rxpPnt) & " " & rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_CITY, rxpPnt)
+  
+    If Not rxpHTMLWriteTableCell(fNr, 6, tpZwmS, False, False) Then
+      Exit Function
+    End If
+
+    If Not rxpHTMLCloseTableRow(fNr) Then
+      Exit Function
+    End If
+    
+    
+    
+    If Not rxpHTMLOpenTableRow(fNr) Then
+      Exit Function
+    End If
+
+    If Not rxpHTMLWriteTableCell(fNr, 4, "Kosten:", False, False) Then
+      Exit Function
+    End If
+    
+    If Not rxpHTMLWriteTableCell(fNr, 6, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_FMT, rxpPnt), False, False) Then
+      Exit Function
+    End If
+
+    If Not rxpHTMLCloseTableRow(fNr) Then
+      Exit Function
+    End If
+    
+    If Not rxpHTMLTableRow(fNr, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_KOST_SPEC_FMT, rxpPnt), 10, False, False) Then
+      Exit Function
+    End If
+    
+    If Not rxpHTMLEmptyTableRow(fNr, 10) Then
+      Exit Function
+    End If
+    
+    If Not rxpHTMLTableRow(fNr, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_AFSCHR_FMT, rxpPnt), 10, False, False) Then
+      Exit Function
+    End If
+    
+    If Not rxpHTMLTableRow(fNr, rxpExtractField(RXP_PV_FLD_S_OP_MEET_HEAD_MEET_BOETE_FMT, rxpPnt), 10, False, False) Then
+      Exit Function
+    End If
+    
+    If Not rxpHTMLEmptyTableRow(fNr, 10) Then
+      Exit Function
+    End If
+    
   Case RXP_PV_BNDH_PV_OP_DLN_HEAD, RXP_PV_BNDH_PV_OP_PRG_HEAD
     pvType = CInt(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_TYPE))
     Dim sFldSfx As String
@@ -2029,7 +2287,7 @@ Select Case bndName
       sFldSfx = RXP_PV_FLD_S_OP_PRG_HEAD_WED_SFX
     End If
     If (pvType = RXP_PV_TYPE_AAN) Or (pvType = RXP_PV_TYPE_AAN_PER_DEELN) Then
-      If Not expOpstelling_WriteHTMLAanHeader(fNr, sFldSfx, False, False, rxpPnt) Then
+      If Not expOpstelling_WriteHTMLAanHeader(fNr, sFldSfx, False, False, False, rxpPnt) Then
         Exit Function
       End If
     ElseIf (pvType = RXP_PV_TYPE_INS) Or (pvType = RXP_PV_TYPE_INS_PER_DEELN) Then
@@ -2085,7 +2343,10 @@ Select Case bndName
     blSkipDefaultOutput = True
   Case RXP_PV_BNDH_WED_HEAD
     isPeriod = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_IS_PERIOD))
-    If Not expOpstelling_WriteHTMLAanHeader(fNr, "", True, isPeriod, rxpPnt) Then
+    pvType = CInt(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_TYPE))
+    Dim isMeet As Boolean
+    isMeet = (pvType = RXP_PV_TYPE_AAN_MEET) Or (pvType = RXP_PV_TYPE_AAN_MEET_PER_DEELN)
+    If Not expOpstelling_WriteHTMLAanHeader(fNr, "", True, isPeriod, isMeet, rxpPnt) Then
       Exit Function
     End If
     blSkipDefaultOutput = True
@@ -2255,10 +2516,12 @@ rs.MoveFirst
     strBeschrijving = meetWedInf.meetDes
     If (meetWedInf.meetMinDate <> meetWedInf.meetMaxDate) Then
       strDatumNL = rxpFormatDateNL(meetWedInf.meetMinDate) & " t/m " & rxpFormatDateNL(meetWedInf.meetMaxDate)
+      strDatumLng = fmtDateLong(meetWedInf.meetMinDate) & " t/m " & fmtDateLong(meetWedInf.meetMaxDate)
     Else
       strDatumNL = rxpFormatDateNL(meetWedInf.date)
+      strDatumLng = fmtDateLong(meetWedInf.date)
     End If
-    strDatumLng = fmtDateLong(meetWedInf.date)
+    
   Else
     strBeschrijving = Nz(rs("OP_WedBeschrijving"))
     
@@ -4334,7 +4597,7 @@ End If
 
 
 Select Case pvType
-  Case RXP_PV_TYPE_AAN, RXP_PV_TYPE_AAN_PER_DEELN, RXP_PV_TYPE_INS, RXP_PV_TYPE_INS_PER_DEELN
+  Case RXP_PV_TYPE_AAN, RXP_PV_TYPE_AAN_PER_DEELN, RXP_PV_TYPE_INS, RXP_PV_TYPE_INS_PER_DEELN, RXP_PV_TYPE_AAN_MEET, RXP_PV_TYPE_AAN_MEET_PER_DEELN
     Dim tbName As String
     tbName = "~rxpOpstelling"
     If Not expOpstelling_writeTable(tbName, pvType) Then
