@@ -57,6 +57,9 @@ End Type
 
 
 Public Type RXC_STAT_RNK_OPTS
+
+  blHistoric As Boolean
+
   dStartDate As Date
   dEndDate As Date
   
@@ -3622,7 +3625,7 @@ If Not rxcLoadStatRnkOpts(sCfgName, rnkOpts, nAfSl, ordAf, ordSl, nWeds, ordWeds
   Exit Function
 End If
 
-If Not rnkBuildRanking(rnkOpts.dStartDate, rnkOpts.dEndDate, rnkOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
+If Not rnkBuildRanking(rnkOpts.blHistoric, rnkOpts.dStartDate, rnkOpts.dEndDate, rnkOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
   rnkOpts.blUseLft, nLftCats, lftCats, rnkOpts.blRestrictLS, rnkOpts.lsCode, rnkOpts.blOnlyActive, rnkOpts.blRestrictWed, _
   nWeds, ordWeds, _
   rnkOpts.blInclude25m, rnkOpts.blInclude50m, PNT_VRT_MODE_NONE, rnkOpts.blExcludeTst, rnkOpts.blExcludeDis, _
@@ -3681,7 +3684,7 @@ If Not rxcLoadStatSOOpts(sCfgName, soOpts, nAfSl, ordAf, ordSl, nWeds, ordWeds, 
   Exit Function
 End If
 
-If Not rnkBuildRanking(soOpts.dStartDate, soOpts.dEndDate, soOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
+If Not rnkBuildRanking(False, soOpts.dStartDate, soOpts.dEndDate, soOpts.blRestrictAfSl, nAfSl, ordAf, ordSl, _
   soOpts.blUseLft, nLftCats, lftCats, soOpts.blRestrictLS, soOpts.lsCode, soOpts.blOnlyActive, soOpts.blRestrictWed, _
   nWeds, ordWeds, _
   soOpts.blInclude25m, soOpts.blInclude50m, soOpts.iSOPntMode, soOpts.blExcludeTst, soOpts.blExcludeDis, _
@@ -4936,6 +4939,12 @@ If Not rxcWriteCatList(dsData, sBaseName & "CatList", nLftCat, lftCats) Then
   Exit Function
 End If
 
+sPropValue = rxpFormatBoolean(rxcOpts.blHistoric)
+If Not dsSetPropertyByName(dsData, sBaseName & "blHistoric", sPropValue, lDummy, blDummy, sDummy) Then
+  Exit Function
+End If
+
+
 
   
 dsClean dsData
@@ -5135,6 +5144,12 @@ End If
 If Not rxcReadCatList(dsData, sBaseName & "CatList", nLftCats, lftCats) Then
   Exit Function
 End If
+
+If Not dsLookupPropertyByName(dsData, sBaseName & "blHistoric", blExists, sPropValue, lDummy) Then
+  Exit Function
+End If
+rxcOpts.blHistoric = rxpParseBoolean(sPropValue)
+
 
 
 

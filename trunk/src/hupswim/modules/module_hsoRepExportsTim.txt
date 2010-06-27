@@ -1098,7 +1098,7 @@ Do Until blDone
     tpRefBn = Nz(rs("RAD_REF_Baanlengte"))
     tpAf = Nz(rs("RAD_Afstand"))
     tpSl = Nz(rs("RAD_Slag"))
-    tpCatIdx = Nz(rs("RA_CategorieIdx"))
+    tpCatIdx = Nz(rs("RAD_CategorieIdx"))
     
     
     If (tpRefBn <> curRefBn) Then
@@ -1170,8 +1170,8 @@ Do Until blDone
     
       rxpOpenBand RXP_BNDH_RNK_CAT_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
 
-      rxpSetProperty RXP_RNK_FLD_S_CAT_CODE, Nz(rs("RA_Categorie")), rxpRS, maxUsedRXID
-      rxpSetProperty RXP_RNK_FLD_S_CAT_DES, Nz(rs("RA_BeschrijvingCategorie")), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_RNK_FLD_S_CAT_CODE, Nz(rs("RAD_Categorie")), rxpRS, maxUsedRXID
+      rxpSetProperty RXP_RNK_FLD_S_CAT_DES, Nz(rs("RAD_BeschrijvingCategorie")), rxpRS, maxUsedRXID
     
       rxpCloseBand RXP_BNDH_RNK_CAT_HEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
     
@@ -1352,7 +1352,7 @@ sql = "SELECT [~ranglijst_specificatie].*, [~Ranglijst].* " & _
       "FROM [~ranglijst_specificatie] INNER JOIN [~Ranglijst] ON [~ranglijst_specificatie].RAD_Startnummer = " & _
       "[~Ranglijst].RA_Startnummer "
       
-sql = sql & "ORDER BY rad_ref_baanlengte, rad_slag, afstOrder(nz([rad_afstand])), ra_categorieIdx, rad_ranking; "
+sql = sql & "ORDER BY rad_ref_baanlengte, rad_slag, afstOrder(nz([rad_afstand])), rad_categorieIdx, rad_ranking; "
 
 
 If Not expRnkFlat_write_processSet(lMaxSwimmers, blShowLevel, blSplitBaan, blSplitGroup, sql, rxpRS, maxUsedRXID) Then

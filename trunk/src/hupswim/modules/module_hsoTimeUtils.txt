@@ -587,7 +587,7 @@ Public Function prsMarkPRs(ByVal markStartDate As Date, ByVal markEndDate As Dat
 On Error GoTo fout
 prsMarkPRs = False
 Dim dummy(0 To 0) As Long
-If Not prsMarkPRs_Perform(markStartDate, markEndDate, markWedNr, False, False, False, 0, dummy) Then
+If Not prsMarkPRs_Perform(markStartDate, markEndDate, markWedNr, False, False, False, False, 0, dummy) Then
   Exit Function
 End If
 
@@ -599,7 +599,7 @@ MsgBox Err & " prsMarkPrs" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
-Private Function prsMarkPRs_Perform(ByVal markStartDate As Date, ByVal markEndDate As Date, ByVal markWedNr As Long, ByVal markExcludeDis As Boolean, ByVal markExcludeTst As Boolean, ByVal blRestrictWeds As Boolean, ByVal nWeds, ByRef ordWed() As Long) As Boolean
+Private Function prsMarkPRs_Perform(ByVal markStartDate As Date, ByVal markEndDate As Date, ByVal markWedNr As Long, ByVal markExcludeDis As Boolean, ByVal markExcludeTst As Boolean, ByVal blAlsoMarkNonFastest As Boolean, ByVal blRestrictWeds As Boolean, ByVal nWeds, ByRef ordWed() As Long) As Boolean
 On Error GoTo fout
 prsMarkPRs_Perform = False
 
@@ -608,8 +608,8 @@ DAO.DBEngine.setOption dbMaxLocksPerFile, 1000000
 
 
 
-If (blRestrictWeds) Then
-  'Always need to recreate if we are restricting weds.
+If (blRestrictWeds) Or (blAlsoMarkNonFastest) Then
+  'Always need to recreate if we are restricting weds or if we are marking all times.
   prs_SetMarkedOK False, #1/1/1900#, #1/1/1900#, -1, False, False
 End If
   
@@ -724,7 +724,10 @@ Do Until td.EOF
         td("IsMarked") = True
       td.Update
       
-      curRecFnd = True
+      
+      If (Not blAlsoMarkNonFastest) Then
+        curRecFnd = True
+      End If
       
     End If
     
@@ -738,7 +741,7 @@ appCleanRS td
 
 
 'Only mark that PRs have been set ok if we are not restricting weds.
-If (Not blRestrictWeds) Then
+If (Not blRestrictWeds) And (Not blAlsoMarkNonFastest) Then
   prs_SetMarkedOK True, markStartDate, markEndDate, markWedNr, markExcludeDis, markExcludeTst
 End If
 
@@ -2969,6 +2972,8 @@ tb.Fields.Append tb.CreateField("RAD_Vereniging", dbText, 50)
 tb.Fields.Append tb.CreateField("RAD_Name", dbText, 255)
 
 tb.Fields.Append tb.CreateField("RAD_Categorie", dbText, 50)
+tb.Fields.Append tb.CreateField("RAD_CategorieIdx", dbInteger)
+tb.Fields.Append tb.CreateField("RAD_BeschrijvingCategorie", dbText, 50)
 
 
 tb.Fields.Append tb.CreateField("RAD_Afstand", dbText, 20)
@@ -3027,7 +3032,7 @@ End Function
 
 Public Function rnkBuildRanking_ProcessTime(ByRef outpDetails As Recordset, ByRef skWed As Recordset, _
 ByVal curStart As String, ByVal curName As String, ByVal curVer As String, _
-ByVal curAf As String, ByVal curSl As String, ByVal curBn As Integer, ByVal curCat As String, ByVal newTime As Double, ByVal newWed As Long, ByVal newDis As String, _
+ByVal curAf As String, ByVal curSl As String, ByVal curBn As Integer, ByVal curCatIdx As Integer, ByRef curCat As CAT_INFO, ByVal newTime As Double, ByVal newWed As Long, ByVal newDis As String, _
 ByVal pnts As Double, ByVal lev As String) As Boolean
 On Error GoTo fout
 rnkBuildRanking_ProcessTime = False
@@ -3038,7 +3043,9 @@ outpDetails.AddNew
   outpDetails("RAD_Name") = hzn(curName)
   outpDetails("RAD_Vereniging") = hzn(curVer)
   
-  outpDetails("RAD_Categorie") = hzn(curCat)
+  outpDetails("RAD_Categorie") = hzn(curCat.cat)
+  outpDetails("RAD_BeschrijvingCategorie") = hzn(curCat.bescat)
+  outpDetails("RAD_CategorieIdx") = curCatIdx
   
   skWed.Seek "=", newWed
   If skWed.NoMatch Then
@@ -3072,7 +3079,7 @@ Exit Function
 On Error GoTo 0
 Resume
 End Function
-Public Function rnkBuildRanking(ByVal startDate As Date, ByVal endDate As Date, _
+Private Function rnkBuildRanking_nonHistoric(ByVal startDate As Date, ByVal endDate As Date, _
 ByVal blRestrictAfSl As Boolean, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
 ByVal blUseLft As Boolean, ByVal nLftCats As Integer, ByRef lftCats() As CAT_INFO, _
 ByVal blRestrictLS As Boolean, ByVal lsCode As Long, ByVal blOnlyActive As Boolean, _
@@ -3083,6 +3090,8 @@ ByVal dLimit As Double, ByVal blIncludeM As Boolean, ByVal blIncludeV As Boolean
 ByVal blRestrictLevel As Boolean, ByVal levCodeMin As String, ByVal levCodeMax As String) As Boolean
 
 On Error GoTo fout
+
+rnkBuildRanking_nonHistoric = False
 
 If Not rnkBuildRanking_createTables("~Ranglijst", "~Ranglijst_specificatie", "~Ranglijst_stats") Then
   Exit Function
@@ -3101,7 +3110,8 @@ End If
 
 
 'If we have a wed-restriction, need to be very careful.
-If Not prsMarkPRs_Perform(startDate, endDate, -1, blExcludeDis, blExcludeTst, blRestrictWed, nWeds, ordWed) Then
+'Mark only pr's
+If Not prsMarkPRs_Perform(startDate, endDate, -1, blExcludeDis, blExcludeTst, False, blRestrictWed, nWeds, ordWed) Then
   Exit Function
 End If
 
@@ -3296,7 +3306,7 @@ Do Until blDone
             
               curZwmPnts = curZwmPnts + tpPoints
         
-              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 25, curZwmCat, curFstTime25, curFstWed25, curFstDis25, _
+              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 25, curZwmCatIdx, lftCats(curZwmCatIdx), curFstTime25, curFstWed25, curFstDis25, _
                 tpPoints, tpLevel) Then
                 Exit Function
               End If
@@ -3373,7 +3383,7 @@ Do Until blDone
             If (blProcessTime) Then
               curZwmPnts = curZwmPnts + tpPoints
         
-              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 50, curZwmCat, curFstTime50, curFstWed50, curFstDis50, _
+              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 50, curZwmCatIdx, lftCats(curZwmCatIdx), curFstTime50, curFstWed50, curFstDis50, _
                 tpPoints, tpLevel) Then
                 Exit Function
               End If
@@ -3641,13 +3651,13 @@ End If
 
 
 
-rnkBuildRanking = True
+rnkBuildRanking_nonHistoric = True
 
 Exit Function
 
 fout:
 If (Err = 3021) Then Resume Next
-MsgBox Err & " rnkBuildRanking" & vbCrLf & Error$, 16
+MsgBox Err & " rnkBuildRanking_nonHistoric" & vbCrLf & Error$, 16
 Exit Function
 
 'debug
@@ -3893,6 +3903,545 @@ If (Err = 3021) Then Resume Next ' no current record.
 MsgBox Err & " rnkBuildRanking_outputStats" & vbCrLf & Error$, 16
 Exit Function
 End Function
+
+
+Private Function rnkBuildRanking_historic(ByVal startDate As Date, ByVal endDate As Date, _
+ByVal blRestrictAfSl As Boolean, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+ByVal blUseLft As Boolean, ByVal nLftCats As Integer, ByRef lftCats() As CAT_INFO, _
+ByVal blRestrictLS As Boolean, ByVal lsCode As Long, ByVal blOnlyActive As Boolean, _
+ByVal blRestrictWed As Boolean, ByVal nWeds As Integer, ByRef ordWed() As Long, _
+ByVal blInclude25m As Boolean, ByVal blInclude50m As Boolean, ByVal pntMode As Integer, _
+ByVal blExcludeTst As Boolean, ByVal blExcludeDis As Boolean, _
+ByVal dLimit As Double, ByVal blIncludeM As Boolean, ByVal blIncludeV As Boolean, _
+ByVal blRestrictLevel As Boolean, ByVal levCodeMin As String, ByVal levCodeMax As String) As Boolean
+
+On Error GoTo fout
+
+rnkBuildRanking_historic = False
+
+If Not rnkBuildRanking_createTables("~Ranglijst", "~Ranglijst_specificatie", "~Ranglijst_stats") Then
+  Exit Function
+End If
+
+If Not lenDateIsValid(endDate) Then
+  endDate = #1/1/2099#
+End If
+
+If (Not blUseLft) Or (nLftCats = 0) Then
+  Err.Raise 1, , "Bij een  historische ranglijst moet u leeftijdsgroepen gebruiken."
+End If
+
+
+'If we have a wed-restriction, need to be very careful.
+'Need to mark all times; not only fastest
+If Not prsMarkPRs_Perform(startDate, endDate, -1, blExcludeDis, blExcludeTst, True, blRestrictWed, nWeds, ordWed) Then
+  Exit Function
+End If
+
+
+
+
+'Now acquire level-calculating information
+Dim levNLft As Integer, levLft(0 To MAX_N_REC_AGES) As Long
+Dim levNLevels As Integer, levCodes(0 To MAX_N_LEVELS) As String
+Dim levNAfSl As Integer, levOrdAf(0 To MAX_N_REC_AFSL) As String, levOrdSl(0 To MAX_N_REC_AFSL) As String
+Dim levHasTimes25M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Boolean, levTimes25M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES, 0 To MAX_N_LEVELS) As Double
+Dim levHasTimes50M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Boolean, levTimes50M(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES, 0 To MAX_N_LEVELS) As Double
+Dim levHasTimes25V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Boolean, levTimes25V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES, 0 To MAX_N_LEVELS) As Double
+Dim levHasTimes50V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES) As Boolean, levTimes50V(0 To MAX_N_REC_AFSL, 0 To MAX_N_REC_AGES, 0 To MAX_N_LEVELS) As Double
+
+If Not levAcquire(levNLft, levLft, levNLevels, levCodes, levNAfSl, levOrdAf, levOrdSl, levHasTimes25M, levTimes25M, _
+  levHasTimes50M, levTimes50M, levHasTimes25V, levTimes25V, levHasTimes50V, levTimes50V) Then
+  Exit Function
+End If
+
+
+
+'Now just loop through the marked prs and process them.
+'Need to be careful if we don't take into account 25m/50m times.
+
+Dim td As Recordset
+
+
+Dim sql As String
+sql = "select * from [__marked_prs] order by [start nr], [afstand], [slag], [tijd]  "
+  
+Set td = CurrentDb().OpenRecordset(sql)
+
+Dim curStart As String
+Dim curName As String
+Dim curAchternaam As String
+Dim curVer As String
+
+Dim curAf As String
+Dim curSl As String
+Dim curAfSlValid As Boolean
+
+
+Dim curFstTime25(0 To MAX_N_REC_AGES) As Double
+Dim curFstWed25(0 To MAX_N_REC_AGES) As Long
+Dim curFstDat25(0 To MAX_N_REC_AGES) As Date
+Dim curFstDis25(0 To MAX_N_REC_AGES) As String
+
+Dim curFstTime50(0 To MAX_N_REC_AGES) As Double
+Dim curFstWed50(0 To MAX_N_REC_AGES) As Long
+Dim curFstDat50(0 To MAX_N_REC_AGES) As Date
+Dim curFstDis50(0 To MAX_N_REC_AGES) As String
+
+
+
+curStart = ""
+curName = ""
+curVer = ""
+
+curAf = ""
+curSl = ""
+
+Dim skSwm As Recordset
+Dim skWed As Recordset
+Set skSwm = CurrentDb().OpenRecordset("dtLeden")
+skSwm.Index = "PrimaryKey"
+
+Set skWed = CurrentDb().OpenRecordset("dtWedstrijden")
+skWed.Index = "PrimaryKey"
+
+Dim outp As Recordset
+Set outp = CurrentDb().OpenRecordset("~Ranglijst")
+
+Dim outpDetails As Recordset
+Set outpDetails = CurrentDb().OpenRecordset("~Ranglijst_Specificatie")
+
+
+Dim curZwmGes As String, curZwmGebDate As Date
+Dim curZwmValid As Boolean
+
+
+curZwmValid = False
+curAfSlValid = False
+
+td.MoveFirst
+Dim blDone As Boolean
+blDone = td.EOF
+
+Do Until blDone
+  Dim tpStart As String, tpAf As String, tpSl As String, tpBn As Integer, tpDat As Date
+  
+  Dim isAfSlClose As Boolean
+  Dim isZwmClose As Boolean
+  
+  isAfSlClose = False
+  isZwmClose = False
+  
+  
+  If (td.EOF) Then
+    tpStart = ""
+    tpAf = ""
+    tpSl = ""
+    tpBn = -1
+    tpDat = #1/1/1900#
+  Else
+    tpStart = Nz(td("start nr"))
+    tpAf = Nz(td("afstand"))
+    tpSl = Nz(td("slag"))
+    
+    tpBn = Nz(td("Baanlengte"))
+    tpDat = Nz(td("datum"))
+    
+  End If
+  
+  If (tpStart <> curStart) Then
+    isZwmClose = True
+    isAfSlClose = True
+  ElseIf (tpAf <> curAf) Or (tpSl <> curSl) Then
+    isAfSlClose = True
+  End If
+  
+  If (isAfSlClose) Then
+    If (curAf <> "") And (curSl <> "") Then
+      If (curZwmValid And curAfSlValid) Then
+        'finish up old afSl
+        
+        
+        
+        'loop over the different cats
+        
+        Dim iCat As Integer
+        For iCat = 0 To nLftCats - 1
+        
+          Dim tpLevel As String
+          If (blInclude25m) Then
+          
+               
+            If (swtIsValid(curFstTime25(iCat))) Then
+            
+              tpLevel = ""
+            
+              If Not levFind(curStart, curZwmGes, curFstDat25(iCat), curAf, curSl, 25, curFstTime25(iCat), tpLevel, _
+                levNLft, levLft, levNLevels, levCodes, levNAfSl, levOrdAf, levOrdSl, levHasTimes25M, levTimes25M, _
+                levHasTimes50M, levTimes50M, levHasTimes25V, levTimes25V, levHasTimes50V, levTimes50V) Then
+                Exit Function
+              End If
+              
+              Dim blProcessTime As Boolean
+              blProcessTime = True
+              'Need to check whether to process time
+              If (blRestrictLevel) Then
+                If (tpLevel = "") Then
+                  blProcessTime = False
+                Else
+                  Dim minLevIdx As Integer
+                  Dim maxLevIdx As Integer
+                  Dim curLevIdx As Integer
+                  curLevIdx = levCodeToInt(tpLevel, False)
+                  minLevIdx = levCodeToInt(levCodeMin, True)
+                  maxLevIdx = levCodeToInt(levCodeMax, False)
+                  If (curLevIdx < minLevIdx) Or (curLevIdx > maxLevIdx) Then
+                    blProcessTime = False
+                  End If
+                End If
+              End If
+            
+              If (blProcessTime) Then
+                If (swtIsValid(dLimit)) Then
+                  If dLimit < curFstTime25(iCat) Then
+                    blProcessTime = False
+                  End If
+                End If
+              End If
+                
+            
+            
+              If (blProcessTime) Then
+              
+                If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 25, iCat, lftCats(iCat), curFstTime25(iCat), curFstWed25(iCat), curFstDis25(iCat), _
+                  0, tpLevel) Then
+                  Exit Function
+                End If
+              End If 'if blProcessTime
+             
+            End If 'if swtIsValid
+            
+            
+          End If 'if blInclude25m
+          
+          
+          
+          'Now do 50m time
+          If (blInclude50m) Then
+            
+            If (swtIsValid(curFstTime50(iCat))) Then
+            
+              tpLevel = ""
+              
+              If Not levFind(curStart, curZwmGes, curFstDat50(iCat), curAf, curSl, 50, curFstTime50(iCat), tpLevel, _
+                levNLft, levLft, levNLevels, levCodes, levNAfSl, levOrdAf, levOrdSl, levHasTimes25M, levTimes25M, _
+                levHasTimes50M, levTimes50M, levHasTimes25V, levTimes25V, levHasTimes50V, levTimes50V) Then
+                Exit Function
+              End If
+              
+              
+              blProcessTime = True
+              'Need to check whether to process time
+              If (blRestrictLevel) Then
+                If (tpLevel = "") Then
+                  blProcessTime = False
+                Else
+                  curLevIdx = levCodeToInt(tpLevel, False)
+                  minLevIdx = levCodeToInt(levCodeMin, True)
+                  maxLevIdx = levCodeToInt(levCodeMax, False)
+                  If (curLevIdx < minLevIdx) Or (curLevIdx > maxLevIdx) Then
+                    blProcessTime = False
+                  End If
+                End If
+              End If
+              
+              If (blProcessTime) Then
+                If (swtIsValid(dLimit)) Then
+                  If dLimit < curFstTime50(iCat) Then
+                    blProcessTime = False
+                  End If
+                End If
+              End If
+            
+              If (blProcessTime) Then
+                If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 50, iCat, lftCats(iCat), curFstTime50(iCat), curFstWed50(iCat), curFstDis50(iCat), _
+                  0, tpLevel) Then
+                  Exit Function
+                End If
+              End If 'if blProcessTime
+            
+            End If 'if swtvalid
+            
+          End If 'if blUse50m
+          
+        Next iCat
+        
+        
+      End If 'if curzwmvalid and curslvalid
+    End If 'if curaf <> "" and cursl <> "" etc
+    
+    If (tpAf <> "") And (tpSl <> "") Then
+      'start new afSlBn
+      
+      For iCat = 0 To nLftCats - 1
+        curFstTime25(iCat) = 0
+        curFstWed25(iCat) = -1
+        curFstDat25(iCat) = #1/1/1900#
+        curFstDis25(iCat) = ""
+      
+        curFstTime50(iCat) = 0
+        curFstWed50(iCat) = -1
+        curFstDat50(iCat) = #1/1/1900#
+        curFstDis50(iCat) = ""
+      Next iCat
+      
+      'Check to see if this afSl is valid.
+      curAfSlValid = True
+      If (blRestrictAfSl) Then
+        If (bSearchAfSlag(tpAf, tpSl, ordAf, ordSl, nAfSl) < 0) Then
+          curAfSlValid = False
+        End If
+      End If
+      
+    End If
+    
+    curAf = tpAf
+    curSl = tpSl
+    
+  End If 'if isafslclose
+  
+  If (isZwmClose) Then
+    If (curStart <> "") Then
+      If (curZwmValid) Then
+        'finish off old swimmer
+        outp.AddNew
+          outp("RA_Startnummer") = hzn(curStart)
+          outp("RA_Vereniging") = hzn(curVer)
+          outp("RA_Name") = hzn(curName)
+          outp("RA_Achternaam") = hzn(curAchternaam)
+          
+          
+          outp("RA_Points") = 0
+          
+          'Do not use the category fields here.
+          outp("RA_Categorie") = Null
+          outp("RA_CategorieIdx") = -1
+          outp("RA_BeschrijvingCategorie") = Null
+        outp.Update
+      End If
+    End If
+    If (tpStart <> "") Then
+      'start new swimmer
+      skSwm.Seek "=", tpStart
+      If (skSwm.NoMatch) Then
+        Err.Raise 1, , "Internal error"
+      End If
+      curName = fmtName(Nz(skSwm("voornaam")), Nz(skSwm("voegsel")), Nz(skSwm("achternaam")))
+      curAchternaam = Nz(skSwm("achternaam"))
+      curVer = Nz(skSwm("vereniging"))
+      
+      Dim tpOpm As Long
+      tpOpm = Nz(skSwm("Opm"))
+      
+      curZwmValid = True
+      
+      If (blRestrictLS) Then
+        If Not lsIsMatch(tpOpm, lsCode) Then
+          curZwmValid = False
+        End If
+        If (blOnlyActive) Then
+          Dim tpActive As Boolean
+          tpActive = Nz(skSwm("Actief lid"))
+          If (Not tpActive) Then
+            curZwmValid = False
+          End If
+        End If
+      End If
+      
+      
+      curZwmGes = Nz(skSwm("geslacht"))
+      curZwmGebDate = Nz(skSwm("geboortedatum"), #1/1/1900#)
+      
+     
+      If (curZwmValid) Then
+        If (curZwmGes = "M") Then
+          If (Not blIncludeM) Then
+            curZwmValid = False
+          End If
+        ElseIf (curZwmGes = "V") Then
+          If (Not blIncludeV) Then
+            curZwmValid = False
+          End If
+        End If
+      End If
+      
+     
+      
+    End If
+    curStart = tpStart
+  End If
+  
+    
+  If Not td.EOF Then
+  
+    Dim tpWedNr As Long
+    Dim tpTd As Double
+    Dim tpDis As String
+    Dim tpIsTst As Boolean
+    Dim tpWedDate As Date
+    
+    
+    
+    tpWedNr = Nz(td("wedstr nr"))
+    tpTd = Nz(td("Tijd"))
+    tpDis = Nz(td("Diskw code"))
+    tpIsTst = Nz(td("IsTusTijd"))
+    tpWedDate = Nz(td("datum"))
+    
+    Dim blProcess As Boolean
+    blProcess = True
+    
+    If Not swtIsValid(tpTd) Then
+      blProcess = False
+    End If
+    
+    If (Not curZwmValid) Then
+      blProcess = False
+    End If
+
+    Dim tpCatIdx As Integer
+    tpCatIdx = -1
+
+    If (blProcess) Then
+      tpCatIdx = catInfoGetSatisfiedCatIdxFromList(tpWedDate, LFT_MODE_WEDYR_END, curStart, curZwmGes, curZwmGebDate, 0, nLftCats, lftCats)
+      If (tpCatIdx < 0) Then
+        blProcess = False
+      End If
+    End If
+    
+    
+    If (blProcess) Then
+      If (tpBn = 25) Then
+        If Not swtIsValid(curFstTime25(tpCatIdx)) Or tpTd < curFstTime25(tpCatIdx) Then
+          curFstTime25(tpCatIdx) = tpTd
+          curFstWed25(tpCatIdx) = tpWedNr
+          curFstDat25(tpCatIdx) = tpWedDate
+          curFstDis25(tpCatIdx) = tpDis
+        End If
+      ElseIf (tpBn = 50) Then
+        If Not swtIsValid(curFstTime50(tpCatIdx)) Or tpTd < curFstTime50(tpCatIdx) Then
+          curFstTime50(tpCatIdx) = tpTd
+          curFstWed50(tpCatIdx) = tpWedNr
+          curFstDat50(tpCatIdx) = tpWedDate
+          curFstDis50(tpCatIdx) = tpDis
+        End If
+      End If
+      
+      'Check to see if fstTime50 is smaller than fstTime25 and update accordingly
+      If (swtIsValid(curFstTime50(tpCatIdx))) Then
+        If (Not swtIsValid(curFstTime25(tpCatIdx))) Or (curFstTime50(tpCatIdx) < curFstTime25(tpCatIdx)) Then
+          curFstTime25(tpCatIdx) = curFstTime50(tpCatIdx)
+          curFstWed25(tpCatIdx) = curFstWed50(tpCatIdx)
+          curFstDat25(tpCatIdx) = curFstDat50(tpCatIdx)
+          curFstDis25(tpCatIdx) = curFstDis50(tpCatIdx)
+        End If
+      End If
+      
+    End If 'if blProcess
+    
+    
+    td.MoveNext
+  
+  Else
+    blDone = True
+  End If
+Loop
+
+appCleanRS outpDetails
+appCleanRS outp
+appCleanRS td
+appCleanRS skWed
+appCleanRS skSwm
+
+
+If Not rnkBuildRanking_ApplyRanking(pntMode) Then
+  Exit Function
+End If
+
+
+
+If Not rnkBuildRanking_outputStats("~Ranglijst_stats", startDate, endDate, blInclude25m, blInclude50m, _
+  blIncludeM, blIncludeV, blRestrictAfSl, blRestrictWed, blUseLft, blRestrictLS, _
+  blRestrictLevel, blExcludeDis, blExcludeTst, pntMode) Then
+  Exit Function
+End If
+
+
+
+
+rnkBuildRanking_historic = True
+
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " rnkBuildRanking_historic" & vbCrLf & Error$, 16
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+
+End Function
+
+
+
+
+Public Function rnkBuildRanking(ByVal blHistoric As Boolean, ByVal startDate As Date, ByVal endDate As Date, _
+ByVal blRestrictAfSl As Boolean, ByVal nAfSl As Integer, ByRef ordAf() As String, ByRef ordSl() As String, _
+ByVal blUseLft As Boolean, ByVal nLftCats As Integer, ByRef lftCats() As CAT_INFO, _
+ByVal blRestrictLS As Boolean, ByVal lsCode As Long, ByVal blOnlyActive As Boolean, _
+ByVal blRestrictWed As Boolean, ByVal nWeds As Integer, ByRef ordWed() As Long, _
+ByVal blInclude25m As Boolean, ByVal blInclude50m As Boolean, ByVal pntMode As Integer, _
+ByVal blExcludeTst As Boolean, ByVal blExcludeDis As Boolean, _
+ByVal dLimit As Double, ByVal blIncludeM As Boolean, ByVal blIncludeV As Boolean, _
+ByVal blRestrictLevel As Boolean, ByVal levCodeMin As String, ByVal levCodeMax As String) As Boolean
+On Error GoTo fout
+rnkBuildRanking = False
+
+
+If blHistoric Then
+  If Not rnkBuildRanking_historic(startDate, endDate, blRestrictAfSl, nAfSl, ordAf, ordSl, _
+    blUseLft, nLftCats, lftCats, blRestrictLS, lsCode, blOnlyActive, _
+    blRestrictWed, nWeds, ordWed, blInclude25m, blInclude50m, pntMode, _
+    blExcludeTst, blExcludeDis, dLimit, blIncludeM, blIncludeV, blRestrictLevel, levCodeMin, levCodeMax) Then
+    appRaiseSilentError
+  End If
+Else
+  If Not rnkBuildRanking_nonHistoric(startDate, endDate, blRestrictAfSl, nAfSl, ordAf, ordSl, _
+    blUseLft, nLftCats, lftCats, blRestrictLS, lsCode, blOnlyActive, _
+    blRestrictWed, nWeds, ordWed, blInclude25m, blInclude50m, pntMode, _
+    blExcludeTst, blExcludeDis, dLimit, blIncludeM, blIncludeV, blRestrictLevel, levCodeMin, levCodeMax) Then
+    appRaiseSilentError
+  End If
+End If
+
+
+
+rnkBuildRanking = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rnkBuildRanking", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
 
 
 
@@ -4248,7 +4797,7 @@ timBuildList_Perform = False
 If (blOnlyFastest) Then
 
   'If we have a wed-restriction, need to be very careful.
-  If Not prsMarkPRs_Perform(startDate, endDate, -1, blExcludeDis, blExcludeTst, blRestrictWed, nWeds, ordWed) Then
+  If Not prsMarkPRs_Perform(startDate, endDate, -1, blExcludeDis, blExcludeTst, False, blRestrictWed, nWeds, ordWed) Then
     Exit Function
   End If
 
