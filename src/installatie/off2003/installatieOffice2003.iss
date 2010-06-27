@@ -67,8 +67,9 @@ Source: "..\..\..\bin\dll\richdll.dll" ; DestDir: "{sys}"; Flags: ignoreversion 
 Source: "..\..\..\bin\dll\huptel.dll" ; DestDir: "{sys}"; Flags: ignoreversion recursesubdirs   ; Check: MakeBackup(ExpandConstant('{app}\database'));
 Source: "..\..\..\bin\dll\hupswim_zip32.dll" ; DestDir: "{sys}"; Flags: ignoreversion recursesubdirs  ; Check: MakeBackup(ExpandConstant('{app}\database'));
 
-;Dll file for database folder
+;Dll files for database folder
 Source: "..\..\..\bin_priv\dll\dynapdf.dll"; DestDir: "{app}\database"; Flags: ignoreversion recursesubdirs ; Check: MakeBackup(ExpandConstant('{app}\database'));
+Source: "..\..\..\bin_priv\dll\hupswim_mouse.dll"; DestDir: "{app}\database"; Flags: ignoreversion recursesubdirs ; Check: MakeBackup(ExpandConstant('{app}\database'));
 ;Exe file for database folder
 Source: "..\..\..\bin_priv\exe\winscp425.exe"; DestDir: "{app}\database"; Flags: ignoreversion recursesubdirs ; Check: MakeBackup(ExpandConstant('{app}\database'));
 
