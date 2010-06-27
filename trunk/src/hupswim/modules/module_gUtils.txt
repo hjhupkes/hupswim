@@ -66,6 +66,14 @@ Declare Function unzipFile Lib "hupswim.dll" Alias "#4" (ByVal zipFName As Strin
 
 Declare Function zipFile Lib "hupswim.dll" Alias "#5" (ByVal zipFName As String, ByVal fName As String) As Boolean
 
+Private Declare Function mshStopMouseWheel Lib "hupswim_mouse.dll" Alias "StopMouseWheel" (ByVal hWnd As Long, ByVal lAccessThreadID As Long, Optional ByVal blIsGlobal As Boolean = False) As Boolean
+Private Declare Function mshStartMouseWheel Lib "hupswim_mouse.dll" Alias "StartMouseWheel" (ByVal hWnd As Long) As Boolean
+Private Declare Function wklGetCurrentThreadId Lib "kernel32" Alias "GetCurrentThreadId" () As Long
+Private Declare Function wklLoadLibrary Lib "kernel32" Alias "LoadLibraryA" (ByVal lpLibFileName As String) As Long
+Private Declare Function wklFreeLibrary Lib "kernel32" Alias "FreeLibrary" (ByVal hLibModule As Long) As Long
+
+
+
 
 Global Const FILE_DLG_OPEN As Integer = 0
 Global Const FILE_DLG_SAVE As Integer = 1
@@ -77,6 +85,57 @@ End Type
 Type T_Picture
     gegevens(0 To 512) As Byte
 End Type
+
+
+
+Public Sub appDisableMouseWheel(ByVal blSuppErrMsg As Boolean)
+On Error GoTo fout
+
+Dim hLib As Long
+hLib = 0
+
+
+hLib = wklLoadLibrary(extractFilePath(CurrentDb().name) & "\hupswim_mouse.dll")
+If hLib = 0 Then
+  Err.Raise 1, , "Could not load: hupswim_mouse.dll"
+End If
+
+
+
+Dim lAccessThreadID As Long
+' Get the ID for this thread
+lAccessThreadID = wklGetCurrentThreadId()
+
+Dim blGlobal As Boolean
+blGlobal = False
+
+On Error Resume Next
+'This calling dll-calling convention error for some reason; just ignore
+mshStopMouseWheel Application.hWndAccessApp, lAccessThreadID, blGlobal
+
+On Error GoTo fout
+
+If (hLib <> 0) Then
+  wklFreeLibrary hLib
+End If
+
+Exit Sub
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "appDisableMouseWheel", errInf
+
+If (hLib <> 0) Then
+  wklFreeLibrary hLib
+End If
+
+If Not blSuppErrMsg Then
+  appDisplayError errInf
+End If
+Exit Sub
+
+End Sub
+
 
 
 
