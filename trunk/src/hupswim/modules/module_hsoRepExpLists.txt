@@ -224,6 +224,11 @@ Public Const RXL_TYPE_STAT_EXPORTS As Long = 40
     Private Const RXL_PAR_STAT_PRC_SHOW_DETAIL = 2000 + 360 + 1
   Public Const RXL_OBJ_RPT_TYPE_STAT_VRT As Long = 1000 + 100 + 6
     Private Const RXL_PAR_STAT_VRT_SHOW_DETAIL = 2000 + 380 + 1
+    
+    
+Public Const RXL_TYPE_REC_LXF_EXPORTS As Long = 50
+  Public Const RXL_OBJ_RPT_TYPE_REC_LXF As Long = 1000 + 120 + 1
+    
   
 
 
@@ -427,6 +432,7 @@ rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_S
 rxlGenerateStructure_addObject rsObjs, RXL_TYPE_STAT_EXPORTS, RXL_OBJ_RPT_TYPE_STAT_VRT, "Vooruitgangs Competitie", False, True
   rxlGenerateStructure_addParam rsPars, RXL_PAR_STAT_VRT_SHOW_DETAIL, RXL_OBJ_RPT_TYPE_STAT_VRT, RXL_PAR_TYPE_BOOLEAN, False, "false", -1, "Details weergeven (true/false)"
 
+rxlGenerateStructure_addObject rsObjs, RXL_TYPE_REC_LXF_EXPORTS, RXL_OBJ_RPT_TYPE_REC_LXF, "Records - Lenex bestand", True, False
       
 
 rxlGenerateStructure_addReportTypes = True
@@ -2602,6 +2608,10 @@ Select Case lRptObjID
     If Not rxlProcessExpList_processExport_StatVRT(sCfgName, sFileName, iRXPFormat, nPars, lParIDS, sParValues) Then
       Exit Function
     End If
+  Case RXL_OBJ_RPT_TYPE_REC_LXF
+    If Not rxlProcessExpList_processExport_RecLxf(sFileName, iRXPFormat, sRcsCode, nPars, lParIDS, sParValues) Then
+      Exit Function
+    End If
 
 End Select
 
@@ -2937,7 +2947,7 @@ Do Until rs.EOF
   
   Dim tpExtension As String
   tpExtension = rxlGetExtension(tpFmtObjID)
-  If (Right(tpFName, 4) <> "." & tpExtension) Then
+  If (tpExtension <> "") And (Right(tpFName, 4) <> "." & tpExtension) Then
     tpFName = tpFName & "." & tpExtension
   End If
   
@@ -3141,7 +3151,11 @@ Do Until rs.EOF
   End If
   
   If tpFmtObjID <= 0 Then
-    Err.Raise 1, , "Er is een ongeldig export formaat gekozen voor export-bestand: " & vbCrLf & tpFName
+    If (tpRptObjID = RXL_OBJ_RPT_TYPE_REC_LXF) Then
+      'Is OK.
+    Else
+      Err.Raise 1, , "Er is een ongeldig export formaat gekozen voor export-bestand: " & vbCrLf & tpFName
+    End If
   End If
   
   Dim sInvMsg As String
@@ -3309,6 +3323,38 @@ Exit Function
 On Error GoTo 0
 Resume
 
+End Function
+
+
+Private Function rxlProcessExpList_processExport_RecLxf(ByVal sFileName As String, ByVal iRXPFormat As Integer, _
+   ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
+On Error GoTo fout
+rxlProcessExpList_processExport_RecLxf = False
+
+
+Dim rsInfo As RECSET_BASIC_INFO, blFnd As Boolean
+Dim iDummy As Integer, lDummy(0 To MAX_N_REC_AGES) As Long
+
+If Not rcsLookup(sRcsCode, blFnd, rsInfo, iDummy, lDummy) Then
+  appRaiseSilentError
+End If
+
+If FileExists(sFileName) Then
+  FileSystem.Kill sFileName
+End If
+
+If Not recOutputLenex(sRcsCode, "NED." & sRcsCode, rsInfo.nm, extractFilePath(sFileName), extractFileName(sFileName), #1/1/2099#, True) Then
+  appRaiseSilentError
+End If
+
+rxlProcessExpList_processExport_RecLxf = True
+Exit Function
+fout:
+Dim errInf As ERR_INFO
+appRecordError "rxlProcessExpList_processExport_RecLxf", errInf
+
+appDisplayError errInf
+Exit Function
 End Function
 
 
