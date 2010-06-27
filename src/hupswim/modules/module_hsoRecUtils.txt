@@ -3826,9 +3826,9 @@ MsgBox Err & " recOutputLenex_HandleTime" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
-Public Function recOutputLenex(ByVal Code As String, ByVal expCode As String, ByVal expName As String, ByVal lxfDir As String, lxfFName As String, ByVal markDate As Date) As Boolean
+Public Function recOutputLenex(ByVal Code As String, ByVal expCode As String, ByVal expName As String, ByVal lxfDir As String, lxfFName As String, ByVal markDate As Date, ByVal blSuppConfirmation As Boolean) As Boolean
 On Error GoTo fout
-
+recOutputLenex = False
 
 Dim rsInfo As RECSET_BASIC_INFO
 Dim nRecAges As Integer
@@ -4047,11 +4047,14 @@ If Not lenWriteFile(lxfDir, lxfFName, False, LX_VERSION_2, actFName) Then
   Exit Function
 End If
 
+
 If (actFName <> "") Then
-  MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & actFName, vbInformation
+  If (Not blSuppConfirmation) Then
+    MsgBox "Het volgende bestand is aangemaakt: " & vbCrLf & actFName, vbInformation
+  End If
 End If
 
-recOutputLenex = False
+recOutputLenex = True
 Exit Function
 fout:
 MsgBox Err & " recOutputLenex" & vbCrLf & Error$, 16
