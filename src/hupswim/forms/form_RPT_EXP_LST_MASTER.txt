@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1211959594
+Checksum =-2063900110
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -275,11 +275,24 @@ Begin Form
                     Begin
                         Begin ToggleButton
                             OverlapFlags =87
-                            Left =6840
+                            Left =1209
+                            Top =1209
+                            Width =1425
+                            Height =300
+                            OptionValue =1
+                            Name ="optFTP"
+                            Caption ="FTP Instellingen"
+                            GUID = Begin
+                                0x840bba9f288513469c269bc6707d5678
+                            End
+                        End
+                        Begin ToggleButton
+                            OverlapFlags =87
+                            Left =8346
                             Top =1209
                             Width =1095
                             Height =300
-                            OptionValue =4
+                            OptionValue =5
                             Name ="optStats"
                             Caption ="Statistieken"
                             GUID = Begin
@@ -301,11 +314,11 @@ Begin Form
                         End
                         Begin ToggleButton
                             OverlapFlags =87
-                            Left =1290
+                            Left =2796
                             Top =1215
                             Width =945
                             Height =300
-                            OptionValue =1
+                            OptionValue =2
                             Name ="optRec"
                             Caption ="Records"
                             GUID = Begin
@@ -314,11 +327,11 @@ Begin Form
                         End
                         Begin ToggleButton
                             OverlapFlags =87
-                            Left =2587
+                            Left =4093
                             Top =1215
                             Width =2205
                             Height =300
-                            OptionValue =2
+                            OptionValue =3
                             Name ="optWedOp"
                             Caption ="Wedstrijden - Opstellingen"
                             GUID = Begin
@@ -327,11 +340,11 @@ Begin Form
                         End
                         Begin ToggleButton
                             OverlapFlags =87
-                            Left =4849
+                            Left =6355
                             Top =1215
                             Width =1890
                             Height =300
-                            OptionValue =3
+                            OptionValue =4
                             Name ="optWedUit"
                             Caption ="Wedstrijden - Uitslagen"
                             GUID = Begin
@@ -538,10 +551,11 @@ Option Explicit
 
 
 Private Const PAGE_GLB = 0
-Private Const PAGE_REC = 1
-Private Const PAGE_WED_OP = 2
-Private Const PAGE_WED_UIT = 3
-Private Const PAGE_STATS = 4
+Private Const PAGE_FTP = 1
+Private Const PAGE_REC = 2
+Private Const PAGE_WED_OP = 3
+Private Const PAGE_WED_UIT = 4
+Private Const PAGE_STATS = 5
 
 
 Private Const PAGE_MIN = PAGE_GLB
@@ -854,6 +868,8 @@ For i = PAGE_MIN To PAGE_MAX
   Select Case i
     Case PAGE_GLB
       Set cntrl = Me.optGlb
+    Case PAGE_FTP
+      Set cntrl = Me.optFTP
     Case PAGE_REC
       Set cntrl = Me.optRec
     Case PAGE_WED_OP
@@ -936,6 +952,9 @@ If (gExpListName <> "") Then
     Case PAGE_GLB
       isSub = True
       subName = "RPT_EXP_LST_Settings"
+    Case PAGE_FTP
+      isSub = True
+      subName = "RPT_EXP_LST_FTP"
     Case PAGE_REC
       isSub = True
       subName = "RPT_EXP_LST_Recs"
