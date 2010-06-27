@@ -845,6 +845,56 @@ rs.AddNew
     rs("EL_WED_OP_EndDate") = tpDat
   End If
   
+  
+  
+  'ftp settings
+  Dim sPropName As String, blDummy As Boolean, lDummy As Long
+  
+  sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\USE_FTP"
+  If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  rs("EL_UseFTP") = rxpParseBoolean(sPropValue)
+  
+  sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_CONNECTION_INFO"
+  If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  rs("EL_FTP_ConnectionInfo") = hzn(sPropValue)
+  
+  sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_LOCAL_DIR"
+  If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  rs("EL_FTP_LocalDir") = hzn(sPropValue)
+  
+  sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_REMOTE_DIR"
+  If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  rs("EL_FTP_RemoteDir") = hzn(sPropValue)
+  
+  sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_FILE_PERMISSIONS"
+  If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  If (sPropValue = "") Then
+    rs("EL_FTP_FilePermissions") = Null
+  Else
+    rs("EL_FTP_FilePermissions") = CLng(sPropValue)
+  End If
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 rs.Update
 
 appCleanRS rs
@@ -1552,6 +1602,43 @@ End If
 
 If Not dsSetPropertyByName(dsData, "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\WED_OP_END_DATE", sPropValue, lDummy, blDummy, sDummy) Then
   Exit Function
+End If
+
+'ftp settings
+Dim sPropName As String
+
+sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\USE_FTP"
+sPropValue = rxpFormatBoolean(Nz(rs("EL_UseFtp")))
+If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_CONNECTION_INFO"
+sPropValue = Nz(rs("EL_FTP_ConnectionInfo"))
+If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_LOCAL_DIR"
+sPropValue = Nz(rs("EL_FTP_LocalDir"))
+If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_REMOTE_DIR"
+sPropValue = Nz(rs("EL_FTP_RemoteDir"))
+If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
+End If
+
+sPropName = "HUPSWIM\EXP_LISTS\LISTS\" & sExpListName & "\GLB\FTP_FILE_PERMISSIONS"
+If IsNull(rs("EL_FTP_FilePermissions")) Then
+  sPropValue = ""
+Else
+  sPropValue = CStr(Nz(rs("EL_FTP_FilePermissions")))
+End If
+If Not dsSetPropertyByName(dsData, sPropName, sPropValue, lDummy, blDummy, sDummy) Then
+  appRaiseSilentError
 End If
   
 
@@ -2405,6 +2492,64 @@ Exit Function
 End Function
 
 
+Private Function rxlProcessExpList_performFTP() As Boolean
+On Error GoTo fout
+rxlProcessExpList_performFTP = False
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("hsoRptExpListCurGlbSettings")
+
+rs.MoveFirst
+
+If rs.EOF Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim blUseFTP As Boolean, sConnectionInfo As String, sLocalDir As String, sRemoteDir As String, lPermissions As Long
+
+blUseFTP = Nz(rs("EL_UseFTP"))
+sConnectionInfo = Nz(rs("EL_FTP_ConnectionInfo"))
+sLocalDir = Nz(rs("EL_FTP_LocalDir"))
+sRemoteDir = Nz(rs("EL_FTP_RemoteDir"))
+lPermissions = Nz(rs("EL_FTP_FilePermissions"), -1)
+
+appCleanRS rs
+
+If (lPermissions <= 0) Then
+  lPermissions = 644
+End If
+
+
+If (blUseFTP) Then
+  Dim sArgString As String
+  
+  sArgString = """" & extractFilePath(CurrentDb().name) & "\winscp425.exe"""
+  sArgString = sArgString & " /console /command "
+  sArgString = sArgString & " ""open " & sConnectionInfo & " "" "
+  sArgString = sArgString & " ""synchronize remote """"" & sLocalDir & """"" """"" & sRemoteDir & """"" -permissions:" & lPermissions & """ "
+  sArgString = sArgString & " ""exit"" "
+  
+  Shell sArgString, vbNormalNoFocus
+End If
+
+
+rxlProcessExpList_performFTP = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+
+Dim errInf As ERR_INFO
+appRecordError "rxlProcessExpList_performFTP", errInf
+
+appCleanRS rs
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
 
 Private Function rxlProcessExpList_processExport(ByVal lRptObjID As Long, ByVal sFileName As String, ByVal iRXPFormat As Integer, _
   ByVal sCfgName As String, ByVal sRcsCode As String, ByVal nPars As Integer, ByRef lParIDS() As Long, ByRef sParValues() As String) As Boolean
@@ -2886,7 +3031,17 @@ Do Until rs.EOF
   rs.MoveNext
 Loop
 
+appCleanRS rs
+appCleanRS rsPars
+appCleanRS skPars
+appCleanRS skObjs
 
+
+
+
+If Not rxlProcessExpList_performFTP() Then
+  appRaiseSilentError
+End If
 
 
 rxlProcessExpList = True
