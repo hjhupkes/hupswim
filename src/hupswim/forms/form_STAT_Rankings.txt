@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1515353333
+Checksum =-430171976
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -11,7 +11,7 @@ Begin Form
     GridX =20
     GridY =20
     Width =11905
-    ItemSuffix =162
+    ItemSuffix =164
     Left =2220
     Top =150
     Right =15240
@@ -1100,6 +1100,32 @@ Begin Form
                         0xc80f04741bd91d40bafc3d37e4418715
                     End
                 End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =215
+                    Left =6321
+                    Top =880
+                    TabIndex =31
+                    Name ="blRnkHistoric"
+                    DefaultValue ="False"
+                    GUID = Begin
+                        0x0b80013a85cdf14cbcef382c4749b1c4
+                    End
+                    Begin
+                        Begin Label
+                            OverlapFlags =247
+                            Left =6555
+                            Top =855
+                            Width =1470
+                            Height =240
+                            Name ="Label163"
+                            Caption ="Historische ranglijst "
+                            GUID = Begin
+                                0x4decaad6a9631847942aac69a9133763
+                            End
+                        End
+                    End
+                End
             End
         End
         Begin FormFooter
@@ -1316,6 +1342,7 @@ Me.blRnkShowLevel.Enabled = chc = OPT_RNK
 Me.fldRnkMinLevel.Enabled = chc = OPT_RNK
 Me.fldRnkMaxLevel.Enabled = chc = OPT_RNK
 Me.fldRnkLimiet.Enabled = chc = OPT_RNK
+Me.blRnkHistoric.Enabled = chc = OPT_RNK
 
 Me.optSOPnt.Enabled = chc = OPT_SO
 Me.fldSOTitle.Enabled = chc = OPT_SO
@@ -1749,6 +1776,10 @@ optRestrictWed = Nz(Me.blRestrictWed)
 optUseLft = Nz(Me.blUseLft)
 
 
+Dim optRnkHistoric As Boolean
+optRnkHistoric = Nz(Me.blRnkHistoric)
+
+
 
 
 Dim rptName As String
@@ -1757,7 +1788,7 @@ Dim rptName As String
 
 Select Case chc
   Case OPT_RNK
-    If Not rnkBuildRanking(dStartDate, dEndDate, optRestrictAfSl, nAfSl, ordAf, ordSl, _
+    If Not rnkBuildRanking(optRnkHistoric, dStartDate, dEndDate, optRestrictAfSl, nAfSl, ordAf, ordSl, _
       optUseLft, nLftCat, lftCat, optRestrictLS, lsCode, optOnlyActive, optRestrictWed, nWeds, ordWeds, _
       optInclude25m, optInclude50m, PNT_VRT_MODE_NONE, optExcludeTst, optExcludeDis, _
       dRnkLimit, optIncludeM, optIncludeV, optRnkRestrictLevel, sRnkMinLevel, sRnkMaxLevel) Then
@@ -1773,7 +1804,7 @@ Select Case chc
     
     
   Case OPT_SO
-    If Not rnkBuildRanking(dStartDate, dEndDate, optRestrictAfSl, nAfSl, ordAf, ordSl, _
+    If Not rnkBuildRanking(False, dStartDate, dEndDate, optRestrictAfSl, nAfSl, ordAf, ordSl, _
       optUseLft, nLftCat, lftCat, optRestrictLS, lsCode, optOnlyActive, optRestrictWed, nWeds, ordWeds, _
       optInclude25m, optInclude50m, iSOPntMode, optExcludeTst, optExcludeDis, _
       0, optIncludeM, optIncludeV, False, "", "") Then
@@ -1822,7 +1853,7 @@ Dim rnkOpts As RXC_STAT_RNK_OPTS
 
 
 
-
+rnkOpts.blHistoric = Nz(Me.blRnkHistoric)
 rnkOpts.dStartDate = Nz(Me.datum1, #1/1/1900#)
 rnkOpts.dEndDate = Nz(Me.datum2, #1/1/1900#)
 
@@ -1913,6 +1944,9 @@ Me.blOnlyActive = rnkOpts.blOnlyActive
 Me.blRestrictAfSl = rnkOpts.blRestrictAfSl
 Me.blRestrictWed = rnkOpts.blRestrictWed
 Me.blUseLft = rnkOpts.blUseLft
+
+
+Me.blRnkHistoric = rnkOpts.blHistoric
 
 
 
