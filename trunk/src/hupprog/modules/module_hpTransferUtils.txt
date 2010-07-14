@@ -11,7 +11,10 @@ off("JU_Voorvoegsel") = inp("OFF_Voorvoegsel")
 off("JU_Achternaam") = inp("OFF_Achternaam")
 off("JU_Hr/Mw") = inp("OFF_Hr/Mw")
 off("JU_Bevoegdheid") = inp("OFF_Bevoegdheid")
+
+
 off("JU_LEN_ID") = inp("OFF_LEN_ID")
+off("JU_Sportlink_ID") = inp("OFF_Sportlink_ID")
 
 off("JU_Vereniging") = hzn(verNaam)
 
@@ -34,6 +37,9 @@ End If
 lnhWriteOff = True
 Exit Function
 fout:
+'field too small:
+If (Err = 3163) Then Resume Next
+
 MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
@@ -684,10 +690,28 @@ sql = "SELECT [dtVerenigingen].V_Naam, gIMP_LEN_Officials.* " & _
       "FROM gIMP_LEN_Officials LEFT JOIN [dtVerenigingen] ON gIMP_LEN_Officials.OFF_FlatClubCode = [dtVerenigingen].V_DEPOT;"
 
   
-Dim off As Recordset
-Set off = CurrentDb().OpenRecordset("dtOfficials")
-off.Index = "JU_LEN_ID"
+Dim skOffIdx As Recordset
+Set skOffIdx = CurrentDb().OpenRecordset("dtOfficials")
+skOffIdx.Index = "PrimaryKey"
 
+Dim skOffLenID As Recordset
+Set skOffLenID = CurrentDb().OpenRecordset("dtOfficials")
+skOffLenID.Index = "JU_LEN_ID"
+
+Dim skOffSplID As Recordset
+Set skOffSplID = CurrentDb().OpenRecordset("dtOfficials")
+skOffSplID.Index = "JU_Sportlink_ID"
+
+
+'This is the list of ids that have not been transferred yet
+Dim sqlUM As String
+sqlUM = "select * from dtOfficials where isnull([JU_Sportlink_ID]) and nz([ju_len_id], -1) > 0;"
+
+Dim rsOffUnmatched As Recordset
+Set rsOffUnmatched = CurrentDb().OpenRecordset(sqlUM)
+
+  
+  
 Dim inp As Recordset
 Set inp = CurrentDb().OpenRecordset(sql)
 
@@ -695,57 +719,120 @@ Dim inpContact As Recordset
 Set inpContact = CurrentDb().OpenRecordset("gIMP_LEN_Contact")
 inpContact.Index = "PrimaryKey"
 
+
+
 inp.MoveFirst
 Do Until inp.EOF
 
 
-  Dim lenID As Long
+  Dim lenID As Long, splID As String
+  lenID = -1
+  splID = ""
   
-  'just take uusual depot
-  lenID = Nz(inp("OFF_LEN_ID"))
+  
+  lenID = Nz(inp("OFF_LEN_ID"), -1)
+  splID = Nz(inp("OFF_Sportlink_ID"), "")
   
   Dim vName As String
   vName = Nz(inp("V_Naam"))
   
+  Dim blExists As Boolean, lOffID As Long
+  blExists = False
+  lOffID = -1
+  
   If (lenID > 0) Then
-        
-    off.Seek "=", lenID
-    
-    If (off.NoMatch) Then
-      'need to append.
-      off.AddNew
-      If Not lnhWriteOff(off, inp, inpContact, vName) Then Exit Function
-      off.Update
-    Else
-      'need to overwrite
-      off.Edit
-      If Not lnhWriteOff(off, inp, inpContact, vName) Then Exit Function
-      off.Update
+    skOffLenID.Seek "=", lenID
+    If Not skOffLenID.NoMatch Then
+      blExists = True
+      lOffID = Nz(skOffLenID("JU_Index"))
     End If
+  ElseIf (splID <> "") Then
+  
+    skOffSplID.Seek "=", splID
+    If Not skOffSplID.NoMatch Then
+      blExists = True
+      lOffID = Nz(skOffSplID("JU_Index"))
+    Else
+    
+      Dim tpAchternaam As String, tpHrMw As String, tpVoorletters As String, tpVoeg As String
+      tpAchternaam = Nz(inp("OFF_Achternaam"))
+      tpHrMw = Nz(inp("OFF_Hr/Mw"))
+      tpVoorletters = Nz(inp("OFF_Voorletters"))
+      tpVoeg = Nz(inp("OFF_Voorvoegsel"))
+      
+    
+      rsOffUnmatched.FindFirst "nz([ju_voorletters])= """ & tpVoorletters & _
+      """ and nz([ju_voorvoegsel])=""" & tpVoeg & _
+      """ and nz([ju_achternaam]) = """ & tpAchternaam & _
+      """ and nz([ju_hr/mw]) = """ & tpHrMw & """ "
+      
+      If Not rsOffUnmatched.NoMatch Then
+        blExists = True
+        lOffID = Nz(rsOffUnmatched("JU_Index"))
+      End If
+      
+    End If
+      
+  
   End If
-
-
+  
+  
+  If (blExists) Then
+    skOffIdx.Seek "=", lOffID
+    
+    If skOffIdx.NoMatch Then
+      Err.Raise 1, , "Internal error"
+    End If
+    
+    'need to overwrite
+    skOffIdx.Edit
+    If Not lnhWriteOff(skOffIdx, inp, inpContact, vName) Then
+      appRaiseSilentError
+    End If
+    skOffIdx.Update
+    
+  Else
+  
+    'need to append.
+    skOffIdx.AddNew
+    If Not lnhWriteOff(skOffIdx, inp, inpContact, vName) Then
+      appRaiseSilentError
+    End If
+    skOffIdx.Update
+  
+  End If
+  
   inp.MoveNext
 Loop
 
   
   
-  appCleanRS off
-  appCleanRS inpContact
-  appCleanRS inp
-  
+appCleanRS skOffIdx
+appCleanRS skOffLenID
+appCleanRS skOffSplID
+appCleanRS inpContact
+appCleanRS inp
+appCleanRS rsOffUnmatched
 
 
 lnhKNZBImpOfficials = True
 Exit Function
+
 fout:
 If (Err = 3021) Then Resume Next
-MsgBox Err & " lnhKNZBImpOfficials" & Error$, 16
 
+Dim errInf As ERR_INFO
+appRecordError "lnhKNZBImpOfficials", errInf
+
+appCleanRS skOffIdx
+appCleanRS skOffLenID
+appCleanRS skOffSplID
+appCleanRS inpContact
+appCleanRS inp
+appCleanRS rsOffUnmatched
+
+
+appDisplayError errInf
 Exit Function
-
-'debug
-On Error GoTo 0
-Resume
 
 End Function
