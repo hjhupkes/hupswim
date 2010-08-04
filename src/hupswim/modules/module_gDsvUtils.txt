@@ -3,79 +3,269 @@ Option Explicit
 
 Public Const DSV_FILE_TYPE_DLN = 0
 Public Const DSV_FILE_TYPE_UIT = 1
+Public Const DSV_FILE_TYPE_PROG = 2
 
 Public Const DSV_VALID = -1
 Public Const DSV_UNKNOWN_FILE = 1
 Public Const DSV_UNEXPECTED_EXTENSION = 2
+Public Const DSV_FILE_READ_PROBLEM = 3
+Public Const DSV_INV_CONTENT = 4
 Public Const DSV_UNKNOWN_FAILURE = 5
 
+
+Private Const DSV_MAX_TAGS = 100000
+
+Private Const DSV_MAX_N_VERS = 30000
+Private Const DSV_MAX_N_SWMS = 30000
+
+Private Const DSV_MAX_N_RES = 10000
+
+
+Private Type DSV_FILE
+  nElms As Long
+  sElmNames() As String
+  nElmTags() As Integer
+  lElmFirstTagIdx() As Long
+  sTags() As String
+End Type
+
+Private Type DSV_RESULT
+  iSwmOrgIdx As Integer
+  iVerOrgIdx As Integer
+  lProgNr As Long
+  iProgOrgIdx As Integer
+  blIsEstaf As Boolean
+  iEstNr As Integer
+  dFinalTime As Double
+  sFinalSlag As String
+  sFinalAf As String
+  dTsTimes(0 To 3) As Double
+  sTsAf(0 To 3) As String
+  sTsSl(0 To 3) As String
+  sExtTs As String
+  nEstSwms As Integer
+  iEstSwmOrgIdx(0 To MAX_ESTAF_CNT)
+  iFinalPos As Integer
+  sDis As String
+End Type
+
+Private Type DSV_DLN
+  iSwmOrgIdx As Integer
+  iVerOrgIdx As Integer
+  lProgNr As Long
+  iProgOrgIdx As Integer
+  blIsEstaf As Boolean
+  iEstNr As Integer
+  dEntryTime As Double
+  nEstSwms As Integer
+  iEstSwmOrgIdx(0 To MAX_ESTAF_CNT)
+End Type
+
+
+
+Private Function dsvParseCost(ByVal s As String) As Double
+On Error Resume Next
+dsvParseCost = 0
+
+Dim pos As Integer
+pos = InStr(1, s, ",")
+
+dsvParseCost = val(Left(s, pos - 1)) + val(Right(s, 2)) * 0.01
+
+End Function
+
+Private Function dsvParseDate(ByVal s As String) As Date
+On Error Resume Next
+dsvParseDate = #1/1/1900#
+If (Len(s) = 10) Then
+  If s Like "[0-9][0-9].[0-9][0-9].[0-9][0-9][0-9][0-9]" Then
+    Dim yr As Integer
+    Dim mn As Integer
+    Dim dy As Integer
+    
+    yr = CInt(val(Right(s, 4)))
+    mn = CInt(val(Mid(s, 4, 2)))
+    dy = CInt(val(Mid(s, 1, 2)))
+    If (yr > 0) And (dy > 0) And (mn > 0) Then
+      dsvParseDate = DateSerial(yr, mn, dy)
+    End If
+  End If
+End If
+End Function
+
+Private Function dsvParseDayTime(ByVal s As String) As Date
+On Error Resume Next
+dsvParseDayTime = #12:00:00 AM#
+If (Len(s) = 5) Then
+  If s Like "[0-9][0-9]:[0-9][0-9]" Then
+    Dim hh As Integer
+    Dim mm As Integer
+    
+    hh = CInt(val(Left(s, 2)))
+    mm = CInt(val(Right(s, 2)))
+    
+    dsvParseDayTime = TimeSerial(hh, mm, 0)
+  End If
+End If
+End Function
 
 
 
 'Read the external files.
-Private Function dsvAnalyzeFile_Perform(ByVal fName As String, ByVal blDisplayErrDlg As Boolean, ByRef dsvValid As Boolean, ByRef dsvInvalidReason As Integer, ByRef dsvInvalidString As String, ByRef dsvWedDate As Date, ByRef dsvWedPlaats As String, ByRef dsvWedDescription As String, ByRef dsvFileDateS As String, ByRef dsvFileTimeS As String, ByRef dsvFileType As Integer) As Boolean
+Private Function dsvAnalyzeFile_Perform(ByVal fName As String, ByVal blShowInvReason As Boolean, _
+  ByRef dsvValid As Boolean, ByRef dsvInvalidReason As Integer, ByRef dsvInvalidString As String, _
+  ByRef dsvWedDate As Date, ByRef dsvWedPlaats As String, ByRef dsvWedDescription As String, _
+  ByRef dsvFileDateS As String, ByRef dsvFileTimeS As String, ByRef dsvFileType As Integer) As Boolean
 On Error GoTo fout
 dsvAnalyzeFile_Perform = False
 
+dsvValid = True
 
-dsvValid = False
 dsvInvalidString = ""
 dsvInvalidReason = DSV_VALID
 
 
 
 If fName = "" Or Not FileExists(fName) Then
+  dsvValid = False
+  
   dsvInvalidReason = DSV_UNKNOWN_FILE
   dsvInvalidString = "Het bestand: " & vbCrLf & fName & vbCrLf & "kon niet worden gevonden."
-  Err.Raise 1, , dsvInvalidString
 End If
 
 
-If Not Right(fName, 3) = "dsv" Then
-  dsvInvalidReason = DSV_UNEXPECTED_EXTENSION
-  dsvInvalidString = "Expected dsv file. Found: " & vbCrLf & fName
-  
-  Err.Raise 1, , dsvInvalidString
+If (dsvValid) Then
+  If Not Right(fName, 3) = "dsv" Then
+    dsvValid = False
+      
+    dsvInvalidReason = DSV_UNEXPECTED_EXTENSION
+    dsvInvalidString = "Expected dsv file. Found: " & vbCrLf & fName
+  End If
 End If
 
-dsvFileType = DSV_FILE_TYPE_DLN
 
 
 
-
-dsvFileTimeS = FileTimeStr(fName)
-dsvFileDateS = FileDateStr(fName)
-
-dsvValid = True
+If (dsvValid) Then
+  Dim sTagElmNames(0 To 10) As String
+  Dim iTagIdx(0 To 10) As Integer
+  Dim blTagFound(0 To 10) As Boolean
+  Dim sTagOutput(0 To 10) As String
+  Dim nTags As Integer
   
+  sTagElmNames(0) = "VEREINSMELDELISTE"
+  iTagIdx(0) = -1
+  sTagElmNames(1) = "WETTKAMPFDEFINITIONSLISTE"
+  iTagIdx(1) = -1
+  sTagElmNames(2) = "WETTKAMPFERGEBNISLISTE"
+  iTagIdx(2) = -1
+  nTags = 3
+  
+  
+  Dim tpErrInf As ERR_INFO
+  If Not dsvReadFirstTagsData(fName, sTagElmNames, iTagIdx, sTagOutput, blTagFound, nTags, 25, False, tpErrInf) Then
+    dsvValid = False
+    dsvInvalidReason = DSV_FILE_READ_PROBLEM
+    dsvInvalidString = "Probleem bij het lezen van het bestand: " & vbCrLf & fName & vbCrLf & vbCrLf & tpErrInf.sErrMsg
+  End If
+  
+  If (dsvValid) Then
+    If (blTagFound(0)) Then
+      dsvFileType = DSV_FILE_TYPE_DLN
+    ElseIf (blTagFound(1)) Then
+      dsvFileType = DSV_FILE_TYPE_PROG
+    ElseIf (blTagFound(2)) Then
+      dsvFileType = DSV_FILE_TYPE_UIT
+    Else
+      dsvValid = False
+      dsvInvalidReason = DSV_INV_CONTENT
+      dsvInvalidString = "Het bestand: " & vbCrLf & fName & vbCrLf & "bevat een ongeldige inhoud."
+    End If
+  End If
+End If
+
+
+If (dsvValid) Then
+  Select Case dsvFileType
+    Case DSV_FILE_TYPE_DLN
+    
+      sTagElmNames(0) = "VERANSTALTUNG"
+      iTagIdx(0) = 0
+      
+      sTagElmNames(1) = "VERANSTALTUNG"
+      iTagIdx(1) = 1
+      
+      sTagElmNames(2) = "ABSCHNITT"
+      iTagIdx(2) = 1
+      
+      nTags = 3
+      
+      If Not dsvReadFirstTagsData(fName, sTagElmNames, iTagIdx, sTagOutput, blTagFound, nTags, 50, False, tpErrInf) Then
+        dsvValid = False
+        dsvInvalidReason = DSV_FILE_READ_PROBLEM
+        dsvInvalidString = "Probleem bij het lezen van het bestand: " & vbCrLf & fName & vbCrLf & vbCrLf & tpErrInf.sErrMsg
+      End If
+      
+      dsvWedDescription = sTagOutput(0)
+      dsvWedPlaats = sTagOutput(1)
+      dsvWedDate = dsvParseDate(sTagOutput(2))
+    
+    Case DSV_FILE_TYPE_PROG, DSV_FILE_TYPE_UIT
+    
+      sTagElmNames(0) = "VERANSTALTUNG"
+      iTagIdx(0) = 0
+      
+      sTagElmNames(1) = "VERANSTALTUNG"
+      iTagIdx(1) = 1
+      
+      sTagElmNames(2) = "ABSCHNITT"
+      iTagIdx(2) = 1
+      
+      sTagElmNames(3) = "VERANSTALTUNGSORT"
+      iTagIdx(3) = 3
+      
+      nTags = 4
+      
+      If Not dsvReadFirstTagsData(fName, sTagElmNames, iTagIdx, sTagOutput, blTagFound, nTags, 20, False, tpErrInf) Then
+        dsvValid = False
+        dsvInvalidReason = DSV_FILE_READ_PROBLEM
+        dsvInvalidString = "Probleem bij het lezen van het bestand: " & vbCrLf & fName & vbCrLf & vbCrLf & tpErrInf.sErrMsg
+      End If
+      
+      dsvWedDescription = sTagOutput(0)
+      dsvWedPlaats = sTagOutput(1)
+      If (dsvWedPlaats = "") Then
+        dsvWedPlaats = sTagOutput(3)
+      End If
+      dsvWedDate = dsvParseDate(sTagOutput(2))
+      
+      
+  
+  End Select
+End If
+
+
+
+If (dsvValid) Then
+  dsvFileTimeS = FileTimeStr(fName)
+  dsvFileDateS = FileDateStr(fName)
+End If
+
+  
+If (Not dsvValid) And (blShowInvReason) Then
+  MsgBox dsvInvalidString, vbOK + vbCritical
+End If
+ 
 
 dsvAnalyzeFile_Perform = True
 Exit Function
 
 fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvAnalyzeFile_perform", errInf
 
-
-Dim msg As String
-Dim errCode As Long
-errCode = Err
-
-msg = errCode & " dsvAnayzeFile_perform" & Error$
-
-
-If (errCode = 1) Then
-  'Deze fout is niet kritiek.
-  If (blDisplayErrDlg) Then
-    MsgBox msg, 16
-  End If
-  dsvAnalyzeFile_Perform = True
-Else
-  'Dit is een critical failure.
-  MsgBox "An unexpected error has occurred. " & vbCrLf & vbCrLf & msg, 16
-End If
-
+appDisplayError errInf
 Exit Function
-
-
 
 End Function
 
@@ -88,13 +278,17 @@ dsvAnalyzeFile = False
 'Delegate to perform function with default arguments.
 
 If Not dsvAnalyzeFile_Perform(fName, False, blValid, dsvInvalidReason, sInvalidString, dsvWedDate, dsvPlaats, dsvDescription, dsvFileDateS, dsvFileTimeS, dsvFileType) Then
-  Exit Function
+  appRaiseSilentError
 End If
 
 dsvAnalyzeFile = True
 Exit Function
+
 fout:
-MsgBox Err & " dsvAnalyzeFile" & vbCrLf & Error$, 16
+Dim errInf As ERR_INFO
+appRecordError "dsvAnalyzeFile", errInf
+
+appDisplayError errInf
 Exit Function
 
 End Function
@@ -125,9 +319,18 @@ End If
 
 Select Case dsvFileType
   Case DSV_FILE_TYPE_DLN
-    Err.Raise 1, , "Not supported yet"
+    If Not dsvImpDeelnemers(fName, lOpenWedNr) Then
+      appRaiseSilentError
+    End If
+  Case DSV_FILE_TYPE_PROG
+    If Not dsvImpProgramma(fName) Then
+      appRaiseSilentError
+    End If
+  Case DSV_FILE_TYPE_UIT
+    If Not dsvImpUitslag(fName, lOpenWedNr) Then
+      appRaiseSilentError
+    End If
 End Select
-
 
 dsvImpFillLenTransTables = True
 Exit Function
@@ -148,9 +351,9 @@ On Error GoTo fout
 dsvExpFromLenTransTables = False
 
 Select Case dsvFileType
-  Case WAS_FILE_TYPE_DLN
+  Case DSV_FILE_TYPE_DLN
     If Not dsvExpDln(fName) Then
-      Exit Function
+      appRaiseSilentError
     End If
 End Select
 
@@ -187,6 +390,16 @@ Private Function dsvFormatGes(ByVal sGes As String) As String
   End If
 End Function
 
+Private Function dsvParseGes(ByVal sDSVGes As String) As String
+  If (sDSVGes = "M") Then
+    dsvParseGes = "M"
+  ElseIf (sDSVGes = "W") Then
+    dsvParseGes = "V"
+  Else
+    dsvParseGes = "*"
+  End If
+End Function
+
 Private Function dsvFormatSlag(ByVal sSlag As String) As String
 If sSlag = "RUG" Then
   dsvFormatSlag = "R"
@@ -202,6 +415,22 @@ Else
   dsvFormatSlag = "F"
 End If
 End Function
+Private Function dsvParseSlag(ByVal sSlag As String) As String
+If sSlag = "R" Then
+  dsvParseSlag = "RUG"
+ElseIf sSlag = "B" Then
+  dsvParseSlag = "SCHOOL"
+ElseIf sSlag = "S" Then
+  dsvParseSlag = "VLINDER"
+ElseIf sSlag = "F" Then
+  dsvParseSlag = "VRIJ"
+ElseIf sSlag = "L" Then
+  dsvParseSlag = "WISSEL"
+Else
+  dsvParseSlag = "ONB"
+End If
+End Function
+
 
 Private Function dsvFormatTime(ByVal d As Double) As String
 If Not swtIsValid(d) Then
@@ -232,6 +461,43 @@ Else
 End If
 End Function
 
+
+Private Function dsvParseSwimTime(ByVal s As String) As Double
+On Error Resume Next
+dsvParseSwimTime = 0
+
+
+Dim iLen As Integer
+iLen = Len(s)
+
+If (iLen = 7) Or (iLen = 8) Or (iLen = 10) Or (iLen = 11) Then
+
+  Dim hr As Integer, min As Integer, sec As Integer, h As Integer
+  hr = 0
+  min = 0
+  sec = 0
+  h = 0
+  
+  h = CInt(val(Right(s, 2)))
+  sec = CInt(val(Mid(s, iLen - 4, 2)))
+  
+  If (iLen = 7) Then
+    min = CInt(val(Left(s, 1)))
+  ElseIf (iLen = 8) Then
+    min = CInt(val(Left(s, 2)))
+  ElseIf (iLen = 10) Then
+    hr = CInt(val(Left(s, 1)))
+    min = CInt(val(Mid(s, 3, 2)))
+  ElseIf (iLen = 11) Then
+    hr = CInt(val(Left(s, 2)))
+    min = CInt(val(Mid(s, 4, 2)))
+  End If
+  
+  dsvParseSwimTime = hr * CDbl(10000) + min * CDbl(100) + CDbl(sec) + h * 0.01
+  
+End If
+
+End Function
 
 
 
@@ -737,6 +1003,2238 @@ Dim errInf As ERR_INFO
 appRecordError "dsvExpDln", errInf
 
 Close
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvReadFirstTagsData(ByVal sFileName As String, ByRef sTagElmNames() As String, ByRef iTagIdx() As Integer, ByRef sTagOutput() As String, ByRef blTagFound() As Boolean, ByVal nTags As Integer, ByVal maxNLinesToRead As Long, ByVal blHandleError As Boolean, ByRef errUnhandled As ERR_INFO) As Boolean
+On Error GoTo fout
+dsvReadFirstTagsData = False
+
+Dim i As Long
+For i = 0 To nTags - 1
+  blTagFound(i) = False
+  sTagOutput(i) = ""
+Next i
+
+Dim dsvFile As DSV_FILE, tpErrInf As ERR_INFO
+If Not dsvReadFile(sFileName, dsvFile, maxNLinesToRead, blHandleError, tpErrInf) Then
+  If (blHandleError) Then
+    appRaiseSilentError
+  Else
+    appReraiseError tpErrInf
+  End If
+End If
+
+
+Dim j As Integer
+For i = 0 To dsvFile.nElms - 1
+  For j = 0 To nTags - 1
+    If Not blTagFound(j) Then
+      If (dsvFile.sElmNames(i) = sTagElmNames(j)) Then
+        If (dsvFile.nElmTags(i) > iTagIdx(j)) Then
+          blTagFound(j) = True
+          If (iTagIdx(j) >= 0) Then
+            sTagOutput(j) = dsvFile.sTags(dsvFile.lElmFirstTagIdx(i) + iTagIdx(j))
+          End If
+        End If
+      End If
+    End If
+  Next j
+Next i
+      
+dsvReadFirstTagsData = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadFirstTagsData", errInf
+
+If (blHandleError) Then
+  appDisplayError errInf
+Else
+  appCopyError errInf, errUnhandled
+End If
+Exit Function
+
+End Function
+
+
+
+
+
+'Assumption: comments (* *) are not nested
+Private Function dsvReadFile(ByVal sFileName As String, ByRef dsvFile As DSV_FILE, ByVal maxNLines As Long, ByVal blHandleError As Boolean, ByRef errUnhandled As ERR_INFO) As Boolean
+On Error GoTo fout
+dsvReadFile = False
+
+dsvFile.nElms = 0
+
+ReDim dsvFile.sElmNames(DSV_MAX_TAGS)
+ReDim dsvFile.nElmTags(DSV_MAX_TAGS)
+ReDim dsvFile.lElmFirstTagIdx(DSV_MAX_TAGS)
+ReDim dsvFile.sTags(DSV_MAX_TAGS)
+
+
+Dim fNr As Integer
+fNr = FreeFile
+
+Open sFileName For Input As #fNr
+
+Dim blDone As Boolean
+blDone = EOF(fNr)
+
+Dim tpBuffer As String
+tpBuffer = ""
+
+Dim muTagIdx As Long
+muTagIdx = -1
+
+Dim nLinesRead As Long
+nLinesRead = 0
+
+While Not blDone
+
+  Dim blBufferReady As Boolean
+  
+  blBufferReady = True
+  If (Not EOF(fNr)) Then
+    If (InStr(1, tpBuffer, ";") <= 0) Then
+      If (maxNLines <= 0) Or (nLinesRead < maxNLines) Then
+        blBufferReady = False
+      End If
+    End If
+  End If
+  
+  While Not blBufferReady
+  
+    Dim tpLine As String
+    Line Input #fNr, tpLine
+      
+    nLinesRead = nLinesRead + 1
+      
+    While (tpLine <> "")
+      tpBuffer = tpBuffer & extractToken(tpLine, "(*")
+      extractToken tpLine, "*)"
+    Wend
+    
+    'Recalculate buffer status
+    blBufferReady = True
+    If (Not EOF(fNr)) Then
+      If (InStr(1, tpBuffer, ";") <= 0) Then
+        If (maxNLines <= 0) Or (nLinesRead < maxNLines) Then
+          blBufferReady = False
+        End If
+      End If
+    End If
+      
+  
+  Wend
+  
+  
+  If (tpBuffer <> "") Then
+  
+    Dim tpBckBuffer As String
+    tpBckBuffer = tpBuffer
+    
+    'peel off a token from the buffer
+    Dim tpToken As String
+    tpToken = extractToken(tpBuffer, ";")
+    
+    Dim blIsNewElm As Boolean
+    blIsNewElm = False
+    
+    If (InStr(1, tpToken, ":") > 0) Then
+      'check if tpToken is a time or a swimtime
+      Dim tpTrmTok As String
+      tpTrmTok = Trim(tpToken)
+      
+      blIsNewElm = True
+      
+      'detect daytime
+      If ((Len(tpTrmTok) = 5) And (tpTrmTok Like "[0-9][0-9]:[0-9][0-9]")) Then
+        blIsNewElm = False
+      End If
+      
+      'detect swimtime
+      If (blIsNewElm) Then
+        Dim tpPos As Integer
+        tpPos = InStr(1, tpToken, ":")
+        If (tpPos > 1) Then
+          If (Mid(tpToken, tpPos - 1, 1) Like "[0-9]") Then
+            If (Mid(tpToken, tpPos + 1, 2) Like "[0-9][0-9]") Then
+              blIsNewElm = False
+            End If
+          End If
+        End If
+      End If
+    End If
+  
+    
+    If blIsNewElm Then
+      'new element opened.
+      Dim tpElmName As String
+      tpElmName = Trim(extractToken(tpToken, ":"))
+      
+      dsvFile.sElmNames(dsvFile.nElms) = tpElmName
+      dsvFile.nElmTags(dsvFile.nElms) = 0
+      dsvFile.lElmFirstTagIdx(dsvFile.nElms) = (muTagIdx + 1)
+      
+      dsvFile.nElms = dsvFile.nElms + 1
+      
+      'restore buffer for tag read
+      tpBuffer = tpBckBuffer
+      extractToken tpBuffer, ":"
+      
+      
+      
+    Else
+    
+      'interpret token as tag
+      Dim tpTag As String
+      tpTag = Trim(tpToken)
+        
+      muTagIdx = muTagIdx + 1
+      dsvFile.nElmTags(dsvFile.nElms - 1) = dsvFile.nElmTags(dsvFile.nElms - 1) + 1
+      dsvFile.sTags(muTagIdx) = tpTag
+      
+    End If
+    
+  Else
+    blDone = True
+  End If
+  
+Wend
+
+
+
+Close fNr
+
+dsvReadFile = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadFile", errInf
+
+Close
+
+If (blHandleError) Then
+  appDisplayError errInf
+Else
+  appCopyError errInf, errUnhandled
+End If
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function dsvImpDeelnemers_read(ByRef dsvFile As DSV_FILE, _
+  ByRef nWeds As Integer, ByRef wedInfs() As WED_BASIC_INFO, _
+  ByRef dFeePers As Double, ByRef dFeeEst As Double, _
+  ByRef sPoolName As String, ByRef sPoolAd As String, ByRef blElectronic As Boolean, _
+  ByRef nProgs As Integer, ByRef progInfs() As PROG_BASIC_INFO, _
+  ByRef sProgGes() As String, dProgCost() As Double, ByRef nProgCats() As Integer, ByRef iProgFirstCatIdx() As Integer, _
+  ByRef catInfs() As CAT_INFO, ByRef iCatNextIdx() As Integer, _
+  ByRef nVers As Integer, ByRef verInfs() As VER_BASIC_INFO, _
+  ByRef nSwms As Integer, ByRef swmInfs() As ZWM_BASIC_INFO, ByRef iSwmVerOrgIdx() As Integer, _
+  ByRef nDlns As Long, ByRef dlnInfs() As DSV_DLN) As Boolean
+On Error GoTo fout
+dsvImpDeelnemers_read = False
+
+
+
+nWeds = 0
+nProgs = 0
+nVers = 0
+nSwms = 0
+nDlns = 0
+
+
+blElectronic = False
+
+dFeePers = 0
+dFeeEst = 0
+
+sPoolName = ""
+sPoolAd = ""
+
+
+Dim nCats As Integer
+
+Dim lOrdProgs(0 To MAX_N_PROGS) As Long
+Dim iOrdProgOrgIdx(0 To MAX_N_PROGS) As Integer
+
+Dim sOrdVerNamesUC(0 To DSV_MAX_N_VERS) As String
+Dim iOrdVerOrgIdx(0 To DSV_MAX_N_VERS) As Integer
+
+
+Dim sOrdSwmNamesUC(0 To DSV_MAX_N_SWMS) As String
+Dim iOrdSwmOrgIdx(0 To DSV_MAX_N_SWMS) As Integer
+
+Dim sMeetDes As String
+Dim sPoolPl As String
+Dim sPoolNatCode As String
+Dim iPoolBn As Integer
+
+nCats = 0
+
+sMeetDes = ""
+sPoolPl = ""
+sPoolNatCode = ""
+iPoolBn = 25
+
+Dim blCurReadingPersStarts As Boolean
+Dim blCurReadingEstStarts As Boolean
+Dim iCurStartSwmOrgIdx As Integer
+Dim iCurStartEstNr As Integer
+
+blCurReadingPersStarts = False
+blCurReadingEstStarts = False
+
+
+'loop through all the elements
+Dim i As Long
+For i = 0 To dsvFile.nElms - 1
+
+  Select Case dsvFile.sElmNames(i)
+    Case "VERANSTALTUNG"
+    
+      If Not dsvReadElm_veranstaltung(dsvFile, i, sMeetDes, sPoolPl, iPoolBn, blElectronic) Then
+        appRaiseSilentError
+      End If
+      
+    
+    Case "ABSCHNITT"
+    
+      If Not dsvReadElm_abschnitt(dsvFile, i, nWeds, wedInfs, sMeetDes, iPoolBn, sPoolPl, sPoolNatCode) Then
+        appRaiseSilentError
+      End If
+      
+    Case "WETTKAMPF"
+    
+      If Not dsvReadElm_wettkampf(dsvFile, i, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, lOrdProgs, iOrdProgOrgIdx) Then
+        appRaiseSilentError
+      End If
+     
+    Case "VEREIN"
+      
+      If Not dsvReadElm_verein(dsvFile, i, nVers, verInfs, iOrdVerOrgIdx, sOrdVerNamesUC) Then
+        appRaiseSilentError
+      End If
+      
+    Case "VNKENNZAHL"
+    
+      If (nVers = 0) Then
+        Err.Raise 1, , "Tag <VNKENNZAHL> encountered outside of <VEREIN> context."
+      End If
+      
+      verInfs(nVers - 1).verDepot = dsvGetTag(dsvFile, i, 0)
+      
+    Case "NATION"
+    
+      If (nVers = 0) Then
+        Err.Raise 1, , "Tag <NATION> encountered outside of <VEREIN> context."
+      End If
+      
+      verInfs(nVers - 1).verNationCode = dsvGetTag(dsvFile, i, 0)
+      
+      
+    Case "PNMELDUNG"
+      
+      Dim tpSwmDSVName As String, tpSwmStart As String, tpSwmGes As String
+      Dim tpSwmYOB As Long
+      
+      tpSwmDSVName = dsvGetTag(dsvFile, i, 0)
+      tpSwmStart = dsvGetTag(dsvFile, i, 1)
+      tpSwmGes = dsvParseGes(dsvGetTag(dsvFile, i, 2))
+      tpSwmYOB = CLng(val(dsvGetTag(dsvFile, i, 3)))
+      
+      Dim tpSwmVerName As String, tpSwmVerOrgIdx As Integer
+      tpSwmVerName = verInfs(nVers - 1).verName
+      tpSwmVerOrgIdx = nVers - 1
+      
+      blCurReadingPersStarts = True
+      blCurReadingEstStarts = False
+      
+      'add swimmer to array and get iCurStartSwmOrgIdx
+      If Not dsvReadSingleResult_handleSwimmer(tpSwmVerName, tpSwmVerOrgIdx, _
+        tpSwmDSVName, tpSwmGes, tpSwmYOB, tpSwmStart, _
+        nSwms, swmInfs, iSwmVerOrgIdx, sOrdSwmNamesUC, iOrdSwmOrgIdx, iCurStartSwmOrgIdx) Then
+        appRaiseSilentError
+      End If
+        
+      
+    Case "STMELDUNG"
+      blCurReadingPersStarts = False
+      blCurReadingEstStarts = True
+      
+      iCurStartEstNr = CLng(val(dsvGetTag(dsvFile, i, 0)))
+      
+    Case "STARTS"
+      
+      If Not (blCurReadingPersStarts Or blCurReadingEstStarts) Then
+        Err.Raise 1, , "<STARTS> element encountered outside of <PNMELDUNG> or <STMELDUNG> context"
+      End If
+      
+      Dim iCurTagIdx As Integer
+      iCurTagIdx = 0
+      
+      Dim tpDlnVerOrgIdx As Integer
+      tpDlnVerOrgIdx = nVers - 1
+      
+      While (iCurTagIdx < dsvFile.nElmTags(i))
+        If Not dsvReadSingleDeelnemer(dsvFile, i, iCurTagIdx, blCurReadingEstStarts, _
+          tpDlnVerOrgIdx, iCurStartSwmOrgIdx, iCurStartEstNr, _
+          nProgs, progInfs, lOrdProgs, iOrdProgOrgIdx, nDlns, dlnInfs) Then
+          appRaiseSilentError
+        End If
+      Wend
+      
+  End Select
+
+Next i
+
+
+
+
+dsvImpDeelnemers_read = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError dsvImpDeelnemers_read, errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function dsvImpDeelnemers(ByVal fName As String, ByVal lOpenWedNr As Long) As Boolean
+On Error GoTo fout
+dsvImpDeelnemers = False
+
+Dim dsvFile As DSV_FILE
+
+Dim tpErrInf As ERR_INFO
+If Not dsvReadFile(fName, dsvFile, -1, True, tpErrInf) Then
+  appRaiseSilentError
+End If
+
+Dim nWeds As Integer
+Dim wedInfs(0 To 100) As WED_BASIC_INFO
+
+Dim nProgs As Integer
+Dim progInfs(0 To MAX_N_PROGS) As PROG_BASIC_INFO
+Dim sProgGes(0 To MAX_N_PROGS) As String
+Dim dProgCost(0 To MAX_N_PROGS) As Double
+Dim nProgCats(0 To MAX_N_PROGS) As Integer
+Dim iProgFirstCatIdx(0 To MAX_N_PROGS) As Integer
+
+Dim catInfs(0 To MAX_N_PROGS) As CAT_INFO
+Dim iCatNextIdx(0 To MAX_N_VAR_CATS) As Integer
+
+
+Dim sPoolName As String
+Dim sPoolAd As String
+
+Dim dFeePers As Double
+Dim dFeeEst As Double
+Dim blElectronic As Boolean
+
+
+Dim verInfs(0 To DSV_MAX_N_VERS) As VER_BASIC_INFO
+Dim nVers As Integer
+
+Dim swmInfs(0 To DSV_MAX_N_SWMS) As ZWM_BASIC_INFO
+Dim iSwmVerOrgIdx(0 To DSV_MAX_N_SWMS) As Integer
+Dim nSwms As Integer
+
+Dim dlnInfs(0 To DSV_MAX_N_RES) As DSV_DLN
+Dim nDeelnemers As Long
+
+If Not dsvImpDeelnemers_read( _
+  dsvFile, nWeds, wedInfs, dFeePers, dFeeEst, _
+  sPoolName, sPoolAd, blElectronic, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, _
+  catInfs, iCatNextIdx, _
+  nVers, verInfs, nSwms, swmInfs, iSwmVerOrgIdx, nDeelnemers, dlnInfs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteWeds(nWeds, wedInfs, dFeePers, dFeeEst, sPoolName, sPoolAd, blElectronic) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteProgs(lOpenWedNr, True, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteVers(nVers, verInfs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteSwms(nSwms, swmInfs, iSwmVerOrgIdx, verInfs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteDeelnemers(nDeelnemers, dlnInfs) Then
+  appRaiseSilentError
+End If
+
+
+
+dsvImpDeelnemers = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvImpDeelnemers", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvWriteProgs(ByVal lOpenWedNr As Long, ByVal blUseOpenWedProgCats As Boolean, ByVal nProgs As Integer, ByRef progInfs() As PROG_BASIC_INFO, _
+  ByRef sProgGes() As String, ByRef dProgCost() As Double, ByRef nProgCats() As Integer, ByRef iProgFirstCatIdx() As Integer, _
+  ByRef catInfs() As CAT_INFO, ByRef iCatNextIdx() As Integer) As Boolean
+On Error GoTo fout
+dsvWriteProgs = False
+
+Dim rsProg As Recordset
+Dim rsLft As Recordset
+
+Set rsProg = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
+Set rsLft = CurrentDb().OpenRecordset("gIMP_LEN_Leeftijdsgroepen")
+
+Dim i As Integer
+For i = 0 To nProgs - 1
+  
+  'first figure out cat.
+  Dim tpCat As String, tpCatDes As String, tpLim As String
+  tpCat = ""
+  tpLim = ""
+  If nProgCats(i) > 1 Then
+    If (sProgGes(i) = "M") Then
+      tpCat = "JVAR"
+    ElseIf (sProgGes(i) = "V") Then
+      tpCat = "MVAR"
+    Else
+      tpCat = "MJVAR"
+    End If
+    tpCatDes = catBeschrijving(tpCat)
+  ElseIf (nProgCats(i) = 1) Then
+    tpCat = Trim(catInfs(iProgFirstCatIdx(i)).cat)
+    tpCatDes = Trim(catInfs(iProgFirstCatIdx(i)).bescat)
+    tpLim = Trim(catInfs(iProgFirstCatIdx(i)).lim)
+  Else
+  
+    If (blUseOpenWedProgCats) Then
+      'Lookup to see if the current prog already exists
+      Dim openPrInf As PROG_BASIC_INFO, isOpenProgFnd As Boolean
+      If Not prLookup(lOpenWedNr, progInfs(i).prognr, isOpenProgFnd, openPrInf) Then
+        appRaiseSilentError
+      End If
+      If (isOpenProgFnd) Then
+        'if afstand & slag match up, use the looked up prog to complete cat and catDes
+        If (progInfs(i).Afstand = openPrInf.Afstand) And (progInfs(i).slag = openPrInf.slag) Then
+          tpCat = openPrInf.cat
+          tpCatDes = openPrInf.catDes
+        End If
+      End If
+    End If
+  
+  
+    If (tpCat = "") Then
+      If (sProgGes(i) = "M") Then
+        tpCat = "JVAR"
+      ElseIf (sProgGes(i) = "V") Then
+        tpCat = "MVAR"
+      Else
+        tpCat = "MJVAR"
+      End If
+      tpCatDes = catBeschrijving(tpCat)
+    End If
+  End If
+  
+  
+  rsProg.AddNew
+    rsProg("PR_WED_ID") = progInfs(i).wednr
+    rsProg("PR_ID") = CLng(progInfs(i).prognr)
+    rsProg("PR_Programmanummer") = hzn(progInfs(i).prognr)
+    rsProg("PR_Programmanummer_Fixed") = True
+    rsProg("PR_Afstand") = hzn(progInfs(i).Afstand)
+    rsProg("PR_Slag") = hzn(progInfs(i).slag)
+    rsProg("PR_Categorie") = hzn(tpCat)
+    rsProg("PR_BeschrijvingCategorie") = hzn(tpCatDes)
+    rsProg("PR_Limiet") = hzn(tpLim)
+    rsProg("PR_Kosten") = dProgCost(i)
+    rsProg("PR_Type") = hzn(progInfs(i).progType)
+    
+  rsProg.Update
+  
+  If (nProgCats(i) > 1) Then
+    Dim tpCatIdx As Integer
+    tpCatIdx = iProgFirstCatIdx(i)
+    While (tpCatIdx <> -1)
+      
+      rsLft.AddNew
+        rsLft("LF_ID") = tpCatIdx
+        rsLft("LF_PR_ID") = CLng(progInfs(i).prognr)
+        rsLft("LF_Categorie") = hzn(Trim(catInfs(tpCatIdx).cat))
+        rsLft("LF_BeschrijvingCategorie") = hzn(Trim(catInfs(tpCatIdx).bescat))
+        rsLft("LF_Limiet") = hzn(Trim(catInfs(tpCatIdx).lim))
+      rsLft.Update
+      
+      tpCatIdx = iCatNextIdx(tpCatIdx)
+    Wend
+  End If
+  
+  
+Next i
+
+
+
+appCleanRS rsProg
+appCleanRS rsLft
+
+dsvWriteProgs = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvWriteProgs", errInf
+
+appCleanRS rsProg
+appCleanRS rsLft
+
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+Private Function dsvWriteWeds(ByVal nWeds As Integer, ByRef wedInfs() As WED_BASIC_INFO, _
+  ByVal dFeePers As Double, ByVal dFeeEst As Double, _
+  ByVal sPoolName As String, sPoolAd As String, blElectronic As Boolean) As Boolean
+On Error GoTo fout
+dsvWriteWeds = False
+
+Dim rsWed As Recordset
+Set rsWed = CurrentDb().OpenRecordset("gIMP_LEN_Wedstrijden")
+
+Dim i As Integer
+For i = 0 To nWeds - 1
+
+  rsWed.AddNew
+    rsWed("WE_ID") = wedInfs(i).wednr
+    rsWed("WE_Datum") = wedInfs(i).date
+    rsWed("WE_Plaats") = hzn(wedInfs(i).Plaats)
+    rsWed("WE_Beschrijving") = hzn(wedInfs(i).meetDes)
+    rsWed("WE_Beschrijving_Extra") = hzn(wedInfs(i).des)
+    rsWed("WE_Baanlengte") = wedInfs(i).baan
+    rsWed("WE_Zwembad") = hzn(sPoolName)
+    rsWed("WE_Adres") = hzn(sPoolAd)
+    rsWed("WE_Aanvang") = wedInfs(i).avst
+    rsWed("WE_BulkKostenZwemmer") = dFeePers
+    rsWed("WE_KostenRelay") = dFeeEst
+    rsWed("WE_ElektronischeTijd") = blElectronic
+    
+    rsWed("WE_Nation") = hzn(wedInfs(i).sNationCode)
+    
+    rsWed("WE_PartOfTimeArchive") = False
+    
+    rsWed("WE_Leeftijdsbepaling") = hzn(LFT_MODE_SZYR)
+    rsWed("WE_QLF_RelayMode") = hzn(RELAY_MODE_IND)
+    
+  rsWed.Update
+    
+
+Next i
+
+
+
+appCleanRS rsWed
+
+dsvWriteWeds = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvWriteWeds", errInf
+
+appCleanRS rsWed
+
+appDisplayError errInf
+Exit Function
+End Function
+
+Private Function dsvWriteVers(ByVal nVers As Integer, ByRef verInfs() As VER_BASIC_INFO) As Boolean
+On Error GoTo fout
+dsvWriteVers = False
+
+Dim rsVer As Recordset
+Set rsVer = CurrentDb().OpenRecordset("gIMP_LEN_Ver")
+
+Dim i As Integer
+
+Dim muExtDepotNr As Long
+muExtDepotNr = 0
+
+For i = 0 To nVers - 1
+
+  rsVer.AddNew
+  
+    rsVer("V_ID") = (i + 1)
+    rsVer("V_Naam") = hzn(verInfs(i).verName)
+    rsVer("V_LangNaam") = hzn(verInfs(i).verName)
+    
+    Dim blDepValid As Boolean
+    Dim sDepot As String
+    sDepot = lenParseDepotnr(verInfs(i).verDepot, verInfs(i).verNationCode, muExtDepotNr, blDepValid)
+     
+    rsVer("V_Depot") = hzn(sDepot)
+    rsVer("V_DEPOT_FIXED") = blDepValid
+    rsVer("V_Extern_Code") = hzn(verInfs(i).verDepot)
+    
+    rsVer("V_Plaats") = hzn(verInfs(i).verPlaats)
+    rsVer("V_Land") = hzn(verInfs(i).verNationCode)
+    
+    rsVer("V_PartOfRecord") = False
+    rsVer("V_PartOfTimeArchive") = False
+     
+  rsVer.Update
+
+Next i
+
+
+
+appCleanRS rsVer
+
+dsvWriteVers = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvWriteVers", errInf
+
+appCleanRS rsVer
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function dsvWriteSwms(ByVal nSwms As Integer, ByRef swmInfs() As ZWM_BASIC_INFO, ByRef iSwmVerOrgIdx() As Integer, ByRef verInfs() As VER_BASIC_INFO) As Boolean
+On Error GoTo fout
+dsvWriteSwms = False
+
+Dim rsSwm As Recordset
+Set rsSwm = CurrentDb().OpenRecordset("gIMP_LEN_Zwemmers")
+
+Dim i As Integer
+
+Dim muExtStart As Long
+muExtStart = 0
+
+For i = 0 To nSwms - 1
+
+  rsSwm.AddNew
+  
+    rsSwm("ZW_ID") = (i + 1)
+    rsSwm("ZW_VER_ID") = (iSwmVerOrgIdx(i) + 1)
+    
+    rsSwm("ZW_Voornaam") = hzn(swmInfs(i).sVoornaam)
+    rsSwm("ZW_Voegsel") = hzn(swmInfs(i).sVoegsel)
+    rsSwm("ZW_Achternaam") = hzn(swmInfs(i).sAchternaam)
+    rsSwm("ZW_Geslacht") = hzn(swmInfs(i).sGes)
+    rsSwm("ZW_Jaartal") = swmInfs(i).lYOB
+    
+    
+    
+    If Not lenDateIsValid(swmInfs(i).dGebDate) Then
+      swmInfs(i).dGebDate = DateSerial(swmInfs(i).lYOB, 1, 1)
+    End If
+    rsSwm("ZW_Geboortedatum") = swmInfs(i).dGebDate
+    
+    Dim tpNation As String, tpStart As String
+    tpNation = verInfs(iSwmVerOrgIdx(i)).verNationCode
+    tpStart = swmInfs(i).sStartnr
+    
+    Dim sActStnr As String
+    Dim blActStnrValid As Boolean
+    
+    sActStnr = lenParseStartnr(tpStart, tpNation, swmInfs(i).dGebDate, muExtStart, blActStnrValid)
+    
+    rsSwm("ZW_Startnummer") = hzn(sActStnr)
+    rsSwm("ZW_Startnummer_Fixed") = blActStnrValid
+    rsSwm("ZW_ExternalLicenseCode") = hzn(tpStart)
+    
+    rsSwm("ZW_Nation") = hzn(tpNation)
+    
+    rsSwm("ZW_PartOfRecord") = False
+    rsSwm("ZW_PartOfTimeArchive") = False
+        
+  rsSwm.Update
+
+Next i
+
+
+
+appCleanRS rsSwm
+
+dsvWriteSwms = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvWriteSwms", errInf
+
+appCleanRS rsSwm
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function dsvWriteDeelnemers(ByVal nDlns As Long, ByRef dlnInfs() As DSV_DLN) As Boolean
+On Error GoTo fout
+dsvWriteDeelnemers = False
+
+Dim rsDln As Recordset
+Set rsDln = CurrentDb().OpenRecordset("gIMP_LEN_Deelnemers")
+
+Dim rsEst As Recordset
+Set rsEst = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+
+Dim rsPll As Recordset
+Set rsPll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+
+Dim muPllID As Long
+Dim muEstID As Long
+
+muPllID = 0
+muEstID = 0
+
+
+Dim i As Long
+
+For i = 0 To nDlns - 1
+
+  Dim tpIsEstaf As Boolean, tpEstID As Long
+  
+  tpIsEstaf = False
+  tpEstID = -1
+  
+  If (dlnInfs(i).blIsEstaf) Then
+    tpIsEstaf = True
+    muEstID = muEstID + 1
+    tpEstID = muEstID
+    
+    rsEst.AddNew
+      rsEst("PL_ID") = tpEstID
+      rsEst("PL_VER_ID") = (dlnInfs(i).iVerOrgIdx + 1)
+      rsEst("PL_Nummer") = dlnInfs(i).iEstNr
+      rsEst("PL_PartOfRecord") = False
+      rsEst("PL_PartOfTimeArchive") = False
+    rsEst.Update
+    
+    Dim iPll As Integer
+    For iPll = 0 To dlnInfs(i).nEstSwms - 1
+    
+      muPllID = muPllID + 1
+      
+      rsPll.AddNew
+        
+        rsPll("PLL_ID") = muPllID
+        rsPll("PLL_Deelnemer_ID") = (i + 1)
+        rsPll("PLL_Ploeg_ID") = tpEstID
+        rsPll("PLL_Zwemmer_ID") = (dlnInfs(i).iEstSwmOrgIdx(iPll) + 1)
+        rsPll("PLL_Volgorde") = (iPll + 1)
+        rsPll("PLL_Reserve") = False
+      rsPll.Update
+    Next iPll
+    
+  End If
+  
+  rsDln.AddNew
+  
+    rsDln("DE_ID") = (i + 1)
+    
+    rsDln("DE_Prog_ID") = dlnInfs(i).lProgNr
+    rsDln("DE_Ver_ID") = (dlnInfs(i).iVerOrgIdx + 1)
+    rsDln("DE_IsEstaf") = tpIsEstaf
+    If (tpIsEstaf) Then
+      rsDln("DE_Zwemmer_ID") = Null
+      rsDln("DE_Ploeg_ID") = tpEstID
+    Else
+      rsDln("DE_Zwemmer_ID") = (dlnInfs(i).iSwmOrgIdx + 1)
+      rsDln("DE_Ploeg_ID") = Null
+    End If
+    
+    rsDln("DE_Inschrijftijd") = dlnInfs(i).dEntryTime
+    
+    rsDln("DE_Agegroup_ID") = Null
+    
+    rsDln("DE_Reserve") = False
+    rsDln("DE_BM") = False
+       
+  rsDln.Update
+    
+Next i
+
+
+
+appCleanRS rsDln
+appCleanRS rsEst
+appCleanRS rsPll
+
+dsvWriteDeelnemers = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvWriteDeelnemers", errInf
+
+appCleanRS rsDln
+appCleanRS rsEst
+appCleanRS rsPll
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function dsvWriteResults(ByVal nRes As Integer, ByRef resInfs() As DSV_RESULT) As Boolean
+On Error GoTo fout
+dsvWriteResults = False
+
+Dim rsRes As Recordset
+Set rsRes = CurrentDb().OpenRecordset("gIMP_LEN_Tijden")
+
+Dim rsEst As Recordset
+Set rsEst = CurrentDb().OpenRecordset("gIMP_LEN_Ploeg")
+
+Dim rsPll As Recordset
+Set rsPll = CurrentDb().OpenRecordset("gIMP_LEN_Ploegleden")
+
+Dim muPllID As Long
+Dim muEstID As Long
+
+muPllID = 0
+muEstID = 0
+
+
+Dim i As Integer
+
+For i = 0 To nRes - 1
+
+  Dim tpIsEstaf As Boolean, tpEstID As Long, tpStzwID As Long, tpStzwPllID As Long
+  
+  tpIsEstaf = False
+  tpEstID = -1
+  tpStzwID = -1
+  tpStzwPllID = -1
+  
+  If (resInfs(i).blIsEstaf) Then
+    tpIsEstaf = True
+    muEstID = muEstID + 1
+    tpEstID = muEstID
+    
+    rsEst.AddNew
+      rsEst("PL_ID") = tpEstID
+      rsEst("PL_VER_ID") = (resInfs(i).iVerOrgIdx + 1)
+      rsEst("PL_Nummer") = resInfs(i).iEstNr
+      rsEst("PL_PartOfRecord") = False
+      rsEst("PL_PartOfTimeArchive") = False
+    rsEst.Update
+    
+    Dim iPll As Integer
+    For iPll = 0 To resInfs(i).nEstSwms - 1
+    
+      muPllID = muPllID + 1
+      
+      If (iPll = 0) Then
+        tpStzwID = (resInfs(i).iEstSwmOrgIdx(iPll) + 1)
+        tpStzwPllID = muPllID
+      End If
+      
+      rsPll.AddNew
+        
+        rsPll("PLL_ID") = muPllID
+        rsPll("PLL_Tijd_ID") = (i + 1)
+        rsPll("PLL_Ploeg_ID") = tpEstID
+        rsPll("PLL_Zwemmer_ID") = (resInfs(i).iEstSwmOrgIdx(iPll) + 1)
+        rsPll("PLL_Volgorde") = (iPll + 1)
+        rsPll("PLL_Reserve") = False
+      rsPll.Update
+    Next iPll
+    
+  End If
+  
+  rsRes.AddNew
+  
+    rsRes("TY_ID") = (i + 1)
+    
+    rsRes("TY_Prog_ID") = resInfs(i).lProgNr
+    rsRes("TY_Ver_ID") = (resInfs(i).iVerOrgIdx + 1)
+    rsRes("TY_IsEstaf") = tpIsEstaf
+    If (tpIsEstaf) Then
+      rsRes("TY_Zwemmer_ID") = Null
+      rsRes("TY_Ploeg_ID") = tpEstID
+      If (tpStzwID >= 0) Then
+        rsRes("TY_Startzwemmer_ID") = tpStzwID
+      Else
+        rsRes("TY_Startzwemmer_ID") = Null
+      End If
+      If (tpStzwPllID >= 0) Then
+        rsRes("TY_Startzwemmer_PLL_ID") = tpStzwPllID
+      Else
+        rsRes("TY_Startzwemmer_PLL_ID") = Null
+      End If
+    Else
+      rsRes("TY_Zwemmer_ID") = (resInfs(i).iSwmOrgIdx + 1)
+      rsRes("TY_Ploeg_ID") = Null
+      rsRes("TY_Startzwemmer_ID") = Null
+      rsRes("TY_Startzwemmer_PLL_ID") = Null
+    End If
+    
+    rsRes("TY_Agegroup_ID") = Null
+    
+    rsRes("TY_Eindtijd") = resInfs(i).dFinalTime
+    rsRes("TY_Eindafstand") = hzn(resInfs(i).sFinalAf)
+    rsRes("TY_Eindslag") = hzn(resInfs(i).sFinalSlag)
+    rsRes("TY_Eindplaats") = resInfs(i).iFinalPos
+    
+    rsRes("TY_Dis") = hzn(resInfs(i).sDis)
+    rsRes("TY_BM") = False
+       
+    
+    Dim iTs As Integer
+    For iTs = 0 To 3
+      rsRes("TY_Slag" & (iTs + 1)) = hzn(resInfs(i).sTsSl(iTs))
+      rsRes("TY_Afstand" & (iTs + 1)) = hzn(resInfs(i).sTsAf(iTs))
+      rsRes("TY_Tijd" & (iTs + 1)) = resInfs(i).dTsTimes(iTs)
+    Next iTs
+    rsRes("TY_ExtraTussentijden") = hzn(resInfs(i).sExtTs)
+    
+  rsRes.Update
+    
+Next i
+
+
+
+appCleanRS rsRes
+appCleanRS rsEst
+appCleanRS rsPll
+
+dsvWriteResults = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvWriteResults", errInf
+
+appCleanRS rsRes
+appCleanRS rsEst
+appCleanRS rsPll
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function dsvGetTag(ByRef dsvFile As DSV_FILE, ByVal lElm As Long, ByVal iTagIdx As Integer) As String
+dsvGetTag = ""
+If iTagIdx < dsvFile.nElmTags(lElm) Then
+  dsvGetTag = dsvFile.sTags(dsvFile.lElmFirstTagIdx(lElm) + iTagIdx)
+End If
+End Function
+
+
+
+Private Function dsvReadElm_wettkampf(ByRef dsvFile As DSV_FILE, ByVal lElmIdx As Long, _
+  ByRef nProgs As Integer, ByRef progInfs() As PROG_BASIC_INFO, _
+  ByRef sProgGes() As String, dProgCost() As Double, ByRef nProgCats() As Integer, ByRef iProgFirstCatIdx() As Integer, _
+  ByRef lOrdProgs() As Long, ByRef iOrdProgOrgIdx() As Integer) As Boolean
+On Error GoTo fout
+dsvReadElm_wettkampf = False
+
+
+Dim tpProg As Long
+tpProg = CLng(dsvGetTag(dsvFile, lElmIdx, 0))
+
+progInfs(nProgs).prognr = tpProg
+
+
+Dim blHasTypeModifier As Boolean
+blHasTypeModifier = True
+
+If (dsvGetTag(dsvFile, lElmIdx, 1) Like "[0-9]*") Then
+  blHasTypeModifier = False
+End If
+
+Dim iOffset As Integer
+iOffset = 0
+If (blHasTypeModifier) Then
+  iOffset = 1
+End If
+
+progInfs(nProgs).wednr = CLng(dsvGetTag(dsvFile, lElmIdx, 1 + iOffset))
+
+Dim tpDes As String
+tpDes = dsvGetTag(dsvFile, lElmIdx, 2 + iOffset)
+
+Dim tpAf As String, tpSl As String, tpGes As String
+
+tpAf = ""
+tpSl = ""
+tpGes = ""
+
+Dim tpTok As String
+tpTok = extractToken(tpDes, " ")
+
+tpAf = tpTok
+
+'Read ahead next token to see if we are dealing with
+'a distance written as '4 x 100' instead of '4x100'
+        
+tpTok = extractToken(tpDes, " ")
+If (tpTok = "x") And Not (tpAf Like "*x*") Then
+  'attempt to create an afstand from next two tokes
+  Dim tpBckDes As String, tpBckTok As String
+  tpBckDes = tpDes
+  tpBckTok = tpTok
+  Dim tpBckAf As String
+  tpBckAf = tpAf
+  
+  
+  tpAf = tpAf & "x"
+  tpTok = extractToken(tpDes, " ")
+  tpAf = tpAf & tpTok
+  
+  If (Len(Trim(tpDes)) < 3) Then
+    'We do not have any remaining tokens left for slag, ges pair.
+    'The initial "x" should not have been interpreted as estaf
+    '-> restore originals
+    tpAf = tpBckAf
+    tpDes = tpBckDes
+    tpTok = tpBckTok
+  Else
+    tpTok = extractToken(tpDes, " ")
+  End If
+End If
+
+tpSl = dsvParseSlag(tpTok)
+tpGes = dsvParseGes(extractToken(tpDes, " "))
+
+progInfs(nProgs).Afstand = tpAf
+progInfs(nProgs).slag = tpSl
+
+progInfs(nProgs).cat = ""
+
+progInfs(nProgs).progType = PROG_TYPE_SER
+
+sProgGes(nProgs) = tpGes
+dProgCost(nProgs) = 0
+nProgCats(nProgs) = 0
+iProgFirstCatIdx(nProgs) = -1
+
+progInfs(nProgs).isEstaf = (tpAf Like "*x*")
+
+
+Dim insPos As Integer, iDummy As Integer
+iDummy = nProgs
+insPos = insLong(tpProg, iDummy, lOrdProgs)
+shiftRightInt insPos, 1, iDummy - 1, iOrdProgOrgIdx
+
+iOrdProgOrgIdx(insPos) = nProgs
+
+nProgs = nProgs + 1
+
+
+dsvReadElm_wettkampf = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadElm_wettkamp", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvReadElm_abschnitt(ByRef dsvFile As DSV_FILE, ByVal lElmIdx As Integer, _
+  ByRef nWeds As Integer, ByRef wedInfs() As WED_BASIC_INFO, _
+  ByVal sMeetDes As String, ByVal iPoolBn As Integer, ByVal sPoolPl As String, ByVal sPoolNatCode As String) As Boolean
+On Error GoTo fout
+dsvReadElm_abschnitt = False
+
+
+wedInfs(nWeds).wednr = CLng(dsvGetTag(dsvFile, lElmIdx, 0))
+wedInfs(nWeds).date = dsvParseDate(dsvGetTag(dsvFile, lElmIdx, 1))
+wedInfs(nWeds).avst = dsvParseDayTime(dsvGetTag(dsvFile, lElmIdx, 2))
+wedInfs(nWeds).meetDes = sMeetDes
+wedInfs(nWeds).des = sMeetDes
+wedInfs(nWeds).baan = iPoolBn
+wedInfs(nWeds).Plaats = sPoolPl
+wedInfs(nWeds).sNationCode = sPoolNatCode
+
+nWeds = nWeds + 1
+
+
+dsvReadElm_abschnitt = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadElm_abschnitt", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvReadElm_veranstaltung(ByRef dsvFile As DSV_FILE, ByVal lElmIdx As Integer, _
+  ByRef sMeetDes As String, ByRef sPoolPl As String, ByRef iPoolBn As Integer, ByRef blElectronic As Boolean) As Boolean
+On Error GoTo fout
+dsvReadElm_veranstaltung = False
+
+
+
+sMeetDes = dsvGetTag(dsvFile, lElmIdx, 0)
+sPoolPl = dsvGetTag(dsvFile, lElmIdx, 1)
+
+iPoolBn = 25
+If (dsvGetTag(dsvFile, lElmIdx, 2) = "50") Then
+  iPoolBn = 50
+End If
+
+If (dsvGetTag(dsvFile, lElmIdx, 3) = "AUTOMATISCH") Then
+  blElectronic = True
+End If
+
+
+dsvReadElm_veranstaltung = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadElm_veranstaltung", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvReadElm_verein(ByRef dsvFile As DSV_FILE, ByVal lElmIdx As Integer, _
+  ByRef nVers As Integer, ByRef verInfs() As VER_BASIC_INFO, _
+  ByRef iOrdVerOrgIdx() As Integer, sOrdVerNamesUC() As String) As Boolean
+On Error GoTo fout
+dsvReadElm_verein = False
+
+verInfs(nVers).verName = dsvGetTag(dsvFile, lElmIdx, 0)
+
+
+Dim insPos As Integer, iDummy As Integer
+iDummy = nVers
+insPos = insString(UCase(verInfs(nVers).verName), iDummy, sOrdVerNamesUC)
+shiftRightInt insPos, 1, iDummy - 1, iOrdVerOrgIdx
+
+iOrdVerOrgIdx(insPos) = nVers
+
+nVers = nVers + 1
+
+dsvReadElm_verein = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadElm_verein", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+
+Private Function dsvImpProgramma_read(ByRef dsvFile As DSV_FILE, _
+  ByRef nWeds As Integer, ByRef wedInfs() As WED_BASIC_INFO, _
+  ByRef dFeePers As Double, ByRef dFeeEst As Double, _
+  ByRef sPoolName As String, ByRef sPoolAd As String, ByRef blElectronic As Boolean, _
+  ByRef nProgs As Integer, ByRef progInfs() As PROG_BASIC_INFO, _
+  ByRef sProgGes() As String, dProgCost() As Double, ByRef nProgCats() As Integer, ByRef iProgFirstCatIdx() As Integer, _
+  ByRef catInfs() As CAT_INFO, ByRef iCatNextIdx() As Integer) As Boolean
+On Error GoTo fout
+dsvImpProgramma_read = False
+
+
+
+nWeds = 0
+nProgs = 0
+
+blElectronic = False
+
+dFeePers = 0
+dFeeEst = 0
+
+sPoolName = ""
+sPoolAd = ""
+
+
+Dim nCats As Integer
+
+Dim lOrdProgs(0 To MAX_N_PROGS) As Long
+Dim iOrdProgOrgIdx(0 To MAX_N_PROGS) As Integer
+
+Dim sMeetDes As String
+Dim sPoolPl As String
+Dim sPoolNatCode As String
+Dim iPoolBn As Integer
+
+
+nCats = 0
+
+sMeetDes = ""
+sPoolPl = ""
+sPoolNatCode = ""
+iPoolBn = 25
+
+
+'loop through all the elements
+Dim i As Long
+For i = 0 To dsvFile.nElms - 1
+
+  Select Case dsvFile.sElmNames(i)
+    Case "VERANSTALTUNG"
+    
+      If Not dsvReadElm_veranstaltung(dsvFile, i, sMeetDes, sPoolPl, iPoolBn, blElectronic) Then
+        appRaiseSilentError
+      End If
+      
+    Case "VERANSTALTUNGSORT"
+      sPoolName = dsvGetTag(dsvFile, i, 0)
+      sPoolAd = dsvGetTag(dsvFile, i, 1)
+      If (sPoolPl = "") Then
+        sPoolPl = dsvGetTag(dsvFile, i, 3)
+      End If
+      If (UCase(dsvGetTag(dsvFile, i, 4)) = "DEUTSCHLAND") Then
+        sPoolNatCode = "GER"
+      End If
+    Case "EINZELMELDEGELD"
+      dFeePers = dsvParseCost(dsvGetTag(dsvFile, i, 0))
+    Case "STAFFELMELDEGELD"
+      dFeeEst = dsvParseCost(dsvGetTag(dsvFile, i, 0))
+    Case "ABSCHNITT"
+    
+      If Not dsvReadElm_abschnitt(dsvFile, i, nWeds, wedInfs, sMeetDes, iPoolBn, sPoolPl, sPoolNatCode) Then
+        appRaiseSilentError
+      End If
+      
+    Case "WETTKAMPF"
+    
+      If Not dsvReadElm_wettkampf(dsvFile, i, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, lOrdProgs, iOrdProgOrgIdx) Then
+        appRaiseSilentError
+      End If
+     
+    Case "JG"
+      Dim tpProg As Long
+      tpProg = CLng(dsvGetTag(dsvFile, i - 1, 0))
+      
+      Dim tpLkpPos As Integer
+      tpLkpPos = bSearchLong(tpProg, nProgs, lOrdProgs)
+      If (tpLkpPos < 0) Then
+        Err.Raise 1, , "Undefined prog: <" & tpProg & "> in <WERTUNG> element."
+      End If
+      
+      Dim tpPrIdx As Integer
+      tpPrIdx = iOrdProgOrgIdx(tpLkpPos)
+      
+      Dim tpYears As String
+      tpYears = dsvGetTag(dsvFile, i, 0)
+      
+      Dim tpYearA As Long, tpYearB As Long
+      tpYearA = CLng(val(extractToken(tpYears, "-")))
+      
+      If (Trim(tpYears) <> "") Then
+        tpYearB = CLng(val(tpYears))
+      Else
+        tpYearB = tpYearA
+      End If
+      
+      Dim tpGes As String
+      tpGes = sProgGes(tpPrIdx)
+      
+      Dim catPrsInf As CAT_PARSED_INFO, blDummy As Boolean
+      If Not ctxParseCat("J81", blDummy, catPrsInf) Then
+        appRaiseSilentError
+      End If
+      
+      catPrsInf.sGes = tpGes
+      If (tpYearA <= tpYearB) Then
+        catPrsInf.lOldYOB = tpYearA
+        catPrsInf.lYngYOB = tpYearB
+      Else
+        catPrsInf.lOldYOB = tpYearB
+        catPrsInf.lYngYOB = tpYearA
+      End If
+      
+      Dim tpCat As String
+      If Not ctxBuildCat(False, False, #1/1/1900#, LFT_MODE_SZYR, catPrsInf, tpCat) Then
+        appRaiseSilentError
+      End If
+      
+      
+      catInfs(nCats).cat = tpCat
+      catInfs(nCats).bescat = catBeschrijving(tpCat)
+      catInfs(nCats).lim = 0
+      
+      iCatNextIdx(nCats) = iProgFirstCatIdx(tpPrIdx)
+      iProgFirstCatIdx(tpPrIdx) = nCats
+      nProgCats(tpPrIdx) = nProgCats(tpPrIdx) + 1
+      
+      nCats = nCats + 1
+      
+      
+    Case "PFLICHTZEIT"
+      'Add a limit to previous category
+      If (nCats = 0) Then
+        Err.Raise 1, , "Found node: <PFLICHTZEIT> outside of <JG> context."
+      End If
+      
+      Dim tpLimTime As Double
+      tpLimTime = dsvParseSwimTime(dsvGetTag(dsvFile, i, 0))
+      
+      If (swtIsValid(tpLimTime)) Then
+        catInfs(nCats - 1).lim = fmtSwimTime(tpLimTime)
+      End If
+      
+      
+      
+      
+    Case "WKMELDEGELD"
+    
+      tpProg = CLng(dsvGetTag(dsvFile, i, 0))
+      
+      tpLkpPos = bSearchLong(tpProg, nProgs, lOrdProgs)
+      If (tpLkpPos < 0) Then
+        Err.Raise 1, , "Undefined prog: <" & tpProg & "> in <WKMELDEGELD> element."
+      End If
+      
+      tpPrIdx = iOrdProgOrgIdx(tpLkpPos)
+      
+      dProgCost(tpPrIdx) = dsvParseCost(dsvGetTag(dsvFile, i, 1))
+      
+      
+  End Select
+
+Next i
+
+
+
+
+dsvImpProgramma_read = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError dsvImpProgramma_read, errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvImpProgramma(ByVal fName As String) As Boolean
+On Error GoTo fout
+dsvImpProgramma = False
+
+
+Dim dsvFile As DSV_FILE
+
+Dim tpErrInf As ERR_INFO
+If Not dsvReadFile(fName, dsvFile, -1, True, tpErrInf) Then
+  appRaiseSilentError
+End If
+
+Dim nWeds As Integer
+Dim wedInfs(0 To 100) As WED_BASIC_INFO
+
+Dim nProgs As Integer
+Dim progInfs(0 To MAX_N_PROGS) As PROG_BASIC_INFO
+Dim sProgGes(0 To MAX_N_PROGS) As String
+Dim dProgCost(0 To MAX_N_PROGS) As Double
+Dim nProgCats(0 To MAX_N_PROGS) As Integer
+Dim iProgFirstCatIdx(0 To MAX_N_PROGS) As Integer
+
+Dim catInfs(0 To MAX_N_PROGS) As CAT_INFO
+Dim iCatNextIdx(0 To MAX_N_VAR_CATS) As Integer
+
+
+Dim sPoolName As String
+Dim sPoolAd As String
+
+Dim dFeePers As Double
+Dim dFeeEst As Double
+Dim blElectronic As Boolean
+
+
+
+If Not dsvImpProgramma_read(dsvFile, nWeds, wedInfs, dFeePers, dFeeEst, _
+  sPoolName, sPoolAd, blElectronic, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, _
+  catInfs, iCatNextIdx) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteWeds(nWeds, wedInfs, dFeePers, dFeeEst, sPoolName, sPoolAd, blElectronic) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteProgs(-1, False, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
+  appRaiseSilentError
+End If
+
+
+
+dsvImpProgramma = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvImpProgramma", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Private Function dsvReadSingleResult_handleSwimmer( _
+  ByVal sSwmVerName As String, ByVal iVerOrgIdx As Integer, ByVal sSwmDSVName As String, sSwmGes As String, lSwmYOB As Long, sSwmStart As String, _
+  ByRef nSwms As Integer, ByRef swmInfs() As ZWM_BASIC_INFO, ByRef iSwmVerOrgIdx() As Integer, _
+  ByRef sOrdSwmNamesUC() As String, ByRef iOrdSwmOrgIdx() As Integer, _
+  ByRef iSwmOrgIdx As Integer) As Boolean
+  
+On Error GoTo fout
+dsvReadSingleResult_handleSwimmer = False
+
+Dim tpLkpPos As Integer
+tpLkpPos = bSearchString(UCase(sSwmDSVName), nSwms, sOrdSwmNamesUC)
+  
+  
+If (tpLkpPos = -1) Then
+  Dim tpInsPos As Integer
+  tpInsPos = insString(sSwmDSVName, nSwms, sOrdSwmNamesUC)
+  
+  shiftRightInt tpInsPos, 1, (nSwms - 1), iOrdSwmOrgIdx
+  iOrdSwmOrgIdx(tpInsPos) = (nSwms - 1)
+  
+  swmInfs(nSwms - 1).dGebDate = #1/1/1900#
+  swmInfs(nSwms - 1).lYOB = lSwmYOB
+  swmInfs(nSwms - 1).sStartnr = sSwmStart
+  swmInfs(nSwms - 1).sGes = sSwmGes
+  swmInfs(nSwms - 1).sVer = sSwmVerName
+  
+  iSwmVerOrgIdx(nSwms - 1) = iVerOrgIdx
+  
+  Dim tpAchternaam As String, tpNameRest As String
+  
+  Dim pos As Integer
+  pos = InStr(1, sSwmDSVName, ",")
+  
+  If (pos <= 0) Then
+    Err.Raise 1, , "Illegal name <no comma separator> encountered: " & sSwmDSVName
+  End If
+  
+  tpAchternaam = Left(sSwmDSVName, pos - 1)
+  
+  tpNameRest = Trim(Right(sSwmDSVName, Len(sSwmDSVName) - pos))
+  
+  'Make a best guess as to names
+  swmInfs(nSwms - 1).sAchternaam = tpAchternaam
+  swmInfs(nSwms - 1).sVoegsel = nmExtractVoegsel(tpNameRest & " TESTAN")
+  swmInfs(nSwms - 1).sVoornaam = nmExtractVoornaam(tpNameRest & " TESTAN")
+  
+  iSwmOrgIdx = nSwms - 1
+  
+Else
+  iSwmOrgIdx = iOrdSwmOrgIdx(tpLkpPos)
+End If
+
+
+dsvReadSingleResult_handleSwimmer = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadSingleResult_handleSwimmer", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Private Function dsvReadSingleDeelnemer(ByRef dsvFile As DSV_FILE, ByVal lElmIdx As Long, ByRef iCurTagIdx As Integer, _
+  ByVal blIsReadingEst As Boolean, ByVal iVerOrgIdx As Integer, iSwmOrgIdx As Integer, iEstNr As Integer, _
+  ByVal nProgs As Integer, ByRef prInfs() As PROG_BASIC_INFO, ByRef lOrdProgNrs() As Long, ByRef iOrdProgOrgIdx() As Integer, _
+  ByRef nDeelnemers As Long, ByRef dlnInfs() As DSV_DLN) As Boolean
+  
+On Error GoTo fout
+dsvReadSingleDeelnemer = False
+
+Dim tpDlnValid As Boolean
+tpDlnValid = True
+
+ 
+Dim tpFirstTag As String
+tpFirstTag = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx)
+ 
+If (tpFirstTag = "DATEIENDE") Then
+  tpDlnValid = False
+End If
+
+If (tpDlnValid) Then
+  
+  Dim lProgNr As Long, iProgOrgIdx
+  
+  lProgNr = CLng(val(tpFirstTag))
+  
+  Dim tpLkpPos As Integer
+  tpLkpPos = bSearchLong(lProgNr, nProgs, lOrdProgNrs)
+  If (tpLkpPos < 0) Then
+    Err.Raise 1, , "<STARTS> referenced invalid prog nr: " & lProgNr
+  End If
+  
+  iProgOrgIdx = iOrdProgOrgIdx(tpLkpPos)
+  
+  If prInfs(iProgOrgIdx).isEstaf <> blIsReadingEst Then
+    If (blIsReadingEst) Then
+      Err.Raise 1, , "<STARTS> in <STMELDUNG> context referenced individual prog nr"
+    Else
+      Err.Raise 1, , "<STARTS> in <PNMELDUNG> context referenced relay prog nr"
+    End If
+  End If
+  
+  dlnInfs(nDeelnemers).lProgNr = lProgNr
+  dlnInfs(nDeelnemers).iProgOrgIdx = iProgOrgIdx
+  
+  dlnInfs(nDeelnemers).iVerOrgIdx = iVerOrgIdx
+  
+  If (blIsReadingEst) Then
+    dlnInfs(nDeelnemers).blIsEstaf = True
+    dlnInfs(nDeelnemers).iEstNr = iEstNr
+    dlnInfs(nDeelnemers).nEstSwms = 0
+  Else
+    dlnInfs(nDeelnemers).blIsEstaf = False
+    dlnInfs(nDeelnemers).iSwmOrgIdx = iSwmOrgIdx
+  End If
+  
+  Dim dEntryTime As Double
+  dEntryTime = dsvParseSwimTime(dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 1))
+  
+  dlnInfs(nDeelnemers).dEntryTime = dEntryTime
+  
+   
+  iCurTagIdx = iCurTagIdx + 2
+   
+  nDeelnemers = nDeelnemers + 1
+  
+  
+Else
+  'if result is not valid; stop reading results
+  iCurTagIdx = dsvFile.nElmTags(lElmIdx)
+End If 'if tpResValid
+
+dsvReadSingleDeelnemer = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadSingleDeelnemer", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+Private Function dsvReadSingleResult(ByRef dsvFile As DSV_FILE, ByVal lElmIdx As Long, ByRef iCurTagIdx As Integer, _
+  ByRef nVers As Integer, ByRef verInfs() As VER_BASIC_INFO, ByRef iVerMaxUsedEstNr() As Integer, ByRef iUsedEst_VerIdx() As Integer, ByRef iUsedEst_EstNr() As Integer, ByRef nUsedEst As Integer, _
+  ByRef sOrdVerNamesUC() As String, ByRef iOrdVerOrgIdx() As Integer, _
+  ByRef nSwms As Integer, ByRef swmInfs() As ZWM_BASIC_INFO, ByRef iSwmVerOrgIdx() As Integer, _
+  ByRef sOrdSwmNamesUC() As String, ByRef iOrdSwmOrgIdx() As Integer, _
+  ByRef nResults As Long, ByRef resInfs() As DSV_RESULT, _
+  ByVal lProgNr As Long, ByVal iProgOrgIdx As Integer, ByRef prInfs() As PROG_BASIC_INFO, _
+  ByVal nProgDSVTsAf As Integer, ByRef iProgDSVTsAf() As Integer, ByRef lProgMainTsAf() As Long) As Boolean
+
+On Error GoTo fout
+dsvReadSingleResult = False
+
+Dim blProgEstaf As Boolean, sProgAf As String, sProgSl As String
+blProgEstaf = prInfs(iProgOrgIdx).isEstaf
+sProgAf = prInfs(iProgOrgIdx).Afstand
+sProgSl = prInfs(iProgOrgIdx).slag
+  
+  
+  
+Dim tpResValid As Boolean
+tpResValid = True
+
+ 
+Dim sPos As String
+sPos = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx)
+
+If (sPos = "DATEIENDE") Then
+  tpResValid = False
+End If
+
+If (tpResValid) Then
+  
+  If (sPos = "") Then
+    Err.Raise 1, , "Encountered empty position code"
+  End If
+  
+  resInfs(nResults).lProgNr = lProgNr
+  resInfs(nResults).iProgOrgIdx = iProgOrgIdx
+  
+  
+  
+  resInfs(nResults).blIsEstaf = blProgEstaf
+  
+  resInfs(nResults).iFinalPos = 0
+  If (sPos = "DS") Then
+    resInfs(nResults).sDis = "DQ"
+  ElseIf (sPos = "NA") Then
+    resInfs(nResults).sDis = DIS_NGZA
+  ElseIf (sPos = "AB") Then
+    resInfs(nResults).sDis = DIS_AFM
+  ElseIf (sPos = "AU") Then
+    resInfs(nResults).sDis = "AF"
+  Else
+    resInfs(nResults).iFinalPos = CInt(val(sPos))
+    If (resInfs(nResults).iFinalPos < 0) Then
+      resInfs(nResults).iFinalPos = 0
+    End If
+  End If
+  
+  Dim sVer As String
+  sVer = ""
+  
+  
+  If (blProgEstaf) Then
+    sVer = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 3)
+  Else
+    sVer = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 6)
+  End If
+  
+  'Need to make sure that iEstNr is ok
+  Dim tpLkpPos As Integer
+  
+  tpLkpPos = bSearchString(UCase(sVer), nVers, sOrdVerNamesUC)
+  If (tpLkpPos = -1) Then
+    Err.Raise 1, , "Unknown vereniging: <" & sVer & "> encountered in results."
+  End If
+  
+  Dim tpVerOrgIdx As Integer
+  tpVerOrgIdx = iOrdVerOrgIdx(tpLkpPos)
+  
+  resInfs(nResults).iVerOrgIdx = tpVerOrgIdx
+   
+  
+  Dim iEstNr As Integer
+  iEstNr = 0
+  
+  If (blProgEstaf) Then
+    iEstNr = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 1)
+    
+    If (bSearchIntPair(tpVerOrgIdx, iEstNr, iUsedEst_VerIdx, iUsedEst_EstNr, nUsedEst) >= 0) Then
+      'not ok; need to choose new est nr
+      iEstNr = iVerMaxUsedEstNr(tpVerOrgIdx) + 1
+    End If
+    
+    'possibly update max used estnr
+    If (iEstNr > iVerMaxUsedEstNr(tpVerOrgIdx)) Then
+      iVerMaxUsedEstNr(tpVerOrgIdx) = iEstNr
+    End If
+    
+    resInfs(nResults).iEstNr = iEstNr
+    
+  End If
+  
+  
+  'find swimmer
+  If (Not blProgEstaf) Then
+    Dim tpSwmName As String, tpSwmGes As String, tpSwmYOB As Long, tpSwmStart As String
+    
+    tpSwmName = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 1)
+    tpSwmStart = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 2)
+    tpSwmGes = dsvParseGes(dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 3))
+    tpSwmYOB = CLng(val(dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 4)))
+    
+    Dim tpSwmOrgIdx As Integer
+    If Not dsvReadSingleResult_handleSwimmer(sVer, tpVerOrgIdx, tpSwmName, tpSwmGes, tpSwmYOB, tpSwmStart, _
+      nSwms, swmInfs, iSwmVerOrgIdx, sOrdSwmNamesUC, iOrdSwmOrgIdx, tpSwmOrgIdx) Then
+      
+      appRaiseSilentError
+    End If
+     
+    
+    resInfs(nResults).iSwmOrgIdx = tpSwmOrgIdx
+     
+    
+  End If
+  
+  'handle results
+  Dim iTagIdxFirstAf As Integer
+  
+  If (Not blProgEstaf) Then
+    iTagIdxFirstAf = iCurTagIdx + 8
+  Else
+    iTagIdxFirstAf = iCurTagIdx + 5
+  End If
+  
+  Dim tpTsTimes(0 To MAX_N_TUSSENTIJDEN) As Double
+  Dim tpTsAf(0 To MAX_N_TUSSENTIJDEN) As Long
+  
+  Dim iAf As Integer
+  For iAf = 0 To nProgDSVTsAf - 1
+    tpTsAf(iAf) = iProgDSVTsAf(iAf)
+    tpTsTimes(iAf) = dsvParseSwimTime(dsvGetTag(dsvFile, lElmIdx, iTagIdxFirstAf + iAf))
+  Next iAf
+  
+  If Not lenSplitTst(sProgAf, sProgSl, lProgMainTsAf, nProgDSVTsAf, tpTsAf, tpTsTimes, _
+    resInfs(nResults).sTsAf, resInfs(nResults).sTsSl, resInfs(nResults).dTsTimes, resInfs(nResults).sExtTs) Then
+    appRaiseSilentError
+  End If
+  
+  resInfs(nResults).dFinalTime = dsvParseSwimTime(dsvGetTag(dsvFile, lElmIdx, iTagIdxFirstAf + nProgDSVTsAf))
+  resInfs(nResults).sFinalAf = sProgAf
+  resInfs(nResults).sFinalSlag = sProgSl
+  
+  
+  If (blProgEstaf) Then
+    iCurTagIdx = iCurTagIdx + 6 + nProgDSVTsAf
+    
+    'need to find est deelnemers
+    Dim blDone As Boolean
+    blDone = False
+    
+    resInfs(nResults).nEstSwms = 0
+    
+    While Not blDone
+      Dim tpTag As String
+      tpTag = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx)
+      If (Len(tpTag) > 2) And (InStr(1, tpTag, ",") > 0) Then
+        'we are reading an est deelnemer rather than a new result or <DATEIENDE> field
+        
+        
+        If (resInfs(nResults).nEstSwms < MAX_ESTAF_CNT) Then
+          tpSwmName = tpTag
+          tpSwmStart = dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 1)
+          tpSwmGes = dsvParseGes(dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 2))
+          tpSwmYOB = CLng(val(dsvGetTag(dsvFile, lElmIdx, iCurTagIdx + 3)))
+          
+          If Not dsvReadSingleResult_handleSwimmer(sVer, tpVerOrgIdx, tpSwmName, tpSwmGes, tpSwmYOB, tpSwmStart, _
+            nSwms, swmInfs, iSwmVerOrgIdx, sOrdSwmNamesUC, iOrdSwmOrgIdx, tpSwmOrgIdx) Then
+        
+            appRaiseSilentError
+          End If
+        
+        
+          resInfs(nResults).iEstSwmOrgIdx(resInfs(nResults).nEstSwms) = tpSwmOrgIdx
+          resInfs(nResults).nEstSwms = resInfs(nResults).nEstSwms + 1
+        End If
+        
+        iCurTagIdx = iCurTagIdx + 5
+      Else
+        blDone = True
+      End If
+     
+    Wend
+    
+    
+  Else
+    iCurTagIdx = iCurTagIdx + 9 + nProgDSVTsAf
+  End If
+   
+  nResults = nResults + 1
+  
+  
+Else
+  'if result is not valid; stop reading results
+  iCurTagIdx = dsvFile.nElmTags(lElmIdx)
+End If 'if tpResValid
+
+dsvReadSingleResult = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvReadSingleResult", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+
+
+
+
+Private Function dsvImpUitslag_read(ByRef dsvFile As DSV_FILE, _
+  ByRef nWeds As Integer, ByRef wedInfs() As WED_BASIC_INFO, _
+  ByRef dFeePers As Double, ByRef dFeeEst As Double, _
+  ByRef sPoolName As String, ByRef sPoolAd As String, ByRef blElectronic As Boolean, _
+  ByRef nProgs As Integer, ByRef progInfs() As PROG_BASIC_INFO, _
+  ByRef sProgGes() As String, dProgCost() As Double, ByRef nProgCats() As Integer, ByRef iProgFirstCatIdx() As Integer, _
+  ByRef catInfs() As CAT_INFO, ByRef iCatNextIdx() As Integer, _
+  ByRef nVers As Integer, ByRef verInfs() As VER_BASIC_INFO, _
+  ByRef nSwms As Integer, ByRef swmInfs() As ZWM_BASIC_INFO, ByRef iSwmVerOrgIdx() As Integer, _
+  ByRef nResults As Long, ByRef resInfs() As DSV_RESULT) As Boolean
+On Error GoTo fout
+dsvImpUitslag_read = False
+
+
+
+nWeds = 0
+nProgs = 0
+nVers = 0
+nSwms = 0
+nResults = 0
+
+
+blElectronic = False
+
+dFeePers = 0
+dFeeEst = 0
+
+sPoolName = ""
+sPoolAd = ""
+
+
+Dim nCats As Integer
+
+Dim lOrdProgs(0 To MAX_N_PROGS) As Long
+Dim iOrdProgOrgIdx(0 To MAX_N_PROGS) As Integer
+
+Dim iVerMaxUsedEstNr(0 To DSV_MAX_N_VERS) As Integer
+Dim iUsedEst_VerIdx(0 To DSV_MAX_N_VERS) As Integer
+Dim iUsedEst_EstNr(0 To DSV_MAX_N_VERS) As Integer
+Dim nUsedEst As Integer
+
+Dim sOrdVerNamesUC(0 To DSV_MAX_N_VERS) As String
+Dim iOrdVerOrgIdx(0 To DSV_MAX_N_VERS) As Integer
+
+
+Dim sOrdSwmNamesUC(0 To DSV_MAX_N_SWMS) As String
+Dim iOrdSwmOrgIdx(0 To DSV_MAX_N_SWMS) As Integer
+
+Dim sMeetDes As String
+Dim sPoolPl As String
+Dim sPoolNatCode As String
+Dim iPoolBn As Integer
+
+
+nCats = 0
+
+sMeetDes = ""
+sPoolPl = ""
+sPoolNatCode = ""
+iPoolBn = 25
+
+
+Dim lResProg As Long
+Dim lResProgOrgIdx As Long
+Dim sResProgAf As String
+Dim sResProgSl As String
+Dim blResProgEstaf As Boolean
+Dim iResProgEstCnt As Integer
+Dim nResProgTsAf As Integer
+Dim iResProgTsAf(0 To MAX_N_TUSSENTIJDEN) As Integer
+Dim lResProgMainTsAf(0 To 3) As Long
+
+
+lResProg = -1
+lResProgOrgIdx = -1
+sResProgAf = ""
+blResProgEstaf = False
+nResProgTsAf = 0
+
+
+
+'loop through all the elements
+Dim i As Long
+For i = 0 To dsvFile.nElms - 1
+
+  Select Case dsvFile.sElmNames(i)
+    Case "VERANSTALTUNG"
+    
+      If Not dsvReadElm_veranstaltung(dsvFile, i, sMeetDes, sPoolPl, iPoolBn, blElectronic) Then
+        appRaiseSilentError
+      End If
+      
+    
+    Case "ABSCHNITT"
+    
+      If Not dsvReadElm_abschnitt(dsvFile, i, nWeds, wedInfs, sMeetDes, iPoolBn, sPoolPl, sPoolNatCode) Then
+        appRaiseSilentError
+      End If
+      
+    Case "WETTKAMPF"
+    
+      If Not dsvReadElm_wettkampf(dsvFile, i, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, lOrdProgs, iOrdProgOrgIdx) Then
+        appRaiseSilentError
+      End If
+     
+    Case "VEREIN"
+      
+      If Not dsvReadElm_verein(dsvFile, i, nVers, verInfs, iOrdVerOrgIdx, sOrdVerNamesUC) Then
+        appRaiseSilentError
+      End If
+      
+    Case "VNKENNZAHL"
+    
+      If (nVers = 0) Then
+        Err.Raise 1, , "Tag <VNKENNZAHL> encountered outside of <VEREIN> context."
+      End If
+      
+      verInfs(nVers - 1).verDepot = dsvGetTag(dsvFile, i, 0)
+      
+    Case "NATION"
+    
+      If (nVers = 0) Then
+        Err.Raise 1, , "Tag <NATION> encountered outside of <VEREIN> context."
+      End If
+      
+      verInfs(nVers - 1).verNationCode = dsvGetTag(dsvFile, i, 0)
+      
+      
+    Case "WK"
+      
+      'Here the processing begins.
+      lResProg = CLng(dsvGetTag(dsvFile, i, 0))
+      
+      Dim tpLkpPos As Integer
+      tpLkpPos = bSearchLong(lResProg, nProgs, lOrdProgs)
+      If (tpLkpPos < 0) Then
+        Err.Raise 1, , "Undefined prog: <" & lResProg & "> in <WK> element."
+      End If
+      
+      lResProgOrgIdx = iOrdProgOrgIdx(tpLkpPos)
+      
+      
+      sResProgAf = progInfs(lResProgOrgIdx).Afstand
+      sResProgSl = progInfs(lResProgOrgIdx).slag
+      
+      If Not tstLookupTussenAfstanden(sResProgAf, sResProgSl, iPoolBn, lResProgMainTsAf) Then
+        appRaiseSilentError
+      End If
+      
+      'Here need to build list of tsts
+      nResProgTsAf = 0
+      
+      blResProgEstaf = (sResProgAf Like "*x*")
+      iResProgEstCnt = afstand_n_zwemmers(sResProgAf)
+      
+      Dim lTotDist As Long, lIndDist As Long
+      
+      lTotDist = afstand_tot_distance(sResProgAf)
+      lIndDist = afstand_ind_part(sResProgAf)
+      
+      If (lTotDist > 50) And (lTotDist <= 1500) Then
+        If (blResProgEstaf) And (lIndDist = 50) Then
+          'every 50m needs to be marked
+          nResProgTsAf = (lTotDist \ 50) - 1
+          Dim j As Integer
+          For j = 0 To nResProgTsAf - 1
+            iResProgTsAf(j) = (j + 1) * 50
+          Next j
+        Else
+          'first 50m and every subsequent 100m need to be marked
+          nResProgTsAf = (lTotDist \ 100)
+          iResProgTsAf(0) = 50
+          For j = 1 To nResProgTsAf - 1
+            iResProgTsAf(j) = j * 100
+          Next j
+        End If
+      End If
+      
+           
+      Dim iCurTagIdx As Integer
+      iCurTagIdx = 2
+      
+      
+      
+      
+      'initialize estaf nrs
+      nUsedEst = 0
+      Dim iVer As Integer
+      For iVer = 0 To nVers - 1
+        iVerMaxUsedEstNr(iVer) = 0
+      Next iVer
+           
+      
+      
+      'Now just read in results until a new prog is encountered
+      While (iCurTagIdx < dsvFile.nElmTags(i))
+                
+        If Not dsvReadSingleResult(dsvFile, i, iCurTagIdx, _
+          nVers, verInfs, iVerMaxUsedEstNr, iUsedEst_VerIdx, iUsedEst_EstNr, nUsedEst, sOrdVerNamesUC, iOrdVerOrgIdx, _
+          nSwms, swmInfs, iSwmVerOrgIdx, sOrdSwmNamesUC, iOrdSwmOrgIdx, _
+          nResults, resInfs, _
+          lResProg, lResProgOrgIdx, progInfs, nResProgTsAf, iResProgTsAf, lResProgMainTsAf) Then
+          
+          appRaiseSilentError
+        End If
+      
+      Wend
+    
+      
+    Case "DSBEM", "REKORD"
+      'these are extra 1-argument addendum in the <WK> element, which we need to ignore. We also need to restart reading of results
+      iCurTagIdx = 1
+      
+      'Restart reading results
+      While (iCurTagIdx < dsvFile.nElmTags(i))
+                
+        If Not dsvReadSingleResult(dsvFile, i, iCurTagIdx, _
+          nVers, verInfs, iVerMaxUsedEstNr, iUsedEst_VerIdx, iUsedEst_EstNr, nUsedEst, sOrdVerNamesUC, iOrdVerOrgIdx, _
+          nSwms, swmInfs, iSwmVerOrgIdx, sOrdSwmNamesUC, iOrdSwmOrgIdx, _
+          nResults, resInfs, _
+          lResProg, lResProgOrgIdx, progInfs, nResProgTsAf, iResProgTsAf, lResProgMainTsAf) Then
+          
+          appRaiseSilentError
+        End If
+      
+      Wend
+      
+     
+     
+    
+      
+      
+  End Select
+
+Next i
+
+
+
+
+dsvImpUitslag_read = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError dsvImpUitslag_read, errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+
+Private Function dsvImpUitslag(ByVal fName As String, ByVal lOpenWedNr As Long) As Boolean
+On Error GoTo fout
+dsvImpUitslag = False
+
+
+
+Dim dsvFile As DSV_FILE
+
+Dim tpErrInf As ERR_INFO
+If Not dsvReadFile(fName, dsvFile, -1, True, tpErrInf) Then
+  appRaiseSilentError
+End If
+
+Dim nWeds As Integer
+Dim wedInfs(0 To 100) As WED_BASIC_INFO
+
+Dim nProgs As Integer
+Dim progInfs(0 To MAX_N_PROGS) As PROG_BASIC_INFO
+Dim sProgGes(0 To MAX_N_PROGS) As String
+Dim dProgCost(0 To MAX_N_PROGS) As Double
+Dim nProgCats(0 To MAX_N_PROGS) As Integer
+Dim iProgFirstCatIdx(0 To MAX_N_PROGS) As Integer
+
+Dim catInfs(0 To MAX_N_PROGS) As CAT_INFO
+Dim iCatNextIdx(0 To MAX_N_VAR_CATS) As Integer
+
+
+Dim sPoolName As String
+Dim sPoolAd As String
+
+Dim dFeePers As Double
+Dim dFeeEst As Double
+Dim blElectronic As Boolean
+
+
+Dim verInfs(0 To DSV_MAX_N_VERS) As VER_BASIC_INFO
+Dim nVers As Integer
+
+Dim swmInfs(0 To DSV_MAX_N_SWMS) As ZWM_BASIC_INFO
+Dim iSwmVerOrgIdx(0 To DSV_MAX_N_SWMS) As Integer
+Dim nSwms As Integer
+
+Dim resInfs(0 To DSV_MAX_N_RES) As DSV_RESULT
+Dim nResults As Long
+
+
+
+
+
+If Not dsvImpUitslag_read( _
+  dsvFile, nWeds, wedInfs, dFeePers, dFeeEst, _
+  sPoolName, sPoolAd, blElectronic, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, _
+  catInfs, iCatNextIdx, _
+  nVers, verInfs, nSwms, swmInfs, iSwmVerOrgIdx, nResults, resInfs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteWeds(nWeds, wedInfs, dFeePers, dFeeEst, sPoolName, sPoolAd, blElectronic) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteProgs(lOpenWedNr, True, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteVers(nVers, verInfs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteSwms(nSwms, swmInfs, iSwmVerOrgIdx, verInfs) Then
+  appRaiseSilentError
+End If
+
+If Not dsvWriteResults(nResults, resInfs) Then
+  appRaiseSilentError
+End If
+
+
+dsvImpUitslag = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "dsvImpUitslag", errInf
 
 appDisplayError errInf
 Exit Function

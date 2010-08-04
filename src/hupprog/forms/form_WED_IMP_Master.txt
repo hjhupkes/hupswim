@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =1516683174
+Checksum =-910850532
 Begin Form
     RecordSelectors = NotDefault
     MaxButton = NotDefault
@@ -12,12 +12,12 @@ Begin Form
     BorderStyle =1
     GridX =20
     GridY =20
-    Width =10999
+    Width =10941
     ItemSuffix =40
-    Left =4020
-    Top =1110
-    Right =15015
-    Bottom =7575
+    Left =2130
+    Top =945
+    Right =13065
+    Bottom =7410
     Toolbar ="gFrmToolbar"
     RecSrcDt = Begin
         0xaf5744d5f873e140
@@ -63,7 +63,7 @@ Begin Form
                 Begin Rectangle
                     SpecialEffect =2
                     OverlapFlags =93
-                    Left =6122
+                    Left =6633
                     Top =1020
                     Width =4200
                     Height =1134
@@ -88,7 +88,7 @@ Begin Form
                     Locked = NotDefault
                     OldBorderStyle =0
                     OverlapFlags =223
-                    Left =7257
+                    Left =7768
                     Top =1133
                     Width =2946
                     Height =235
@@ -99,7 +99,7 @@ Begin Form
                     Locked = NotDefault
                     OldBorderStyle =0
                     OverlapFlags =223
-                    Left =7257
+                    Left =7768
                     Top =1360
                     Width =2946
                     Height =235
@@ -111,7 +111,7 @@ Begin Form
                     Locked = NotDefault
                     OldBorderStyle =0
                     OverlapFlags =223
-                    Left =7257
+                    Left =7768
                     Top =1586
                     Width =2946
                     Height =235
@@ -123,7 +123,7 @@ Begin Form
                     Locked = NotDefault
                     OldBorderStyle =0
                     OverlapFlags =215
-                    Left =7257
+                    Left =7768
                     Top =1813
                     Width =2946
                     Height =235
@@ -135,7 +135,7 @@ Begin Form
                     OverlapFlags =85
                     Left =113
                     Top =1020
-                    Width =5474
+                    Width =6358
                     Height =3730
                     TabIndex =4
                     BackColor =16776960
@@ -167,7 +167,7 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =223
-                    Left =6236
+                    Left =6747
                     Top =1133
                     Width =870
                     Height =235
@@ -176,7 +176,7 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =223
-                    Left =6236
+                    Left =6748
                     Top =1368
                     Width =585
                     Height =235
@@ -185,7 +185,7 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =223
-                    Left =6236
+                    Left =6748
                     Top =1838
                     Width =567
                     Height =235
@@ -194,7 +194,7 @@ Begin Form
                 End
                 Begin Label
                     OverlapFlags =215
-                    Left =6236
+                    Left =6747
                     Top =1603
                     Width =975
                     Height =235
@@ -204,7 +204,7 @@ Begin Form
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =73
-                    Left =6122
+                    Left =6633
                     Top =2409
                     Width =1185
                     Height =465
@@ -216,7 +216,7 @@ Begin Form
                 Begin CommandButton
                     OverlapFlags =85
                     AccessKey =84
-                    Left =7256
+                    Left =7767
                     Top =113
                     Width =1371
                     Height =336
@@ -239,7 +239,7 @@ Begin Form
                     Name ="type"
                     RowSourceType ="Value List"
                     RowSource ="14;\"Was 2005 XML (*.xml)\";20;\"Lenex (*.lef, *.lxf)\";30;\"Meet-Manager backup"
-                        " (*.zip, *.mdb)"
+                        " (*.zip, *.mdb)\";40;\"DSV file (*.dsv)\""
                     ColumnWidths ="0;1134"
                     AfterUpdate ="[Event Procedure]"
                     DefaultValue ="20"
@@ -287,9 +287,9 @@ Begin Form
                     OldBorderStyle =0
                     OverlapFlags =85
                     BackStyle =0
-                    Left =6122
+                    Left =6633
                     Top =3146
-                    Width =4877
+                    Width =4217
                     Height =2406
                     FontWeight =700
                     TabIndex =11
@@ -298,7 +298,7 @@ Begin Form
                 End
                 Begin CommandButton
                     OverlapFlags =85
-                    Left =6973
+                    Left =7484
                     Top =5952
                     Width =3351
                     Height =373
@@ -365,6 +365,14 @@ ElseIf (was2005_file()) Then
   wedUpdateViewAfterWedImport
   
   Me.SetFocus
+  
+ElseIf (dsv_imp_file()) Then
+
+  lenHandleCompleteDsvImpSequence Nz(Me.dir), Nz(Me.file), True, waarde(), Nz(wed_datum(), #1/1/1900#), Nz(wed_aanvang(), #12:00:00 AM#), wed_IsMeet(), wed_MeetMainNr()
+
+  wedUpdateViewAfterWedImport
+  
+  Me.SetFocus
 
 End If
 
@@ -403,13 +411,16 @@ Dim nm As String
 Dim filter As String
 
 If (was2005_file()) Then
-  filter = "Was2005 files (*.xml)|*.xml|Lenex files (*.lxf,*.lef)|*.l?f|Meet-Manager backup files (*.zip, *.mdb)|*.*"
+  filter = "Was2005-xml files (*.xml)|*.xml|Lenex files (*.lxf,*.lef)|*.l?f|Meet-Manager backup files (*.zip,*.mdb)|*.*"
   nm = dir & "\*.xml"
+ElseIf (dsv_imp_file()) Then
+  filter = "DSV files (*.dsv)|*.dsv|Was2005-xml files (*.xml)|*.xml|Lenex files (*.lxf,*.lef)|*.l?f|Meet-Manager backup files (*.zip,*.mdb)|*.*"
+  nm = dir & "\*.dsv"
 ElseIf (mm_backup_file()) Then
-  filter = "Meet-Manager backup files (*.zip, *.mdb)|*.*|Lenex files (*.lxf,*.lef)|*.l?f|Was2005 files (*.xml)|*.xml"
+  filter = "Meet-Manager backup files (*.zip,*.mdb)|*.*|Lenex files (*.lxf,*.lef)|*.l?f|Was2005-xml files (*.xml)|*.xml|DSV files (*.dsv)|*.dsv"
   nm = dir & "\*.*"
 Else
-  filter = "Lenex files (*.lxf,*.lef)|*.l?f|Meet-Manager backup files (*.zip, *.mdb)|*.*|Was2005 files (*.xml)|*.xml"
+  filter = "Lenex files (*.lxf,*.lef)|*.l?f|Meet-Manager backup files (*.zip,*.mdb)|*.*|Was2005-xml files (*.xml)|*.xml|DSV files (*.dsv)|*.dsv"
   nm = dir & "\*.l?f"
 End If
 
@@ -432,8 +443,12 @@ ElseIf (nmExt = "lef") Then
   Me.type = 20
 ElseIf (nmExt = "zip") Then
   Me.type = 30
+ElseIf (nmExt = "mdb") Then
+  Me.type = 30
 ElseIf (nmExt = "xml") Then
   Me.type = 14
+ElseIf (nmExt = "dsv") Then
+  Me.type = 40
 End If
 
 type_AfterUpdate
@@ -704,6 +719,81 @@ MsgBox Err & " file_afterUpdate_was" & vbCrLf & Error$, 16
 Exit Sub
 End Sub
 
+Private Sub file_afterUpdate_dsv()
+On Error GoTo fout
+
+
+Dim dsvValid As Boolean, dsvInvalidReason As Integer, dsvInvalidString As String
+Dim dsvDate As Date, dsvPlaceS As String, dsvDesS As String
+Dim dsvDateS As String
+
+Dim sDummy As String
+Dim dsvFileType As Integer
+
+Dim errS As String
+
+Dim dsvFName As String
+dsvFName = directory_goedmaak(Nz(Me.dir)) & "\" & Nz(Me.file)
+
+If Not dsvAnalyzeFile(dsvFName, dsvValid, dsvInvalidReason, dsvInvalidString, dsvDate, dsvPlaceS, dsvDesS, sDummy, sDummy, dsvFileType) Then
+  dsvValid = False
+  dsvInvalidReason = DSV_UNKNOWN_FAILURE
+End If
+
+
+dsvDateS = ""
+If (lenDateIsValid(dsvDate)) Then
+  dsvDateS = Format(dsvDate, "dd\-mm\-yyyy")
+End If
+
+
+If (dsvValid) Then
+  Forms![wed_imp_master]![dat] = dsvDateS
+  Forms![wed_imp_master]![ver] = ""
+  Forms![wed_imp_master]![pla] = dsvPlaceS
+  Forms![wed_imp_master]![bes] = dsvDesS
+Else
+  Forms![wed_imp_master]![dat] = "Probleem opgetreden."
+  Forms![wed_imp_master]![ver] = ""
+  Forms![wed_imp_master]![pla] = ""
+  Forms![wed_imp_master]![bes] = ""
+  
+  Dim blAppendDsvMsg As Boolean
+  blAppendDsvMsg = True
+  
+  Select Case dsvInvalidReason
+    Case DSV_UNKNOWN_FAILURE
+      errS = "Een onverwachte fout is opgetreden."
+      blAppendDsvMsg = False
+    Case DSV_UNKNOWN_FILE
+      errS = "De bestandsnaam is ongeldig."
+    Case DSV_INV_CONTENT
+      errS = "De inhoud van het .dsv bestand voldoet niet aan de verwachtingen."
+    Case DSV_UNEXPECTED_EXTENSION
+      errS = "Het bestand is geen dsv-bestand."
+    Case DSV_FILE_READ_PROBLEM
+      errS = "Er is een probleem met het lezen van het bestand."
+  End Select
+  
+  If (blAppendDsvMsg) Then
+    errS = errS & vbCrLf & "Hieronder vindt u een gedetailleerde beschrijving van het probleem." & vbCrLf & vbCrLf & dsvInvalidString
+  End If
+  
+  Me.sError = errS
+  sError.Visible = True
+End If
+
+
+
+
+
+Exit Sub
+fout:
+MsgBox Err & " file_afterUpdate_dsv" & vbCrLf & Error$, 16
+Exit Sub
+End Sub
+
+
 
 Private Sub file_AfterUpdate()
 On Error GoTo fout
@@ -739,6 +829,10 @@ If (was2005_file()) Then
 
   file_afterUpdate_was
   
+End If
+
+If (dsv_imp_file()) Then
+  file_afterUpdate_dsv
 End If
 
 

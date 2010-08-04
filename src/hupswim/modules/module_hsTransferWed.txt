@@ -424,7 +424,7 @@ End Function
 
 
 
-Public Function lnhImportGenerateDefaultImportSettings(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+Public Function lnhImportGenerateDefaultImportSettings(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long, ByVal blAllowOverwrites As Boolean) As Boolean
 On Error GoTo fout
 lnhImportGenerateDefaultImportSettings = False
 
@@ -438,7 +438,7 @@ If Not trfGenerateDefaultVerImportSettings() Then
 End If
 
 
-If Not trfGenerateDefaultOptsImportSettings() Then
+If Not trfGenerateDefaultOptsImportSettings(blAllowOverwrites) Then
   Exit Function
 End If
 
@@ -3599,9 +3599,9 @@ curProg = ""
 curPloegID = -1
 
 
-Dim rsDLN As Recordset
-Set rsDLN = CurrentDb().OpenRecordset("gIMP_LEN_deelnemers")
-rsDLN.Index = "PrimaryKey"
+Dim rsDln As Recordset
+Set rsDln = CurrentDb().OpenRecordset("gIMP_LEN_deelnemers")
+rsDln.Index = "PrimaryKey"
 
 
 Dim rsTd As Recordset
@@ -3662,14 +3662,14 @@ Do Until pllInp.EOF
   If (curPloegNeedsCorrection) Then
     If (tpDlnID >= 0 And Not curPloegDLNCorrected) Then
       
-      rsDLN.Seek "=", tpDlnID
-      If (rsDLN.NoMatch) Then
+      rsDln.Seek "=", tpDlnID
+      If (rsDln.NoMatch) Then
         Err.Raise 1, , "Internal error. Could not find deelnemer with id: " & tpDlnID
       End If
       
-      rsDLN.Edit
-        rsDLN("AUX_EstafetteNummer") = curPloegCorrectedEstNr
-      rsDLN.Update
+      rsDln.Edit
+        rsDln("AUX_EstafetteNummer") = curPloegCorrectedEstNr
+      rsDln.Update
       
       
       curPloegDLNCorrected = True
@@ -3699,7 +3699,7 @@ Loop
 
 
 appCleanRS pllInp
-appCleanRS rsDLN
+appCleanRS rsDln
 appCleanRS rsTd
 
 If (blAppliedCorrection) Then

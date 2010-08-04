@@ -9,10 +9,10 @@ Dim impProg As Recordset
 Set impProg = CurrentDb().OpenRecordset("select * from gIMP_LEN_programma where( nz( [imp_import] ) = true ) and ( nz([aux_wedstrijdnummer]) > 0 ) order by nz([aux_wedstrijdnummer]), nz([corr_programmanummer]) ;")
 
 
-Dim lastWednr As Long
+Dim lastWedNr As Long
 Dim lastProg As String
 lastProg = ""
-lastWednr = -1
+lastWedNr = -1
 
 impProg.MoveFirst
 Do Until impProg.EOF
@@ -21,11 +21,11 @@ Do Until impProg.EOF
   wednr = Nz(impProg("AUX_Wedstrijdnummer"))
   prognr = Nz(impProg("CORR_Programmanummer"))
   
-  If (wednr = lastWednr And lastProg = prognr) Then
+  If (wednr = lastWedNr And lastProg = prognr) Then
     Err.Raise 1, , "Dubbel programmanr gevonden: " & wednr & "," & prognr
   End If
   
-  lastWednr = wednr
+  lastWedNr = wednr
   lastProg = prognr
 
   impProg.MoveNext
@@ -680,7 +680,7 @@ End If
 
 Dim glbWedDate As Date, glbWedLftMode As String, glbWedAgeDate As Date
 
-If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
+If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr, True) Then Exit Function
 
 If Not lnhImportGenerateDefaultProgImportSettings(glbWedAgeDate, glbWedLftMode) Then Exit Function
 
@@ -720,7 +720,7 @@ End If
 
 Dim glbWedDate As Date, glbWedLftMode As String, glbWedAgeDate As Date
 
-If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
+If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr, False) Then Exit Function
 
 If Not lnhImportGenerateDefaultProgImportSettings(glbWedAgeDate, glbWedLftMode) Then Exit Function
 
@@ -732,6 +732,41 @@ lenHandleCompleteWasImpSequence = True
 Exit Function
 fout:
 MsgBox Err & " lenHandleCompleteWasImpSequence" & vbCrLf & Error$, 16
+Exit Function
+End Function
+
+Public Function lenHandleCompleteDsvImpSequence(dsvFDir As String, dsvFName As String, wedIsOpen As Boolean, curOpenWedNr As Long, curOpenWedDate As Date, curOpenWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+On Error GoTo fout
+lenHandleCompleteDsvImpSequence = False
+
+Dim dsvFCompleteName As String
+dsvFCompleteName = directory_goedmaak(dsvFDir) & "\" & dsvFName
+
+'Clean up the transfer tables.
+If Not lenCleanTransferTables() Then
+  Exit Function
+End If
+
+'Read the file
+If Not dsvImpFillLenTransTables(dsvFCompleteName, curOpenWedNr) Then
+  Exit Function
+End If
+
+
+Dim glbWedDate As Date, glbWedLftMode As String, glbWedAgeDate As Date
+
+If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr, False) Then Exit Function
+
+If Not lnhImportGenerateDefaultProgImportSettings(glbWedAgeDate, glbWedLftMode) Then Exit Function
+
+
+'Now open the wizard.
+DoCmd.OpenForm "hxIMP_LEN_MASTER", acNormal, , , , acDialog
+
+lenHandleCompleteDsvImpSequence = True
+Exit Function
+fout:
+MsgBox Err & " lenHandleCompleteDsvImpSequence" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
@@ -749,7 +784,7 @@ End If
 
 Dim glbWedDate As Date, glbWedLftMode As String, glbWedAgeDate As Date
 
-If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr) Then Exit Function
+If Not lnhImportGenerateDefaultImportSettings(glbWedDate, glbWedLftMode, glbWedAgeDate, wedIsOpen, curOpenWedNr, curOpenWedDate, curOpenWedTime, openWedIsMeet, openWedMeetNr, True) Then Exit Function
 
 If Not lnhImportGenerateDefaultProgImportSettings(glbWedAgeDate, glbWedLftMode) Then Exit Function
 

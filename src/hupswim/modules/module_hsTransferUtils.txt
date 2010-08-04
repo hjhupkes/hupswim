@@ -89,24 +89,52 @@ Dim skZwm As Recordset
 Set skZwm = CurrentDb().OpenRecordset("dtLeden")
 skZwm.Index = "PrimaryKey"
 
+Dim rsZwmName As Recordset
+Set rsZwmName = CurrentDb().OpenRecordset("dtLeden", dbOpenDynaset)
+
 impZwms.MoveFirst
 Do Until impZwms.EOF
   Dim tpVerName As String
   Dim tpStart As String
+  Dim tpStartFixed As Boolean
+  
+  Dim tpStartCurDB As String
+  
   tpVerName = Nz(impZwms("IMP_Naam"))
   tpStart = Nz(impZwms("ZW_Startnummer"))
+  tpStartFixed = Nz(impZwms("ZW_Startnummer_Fixed"), False)
   
-  skZwm.Seek "=", tpStart
+  tpStartCurDB = ""
+  'try and match swimmer
+  If (tpStartFixed) Then
+    skZwm.Seek "=", tpStart
+    If Not skZwm.NoMatch Then
+      tpStartCurDB = tpStart
+    End If
+  Else
+    'lookup zwemmer by name and year of birth
+    Dim tpVoornaam As String, tpAchternaam As String, tpYOB As Long
+    tpVoornaam = Nz(impZwms("ZW_Voornaam"))
+    tpAchternaam = Nz(impZwms("ZW_Achternaam"))
+    tpYOB = Nz(impZwms("ZW_Jaartal"))
+    
+    rsZwmName.FindFirst "Voornaam = """ & tpVoornaam & """ and achternaam=""" & tpAchternaam & """ "
+    If Not rsZwmName.NoMatch Then
+      If stnrExtractYOB(Nz(rsZwmName("Startnummer")), Now(), Nz(rsZwmName("geboortedatum"), #1/1/1900#)) = tpYOB Then
+        tpStartCurDB = Nz(rsZwmName("startnummer"))
+      End If
+    End If
+  End If
   
   If (dbIsMultipleVer()) Then
     impZwms.Edit
       impZwms("IMP_Import") = True
-      impZwms("IMP_Startnummer") = hzn(tpStart)
-      impZwms("IMP_isZwmKnown") = Not skZwm.NoMatch
+      impZwms("IMP_Startnummer") = hzn(tpStartCurDB)
+      impZwms("IMP_isZwmKnown") = (tpStartCurDB <> "")
     impZwms.Update
   Else
     
-    If skZwm.NoMatch Then
+    If tpStartCurDB = "" Then
       impZwms.Edit
         impZwms("IMP_Import") = False
         impZwms("IMP_Startnummer") = Null
@@ -115,7 +143,7 @@ Do Until impZwms.EOF
     Else
       impZwms.Edit
         impZwms("IMP_Import") = True
-        impZwms("IMP_Startnummer") = tpStart
+        impZwms("IMP_Startnummer") = tpStartCurDB
         impZwms("IMP_isZwmKnown") = True
       impZwms.Update
     End If
@@ -128,7 +156,7 @@ Loop
 
 appCleanRS impZwms
 appCleanRS skZwm
-      
+appCleanRS rsZwmName
 
 
 
@@ -142,7 +170,7 @@ End Function
 
 
 
-Public Function trfGenerateDefaultOptsImportSettings() As Boolean
+Public Function trfGenerateDefaultOptsImportSettings(ByVal blAllowOverwrites As Boolean) As Boolean
 On Error GoTo fout
 trfGenerateDefaultOptsImportSettings = False
 
@@ -174,7 +202,7 @@ opts.AddNew
   
   'nov 2008: modification. In case of multi ver, we want to import the
   'swimmer settings from the file by default, since these will be more accurate.
-  If (isMultiVer) Then
+  If (isMultiVer And blAllowOverwrites) Then
     opts("IMP_Overwrite_Zwemmers") = True
   Else
     opts("IMP_Overwrite_Zwemmers") = False
@@ -236,6 +264,10 @@ Dim verRS As Recordset
 Set verRS = CurrentDb().OpenRecordset("dtVerenigingen")
 verRS.Index = "Depot"
 
+Dim verRSName As Recordset
+Set verRSName = CurrentDb().OpenRecordset("dtVerenigingen")
+verRSName.Index = "PrimaryKey"
+
 
 Dim isMultiVer As Boolean
 isMultiVer = dbIsMultipleVer()
@@ -249,8 +281,13 @@ impVer.MoveFirst
 Do Until impVer.EOF
   Dim verNaam As String
   Dim verDepot As String
+  Dim verDepotFixed As Boolean
+  Dim verNation As String
+  
   verNaam = Nz(impVer("V_Naam"))
   verDepot = Nz(impVer("V_Depot"))
+  verDepotFixed = Nz(impVer("V_Depot_Fixed"), False)
+  verNation = Nz(impVer("V_Land"))
   
   Dim verDepotInCurDB As String
   Dim verNameInCurDB As String
@@ -260,22 +297,46 @@ Do Until impVer.EOF
   verNameInCurDB = ""
   verAfkInCurDB = ""
   
-  If (verDepot <> "" And isMultiVer) Then
-    verRS.Seek "=", verDepot
-    If (Not verRS.NoMatch) Then
-      verDepotInCurDB = Nz(verRS("V_Depotnummer"))
-      verNameInCurDB = Nz(verRS("V_Naam"))
-      verAfkInCurDB = Nz(verRS("V_Afkorting"))
+  
+  If (isMultiVer) Then
+    If (verDepotFixed) Then
+      If (verDepot <> "") Then
+        verRS.Seek "=", verDepot
+        If (Not verRS.NoMatch) Then
+          verDepotInCurDB = Nz(verRS("V_Depotnummer"))
+          verNameInCurDB = Nz(verRS("V_Naam"))
+          verAfkInCurDB = Nz(verRS("V_Afkorting"))
+        End If
+      End If
+    Else
+      If (verNaam <> "") And (verNation = "" Or verNation = "NED") Then
+        verRSName.Seek "=", verNaam
+        If (Not verRSName.NoMatch) Then
+          verDepotInCurDB = Nz(verRSName("V_Depotnummer"))
+          verNameInCurDB = Nz(verRSName("V_Naam"))
+          verAfkInCurDB = Nz(verRSName("V_Afkorting"))
+        End If
+      End If
+    End If
+  End If
+  
+  If (verDepotFixed) Then
+    If (verDepot = depNr) Then
+      verNameInCurDB = verCurMainName
+      verDepotInCurDB = depNr
+      'do not overwrite verAfkInCurDB
+    End If
+  Else
+    If (verNaam = verCurMainName) Then
+      verNameInCurDB = verCurMainName
+      verDepotInCurDB = depNr
+      'do not overwrite verAfkInCurDB
     End If
   End If
   
   
   
-  
-  If (verDepot = depNr) Or (verDepotInCurDB <> "") Then
-    If (verDepot = depNr) Then
-      verNameInCurDB = verCurMainName
-    End If
+  If (verDepotInCurDB <> "") Then
   
     impVer.Edit
     impVer("IMP_Import") = True
@@ -308,7 +369,7 @@ Loop
 
 appCleanRS impVer
 appCleanRS verRS
-
+appCleanRS verRSName
 
 
 

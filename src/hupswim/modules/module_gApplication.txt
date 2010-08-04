@@ -580,7 +580,14 @@ End Sub
 Public Sub appRecordError(ByVal sFncName As String, ByRef errInf As ERR_INFO)
 errInf.lErrCode = Err
 errInf.sErrMsg = Error$
-errInf.sFncName = sFncName
+
+If (errInf.lErrCode = 3) Then
+  errInf.lErrCode = CLng(val(extractToken(errInf.sErrMsg, "____")))
+  errInf.sFncName = extractToken(errInf.sErrMsg, "____")
+Else
+  errInf.sFncName = sFncName
+End If
+
 End Sub
 
 Public Sub appDisplayError(ByRef errInf As ERR_INFO)
@@ -590,4 +597,14 @@ If (errInf.lErrCode <> 2) Then
   msg = errInf.lErrCode & " " & errInf.sFncName & vbCrLf & errInf.sErrMsg
   MsgBox msg, 16
 End If
+End Sub
+Public Sub appReraiseError(ByRef errInf As ERR_INFO)
+Err.Raise 3, , errInf.lErrCode & "____" & errInf.sFncName & "____" & errInf.sErrMsg
+End Sub
+
+Public Sub appCopyError(ByRef errInfSrc As ERR_INFO, errInfTgt As ERR_INFO)
+On Error Resume Next
+errInfTgt.lErrCode = errInfSrc.lErrCode
+errInfTgt.sErrMsg = errInfSrc.sErrMsg
+errInfTgt.sFncName = errInfSrc.sFncName
 End Sub
