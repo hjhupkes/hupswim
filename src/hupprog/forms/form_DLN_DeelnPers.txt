@@ -664,12 +664,12 @@ cat = curProgInfo.cat
 If (cat Like "*VAR") Then
   Dim catList As String
   catList = sCatList
-  If Not cat_voldoet_list_bare(Nz([de_Startnummer]), catList, Nz([NA_Geslacht]), Nz([NA_Geboortedatum], #1/1/1900#), wed_lft_mode(), wed_age_date(), True) Then
+  If Not cat_voldoet_list_bare(Nz([DE_Startnummer]), catList, Nz([NA_Geslacht]), Nz([NA_Geboortedatum], #1/1/1900#), wed_lft_mode(), wed_age_date(), True) Then
     Err.Raise 1, , "Deze deelnemer voldoet niet aan één van de opgegeven categorieën in de lijst."
   End If
 Else
   Dim catV As Integer
-  catV = cat_voldoet_bare(Nz([de_Startnummer]), cat, Nz([NA_Geslacht]), Nz([NA_Geboortedatum], #1/1/1900#), wed_lft_mode(), True, wed_age_date())
+  catV = cat_voldoet_bare(Nz([DE_Startnummer]), cat, Nz([NA_Geslacht]), Nz([NA_Geboortedatum], #1/1/1900#), wed_lft_mode(), True, wed_age_date())
     
      
   If catV = CAT_AGE_RESTRICTION_ERROR Then
@@ -719,7 +719,7 @@ Dim tpVer As String
 Dim tpStart As String
 
 tpVer = Nz([DE_Vereniging])
-tpStart = Nz([de_Startnummer])
+tpStart = Nz([DE_Startnummer])
 
 If (tpVer <> "") And (tpStart <> "") Then
   
@@ -784,7 +784,7 @@ If Nz([NA_Startnummer]) = "" Then
   Dim blisAdded As Boolean
   
   tpVer = Nz([DE_Vereniging])
-  tpStart = Nz([de_Startnummer])
+  tpStart = Nz([DE_Startnummer])
   
   Dim tpCat As String, tpCatGes As String
   tpCat = curProgInfo.cat
@@ -805,7 +805,7 @@ If Nz([NA_Startnummer]) = "" Then
     
     'reEnter the startnummer, to force an update
     [de_startnummer ] = Null
-    [de_Startnummer] = hzn(tpStart)
+    [DE_Startnummer] = hzn(tpStart)
     
   End If
 End If
@@ -872,8 +872,8 @@ On Error GoTo fout
 
 Cancel = True
 
-If (Nz([de_Startnummer].OldValue) <> "") Then
-  If (de_Startnummer <> de_Startnummer.OldValue) Then
+If (Nz([DE_Startnummer].OldValue) <> "") Then
+  If (DE_Startnummer <> DE_Startnummer.OldValue) Then
     Err.Raise 1, , "U kunt het startnummer niet wijzigen."
   End If
 End If
@@ -908,7 +908,7 @@ End Sub
 
 Private Sub DE_Vereniging_AfterUpdate()
 On Error Resume Next
-[de_Startnummer].Requery
+[DE_Startnummer].Requery
 [DE_Vereniging] = hzn(capitalizefirst(Nz([DE_Vereniging])))
 If ver_bm(CStr(Nz([DE_Vereniging]))) = "J" Then
     [DE_Buitenmededinging] = "J"
@@ -969,8 +969,8 @@ If (Nz([DE_Vereniging].OldValue) <> "") Then
   End If
 End If
 
-If (Nz([de_Startnummer].OldValue) <> "") Then
-  If (de_Startnummer <> de_Startnummer.OldValue) Then
+If (Nz([DE_Startnummer].OldValue) <> "") Then
+  If (DE_Startnummer <> DE_Startnummer.OldValue) Then
     Err.Raise 1, , "U kunt het startnummer niet wijzigen."
   End If
 End If
@@ -1004,7 +1004,7 @@ End Sub
 
 Private Sub Form_Current()
 On Error Resume Next
-[de_Startnummer].Requery
+[DE_Startnummer].Requery
 End Sub
 
 Private Sub Form_Error(dataerr As Integer, response As Integer)

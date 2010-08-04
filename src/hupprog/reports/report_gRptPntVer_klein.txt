@@ -496,7 +496,7 @@ Attribute VB_Exposed = False
 Option Compare Database   'Use database order for string comparisons
 Option Explicit
 
-Private lastWednr As Long
+Private lastWedNr As Long
 Private lastProg As String
 Private lastPntGrpCatIdx As Integer
 Private lastPntGrpABC As String
@@ -562,7 +562,7 @@ If blHideEmptySubtotals And (Not blIsEindUitslag) Then
   tpProg = Nz(Me.PT_Programmanummer)
   tpCatIdx = Nz(Me.PT_PNT_GRP_CatIdx)
   tpABC = Nz(Me.PT_PNT_GRP_ABC)
-  If (tpWed <> lastWednr) Or (tpProg <> lastProg) Or (tpCatIdx <> lastPntGrpCatIdx) Or (tpABC <> lastPntGrpABC) Then
+  If (tpWed <> lastWedNr) Or (tpProg <> lastProg) Or (tpCatIdx <> lastPntGrpCatIdx) Or (tpABC <> lastPntGrpABC) Then
     blIsLastProg = False
   End If
   
@@ -832,7 +832,7 @@ wednr = Nz(DLookup("PT_PNT_Wedstrijdnummer", "__punten_Stats"))
 pntOrderID = Nz(DLookup("PT_PNT_OrderID", "__punten_Stats"))
 pntCalcMode = Nz(DLookup("PT_PNT_CalcMode", "__punten_Stats"))
 
-lastWednr = Nz(DLookup("PT_LAST_WEdstrijdnummer", "__punten_Stats"))
+lastWedNr = Nz(DLookup("PT_LAST_WEdstrijdnummer", "__punten_Stats"))
 lastProg = Nz(DLookup("PT_Last_Programmanummer", "__punten_Stats"))
 lastPntGrpABC = Nz(DLookup("PT_LAST_PNT_GRP_ABC", "__punten_stats"))
 lastPntGrpCatIdx = Nz(DLookup("PT_LAST_PNT_GRP_CatIdx", "__punten_stats"))
@@ -856,7 +856,7 @@ sqlWhereClause = ""
 
 If (optIsEindUitslag) Then
   blIsEindUitslag = True
-  sqlWhereClause = "WHERE pt_programmanummer = """ & lastProg & """ and pt_wedstrijdnummer = " & lastWednr & " and pt_pnt_grp_CatIdx =" & lastPntGrpCatIdx
+  sqlWhereClause = "WHERE pt_programmanummer = """ & lastProg & """ and pt_wedstrijdnummer = " & lastWedNr & " and pt_pnt_grp_CatIdx =" & lastPntGrpCatIdx
   If (lastPntGrpABC = "") Then
     sqlWhereClause = sqlWhereClause & " and pt_pnt_grp_abc is null"
   Else
