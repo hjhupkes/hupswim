@@ -383,26 +383,27 @@ Else
 End If
 End Function
 
-Private Function lenParseStartnr(ByVal Code As String, ByVal nation As String, ByVal gebDate As Date, ByRef maxUsedExtAthID As Long, ByRef isCodeValid As Boolean) As String
+'todo: move to gLenex
+Public Function lenParseStartnr(ByVal sCode As String, ByVal sNationCode As String, ByVal dGebDate As Date, ByRef maxUsedExtAthID As Long, ByRef isCodeValid As Boolean) As String
 On Error Resume Next
 lenParseStartnr = ""
 isCodeValid = False
 
-If (lenIsValidStartnr(Code)) Then
-  If (Len(Code) = 8) Then
-    lenParseStartnr = Code
+If (lenIsValidStartnr(sCode)) Then
+  If (Len(sCode) = 8) Then
+    lenParseStartnr = sCode
   Else
-    lenParseStartnr = Left(Code, 2) & "-" & Right(Code, 5)
+    lenParseStartnr = Left(sCode, 2) & "-" & Right(sCode, 5)
   End If
   isCodeValid = True
 Else
   Dim yr As Integer
-  yr = CInt(val(Format(gebDate, "yy")))
+  yr = CInt(val(Format(dGebDate, "yy")))
   
   Dim fp As String
   
-  If (Len(nation) >= 2) Then
-    fp = Left(nation, 2)
+  If (Len(sNationCode) >= 2) Then
+    fp = Left(sNationCode, 2)
   Else
     fp = "XX"
   End If
@@ -415,21 +416,21 @@ End If
 End Function
 
 
-
-Private Function lenParseDepotnr(Code As String, nation As String, ByRef maxUsedExtDepNr As Long, ByRef isCodeValid As Boolean) As String
-On Error GoTo fout
+'todo: move to gLenex
+Public Function lenParseDepotnr(sCode As String, sNationCode As String, ByRef maxUsedExtDepNr As Long, ByRef isCodeValid As Boolean) As String
+On Error Resume Next
 lenParseDepotnr = ""
 isCodeValid = False
 
-If (lenIsValidDepotnr(Code)) Then
-  lenParseDepotnr = Code
+If (lenIsValidDepotnr(sCode)) Then
+  lenParseDepotnr = sCode
   isCodeValid = True
 Else
   isCodeValid = False
   Dim fp As String
   
-  If (Len(nation) >= 2) Then
-    fp = Left(nation, 2)
+  If (Len(sNationCode) >= 2) Then
+    fp = Left(sNationCode, 2)
   Else
     fp = "XX"
   End If
@@ -440,9 +441,6 @@ Else
 End If
 
 
-Exit Function
-fout:
-MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
 
@@ -558,7 +556,7 @@ Else
   min = CInt(val(Mid(tm, 4, 2)))
   sec = CInt(val(Mid(tm, 7, 2)))
   h = CInt(val(Mid(tm, 10, 2)))
-  lenParseSwimtime = hr * 10000 + min * 100 + sec + h * 0.01
+  lenParseSwimtime = hr * CDbl(10000) + min * CDbl(100) + CDbl(sec) + h * 0.01
 End If
   
 

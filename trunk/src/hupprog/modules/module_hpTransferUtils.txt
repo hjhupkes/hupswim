@@ -225,7 +225,7 @@ End Function
 
 
 
-Public Function trfGenerateDefaultOptsImportSettings() As Boolean
+Public Function trfGenerateDefaultOptsImportSettings(ByVal blAllowOverwrites As Boolean) As Boolean
 On Error GoTo fout
 trfGenerateDefaultOptsImportSettings = False
 
@@ -241,8 +241,13 @@ Set opts = CurrentDb().OpenRecordset("gIMP_LEN_options")
 opts.AddNew
   opts("IMP_Overwrite_Wedstrijden") = False
   opts("IMP_Overwrite_Programmanummers") = False
-  opts("IMP_Overwrite_Verenigingen") = True
-  opts("IMP_Overwrite_Zwemmers") = True
+  If (blAllowOverwrites) Then
+    opts("IMP_Overwrite_Verenigingen") = True
+    opts("IMP_Overwrite_Zwemmers") = True
+  Else
+    opts("IMP_Overwrite_Verenigingen") = False
+    opts("IMP_Overwrite_Zwemmers") = False
+  End If
   opts("IMP_Clear_All_Deelnemers") = False
   opts("IMP_Clear_All_Tijden") = False
   opts("IMP_Deelnemers") = True

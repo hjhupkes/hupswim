@@ -726,8 +726,8 @@ Set outpTd = CurrentDb().OpenRecordset("gIMP_LEN_TIJDEN")
 Dim plID As Long
 plID = 1
 
-Dim muPLLID As Long
-muPLLID = 0
+Dim muPllID As Long
+muPllID = 0
 
 Dim dlnID As Long
 Dim tijdID As Long
@@ -882,15 +882,15 @@ Do Until inp.EOF
        pllQlfWedDes = Nz(inp("PL_QLF_WedDescription"))
        
        
-       muPLLID = muPLLID + 1
-       If Not lnhAddPloegLid(outpPloegLeden, -1, muPLLID, curPloegID, startnr, depNr, volg, res, -1, curDlnID, -1, pllQlfTime, pllQlfDate, pllQlfPlaats, pllQlfBaan, pllQlfWedDes, "") Then Exit Function
+       muPllID = muPllID + 1
+       If Not lnhAddPloegLid(outpPloegLeden, -1, muPllID, curPloegID, startnr, depNr, volg, res, -1, curDlnID, -1, pllQlfTime, pllQlfDate, pllQlfPlaats, pllQlfBaan, pllQlfWedDes, "") Then Exit Function
     End If
 
 
 
     'immediately add the ploeg as a deelnemer.
     If (expTd And curTdID <> -1) Then
-      muPLLID = muPLLID + 1
+      muPllID = muPllID + 1
       
       Dim plDis As String
       plDis = Nz(inp("TY_Dis"))
@@ -910,7 +910,7 @@ Do Until inp.EOF
         End If
       End If
       
-      If Not lnhAddPloegLid(outpPloegLeden, -1, muPLLID, curPloegID, startnr, depNr, volg, res, curTdID, -1, -1, 0, #1/1/1900#, "", 0, "", pllDis) Then Exit Function
+      If Not lnhAddPloegLid(outpPloegLeden, -1, muPllID, curPloegID, startnr, depNr, volg, res, curTdID, -1, -1, 0, #1/1/1900#, "", 0, "", pllDis) Then Exit Function
     End If
   End If
   
@@ -3268,7 +3268,7 @@ MsgBox Err & " lnhImportGenerateDefaultImportSettings_wed" & Error$, 16
 End Function
 
 
-Public Function lnhImportGenerateDefaultImportSettings(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long) As Boolean
+Public Function lnhImportGenerateDefaultImportSettings(ByRef impWedDate As Date, ByRef impWedLftMode As String, ByRef impWedAgeDate As Date, isWedOpened As Boolean, openWedNr As Long, openWedDat As Date, openWedTime As Date, openWedIsMeet As Boolean, openWedMeetNr As Long, ByVal blAllowOverwrites As Boolean) As Boolean
 On Error GoTo fout
 lnhImportGenerateDefaultImportSettings = False
 
@@ -3284,7 +3284,7 @@ If Not trfGenerateDefaultVerImportSettings() Then
 End If
 
 
-If Not trfGenerateDefaultOptsImportSettings() Then
+If Not trfGenerateDefaultOptsImportSettings(blAllowOverwrites) Then
   Exit Function
 End If
 

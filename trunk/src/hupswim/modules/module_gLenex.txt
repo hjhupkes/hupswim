@@ -1857,3 +1857,72 @@ ElseIf (Len(st) = 7) Then
   End If
 End If
 End Function
+
+Public Function lenSplitTst(ByVal sProgAf As String, ByVal sProgSl As String, ByRef lProgMainTsAf() As Long, _
+  ByVal nTsAf, ByRef lTsAf() As Long, ByRef dTsTimes() As Double, _
+  ByRef sMainTsAf() As String, ByRef sMainTsSl() As String, ByRef dMainTsTimes() As Double, ByRef sExtTst As String) As Boolean
+On Error GoTo fout
+lenSplitTst = False
+
+Dim iExtTsAf(0 To MAX_N_TUSSENTIJDEN) As Integer
+Dim dExtTsTimes(0 To MAX_N_TUSSENTIJDEN) As Double
+Dim nExtTsAf As Integer
+
+nExtTsAf = 0
+
+Dim i As Integer, j As Integer
+
+For j = 0 To 3
+  sMainTsSl(j) = ""
+  sMainTsAf(j) = ""
+  dMainTsTimes(j) = 0
+Next j
+sExtTst = ""
+
+
+For i = 0 To nTsAf - 1
+  Dim blFound As Boolean
+  blFound = False
+  For j = 0 To 3
+    If lTsAf(i) = lProgMainTsAf(j) Then
+      blFound = True
+      Dim tpSl As String
+      If (sProgSl = "WISSEL") Then
+        If (sProgAf Like "*x*") Then
+          tpSl = "RUG"
+        Else
+          tpSl = "VLINDER"
+        End If
+      Else
+        tpSl = sProgSl
+      End If
+      
+      dMainTsTimes(j) = dTsTimes(i)
+      sMainTsAf(j) = lTsAf(i)
+      sMainTsSl(j) = tpSl
+    End If
+  Next j
+        
+  If (Not blFound) Then
+    'Append as extra split time.
+    If Not tstSetTussenTijd(lTsAf(i), dTsTimes(i), nExtTsAf, iExtTsAf, dExtTsTimes) Then
+      appRaiseSilentError
+    End If
+  End If
+        
+Next i
+      
+      
+sExtTst = tstReadTussentijdenArray(nExtTsAf, iExtTsAf, dExtTsTimes)
+    
+lenSplitTst = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "lenSplitTst", errInf
+
+appDisplayError errInf
+Exit Function
+End Function
+  
