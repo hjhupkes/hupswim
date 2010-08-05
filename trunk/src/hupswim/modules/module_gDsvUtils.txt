@@ -82,7 +82,7 @@ If (Len(s) = 10) Then
     Dim yr As Integer
     Dim mn As Integer
     Dim dy As Integer
-    
+
     yr = CInt(val(Right(s, 4)))
     mn = CInt(val(Mid(s, 4, 2)))
     dy = CInt(val(Mid(s, 1, 2)))
@@ -1110,11 +1110,30 @@ While Not blDone
   
   While Not blBufferReady
   
-    Dim tpLine As String
-    Line Input #fNr, tpLine
+    Dim tpLine As String, tpWorkLineA As String, tpWorkLineB As String
+    Line Input #fNr, tpWorkLineA
       
     nLinesRead = nLinesRead + 1
+    
+    'First convert all asc(10) characters in  tpWorkLineA to spaces  and write to tpWorkLineB
+    tpWorkLineB = ""
+    While (tpWorkLineA <> "")
+      tpWorkLineB = tpWorkLineB & extractToken(tpWorkLineA, Chr(10))
+      If (tpWorkLineA <> "") Then
+        tpWorkLineB = tpWorkLineB & " "
+      End If
+    Wend
+    
+    'Now convert all asc(13) characters in tpWorkLineB to spaces and write to tpLine
+    tpLine = ""
+    While (tpWorkLineB <> "")
+      tpLine = tpLine & extractToken(tpWorkLineB, Chr(13))
+      If (tpWorkLineB <> "") Then
+        tpLine = tpLine & " "
+      End If
+    Wend
       
+    'Strip comments from tpLine and add to tpBuffer
     While (tpLine <> "")
       tpBuffer = tpBuffer & extractToken(tpLine, "(*")
       extractToken tpLine, "*)"
@@ -1153,15 +1172,18 @@ While Not blDone
       
       blIsNewElm = True
       
+      Dim tpPos As Integer
+      tpPos = InStr(1, tpToken, ":")
+      
       'detect daytime
-      If ((Len(tpTrmTok) = 5) And (tpTrmTok Like "[0-9][0-9]:[0-9][0-9]")) Then
-        blIsNewElm = False
+      If (tpPos > 2) Then
+        If (Mid(tpToken, tpPos - 2, 5) Like "[0-9][0-9]:[0-9][0-9]") Then
+          blIsNewElm = False
+        End If
       End If
       
       'detect swimtime
       If (blIsNewElm) Then
-        Dim tpPos As Integer
-        tpPos = InStr(1, tpToken, ":")
         If (tpPos > 1) Then
           If (Mid(tpToken, tpPos - 1, 1) Like "[0-9]") Then
             If (Mid(tpToken, tpPos + 1, 2) Like "[0-9][0-9]") Then
@@ -1474,7 +1496,7 @@ If Not dsvWriteWeds(nWeds, wedInfs, dFeePers, dFeeEst, sPoolName, sPoolAd, blEle
   appRaiseSilentError
 End If
 
-If Not dsvWriteProgs(lOpenWedNr, True, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
+If Not dsvWriteProgs(lOpenWedNr, True, nWeds, wedInfs, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
   appRaiseSilentError
 End If
 
@@ -1504,7 +1526,8 @@ Exit Function
 
 End Function
 
-Private Function dsvWriteProgs(ByVal lOpenWedNr As Long, ByVal blUseOpenWedProgCats As Boolean, ByVal nProgs As Integer, ByRef progInfs() As PROG_BASIC_INFO, _
+Private Function dsvWriteProgs(ByVal lOpenWedNr As Long, ByVal blUseOpenWedProgCats As Boolean, _
+  ByVal nWeds As Integer, ByRef wedInfs() As WED_BASIC_INFO, ByVal nProgs As Integer, ByRef progInfs() As PROG_BASIC_INFO, _
   ByRef sProgGes() As String, ByRef dProgCost() As Double, ByRef nProgCats() As Integer, ByRef iProgFirstCatIdx() As Integer, _
   ByRef catInfs() As CAT_INFO, ByRef iCatNextIdx() As Integer) As Boolean
 On Error GoTo fout
@@ -1512,6 +1535,17 @@ dsvWriteProgs = False
 
 Dim rsProg As Recordset
 Dim rsLft As Recordset
+
+
+If (blUseOpenWedProgCats) Then
+  Dim openWedInf As WED_BASIC_INFO
+  Dim blOpenWedFnd As Boolean
+  
+  If Not wedLookup(lOpenWedNr, blOpenWedFnd, openWedInf) Then
+    appRaiseSilentError
+  End If
+End If
+
 
 Set rsProg = CurrentDb().OpenRecordset("gIMP_LEN_Programma")
 Set rsLft = CurrentDb().OpenRecordset("gIMP_LEN_Leeftijdsgroepen")
@@ -1540,15 +1574,21 @@ For i = 0 To nProgs - 1
   
     If (blUseOpenWedProgCats) Then
       'Lookup to see if the current prog already exists
-      Dim openPrInf As PROG_BASIC_INFO, isOpenProgFnd As Boolean
-      If Not prLookup(lOpenWedNr, progInfs(i).prognr, isOpenProgFnd, openPrInf) Then
-        appRaiseSilentError
-      End If
-      If (isOpenProgFnd) Then
-        'if afstand & slag match up, use the looked up prog to complete cat and catDes
-        If (progInfs(i).Afstand = openPrInf.Afstand) And (progInfs(i).slag = openPrInf.slag) Then
-          tpCat = openPrInf.cat
-          tpCatDes = openPrInf.catDes
+      If (nWeds > 0) Then
+        If (wedInfs(0).date = openWedInf.meetMinDate) Then
+          Dim openPrInf As PROG_BASIC_INFO, isOpenProgFnd As Boolean
+          If Not prLookup(lOpenWedNr, progInfs(i).prognr, isOpenProgFnd, openPrInf) Then
+            appRaiseSilentError
+          End If
+          If (isOpenProgFnd) Then
+            'if afstand & slag & cat match up, use the looked up prog to complete cat and catDes
+            If (progInfs(i).Afstand = openPrInf.Afstand) And (progInfs(i).slag = openPrInf.slag) Then
+              If (sProgGes(i) = m_of_v(openPrInf.cat)) Then
+                tpCat = openPrInf.cat
+                tpCatDes = openPrInf.catDes
+              End If
+            End If
+          End If
         End If
       End If
     End If
@@ -2099,7 +2139,7 @@ End If
 progInfs(nProgs).wednr = CLng(dsvGetTag(dsvFile, lElmIdx, 1 + iOffset))
 
 Dim tpDes As String
-tpDes = dsvGetTag(dsvFile, lElmIdx, 2 + iOffset)
+tpDes = Trim(dsvGetTag(dsvFile, lElmIdx, 2 + iOffset))
 
 Dim tpAf As String, tpSl As String, tpGes As String
 
@@ -2109,15 +2149,18 @@ tpGes = ""
 
 Dim tpTok As String
 tpTok = extractToken(tpDes, " ")
+tpDes = LTrim(tpDes)
 
 tpAf = tpTok
 
 'Read ahead next token to see if we are dealing with
-'a distance written as '4 x 100' instead of '4x100'
+'a distance written as '4 x 100' or '4 * 100' instead of '4x100' or '4*100'
         
 tpTok = extractToken(tpDes, " ")
-If (tpTok = "x") And Not (tpAf Like "*x*") Then
-  'attempt to create an afstand from next two tokes
+tpDes = LTrim(tpDes)
+
+If ((tpTok = "x") Or (tpTok = "*")) And Not (tpAf Like "*[x*]*") Then
+  'attempt to create an afstand from next two tokens
   Dim tpBckDes As String, tpBckTok As String
   tpBckDes = tpDes
   tpBckTok = tpTok
@@ -2126,23 +2169,38 @@ If (tpTok = "x") And Not (tpAf Like "*x*") Then
   
   
   tpAf = tpAf & "x"
+  
   tpTok = extractToken(tpDes, " ")
+  tpDes = LTrim(tpDes)
+  
   tpAf = tpAf & tpTok
   
   If (Len(Trim(tpDes)) < 3) Then
     'We do not have any remaining tokens left for slag, ges pair.
-    'The initial "x" should not have been interpreted as estaf
+    'The initial "x" or "*" should not have been interpreted as estaf
     '-> restore originals
     tpAf = tpBckAf
     tpDes = tpBckDes
     tpTok = tpBckTok
   Else
     tpTok = extractToken(tpDes, " ")
+    tpDes = LTrim(tpDes)
   End If
 End If
 
+'convert 4*100 to 4x100
+
+If (tpAf Like "*[*]*") Then
+  Dim tpSLeft As String, tpSRight As String
+  tpSLeft = extractToken(tpAf, "*")
+  tpSRight = tpAf
+  tpAf = tpSLeft & "x" & tpSRight
+End If
+
 tpSl = dsvParseSlag(tpTok)
+
 tpGes = dsvParseGes(extractToken(tpDes, " "))
+tpDes = LTrim(tpDes)
 
 progInfs(nProgs).Afstand = tpAf
 progInfs(nProgs).slag = tpSl
@@ -2509,7 +2567,7 @@ If Not dsvWriteWeds(nWeds, wedInfs, dFeePers, dFeeEst, sPoolName, sPoolAd, blEle
   appRaiseSilentError
 End If
 
-If Not dsvWriteProgs(-1, False, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
+If Not dsvWriteProgs(-1, False, nWeds, wedInfs, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
   appRaiseSilentError
 End If
 
@@ -3074,6 +3132,15 @@ For i = 0 To dsvFile.nElms - 1
             iResProgTsAf(j) = j * 100
           Next j
         End If
+      ElseIf (lTotDist = 0) Then
+        'special case for estafs with undefined individual lengths
+        '[for e.g. 5x0 as encountered in the wild]
+        If (blResProgEstaf) Then
+          nResProgTsAf = iResProgEstCnt
+          For j = 0 To nResProgTsAf - 1
+            iResProgTsAf(j) = 0
+          Next j
+        End If
       End If
       
            
@@ -3212,7 +3279,7 @@ If Not dsvWriteWeds(nWeds, wedInfs, dFeePers, dFeeEst, sPoolName, sPoolAd, blEle
   appRaiseSilentError
 End If
 
-If Not dsvWriteProgs(lOpenWedNr, True, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
+If Not dsvWriteProgs(lOpenWedNr, True, nWeds, wedInfs, nProgs, progInfs, sProgGes, dProgCost, nProgCats, iProgFirstCatIdx, catInfs, iCatNextIdx) Then
   appRaiseSilentError
 End If
 
