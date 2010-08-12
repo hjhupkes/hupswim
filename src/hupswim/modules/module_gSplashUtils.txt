@@ -2080,6 +2080,12 @@ DoCmd.RunSQL sql
 
 'update afstand & slag
 
+
+'remove break programmanummers
+sql = "delete * from splEvent where IsNull([eventnumber])"
+DoCmd.RunSQL sql
+
+
 DoCmd.SetWarnings True
 
 If Not splMMImpFillLenTransTables_perform_mm2007_updateAfSl() Then
@@ -2862,17 +2868,17 @@ Exit Function
 End Function
 
 
-Private Function splExpFromLenTransTables_perform_writeProgs_getSwimStyleID(ByVal sAf As String, ByVal sSl As String, ByVal lUnqID As Long, ByRef muSwmID As Long, _
+Private Function splExpFromLenTransTables_perform_writeProgs_getSwimStyleID(ByVal saf As String, ByVal sSl As String, ByVal lUnqID As Long, ByRef muSwmID As Long, _
   ByRef nSws As Integer, ByRef sSwsAf() As String, _
   ByRef sSwsSl() As String, ByRef lSwsUnqID() As Long, ByRef lSwsID() As Long) As Long
 
 Dim lkpPos As Integer
-lkpPos = bSearchAfSlag(sAf, sSl, sSwsAf, sSwsSl, nSws)
+lkpPos = bSearchAfSlag(saf, sSl, sSwsAf, sSwsSl, nSws)
 
 If (lkpPos < 0) Then
 
   Dim insPos As Integer
-  insPos = insAfSlag(sAf, sSl, nSws, sSwsAf, sSwsSl)
+  insPos = insAfSlag(saf, sSl, nSws, sSwsAf, sSwsSl)
   
   shiftRightLong insPos, 1, nSws - 1, lSwsUnqID
   shiftRightLong insPos, 1, nSws - 1, lSwsID
