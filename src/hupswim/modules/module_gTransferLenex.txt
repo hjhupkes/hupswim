@@ -592,20 +592,22 @@ Else
   lenParseGender = "*"
 End If
 End Function
-Private Function lenFormatGeslacht(ges As String) As String
+Private Function lenFormatGeslacht(ges As String, ByVal blUseXForMixed As Boolean) As String
 On Error Resume Next
 If (ges = "M") Then
   lenFormatGeslacht = "M"
 ElseIf (ges = "V") Then
   lenFormatGeslacht = "F"
-Else
+ElseIf (blUseXForMixed) Then
   lenFormatGeslacht = "X"
+Else
+  lenFormatGeslacht = ""
 End If
 End Function
 
 
 
-Private Function lenFormatCategorie(ByVal cat As String, ByVal wedAgeDate As Date, ByVal lftModeBep As String, ByRef gender As String, ByRef ageMin As Integer, ByRef ageMax As Integer, ByRef isTotAge As Boolean, ByRef isMCat As Boolean) As Boolean
+Private Function lenFormatCategorie(ByVal cat As String, ByVal wedAgeDate As Date, ByVal lftModeBep As String, ByRef gender As String, ByRef ageMin As Integer, ByRef ageMax As Integer, ByRef isTotAge As Boolean, ByRef isMCat As Boolean, ByVal blUseXForMixed As Boolean) As Boolean
 On Error GoTo fout
 lenFormatCategorie = False
 
@@ -643,7 +645,7 @@ End If
 Dim ges As String
 ges = m_of_v(cat)
 
-gender = lenFormatGeslacht(ges)
+gender = lenFormatGeslacht(ges, blUseXForMixed)
 
 
 
@@ -2498,8 +2500,8 @@ lenAppendLXAgeGroup = False
 
 
 Dim gender As String, ageMin As Integer, ageMax As Integer, isTotAge As Boolean, isMCat As Boolean
-
-If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, ageMin, ageMax, isTotAge, isMCat) Then
+'For agegroups; use a blank for mixed categories and not an X
+If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, ageMin, ageMax, isTotAge, isMCat, False) Then
   Err.Raise 1, , "Ongeldige categorie: " + Trim(catInf.cat)
   Exit Function
 End If
@@ -6193,14 +6195,15 @@ Do Until prInp.EOF
     If Not lenReadCatInfo(prInp, "PR_", False, catInf) Then Exit Function
     
     Dim gender As String, minAge As Integer, maxAge As Integer, isTotAge As Boolean, name As String, isMCat As Boolean
-    If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat) Then
+    'Do not use X for mixed categories; just use blank
+    If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat, False) Then
       Err.Raise 1, , "Ongeldige categorie: " + Trim(catInf.cat)
       Exit Function
     End If
      
     
     
-    ev("LEN_GENDER") = gender
+    ev("LEN_GENDER") = hzn(gender)
     
     Dim blNeedsAG As Boolean
     blNeedsAG = Not blAgeGroupWritten
@@ -6694,7 +6697,7 @@ Do Until atInp.EOF
     End If
     
     atOutp("LEN_FIRSTNAME") = atInp("ZW_Voornaam")
-    atOutp("LEN_GENDER") = lenFormatGeslacht(Nz(atInp("ZW_Geslacht")))
+    atOutp("LEN_GENDER") = hzn(lenFormatGeslacht(Nz(atInp("ZW_Geslacht")), True))
     atOutp("SYS_REF_HANDICAP") = Null
     atOutp("LEN_LASTNAME") = atInp("ZW_Achternaam")
     
@@ -7113,7 +7116,7 @@ Do Until plInp.EOF
         Dim gender As String, minAge As Integer, maxAge As Integer, isTotAge As Boolean, name As String, isMCat As Boolean
       
         plSatCat = Nz(plInp("PL_SatisfiedCategorie"))
-        If Not lenFormatCategorie(plSatCat, wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat) Then
+        If Not lenFormatCategorie(plSatCat, wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat, True) Then
           Err.Raise 1, , "Ongeldige categorie: " + Trim(plSatCat)
           Exit Function
         End If
@@ -7169,7 +7172,7 @@ Do Until plInp.EOF
       
       'The following two are only allowed in MEET context
       If (Not partOfTimeArchive) Then
-        rl("LEN_GENDER") = hzn(lenFormatGeslacht(Nz(plInp("PL_Geslacht"))))
+        rl("LEN_GENDER") = hzn(lenFormatGeslacht(Nz(plInp("PL_Geslacht")), True))
         rl("LEN_Number") = plInp("PL_Nummer")
       End If
     End If
@@ -8364,7 +8367,8 @@ Do Until inp.EOF
       
       
       Dim minAge As Integer, maxAge As Integer, isTotAge As Boolean, gender As String, isMCat As Boolean
-      If Not lenFormatCategorie(tpCat, wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat) Then
+      'Use X for mixed categories
+      If Not lenFormatCategorie(tpCat, wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat, True) Then
         Err.Raise 1, , "Ongeldige categorie: " + Trim(tpCat)
         Exit Function
       End If
@@ -8549,7 +8553,8 @@ Do Until inp.EOF
       
       
       Dim minAge As Integer, maxAge As Integer, isTotAge As Boolean, gender As String, isMCat As Boolean
-      If Not lenFormatCategorie(tpCat, wedDate, recAgeMode, gender, minAge, maxAge, isTotAge, isMCat) Then
+      'Use X for mixed categories
+      If Not lenFormatCategorie(tpCat, wedDate, recAgeMode, gender, minAge, maxAge, isTotAge, isMCat, True) Then
         Err.Raise 1, , "Ongeldige categorie: " + Trim(tpCat)
         Exit Function
       End If
