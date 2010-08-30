@@ -2494,14 +2494,14 @@ MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
 
-Private Function lenAppendLXAgeGroup(ByVal lxVersion As Long, ByRef ageGroup As Recordset, ByRef eventDetails As Recordset, ByRef shRecs As Recordset, ByVal ageGroupID As Long, ByVal lenAgeGroupID As Long, ByRef maxUsedEventDetailsID As Long, ByRef maxUsedShRecID As Long, ByVal wedDate As Date, ByVal lftBep As String, ByRef catInf As CAT_INFO) As Boolean
+Private Function lenAppendLXAgeGroup(ByVal lxVersion As Long, ByRef ageGroup As Recordset, ByRef eventDetails As Recordset, ByRef shRecs As Recordset, ByVal ageGroupID As Long, ByVal lenAgeGroupID As Long, ByRef maxUsedEventDetailsID As Long, ByRef maxUsedShRecID As Long, ByVal wedDate As Date, ByVal lftBep As String, ByRef catInf As CAT_INFO, ByVal blUseXForMixed As Boolean) As Boolean
 On Error GoTo fout
 lenAppendLXAgeGroup = False
 
 
 Dim gender As String, ageMin As Integer, ageMax As Integer, isTotAge As Boolean, isMCat As Boolean
-'For agegroups; use a blank for mixed categories and not an X
-If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, ageMin, ageMax, isTotAge, isMCat, False) Then
+
+If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, ageMin, ageMax, isTotAge, isMCat, blUseXForMixed) Then
   Err.Raise 1, , "Ongeldige categorie: " + Trim(catInf.cat)
   Exit Function
 End If
@@ -6144,6 +6144,13 @@ Do Until prInp.EOF
     
     agInp.FindFirst "LF_PR_ID = " & progID
     
+    
+    Dim tpIsEstaf As Boolean
+    tpIsEstaf = (Nz(prInp("PR_Afstand")) Like "*x*")
+    
+    Dim tpAllowMixedEstafs As Boolean
+    tpAllowMixedEstafs = False
+    
     Dim catInf As CAT_INFO
     
     
@@ -6172,11 +6179,18 @@ Do Until prInp.EOF
           
           If Not lenReadCatInfo(agInp, "LF_", True, catInf) Then Exit Function
           
+          If (tpIsEstaf) Then
+            If (m_of_v(Trim(catInf.cat)) = "*") Then
+              tpAllowMixedEstafs = True
+            End If
+          End If
+          
                     
           Dim tpAGID As Long
           tpAGID = 3 * Nz(agInp("LF_ID")) + 1
           
-          If Not lenAppendLXAgeGroup(lxVersion, ag, evd, shRec, tpAGID, lfLenID, maxUsedEventDetailsID, maxUsedShRecID, wedDate, lftBep, catInf) Then Exit Function
+          'Use X for mixed only if the current prog is an estafette.
+          If Not lenAppendLXAgeGroup(lxVersion, ag, evd, shRec, tpAGID, lfLenID, maxUsedEventDetailsID, maxUsedShRecID, wedDate, lftBep, catInf, tpIsEstaf) Then Exit Function
           
           If Not lenAddToCollection(agColl, progID, tpAGID, "AGEGROUP") Then Exit Function
           
@@ -6190,18 +6204,29 @@ Do Until prInp.EOF
       Loop
     End If
     
+    
     'now parse agegroup of programma
     
     If Not lenReadCatInfo(prInp, "PR_", False, catInf) Then Exit Function
     
+    If (tpIsEstaf) Then
+      If Not tpIsMVCat Then
+        If m_of_v(Trim(catInf.cat)) = "*" Then
+          tpAllowMixedEstafs = True
+        End If
+      End If
+    End If
+    
+    
     Dim gender As String, minAge As Integer, maxAge As Integer, isTotAge As Boolean, name As String, isMCat As Boolean
-    'Do not use X for mixed categories; just use blank
-    If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat, False) Then
+    'Use X in gender only if the prog is an estafette prog and mixed estafs are allowed; otherwise use blank if both boys and girls can swim.
+    If Not lenFormatCategorie(Trim(catInf.cat), wedDate, lftBep, gender, minAge, maxAge, isTotAge, isMCat, tpAllowMixedEstafs) Then
       Err.Raise 1, , "Ongeldige categorie: " + Trim(catInf.cat)
       Exit Function
     End If
-     
     
+    
+     
     
     ev("LEN_GENDER") = hzn(gender)
     
@@ -6234,7 +6259,8 @@ Do Until prInp.EOF
       
       tpAGID = 3 * progID
       
-      If Not lenAppendLXAgeGroup(lxVersion, ag, evd, shRec, tpAGID, lfLenID, maxUsedEventDetailsID, maxUsedShRecID, wedDate, lftBep, catInfSimple) Then Exit Function
+      'Use X for mixed only if the current prog is an estafette that allows mixed estafs
+      If Not lenAppendLXAgeGroup(lxVersion, ag, evd, shRec, tpAGID, lfLenID, maxUsedEventDetailsID, maxUsedShRecID, wedDate, lftBep, catInfSimple, tpAllowMixedEstafs) Then Exit Function
           
       If Not lenAddToCollection(agColl, progID, tpAGID, "AGEGROUP") Then Exit Function
       
