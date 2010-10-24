@@ -59,6 +59,68 @@ Case Else
 End Select
 End Function
 
+Public Function lenFinaHndCode(sHndCode As String) As Integer
+On Error Resume Next
+lenFinaHndCode = 0
+If (sHndCode Like "S[0-9]*") Then
+  lenFinaHndCode = CInt(val(Right(sHndCode, Len(sHndCode) - 1)))
+  If (lenFinaHndCode < 1) Then
+    lenFinaHndCode = 0
+  ElseIf (lenFinaHndCode > 15) Then
+    lenFinaHndCode = 0
+  End If
+ElseIf (sHndCode = "AB") Then
+  lenFinaHndCode = 30
+End If
+
+End Function
+
+Public Function lenCalcIPCPoints(ByVal td As Double, ByVal af As String, ByVal sl As String, ByVal ges As String, ByVal bn As Integer, ByVal sHndCode As String) As Double
+On Error GoTo fout
+lenCalcIPCPoints = 0
+
+'Deze functie rekent de punten uit volgens de LEN_Tabel
+
+'Wereldrecord tijden opzoeken
+Static wrecords(0 To 5, 0 To 9, 0 To 1, 0 To 2, 0 To 35) As Double 'als seconden.
+Static ingeladen As Boolean
+
+If Not swtIsValid(td) Then
+  lenCalcIPCPoints = 0
+  Exit Function
+End If
+
+If Not ingeladen Then
+    Dim wr As Recordset
+    Set wr = CurrentDb().OpenRecordset("fdtgIPC", dbOpenDynaset)
+    wr.MoveFirst
+    Do Until wr.EOF
+        wrecords(lenFinaSlagCode(wr("IPC_Slag")), lenFinaAfstandCode(wr("IPC_Afstand")), IIf(wr("IPC_Geslacht") = "M", 1, 0), lenFinaBaanCode(Nz(wr("IPC_Baan"), 0)), lenFinaHndCode(Nz(wr("IPC_HndCode")))) = swtToSeconds(Nz(wr("IPC_Tijd")))
+        wr.MoveNext
+    Loop
+    appCleanRS wr
+    wrecords(0, 0, 0, 0, 0) = 0
+    wrecords(0, 0, 1, 0, 0) = 0
+    ingeladen = True
+End If
+    
+        'wrecords ingeladen
+
+Dim hwr, sec
+sec = swtToSeconds(td)
+hwr = wrecords(lenFinaSlagCode(sl), lenFinaAfstandCode(af), IIf(ges = "M", 1, 0), lenFinaBaanCode(bn), lenFinaHndCode(sHndCode))
+        
+lenCalcIPCPoints = 1000 * ((hwr / sec) ^ 3)
+
+
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " " & Error$, 16
+Exit Function
+End Function
+
+
 
 Public Function lenCalcFinaPoints(ByVal td As Double, ByVal af As String, ByVal sl As String, ByVal ges As String, ByVal bn As Integer) As Double
 On Error GoTo fout

@@ -980,7 +980,7 @@ Do Until td.EOF
       End If
       
       
-      If (pntIndOptions.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Then
+      If (pntIndOptions.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Or (pntIndOptions.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
         tdOut("TY_EindPunten") = -tpPoints
       Else
         tdOut("TY_EindPunten") = tpPoints
@@ -1513,6 +1513,7 @@ If (blIsForUitslag) Then
 End If
 
 If Not deelnemerCategorie(wednr) Then Exit Function
+If Not wedCalcHandicaps(wednr, False) Then Exit Function
 If Not deelnemerFindSecondEstafs(wednr) Then Exit Function
 
 Dim blIsOW As Boolean
@@ -2005,6 +2006,10 @@ Resume
 
 End Function
 
+
+
+
+
 Public Function deelnemerFindSecondEstafs(ByVal wednr As Long) As Boolean
 On Error GoTo fout
 deelnemerFindSecondEstafs = False
@@ -2090,12 +2095,16 @@ End Function
 
 
 
-
+'Prerequisite: analyzeEstafs must have been called
 Public Function uitslagPrepareExport(ByVal wednr As Long) As Boolean
 On Error GoTo fout
 uitslagPrepareExport = False
 
 If Not deelnemerCategorie(wednr) Then
+  Exit Function
+End If
+
+If Not wedCalcHandicaps(wednr, False) Then
   Exit Function
 End If
 
@@ -2123,6 +2132,17 @@ Public Function uitslagCreate(ByVal wednr As Long) As Boolean
 On Error Resume Next
 uitslagCreate = False
 
+Dim wedInf As WED_BASIC_INFO
+Dim isWedFnd As Boolean
+If Not wedLookup(wednr, isWedFnd, wedInf) Then
+  Exit Function
+End If
+
+If Not isWedFnd Then
+  Exit Function
+End If
+
+
 If Not progCreate(True, wednr) Then
   Exit Function
 End If
@@ -2149,6 +2169,10 @@ If (blIsOW) Then
   If Not owCalcStats(wednr, False) Then
     Exit Function
   End If
+End If
+
+If Not uitCalcAutoOpms(wedInf, False) Then
+  Exit Function
 End If
 
 
@@ -2410,6 +2434,10 @@ For iw = 0 To nWeds - 1
   If Not deelnemerCategorie(lWedNrs(iw)) Then
     appRaiseSilentError
   End If
+  
+  If Not wedCalcHandicaps(lWedNrs(iw), False) Then
+    appRaiseSilentError
+  End If
 
   If Not deelnemerFindSecondEstafs(lWedNrs(iw)) Then
     appRaiseSilentError
@@ -2463,6 +2491,12 @@ If (blIsForUitslag) Then
 End If
 
 
+If blIsForUitslag Then
+  If Not uitCalcAutoOpms(wedInf, blEntireMeet) Then
+    appRaiseSilentError
+  End If
+End If
+
 
 
 uitslagCreateForMeet = True
@@ -2475,6 +2509,146 @@ Dim errInf As ERR_INFO
 appRecordError "uitslagCreateForMeet", errInf
 
 appCleanRS rs
+
+DoCmd.SetWarnings True
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+
+Public Function fmtPVDlnCode(ByVal sBM As String, ByVal sABC As String, ByVal sCatCode As String, ByVal sHndCode As String) As String
+On Error Resume Next
+
+fmtPVDlnCode = ""
+
+If (sBM = "J") Then
+  fmtPVDlnCode = "BM"
+ElseIf (sABC <> "") Then
+  fmtPVDlnCode = sABC
+ElseIf (sHndCode <> "") Then
+  fmtPVDlnCode = sHndCode
+ElseIf (sCatCode <> "") Then
+  fmtPVDlnCode = sCatCode
+End If
+
+End Function
+
+
+'prerequisite: wedCalcHandicaps must have been called
+Private Function uitCalcAutoOpms(ByRef wedInf As WED_BASIC_INFO, ByVal blEntireMeet As Boolean) As Boolean
+On Error GoTo fout
+uitCalcAutoOpms = False
+
+Dim sql As String
+
+If (blEntireMeet) Then
+  sql = "UPDATE dtTijden INNER JOIN dtWedstrijdGegevens ON dtTijden.TY_Wedstrijdnummer = dtWedstrijdGegevens.WE_Wedstrijdnummer " & _
+        "SET dtTijden.TY_AutoOpmerking = Null " & _
+        "WHERE (dtWedstrijdGegevens.WE_Wedstrijdnummer=" & wedInf.meetMainNr & ") OR (dtWedstrijdGegevens.WE_MainWedstrijdnummer=" & wedInf.meetMainNr & ");"
+Else
+  sql = "update dtTijden set ty_autoOpmerking = null where ty_wedstrijdnummer = " & wedInf.wednr & ";"
+End If
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+sql = tyGetResultsPersSQL(False, blEntireMeet, "", wedInf.wednr, wedInf.meetMainNr)
+
+
+Dim skProg As Recordset
+Set skProg = CurrentDb().OpenRecordset("dtProgramma")
+skProg.Index = "PrimaryKey"
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpAutoOpm As String
+  tpAutoOpm = ""
+  
+  Dim tpHndCode As String
+  tpHndCode = Nz(rs(FNM_TY_PERS_HND_CODE))
+  
+  Dim tpTime As Double
+  tpTime = Nz(rs(FNM_TY_PERS_EINDTIJD))
+  
+  
+  
+    
+  If (tpHndCode <> "") And swtIsValid(tpTime) Then
+    If (tpAutoOpm <> "") Then
+      tpAutoOpm = tpAutoOpm & "; "
+    End If
+    tpAutoOpm = tpAutoOpm & "Handicap: " & tpHndCode
+    
+    Dim tpWedNr As Long, tpProg As String
+    Dim tpAf As String, tpSlag As String
+    
+    Dim tpGes As String
+    
+    tpWedNr = Nz(rs(FNM_TY_WED))
+    tpProg = Nz(rs(FNM_TY_PROG))
+    
+    tpAf = ""
+    tpSlag = ""
+    
+    skProg.Seek "=", tpWedNr, tpProg
+    If Not skProg.NoMatch Then
+      tpAf = Nz(skProg(FNM_PR_AF))
+      tpSlag = Nz(skProg(FNM_PR_SL))
+    End If
+    
+    tpGes = Nz(rs(FNM_NA_GES))
+    
+    Dim tpPoints As Double
+    tpPoints = lenCalcIPCPoints(tpTime, tpAf, tpSlag, tpGes, wedInf.baan, tpHndCode)
+    
+    If (tpPoints > 0.1) Then
+      If (tpAutoOpm <> "") Then
+        tpAutoOpm = tpAutoOpm & "; "
+      End If
+      tpAutoOpm = tpAutoOpm & "IPC-NED Punten: " & lenFormatResLim(tpPoints)
+    End If
+    
+  End If
+    
+  
+  If (tpAutoOpm <> "") Then
+    rs.Edit
+      rs("TY_AutoOpmerking") = hzn(tpAutoOpm)
+    rs.Update
+  End If
+   
+    
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+'For now ; do not process estafs
+
+appCleanRS skProg
+
+uitCalcAutoOpms = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next 'no current record.
+
+Dim errInf As ERR_INFO
+appRecordError "uitCalcAutoOpms", errInf
+
+appCleanRS rs
+appCleanRS skProg
 
 DoCmd.SetWarnings True
 
