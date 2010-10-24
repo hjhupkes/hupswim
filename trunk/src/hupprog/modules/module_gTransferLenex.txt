@@ -2073,7 +2073,8 @@ End Function
 
 
 
-Public Function lenDetermineLimits(ByRef limS As Recordset, ByVal Afstand As String, ByVal slag As String, ByVal baan As Integer, ByVal wedDate As Date, ByVal lftBep As String, ByVal overwriteLim As Boolean, ByVal overwriteVVT As Boolean, ByRef catInf As CAT_INFO) As Boolean
+Public Function lenDetermineLimits(ByRef limS As Recordset, ByVal Afstand As String, ByVal slag As String, ByVal baan As Integer, ByVal wedDate As Date, ByVal lftBep As String, ByVal overwriteLim As Boolean, ByVal overwriteVVT As Boolean, ByRef catInf As CAT_INFO, _
+  ByVal blRestrictTimeStdListIDs As Integer, ByVal nTimeStdListIDs As Integer, ByRef lTimeStdListIDs() As Long) As Boolean
 On Error GoTo fout
 lenDetermineLimits = False
 
@@ -2120,7 +2121,24 @@ Dim cat As String
       Dim tpBaan As Long
       tpBaan = Nz(limS("LIM_BAAN"))
       
-      If (tpTijd > 0.01) Then
+      Dim tpListID As Long
+      tpListID = Nz(limS("LIM_LEN_LIST_ID"))
+      
+      Dim blAllow As Boolean
+      
+      blAllow = True
+      
+      If (blRestrictTimeStdListIDs) Then
+        If (bSearchLong(tpListID, nTimeStdListIDs, lTimeStdListIDs) < 0) Then
+          blAllow = False
+        End If
+      End If
+      
+      If (tpTijd < 0.01) Then
+        blAllow = False
+      End If
+      
+      If (blAllow) Then
         If Nz(limS("LIM_ISVVT")) Then
           vvtDet = True
           If (tpMaxAge <= vvtMaxAge) Then
@@ -2156,7 +2174,7 @@ Dim cat As String
             End If
           End If
         End If
-      End If
+      End If 'if blAllow
           
           
       limS.MoveNext
@@ -2314,7 +2332,12 @@ End Function
 
 
 
-Private Function lenDetermineEventDetails(ByRef eventDetails As Recordset, ByRef shRecords As Recordset, ByVal detLims As Boolean, ByRef limS As Recordset, ByVal detRecs As Boolean, ByRef recs As Recordset, ByVal Afstand As String, ByVal slag As String, ByVal baan As Integer, ByVal recAgeMode As String, ByVal eventDetailsID As Long, ByVal wedAgeDate As Date, ByVal lftBep As String, ByVal gender As String, ByVal minAge As Integer, ByVal maxAge As Integer, ByVal isTotAge As Boolean, ByVal name As String, ByVal auxCat As String, ByVal auxCatBes As String, ByRef catInf As CAT_INFO) As Boolean
+Private Function lenDetermineEventDetails(ByRef eventDetails As Recordset, ByRef shRecords As Recordset, ByVal detLims As Boolean, ByRef limS As Recordset, _
+  ByVal detRecs As Boolean, ByRef recs As Recordset, ByVal Afstand As String, ByVal slag As String, ByVal baan As Integer, _
+  ByVal recAgeMode As String, ByVal eventDetailsID As Long, ByVal wedAgeDate As Date, ByVal lftBep As String, _
+  ByVal gender As String, ByVal minAge As Integer, ByVal maxAge As Integer, ByVal isTotAge As Boolean, _
+  ByVal name As String, ByVal auxCat As String, ByVal auxCatBes As String, ByRef catInf As CAT_INFO, _
+  ByVal blRestrictTimeStdListIDs As Integer, ByVal nTimeStdListIDs As Integer, ByRef lTimeStdListIDs() As Long) As Boolean
 On Error GoTo fout
 lenDetermineEventDetails = False
 
@@ -2349,7 +2372,8 @@ End If
 If ((Not catInf.blDetFromEvDetails) And detLims And (Trim(catInf.lim) = "" Or catInf.vvt < 0.01)) Then
   'try and determine limit...
   
-  If Not lenDetermineLimits(limS, Afstand, slag, baan, wedAgeDate, lftBep, False, False, catInf) Then
+  If Not lenDetermineLimits(limS, Afstand, slag, baan, wedAgeDate, lftBep, False, False, catInf, _
+    blRestrictTimeStdListIDs, nTimeStdListIDs, lTimeStdListIDs) Then
     Exit Function
   End If
   
@@ -2594,7 +2618,8 @@ catInf.blDetFromEvDetails = False
 End Sub
 
 
-Private Function lenLoadLXAgeGroup(ByVal lxVersion As Long, ByRef ageGroup As Recordset, ByRef eventDetails As Recordset, ByRef shRecs As Recordset, ByVal detLim As Boolean, ByRef limS As Recordset, ByVal detRec As Boolean, ByRef recs As Recordset, ByVal Afstand As String, ByVal slag As String, ByVal Baanlengte As Integer, ByVal recAgeMode As String, ByVal ageGroupID As Long, ByRef lenAgeGroupID As Long, ByVal wedAgeDate As Date, ByVal lftBep As String, ByVal progGender As String, ByRef catInf As CAT_INFO) As Boolean
+Private Function lenLoadLXAgeGroup(ByVal lxVersion As Long, ByRef ageGroup As Recordset, ByRef eventDetails As Recordset, ByRef shRecs As Recordset, ByVal detLim As Boolean, ByRef limS As Recordset, ByVal detRec As Boolean, ByRef recs As Recordset, ByVal Afstand As String, ByVal slag As String, ByVal Baanlengte As Integer, ByVal recAgeMode As String, ByVal ageGroupID As Long, ByRef lenAgeGroupID As Long, ByVal wedAgeDate As Date, ByVal lftBep As String, ByVal progGender As String, ByRef catInf As CAT_INFO, _
+  ByVal blRestrictTimeStdLists As Boolean, ByVal nTimeStdLists As Integer, lTimeStdListIDs() As Long) As Boolean
 On Error GoTo fout
 lenLoadLXAgeGroup = False
 
@@ -2630,7 +2655,8 @@ If (ageGroupID >= 0) Then
     
     
     
-    If Not lenDetermineEventDetails(eventDetails, shRecs, detLim, limS, detRec, recs, Afstand, slag, Baanlengte, recAgeMode, eventDetailsID, wedAgeDate, lftBep, gender, minAge, maxAge, blIsTotalAge, name, "", "", catInf) Then
+    If Not lenDetermineEventDetails(eventDetails, shRecs, detLim, limS, detRec, recs, Afstand, slag, Baanlengte, recAgeMode, eventDetailsID, wedAgeDate, lftBep, gender, minAge, maxAge, blIsTotalAge, name, "", "", catInf, _
+      blRestrictTimeStdLists, nTimeStdLists, lTimeStdListIDs) Then
       Exit Function
     End If
     
@@ -2872,7 +2898,6 @@ Set recs = CurrentDb().OpenRecordset(recsSQL, dbOpenDynaset)
 
 
 
-
 Dim pr As Recordset
 Dim prSQL As String
 'modification nov 2006: remove order by ID_SESSION part, to ensure
@@ -2945,6 +2970,25 @@ detls.Index = "P"
 Dim shRec As Recordset
 Set shRec = CurrentDb().OpenRecordset("LEN_SHORTRECORD")
 shRec.Index = "P"
+
+Dim rsTimeStdRefColl As Recordset
+Set rsTimeStdRefColl = CurrentDb().OpenRecordset("Select * from LEN_TIMESTANDARDREF_COLL order by [ID_TIMESTANDARDREF_COLL];", dbOpenDynaset)
+
+Dim rsTimeStdRef As Recordset
+Set rsTimeStdRef = CurrentDb().OpenRecordset("LEN_TIMESTANDARDREF")
+rsTimeStdRef.Index = "P"
+
+
+
+Dim blRestrictTimeStdLists As Boolean
+blRestrictTimeStdLists = False
+
+If (lxVersion >= LX_VERSION_3) Then
+  If (Nz(DCount("ID_TIMESTANDARDREF", "LEN_TIMESTANDARDREF"), 0) > 0) Then
+    blRestrictTimeStdLists = True
+  End If
+End If
+
 
 pr.MoveFirst
 
@@ -3102,6 +3146,37 @@ Do Until pr.EOF
     ptOpen = ptOpenForEntry(progType)
     
     
+    'Need to determine if TIMESTANDARDREF restrictions are in place
+    Dim prTimeStdRefCollID As Long
+    prTimeStdRefCollID = Nz(pr("SYS_REF_TIMESTANDARDREFS"), -1)
+    
+    Dim nTimeStdRefs As Integer
+    nTimeStdRefs = 0
+    
+    Dim lTimeStdListIDs(0 To 1000) As Long
+    
+    Dim done As Boolean
+    done = True
+    If (Not lenCollPrepareIt(rsTimeStdRefColl, prTimeStdRefCollID, "TIMESTANDARDREF", done)) Then
+      Exit Function
+    End If
+    Do Until done
+      Dim prTimeStdRefID As Long
+      If (Not lenCollGetNextID(rsTimeStdRefColl, prTimeStdRefCollID, "TIMESTANDARDREF", prTimeStdRefID, done)) Then
+        Exit Function
+      End If
+      rsTimeStdRef.Seek "=", prTimeStdRefID
+      If Not rsTimeStdRef.NoMatch Then
+        Dim tpTimeStdListID As Long
+        tpTimeStdListID = Nz(rsTimeStdRef("LEN_TIMESTANDARDLISTID"))
+        insLong tpTimeStdListID, nTimeStdRefs, lTimeStdListIDs
+      End If
+    Loop
+    
+    
+    
+    
+    
 
     Dim agID As Long
     Dim agLenID As Long
@@ -3122,7 +3197,7 @@ Do Until pr.EOF
     blAllAGHaveVVT = True
     blAllAGHaveRec = True
     
-    Dim done As Boolean
+    done = True
     If (Not lenCollPrepareIt(ageGrpColl, prAGCollID, "AGEGROUP", done)) Then
       Exit Function
     End If
@@ -3137,7 +3212,8 @@ Do Until pr.EOF
       Dim curAGCatInf As CAT_INFO
       
       If (agCnt = 0) Then
-        If (Not lenLoadLXAgeGroup(lxVersion, ageGrp, detls, shRec, ptOpen, limS, True, recs, afst, slag, Baanlengte, recAgeMode, prAGID, agLenID, wedAgeDate, lftBep, progGender, agCatInf)) Then
+        If (Not lenLoadLXAgeGroup(lxVersion, ageGrp, detls, shRec, ptOpen, limS, True, recs, afst, slag, Baanlengte, recAgeMode, prAGID, agLenID, wedAgeDate, lftBep, progGender, agCatInf, _
+          blRestrictTimeStdLists, nTimeStdRefs, lTimeStdListIDs)) Then
           Exit Function
         End If
         agID = prAGID
@@ -3156,7 +3232,8 @@ Do Until pr.EOF
         End If
         
       Else
-        If (Not lenLoadLXAgeGroup(lxVersion, ageGrp, detls, shRec, ptOpen, limS, True, recs, afst, slag, Baanlengte, recAgeMode, prAGID, curAGLXID, wedAgeDate, lftBep, progGender, curAGCatInf)) Then
+        If (Not lenLoadLXAgeGroup(lxVersion, ageGrp, detls, shRec, ptOpen, limS, True, recs, afst, slag, Baanlengte, recAgeMode, prAGID, curAGLXID, wedAgeDate, lftBep, progGender, curAGCatInf, _
+          blRestrictTimeStdLists, nTimeStdRefs, lTimeStdListIDs)) Then
           Exit Function
         End If
         curAGID = prAGID
@@ -3228,7 +3305,13 @@ Do Until pr.EOF
       End If
     
     
-    If (Not lenDetermineEventDetails(detls, shRec, ptOpen, limS, True, recs, afst, slag, Baanlengte, recAgeMode, detlsID, wedAgeDate, lftBep, "", -1, -1, False, "", auxCat, auxCatBes, detCatInf)) Then
+    
+    
+    
+    
+    
+    If (Not lenDetermineEventDetails(detls, shRec, ptOpen, limS, True, recs, afst, slag, Baanlengte, recAgeMode, detlsID, wedAgeDate, lftBep, "", -1, -1, False, "", auxCat, auxCatBes, detCatInf, _
+      blRestrictTimeStdLists, nTimeStdRefs, lTimeStdListIDs)) Then
       Exit Function
     End If
     
@@ -5522,7 +5605,7 @@ lenReadLimietenFromXMLTables = False
 Dim sql As String
 sql = "SELECT LEN_TIMESTANDARD.*, LEN_TIMESTANDARDLIST.LEN_COURSE, LEN_TIMESTANDARDLIST.SYS_REF_AGEGROUP, " & _
       "LEN_TIMESTANDARDLIST.LEN_GENDER, LEN_TIMESTANDARDLIST.LEN_NAME, LEN_TIMESTANDARDLIST.LEN_QUALIFYFROM, " & _
-      "LEN_TIMESTANDARDLIST.LEN_QUALIFYUNTIL, LEN_TIMESTANDARDLIST.LEN_TYPE, LEN_TIMESTANDARDLIST.LEN_CODE " & _
+      "LEN_TIMESTANDARDLIST.LEN_QUALIFYUNTIL, LEN_TIMESTANDARDLIST.LEN_TYPE, LEN_TIMESTANDARDLIST.LEN_CODE, LEN_TIMESTANDARDLIST.LEN_TIMESTANDARDLISTID " & _
       "FROM ((LEN_TIMESTANDARD INNER JOIN LEN_TIMESTANDARD_COLL ON LEN_TIMESTANDARD.ID_TIMESTANDARD = LEN_TIMESTANDARD_COLL.SYS_REF_CH_TIMESTANDARD) " & _
       "INNER JOIN LEN_TIMESTANDARDS ON LEN_TIMESTANDARD_COLL.ID_TIMESTANDARD_COLL = LEN_TIMESTANDARDS.SYS_REF_TIMESTANDARD_COLL) " & _
       "INNER JOIN LEN_TIMESTANDARDLIST ON LEN_TIMESTANDARDS.ID_TIMESTANDARDS = LEN_TIMESTANDARDLIST.SYS_REF_TIMESTANDARDS;"
@@ -5558,8 +5641,12 @@ Do Until LM.EOF
    Dim limGender As String
    limGender = Nz(LM("LEN_GENDER"))
    
+   Dim limListID As Long
+   limListID = Nz(LM("LEN_TIMESTANDARDLISTID"), -1)
    
-   If Not (lenLoadLXAgeGroup(lxVersion, ag, Nothing, Nothing, False, Nothing, False, Nothing, "", "", 0, "", agID, agLenID, wedAgeDate, lftBep, limGender, catInf)) Then
+   Dim lDummy(0 To 0) As Long
+   If Not (lenLoadLXAgeGroup(lxVersion, ag, Nothing, Nothing, False, Nothing, False, Nothing, "", "", 0, "", agID, agLenID, wedAgeDate, lftBep, limGender, catInf, _
+     False, 0, lDummy)) Then
      Exit Function
    End If
    
@@ -5620,6 +5707,12 @@ Do Until LM.EOF
    End If
    If (lenDateIsValid(untilDate)) Then
      lmOutp("LIM_QLF_UNTIL") = untilDate
+   End If
+   
+   If (limListID <> -1) Then
+     lmOutp("LIM_LEN_LIST_ID") = limListID
+   Else
+     lmOutp("LIM_LEN_LIST_ID") = Null
    End If
    
    lmOutp.Update
@@ -5712,8 +5805,10 @@ Do Until rec.EOF
    Dim recGender As String
    recGender = Nz(rec("LEN_GENDER"))
    
+   Dim lDummy(0 To 0) As Long
    
-   If Not (lenLoadLXAgeGroup(lxVersion, ag, Nothing, Nothing, False, Nothing, False, Nothing, "", "", 0, "", agID, agLenID, wedAgeDate, ageMode, recGender, catInf)) Then
+   If Not (lenLoadLXAgeGroup(lxVersion, ag, Nothing, Nothing, False, Nothing, False, Nothing, "", "", 0, "", agID, agLenID, wedAgeDate, ageMode, recGender, catInf, _
+     False, 0, lDummy)) Then
      Exit Function
    End If
    
