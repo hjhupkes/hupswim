@@ -548,7 +548,7 @@ SysCmd acSysCmdSetStatus, "Bezig met bepalen geldige inschrijftijden..."
 
 
 
-If Not insMarkTimes(wedInfo.qlfMinDate, wedInfo.qlfMaxDate) Then
+If Not insMarkTimes(wedInfo.qlfMinDate, wedInfo.qlfMaxDate, wedInfo.qlfBlockDis, wedInfo.qlfBlockTst) Then
   SysCmd acSysCmdClearStatus
   Exit Function
 End If
@@ -1207,7 +1207,7 @@ Resume
 Exit Function
 End Function
 
-Private Function insMarkTimes_Perform(ByRef qlfData As QLF_GLB_SETTINGS, ByVal datMax As Date) As Boolean
+Private Function insMarkTimes_Perform(ByRef qlfData As QLF_GLB_SETTINGS, ByVal datMax As Date, ByVal blBlockDis As Boolean, ByVal blBlockTst As Boolean) As Boolean
 On Error GoTo fout
 insMarkTimes_Perform = False
 
@@ -1233,7 +1233,7 @@ db.Execute hsql, dbFailOnError
 Dim sql As String
 Dim tijden As Recordset
 
-sql = "SELECT [dtTijden].[Start nr],  [dtTijden].intijd2, [dtTijden].Slag, [dtTijden].Afstand, [dtTijden].Tijd, [dtTijden].[Wedstr nr], [dtWedstrijden].Datum, [dtWedstrijden].Seizoen, [dtWedstrijden].baanlengte " & _
+sql = "SELECT [dtTijden].[Start nr],  [dtTijden].intijd2, [dtTijden].Slag, [dtTijden].Afstand, [dtTijden].Tijd, [dtTijden].[Wedstr nr], [dtTijden].[diskw code], [dtTijden].[isTusTijd], [dtWedstrijden].Datum, [dtWedstrijden].Seizoen, [dtWedstrijden].baanlengte " & _
     "FROM [dtWedstrijden] INNER JOIN [dtTijden] ON [dtWedstrijden].[Wedstrijd nummer] = [dtTijden].[Wedstr nr] " & _
     "WHERE ((([dtTijden].[Start nr]) <> ""00-000"") And (([dtTijden].Tijd) > 1)) " & _
     "ORDER BY [dtTijden].[Start nr], [dtTijden].Slag, [dtTijden].Afstand, [dtWedstrijden].baanlengte, [dtTijden].Tijd;"
@@ -1276,10 +1276,14 @@ Do Until tijden.EOF
     
     
     If Not gevonden And (af <> "") Then
+    
+    
+      Dim blMatch As Boolean
+      blMatch = True
+    
       If val(af) >= 400 Then
         
-        Dim blMatch As Boolean
-        blMatch = True
+        
         If (qlfData.sSeasonLongRegMask <> "*") Then
           If Nz(tijden("seizoen")) <> qlfData.sSeasonLongRegMask Then
             blMatch = False
@@ -1292,33 +1296,11 @@ Do Until tijden.EOF
           If (tpDat < qlfData.dQlfMinDateLong) Then
             blMatch = False
           End If
-          
-          If (blMatch) Then
-            If (tpDat > datMax) Then
-              blMatch = False
-            End If
-          End If
         End If
         
-        If (blMatch) Then
-          gevonden = True
-          tijden.Edit
-            tijden("intijd2") = True
-          tijden.Update
-        End If
-        
-        
-        'If (tijden("Seizoen") Like qlfData.sSeasonLongRegMask And tijden("Datum") >= qlfData.dQlfMinDateLong And tijden("datum") <= datMax) Then
-        '  gevonden = True
-        '  tijden.Edit
-        '    tijden("intijd2") = True
-        '  tijden.Update
-        'End If
+
       Else
       
-      
-      
-        blMatch = True
         If (qlfData.sSeasonShortRegMask <> "*") Then
           If Nz(tijden("seizoen")) <> qlfData.sSeasonShortRegMask Then
             blMatch = False
@@ -1331,33 +1313,46 @@ Do Until tijden.EOF
             blMatch = False
           End If
           
-          If (blMatch) Then
-            If (tpDat > datMax) Then
-              blMatch = False
-            End If
-          End If
         End If
         
-        If (blMatch) Then
-          gevonden = True
-          tijden.Edit
-            tijden("intijd2") = True
-          tijden.Update
+      
+      End If 'if val(af) >= 400
+      
+      
+      If (blMatch) Then
+        If (tpDat > datMax) Then
+          blMatch = False
         End If
-      
-      
-      
-      
-        'If (tijden("Seizoen") Like qlfData.sSeasonShortRegMask And tijden("Datum") >= qlfData.dQlfMinDateShort And tijden("Datum") <= datMax) Then
-        '  gevonden = True
-        '
-        '
-        '  tijden.Edit
-        '    tijden("intijd2") = True
-        '  tijden.Update
-        'End If
       End If
-    End If
+      
+      If (blMatch) Then
+        If (blBlockDis) Then
+          If Nz(tijden("Diskw code")) <> "" Then
+            blMatch = False
+          End If
+        End If
+      End If
+      
+      If (blMatch) Then
+        If (blBlockTst) Then
+          If Nz(tijden("IsTusTijd"), False) Then
+            blMatch = False
+          End If
+        End If
+      End If
+      
+      
+      
+      If (blMatch) Then
+        gevonden = True
+        tijden.Edit
+          tijden("intijd2") = True
+        tijden.Update
+      End If
+      
+      
+    End If 'if not gevonden and af <> ""
+    
     tijden.MoveNext
 Loop
 
@@ -1402,7 +1397,7 @@ Exit Function
 End Function
 
 
-Private Function insMarkEstafTimes_Perform(ByVal datMin As Date, ByVal datMax As Date, ByVal seiz As String) As Boolean
+Private Function insMarkEstafTimes_Perform(ByVal datMin As Date, ByVal datMax As Date, ByVal seiz As String, ByVal blBlockDis As Boolean) As Boolean
 On Error GoTo fout
 insMarkEstafTimes_Perform = False
 
@@ -1417,7 +1412,7 @@ DoCmd.SetWarnings True
 Dim sql As String
 Dim tijden As Recordset
 
-sql = "SELECT [dtTijden].[Start nr],  [dtTijden].intijd2, [dtTijden].Slag, [dtTijden].Afstand, [dtTijden].Tijd, [dtTijden].[Wedstr nr], [dtWedstrijden].Datum, [dtWedstrijden].Seizoen, [dtWedstrijden].baanlengte " & _
+sql = "SELECT [dtTijden].[Start nr],  [dtTijden].intijd2, [dtTijden].Slag, [dtTijden].Afstand, [dtTijden].Tijd, [dtTijden].[diskw code], [dtTijden].[Wedstr nr], [dtWedstrijden].Datum, [dtWedstrijden].Seizoen, [dtWedstrijden].baanlengte " & _
     "FROM [dtWedstrijden] INNER JOIN [dtTijden] ON [dtWedstrijden].[Wedstrijd nummer] = [dtTijden].[Wedstr nr] " & _
     "WHERE ((([dtTijden].[Start nr]) = ""00-000"") And (([dtTijden].Tijd) > 1)) " & _
     "ORDER BY [dtTijden].[Start nr], [dtTijden].Slag, [dtTijden].Afstand, [dtWedstrijden].baanlengte, [dtTijden].Tijd;"
@@ -1459,11 +1454,20 @@ Do Until tijden.EOF
     gevonden = False
     
     If Not gevonden And (af <> "") Then
-        If (tijden("Seizoen") Like seiz And tijden("Datum") >= datMin And tijden("datum") <= datMax) Then
+        If (Nz(tijden("Seizoen")) Like seiz And Nz(tijden("Datum"), #1/1/1900#) >= datMin And Nz(tijden("datum"), #1/1/1900#) <= datMax) Then
           gevonden = True
-          tijden.Edit
-            tijden("intijd2") = True
-          tijden.Update
+          
+          If (blBlockDis) Then
+            If Nz(tijden("Diskw code")) <> "" Then
+              gevonden = False
+            End If
+          End If
+          
+          If (gevonden) Then
+            tijden.Edit
+              tijden("intijd2") = True
+            tijden.Update
+          End If
         End If
     End If
     tijden.MoveNext
@@ -1491,12 +1495,12 @@ End Function
 
 
 
-Public Function insMarkEstafTimes(wedQlfMinDate As Date, wedQlfMaxDate As Date) As Boolean
+Public Function insMarkEstafTimes(wedQlfMinDate As Date, wedQlfMaxDate As Date, ByVal blBlockDis As Boolean) As Boolean
 On Error GoTo fout
 insMarkEstafTimes = False
 
 
-If insTimes_IsMarkedOK_Est(wedQlfMinDate, wedQlfMaxDate) Then
+If insTimes_IsMarkedOK_Est(wedQlfMinDate, wedQlfMaxDate, blBlockDis) Then
   insMarkEstafTimes = True
   Exit Function
 End If
@@ -1531,12 +1535,12 @@ End If
 
 
 'Use short distance dates for estafs
-If Not insMarkEstafTimes_Perform(qlfGlbData.dQlfMinDateShort, HdatumMax, qlfGlbData.sSeasonShortRegMask) Then
+If Not insMarkEstafTimes_Perform(qlfGlbData.dQlfMinDateShort, HdatumMax, qlfGlbData.sSeasonShortRegMask, blBlockDis) Then
   Exit Function
 End If
 
 
-insTimes_SetMarkedOK_est True, wedQlfMinDate, wedQlfMaxDate
+insTimes_SetMarkedOK_est True, wedQlfMinDate, wedQlfMaxDate, blBlockDis
 
 
 insMarkEstafTimes = True
@@ -1551,12 +1555,12 @@ End Function
 
 
 
-Public Function insMarkTimes(wedQlfMinDate As Date, wedQlfMaxDate As Date) As Boolean
+Public Function insMarkTimes(wedQlfMinDate As Date, wedQlfMaxDate As Date, ByVal blBlockDis As Boolean, ByVal blBlockTst As Boolean) As Boolean
 On Error GoTo fout
 insMarkTimes = False
 
 
-If insTimes_IsMarkedOK(wedQlfMinDate, wedQlfMaxDate) Then
+If insTimes_IsMarkedOK(wedQlfMinDate, wedQlfMaxDate, blBlockDis, blBlockTst) Then
   insMarkTimes = True
   Exit Function
 End If
@@ -1596,12 +1600,12 @@ End If
 
 
 
-If Not insMarkTimes_Perform(qlfGlbData, HdatumMax) Then
+If Not insMarkTimes_Perform(qlfGlbData, HdatumMax, blBlockDis, blBlockTst) Then
   Exit Function
 End If
 
 
-insTimes_SetMarkedOK True, wedQlfMinDate, wedQlfMaxDate
+insTimes_SetMarkedOK True, wedQlfMinDate, wedQlfMaxDate, blBlockDis, blBlockTst
 
 
 insMarkTimes = True
@@ -1640,7 +1644,7 @@ On Error Resume Next
 End Sub
 
 
-Private Sub insTimes_SetMarkedOK(isMarkedOK As Boolean, ByVal qlfMinDate As Date, ByVal qlfMaxDate As Date)
+Private Sub insTimes_SetMarkedOK(isMarkedOK As Boolean, ByVal qlfMinDate As Date, ByVal qlfMaxDate As Date, ByVal blBlockDis As Boolean, ByVal blBlockTst As Boolean)
 On Error Resume Next
 Dim geg As Recordset
 Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
@@ -1663,12 +1667,16 @@ Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
   Else
     geg("insTimesEndDate") = Null
   End If
+  
+  geg("blInsTimesBlockDis") = blBlockDis
+  geg("blInsTimesBlockTst") = blBlockTst
+  
 geg.Update
 
 appCleanRS geg
 
 End Sub
-Private Sub insTimes_SetMarkedOK_est(isMarkedOK As Boolean, ByVal qlfMinDate As Date, ByVal qlfMaxDate As Date)
+Private Sub insTimes_SetMarkedOK_est(isMarkedOK As Boolean, ByVal qlfMinDate As Date, ByVal qlfMaxDate As Date, ByVal blBlockDis As Boolean)
 On Error Resume Next
 Dim geg As Recordset
 Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
@@ -1691,18 +1699,23 @@ Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
   Else
     geg("insTimesEstEndDate") = Null
   End If
+  
+  geg("blInsTimesEstBlockDis") = blBlockDis
+  
 geg.Update
 
 appCleanRS geg
 
 End Sub
-Private Function insTimes_IsMarkedOK(qlfMinDate As Date, qlfMaxDate As Date) As Boolean
+Private Function insTimes_IsMarkedOK(qlfMinDate As Date, qlfMaxDate As Date, ByVal blBlockDis As Boolean, ByVal blBlockTst As Boolean) As Boolean
 On Error Resume Next
 Dim geg As Recordset
 Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
 
 Dim dOldStartDate As Date
 Dim dOldEndDate As Date
+Dim blOldBlockDis As Boolean
+Dim blOldBlockTst As Boolean
 Dim blOldOK As Boolean
 
 insTimes_IsMarkedOK = False
@@ -1712,6 +1725,8 @@ If Not geg.EOF Then
   blOldOK = Nz(geg("blInsTimesMarked"))
   dOldStartDate = Nz(geg("insTimesStartDate"), #1/1/1900#)
   dOldEndDate = Nz(geg("insTimesEndDate"), #1/1/1900#)
+  blOldBlockDis = Nz(geg("blInsTimesBlockDis"), False)
+  blOldBlockTst = Nz(geg("blInsTimesBlockTst"), False)
 Else
   blOldOK = False
 End If
@@ -1739,6 +1754,15 @@ If (blOldOK) Then
       Exit Function
     End If
   End If
+  
+  If (blBlockDis <> blOldBlockDis) Then
+    Exit Function
+  End If
+  
+  If (blBlockTst <> blOldBlockTst) Then
+    Exit Function
+  End If
+  
   insTimes_IsMarkedOK = True
 End If
 
@@ -1748,7 +1772,7 @@ End If
 
 
 End Function
-Private Function insTimes_IsMarkedOK_Est(qlfMinDate As Date, qlfMaxDate As Date) As Boolean
+Private Function insTimes_IsMarkedOK_Est(qlfMinDate As Date, qlfMaxDate As Date, ByVal blBlockDis As Boolean) As Boolean
 On Error Resume Next
 Dim geg As Recordset
 Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
@@ -1756,6 +1780,7 @@ Set geg = CurrentDb().OpenRecordset("hsoCalcStatus")
 Dim dOldStartDate As Date
 Dim dOldEndDate As Date
 Dim blOldOK As Boolean
+Dim blOldBlockDis As Boolean
 
 insTimes_IsMarkedOK_Est = False
 
@@ -1764,6 +1789,7 @@ If Not geg.EOF Then
   blOldOK = Nz(geg("blInsTimesMarkedEst"))
   dOldStartDate = Nz(geg("insTimesEstStartDate"), #1/1/1900#)
   dOldEndDate = Nz(geg("insTimesEstEndDate"), #1/1/1900#)
+  blOldBlockDis = Nz(geg("blInsTimesEstBlockDis"), False)
 Else
  blOldOK = False
 End If
@@ -1790,6 +1816,11 @@ If (blOldOK) Then
       Exit Function
     End If
   End If
+  
+  If (blOldBlockDis <> blBlockDis) Then
+    Exit Function
+  End If
+  
   insTimes_IsMarkedOK_Est = True
 End If
 
