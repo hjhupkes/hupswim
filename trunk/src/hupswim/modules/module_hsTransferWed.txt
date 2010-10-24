@@ -1110,6 +1110,11 @@ outp.AddNew
   outp("ZW_PartOfRecord") = False
   outp("ZW_PartOfTimeArchive") = False
   
+  outp("ZW_HND_Free") = inp("HND_Free")
+  outp("ZW_HND_Breast") = inp("HND_Breast")
+  outp("ZW_HND_Medley") = inp("HND_Medley")
+  outp("ZW_HND_Exception") = inp("HND_Exception")
+  
 outp.Update
 
 
@@ -1132,9 +1137,11 @@ lnhExportZwemmers = False
 'dit zijn alle zwemmers, inclusief estafette zwemmers...
 
 Dim sql As String
-sql = "SELECT [dtDeelnemers].Startnummer, [dtLeden].Lidnr, [dtLeden].Geslacht, [dtLeden].Voornaam, [dtLeden].Voegsel, [dtLeden].Achternaam, [dtLeden].Geboortedatum, [dtLeden].vereniging " & _
+sql = "SELECT [dtDeelnemers].Startnummer, [dtLeden].Lidnr, [dtLeden].Geslacht, [dtLeden].Voornaam, [dtLeden].Voegsel, [dtLeden].Achternaam, [dtLeden].Geboortedatum, [dtLeden].vereniging, " & _
+   "[dtLeden].HND_Free, dtLeden.HND_Breast, dtLeden.HND_Medley, dtLeden.HND_Exception " & _
    "FROM [dtLeden] INNER JOIN (gIMP_LEN_Wedstrijden INNER JOIN [dtDeelnemers] ON gIMP_LEN_Wedstrijden.WE_ID = [dtDeelnemers].Wedstrijdnr) ON [dtLeden].Startnummer = [dtDeelnemers].Startnummer  " & _
-   "GROUP BY [dtDeelnemers].Startnummer, [dtLeden].Lidnr, [dtLeden].Geslacht, [dtLeden].Voornaam, [dtLeden].Voegsel, [dtLeden].Achternaam, [dtLeden].Geboortedatum, [dtLeden].vereniging; "
+   "GROUP BY [dtDeelnemers].Startnummer, [dtLeden].Lidnr, [dtLeden].Geslacht, [dtLeden].Voornaam, [dtLeden].Voegsel, [dtLeden].Achternaam, [dtLeden].Geboortedatum, [dtLeden].vereniging, " & _
+   "[dtLeden].HND_Free, dtLeden.HND_Breast, dtLeden.HND_Medley, dtLeden.HND_Exception; "
 
 Dim inp As Recordset
 Set inp = CurrentDb().OpenRecordset(sql)
@@ -2614,6 +2621,13 @@ zw("Voornaam") = inp("ZW_Voornaam")
 zw("Voegsel") = inp("ZW_Voegsel")
 zw("Achternaam") = inp("ZW_Achternaam")
 zw("Geboortedatum") = inp("ZW_Geboortedatum")
+
+zw("HND_Free") = inp("ZW_HND_Free")
+zw("HND_Breast") = inp("ZW_HND_Breast")
+zw("HND_Medley") = inp("ZW_HND_Medley")
+zw("HND_Exception") = inp("ZW_HND_Exception")
+
+
 
 'modification feb 2007: want to include vereniging
 If (blIsMultiVer) Then

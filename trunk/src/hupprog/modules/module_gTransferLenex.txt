@@ -39,7 +39,49 @@ Global Const LX_UNKNOWN_FAILURE = 5
 
 
 
+Private Function lenFormatHandicap(ByVal sHnd As String) As String
 
+lenFormatHandicap = ""
+If sHnd = "AB" Then
+  lenFormatHandicap = "GER.AB"
+ElseIf (sHnd = "GB") Then
+  lenFormatHandicap = "GER.GB"
+ElseIf (Left(sHnd, 1) = "S") Then
+  Dim lNr As Long
+  lNr = CLng(val(Right(sHnd, Len(sHnd) - 1)))
+  lenFormatHandicap = CStr(lNr)
+End If
+
+If (lenFormatHandicap = "") Then
+  lenFormatHandicap = "0"
+End If
+
+End Function
+
+Public Function lenParseHandicap(ByVal sLenHnd As String) As String
+
+lenParseHandicap = ""
+If sLenHnd = "GER.AB" Then
+  lenParseHandicap = "GER.AB"
+ElseIf (sLenHnd = "GER.GB") Then
+  lenParseHandicap = "GB"
+Else
+  Dim lNr As Long
+  lNr = CLng(val(sLenHnd))
+  Dim blIsValid As Boolean
+  blIsValid = False
+  If (lNr > 0) And (lNr <= 15) Then
+    blIsValid = True
+  ElseIf (lNr = 20) Or (lNr = 34) Or (lNr = 49) Then
+    blIsValid = True
+  End If
+  
+  If (blIsValid) Then
+    lenParseHandicap = "S" & CStr(lNr)
+  End If
+End If
+
+End Function
 
 
 
@@ -3342,6 +3384,10 @@ Dim ats As Recordset
 Set ats = CurrentDb().OpenRecordset(athlSQL)
 
 
+Dim skHnd As Recordset
+Set skHnd = CurrentDb().OpenRecordset("LEN_HANDICAP")
+skHnd.Index = "P"
+
 Dim maxUsedExtAthID As Long
 maxUsedExtAthID = -1
 
@@ -3420,6 +3466,29 @@ Do Until ats.EOF
     zwOutp("ZW_ExternalLicenseCode") = hzn(Code)
     
     zwOutp("ZW_Nation") = hzn(nation)
+    
+    
+    Dim tpHndID As Long
+    tpHndID = Nz(ats("SYS_REF_HANDICAP"), -1)
+    
+    If (tpHndID >= 0) Then
+      skHnd.Seek "=", tpHndID
+      If Not skHnd.NoMatch Then
+        Dim tpHndFree As String, tpHndBreast As String, tpHndMedley As String, tpHndException As String
+        
+        tpHndFree = lenParseHandicap(Nz(skHnd("LEN_free")))
+        tpHndBreast = lenParseHandicap(Nz(skHnd("LEN_breast")))
+        tpHndMedley = lenParseHandicap(Nz(skHnd("LEN_medley")))
+        
+        tpHndException = Nz(skHnd("LEN_exception"))
+        
+        zwOutp("ZW_HND_Free") = hzn(tpHndFree)
+        zwOutp("ZW_HND_Breast") = hzn(tpHndBreast)
+        zwOutp("ZW_HND_Medley") = hzn(tpHndMedley)
+        zwOutp("ZW_HND_Exception") = hzn(tpHndException)
+        
+      End If
+    End If
    
    
    
@@ -3429,6 +3498,8 @@ Loop
 
 appCleanRS zwOutp
 appCleanRS ats
+appCleanRS skHnd
+
 
 'Update ZW_PartOfTimeArchive
 Dim sql As String
@@ -6627,6 +6698,9 @@ Set results = CurrentDb().OpenRecordset("LEN_RESULTS")
 Dim archivedTimes As Recordset
 Set archivedTimes = CurrentDb().OpenRecordset("LEN_ARCHIVEDTIMES")
 
+Dim rsHnd As Recordset
+Set rsHnd = CurrentDb().OpenRecordset("LEN_HANDICAP")
+
 'first need to set INT_LEN_ID,
 'INT_HAS_RESULTS and INT_HAS_ENTRIES
 'for each swimmer.
@@ -6724,7 +6798,6 @@ Do Until atInp.EOF
     
     atOutp("LEN_FIRSTNAME") = atInp("ZW_Voornaam")
     atOutp("LEN_GENDER") = hzn(lenFormatGeslacht(Nz(atInp("ZW_Geslacht")), True))
-    atOutp("SYS_REF_HANDICAP") = Null
     atOutp("LEN_LASTNAME") = atInp("ZW_Achternaam")
     
     Dim licCode As String
@@ -6750,6 +6823,40 @@ Do Until atInp.EOF
     
     
     
+    Dim sHndFree As String, sHndBreast As String, sHndMedley As String, sHndException As String
+    sHndFree = Nz(atInp("ZW_HND_Free"))
+    sHndBreast = Nz(atInp("ZW_HND_Breast"))
+    sHndMedley = Nz(atInp("ZW_HND_Medley"))
+    sHndException = Nz(atInp("ZW_HND_Exception"))
+    
+    Dim blIsHandicap As Boolean
+    blIsHandicap = False
+    
+    If (sHndFree <> "") Or (sHndBreast <> "") Or (sHndMedley <> "") Or (sHndException <> "") Then
+      blIsHandicap = True
+    End If
+    
+    If Not blIsHandicap Then
+      atOutp("SYS_REF_HANDICAP") = Null
+    Else
+      atOutp("SYS_REF_HANDICAP") = athID
+      
+      rsHnd.AddNew
+        
+        rsHnd("ID_HANDICAP") = athID
+        
+        rsHnd("LEN_breast") = hzn(lenFormatHandicap(sHndBreast))
+        rsHnd("LEN_free") = hzn(lenFormatHandicap(sHndFree))
+        rsHnd("LEN_medley") = hzn(lenFormatHandicap(sHndMedley))
+        
+        rsHnd("LEN_exception") = hzn(sHndException)
+        
+      rsHnd.Update
+      
+    End If 'if not blIsHandicap
+    
+    
+    
     
   atOutp.Update
   
@@ -6766,6 +6873,7 @@ appCleanRS atColl
 appCleanRS entries
 appCleanRS results
 appCleanRS archivedTimes
+appCleanRS rsHnd
 
 lenWriteAthletesToXMLTables = True
 Exit Function
