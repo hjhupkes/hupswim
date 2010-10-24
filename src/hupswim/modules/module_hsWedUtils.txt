@@ -39,6 +39,7 @@ Public Const FNM_DE_PERS_VOORNM = "Voornaam"
 Public Const FNM_DE_PERS_VOEGSEL = "Voegsel"
 Public Const FNM_DE_PERS_QLF_DAT = "InsDat"
 Public Const FNM_DE_PERS_QLF_BAAN = "InsBaan"
+Public Const FNM_DE_PERS_HND_CODE = "HND_CODE"
 
 Public Const FNM_PL_WEDNR = "Wedstrijdnr"
 Public Const FNM_PL_WEDNR_TO_ORDER = "[dtDeelnemers].Wedstrijdnr"
@@ -65,6 +66,7 @@ Public Const FNM_DE_EST_RES = "EST_IsReserve"
 Public Const FNM_DE_EST_BM = "BM"
 Public Const FNM_DE_EST_QLF_DAT = "InsDat"
 Public Const FNM_DE_EST_QLF_BAAN = "InsBaan"
+Public Const FNM_DE_EST_HND_CODE = "HND_CODE"
 
 
 
@@ -105,6 +107,7 @@ Public Const FNM_TY_EST_EINDTIJD = "TY_Eindtijd"
 Public Const FNM_TY_EST_DIS = "TY_DIS"
 Public Const FNM_TY_EST_ESTNR = "TY_Estafettenummer"
 Public Const FNM_TY_EST_BM = "BM"
+Public Const FNM_TY_EST_HND_CODE = "HND_CODE"
 
 Public Const FNM_TY_PERS_START = "TY_Startnummer"
 Public Const FNM_TY_PERS_VER = "THIS_VER"
@@ -114,6 +117,7 @@ Public Const FNM_TY_PERS_EINDTIJD = "TY_Eindtijd"
 Public Const FNM_TY_PERS_DIS = "TY_DIS"
 Public Const FNM_TY_PERS_NAAM = "NAAM"
 Public Const FNM_TY_PERS_BM = "TY_BM"
+Public Const FNM_TY_PERS_HND_CODE = "HND_CODE"
 
 Public Const FNM_TY_WED = "TY_Wedstrijdnummer"
 Public Const FNM_TY_PROG = "TY_Programmanummer"
@@ -654,6 +658,9 @@ If (Not rs.EOF) Then
   wedInfo.qlfMaxDate = Nz(rs("KwalificatieMaxDatum"), #1/1/1900#)
   wedInfo.qlfRelayMode = Nz(rs("KwalificatieRelayMode"), RELAY_MODE_BOTH)
   
+  wedInfo.qlfBlockDis = Nz(rs("KwalificatieBlockDis"), False)
+  wedInfo.qlfBlockTst = Nz(rs("KwalificatieBlockTst"), False)
+  
   wedInfo.ageDate = Nz(rs("AgeDate"), #1/1/1900#)
   If (Not lenDateIsValid(wedInfo.ageDate)) Then
     'put ageDate at the date of the first part of the match
@@ -1064,3 +1071,24 @@ fNamesToUpdate(3) = "ESTINS_ExtInsWedNr"
 nTbs = 4
 
 End Sub
+
+'Prerequisite: analyzeEstafs needs to have been called.
+Public Function wedCalcHandicaps(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+On Error GoTo fout
+wedCalcHandicaps = False
+
+'We do nothing; hupswim has no need of handicaps to be available at the deelnemers level.
+
+wedCalcHandicaps = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next 'no current record.
+
+Dim errInf As ERR_INFO
+appRecordError "wedCalcHandicaps", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function

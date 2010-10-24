@@ -40,6 +40,7 @@ Public Const FNM_DE_PERS_VOORNM = "NA_Voornaam"
 Public Const FNM_DE_PERS_VOEGSEL = "NA_Voegsel"
 Public Const FNM_DE_PERS_QLF_DAT = "DE_QLF_Datum"
 Public Const FNM_DE_PERS_QLF_BAAN = "DE_QLF_Baan"
+Public Const FNM_DE_PERS_HND_CODE = "DE_HndCode"
 
 Public Const FNM_PL_WEDNR = "PL_Wedstrijdnummer"
 Public Const FNM_PL_PROG = "PL_Programmanummer"
@@ -66,6 +67,7 @@ Public Const FNM_DE_EST_RES = "DE_Reserve"
 Public Const FNM_DE_EST_BM = "DE_Buitenmededinging"
 Public Const FNM_DE_EST_QLF_DAT = "DE_QLF_Datum"
 Public Const FNM_DE_EST_QLF_BAAN = "DE_QLF_Baan"
+Public Const FNM_DE_EST_HND_CODE = "DE_HndCode"
 
 Public Const FNM_PR_OPM = "PR_Opmerking"
 Public Const FNM_PR_LIM = "PR_Limiet"
@@ -103,6 +105,7 @@ Public Const FNM_TY_EST_EINDTIJD = "TY_Eindtijd"
 Public Const FNM_TY_EST_DIS = "TY_DIS"
 Public Const FNM_TY_EST_ESTNR = "TY_Estafettenummer"
 Public Const FNM_TY_EST_BM = "TY_BM"
+Public Const FNM_TY_EST_HND_CODE = "TY_HndCode"
 
 Public Const FNM_TY_PERS_START = "TY_Startnummer"
 Public Const FNM_TY_PERS_VER = "TY_Vereniging"
@@ -112,6 +115,7 @@ Public Const FNM_TY_PERS_EINDTIJD = "TY_Eindtijd"
 Public Const FNM_TY_PERS_DIS = "TY_DIS"
 Public Const FNM_TY_PERS_NAAM = "NAAM"
 Public Const FNM_TY_PERS_BM = "TY_BM"
+Public Const FNM_TY_PERS_HND_CODE = "TY_HndCode"
 
 Public Const FNM_TY_WED = "TY_Wedstrijdnummer"
 Public Const FNM_TY_PROG = "TY_Programmanummer"
@@ -1166,3 +1170,182 @@ Public Sub wediMayDelete_prepareDeleteTables(ByRef nTbs As Integer, ByRef sTbNam
 nTbs = 0
 
 End Sub
+
+
+
+'Prerequisite: analyzeEstafs needs to have been called.
+Public Function wedCalcHandicaps(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
+On Error GoTo fout
+wedCalcHandicaps = False
+
+Dim wedInf As WED_BASIC_INFO
+Dim isFnd As Boolean
+
+If Not wedLookup(wednr, isFnd, wedInf) Then
+  Exit Function
+End If
+
+If Not isFnd Then
+  Err.Raise 1, , "Could not find wedstrijd: " & wednr
+End If
+
+
+Dim sql As String
+
+If (blEntireMeet) Then
+  sql = "UPDATE dtDeelnemers INNER JOIN dtWedstrijdGegevens ON dtDeelnemers.DE_Wedstrijdnummer = dtWedstrijdGegevens.WE_Wedstrijdnummer " & _
+        "SET dtDeelnemers.DE_HndCode = Null " & _
+        "WHERE (dtWedstrijdGegevens.WE_Wedstrijdnummer=" & wedInf.meetMainNr & ") OR (dtWedstrijdGegevens.WE_MainWedstrijdnummer=" & wedInf.meetMainNr & ");"
+Else
+  sql = "update dtDeelnemers set de_hndcode = null where de_wedstrijdnummer = " & wedInf.wednr & ";"
+End If
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+If (blEntireMeet) Then
+  sql = "UPDATE dtTijden INNER JOIN dtWedstrijdGegevens ON dtTijden.TY_Wedstrijdnummer = dtWedstrijdGegevens.WE_Wedstrijdnummer " & _
+        "SET dtTijden.TY_HndCode = Null " & _
+        "WHERE (dtWedstrijdGegevens.WE_Wedstrijdnummer=" & wedInf.meetMainNr & ") OR (dtWedstrijdGegevens.WE_MainWedstrijdnummer=" & wedInf.meetMainNr & ");"
+Else
+  sql = "update dtTijden set ty_hndcode = null where ty_wedstrijdnummer = " & wedInf.wednr & ";"
+End If
+
+DoCmd.SetWarnings False
+DoCmd.RunSQL sql
+DoCmd.SetWarnings True
+
+
+
+
+Dim skTd As Recordset
+Set skTd = CurrentDb().OpenRecordset("dtTijden")
+skTd.Index = "TY_Index"
+
+If (blEntireMeet) Then
+  sql = "SELECT dtDeelnemers.*, dtProgramma.PR_Afstand, dtProgramma.PR_Slag, dtNamen.NA_HND_Free, " & _
+      "dtNamen.NA_HND_Breast, dtNamen.NA_HND_Medley, dtWedstrijdGegevens.WE_MainWedstrijdnummer " & _
+      "FROM dtWedstrijdGegevens INNER JOIN (dtProgramma INNER JOIN (dtDeelnemers LEFT JOIN dtNamen ON " & _
+      "(dtDeelnemers.DE_Vereniging = dtNamen.NA_Vereniging) AND (dtDeelnemers.DE_Startnummer = dtNamen.NA_Startnummer)) " & _
+      "ON (dtProgramma.PR_Programmanummer = dtDeelnemers.DE_Programmanummer) AND " & _
+      "(dtProgramma.PR_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer)) ON dtWedstrijdGegevens.WE_Wedstrijdnummer = dtProgramma.PR_Wedstrijdnummer " & _
+      "WHERE (dtWedstrijdGegevens.WE_Wedstrijdnummer=" & wedInf.meetMainNr & ") OR (dtWedstrijdGegevens.WE_MainWedstrijdnummer=" & wedInf.meetMainNr & ");"
+Else
+  sql = "SELECT dtDeelnemers.*, dtProgramma.PR_Afstand, dtProgramma.PR_Slag, dtNamen.NA_HND_Free, dtNamen.NA_HND_Breast, dtNamen.NA_HND_Medley " & _
+      "FROM (dtProgramma INNER JOIN dtDeelnemers ON (dtProgramma.PR_Programmanummer = dtDeelnemers.DE_Programmanummer) AND " & _
+      "(dtProgramma.PR_Wedstrijdnummer = dtDeelnemers.DE_Wedstrijdnummer)) LEFT JOIN dtNamen ON (dtDeelnemers.DE_Startnummer = dtNamen.NA_Startnummer) AND (dtDeelnemers.DE_Vereniging = dtNamen.NA_Vereniging) " & _
+      "WHERE (dtDeelnemers.DE_Wedstrijdnummer=" & wednr & " );"
+End If
+
+
+
+
+Dim rsEstafs As Recordset
+Set rsEstafs = CurrentDb().OpenRecordset("~AN_Estafs")
+rsEstafs.Index = "P"
+
+Dim dlns As Recordset
+Set dlns = CurrentDb().OpenRecordset(sql)
+
+dlns.MoveFirst
+Do Until dlns.EOF
+  Dim isBM As Boolean
+     
+  isBM = Nz(dlns("DE_Buitenmededinging")) = "J"
+    
+    
+  If (Not isBM) Then
+    Dim tpWedNr As Long
+    tpWedNr = Nz(dlns("DE_Wedstrijdnummer"), -1)
+    
+    Dim tpProg As String
+    tpProg = Nz(dlns("DE_Programmanummer"))
+    
+    Dim tpAf As String, tpSlag As String
+    tpAf = Nz(dlns("PR_Afstand"))
+    tpSlag = Nz(dlns("PR_Slag"))
+    
+    Dim tpIsEstaf As Boolean
+    tpIsEstaf = (tpAf Like "*x*")
+    
+    Dim tpDlnIdx As Integer
+    tpDlnIdx = Nz(dlns("DE_Index"))
+    
+    Dim tpHndCode As String
+    tpHndCode = ""
+    
+    If (tpIsEstaf) Then
+      
+      Dim tpEstNr As Integer
+      tpEstNr = Nz(dlns("DE_Estafettenummer"))
+    
+      Dim tpVer As String
+      tpVer = Nz(dlns("DE_Vereniging"))
+      
+      rsEstafs.Seek "=", tpWedNr, tpProg, tpEstNr, tpVer
+      
+      If Not rsEstafs.NoMatch Then
+        'later on: need to calculate handicap for estafs
+      End If
+      
+    
+    Else
+      
+      If (tpSlag = "SCHOOL") Then
+        tpHndCode = Nz(dlns("NA_HND_BREAST"))
+      ElseIf (tpSlag = "MEDLEY") Then
+        tpHndCode = Nz(dlns("NA_HND_MEDLEY"))
+      Else
+        tpHndCode = Nz(dlns("NA_HND_FREE"))
+      End If
+      
+      
+    End If
+    
+    
+    If (tpHndCode <> "") Then
+      dlns.Edit
+        dlns("DE_HndCode") = hzn(tpHndCode)
+      dlns.Update
+      
+      skTd.Seek "=", tpDlnIdx
+      If Not skTd.NoMatch Then
+        skTd.Edit
+          skTd("TY_HndCode") = hzn(tpHndCode)
+        skTd.Update
+      End If
+      
+    End If
+
+  End If 'if not isBm
+    
+
+  dlns.MoveNext
+Loop
+
+
+appCleanRS dlns
+appCleanRS rsEstafs
+appCleanRS skTd
+
+wedCalcHandicaps = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next 'no current record.
+
+Dim errInf As ERR_INFO
+appRecordError "wedCalcHandicaps", errInf
+
+appCleanRS dlns
+appCleanRS rsEstafs
+appCleanRS skTd
+
+DoCmd.SetWarnings True
+
+appDisplayError errInf
+Exit Function
+
+End Function
