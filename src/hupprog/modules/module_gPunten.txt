@@ -146,6 +146,7 @@ Public Const PNT_TD_TO_PNT_MODE_SEC = 1
 Public Const PNT_TD_TO_PNT_MODE_SECFIFTY = 2
 Public Const PNT_TD_TO_PNT_MODE_SECHND = 3
 Public Const PNT_TD_TO_PNT_MODE_LEN = 4
+Public Const PNT_TD_TO_PNT_MODE_IPC_NED = 5
 
 
 Public Const PNT_DSQ_MODE_BLOCK = 1
@@ -935,6 +936,14 @@ If Not isFnd Then
 End If
 
 
+If (pntVerSecOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+  If Not wedCalcHandicaps(wedInf.wednr, pntInf.blEntireMeet) Then
+    Exit Function
+  End If
+End If
+
+
+
 
 
 
@@ -1168,6 +1177,9 @@ Do Until rsProgs.EOF
         End If
       Case PNT_TD_TO_PNT_MODE_LEN
         vvPnt = lenCalcFinaPoints(vvPntBaseTime, pntProgInf.Afstand, pntProgInf.slag, m_of_v(pntProgInf.cat), wedInf.baan)
+      Case PNT_TD_TO_PNT_MODE_IPC_NED
+        'we want lowest number of points; use "AB" handicap.
+        vvPnt = lenCalcIPCPoints(vvPntBaseTime, pntProgInf.Afstand, pntProgInf.slag, m_of_v(pntProgInf.cat), wedInf.baan, "AB")
     End Select
        
         
@@ -1205,6 +1217,8 @@ Do Until rsProgs.EOF
     Dim tpTd As Double
     Dim tpDis As String
     
+    Dim tpHndGes As String
+    Dim tpHndCode As String
            
         
     
@@ -1216,6 +1230,7 @@ Do Until rsProgs.EOF
       If (rsTd.EOF) Then
         tpVName = ""
       Else
+      
         If (pntProgInf.isEstaf) Then
           
           If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
@@ -1227,6 +1242,13 @@ Do Until rsProgs.EOF
             
             tpTd = Nz(rsTd(FNM_TY_EST_EINDTIJD))
             tpDis = Nz(rsTd(FNM_TY_EST_DIS))
+            
+            
+            tpHndGes = m_of_v(pntProgInf.cat)
+            tpHndCode = ""
+            If (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+              tpHndCode = Nz(rsTd(FNM_TY_EST_HND_CODE))
+            End If
             
           ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Or (pntCalcMode = PNT_CALC_MODE_TEST) Then
             tpVName = Nz(rsTd(FNM_DE_EST_VER))
@@ -1244,6 +1266,12 @@ Do Until rsProgs.EOF
               End If
             End If
             
+            tpHndGes = m_of_v(pntProgInf.cat)
+            tpHndCode = ""
+            If (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+              tpHndCode = Nz(rsTd(FNM_DE_EST_HND_CODE))
+            End If
+            
           End If
           
           
@@ -1258,6 +1286,13 @@ Do Until rsProgs.EOF
             
             tpTd = Nz(rsTd(FNM_TY_PERS_EINDTIJD))
             tpDis = Nz(rsTd(FNM_TY_PERS_DIS))
+            
+            tpHndGes = Nz(rsTd(FNM_NA_GES))
+            tpHndCode = ""
+            If (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+              tpHndCode = Nz(rsTd(FNM_TY_PERS_HND_CODE))
+            End If
+            
           ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Or (pntCalcMode = PNT_CALC_MODE_TEST) Then
             tpVName = Nz(rsTd(FNM_DE_PERS_VER))
             tpEst = 0
@@ -1273,6 +1308,13 @@ Do Until rsProgs.EOF
                 tpDis = "DQ"
               End If
             End If
+            
+            tpHndGes = Nz(rsTd(FNM_NA_GES))
+            tpHndCode = ""
+            If (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+              tpHndCode = Nz(rsTd(FNM_DE_PERS_HND_CODE))
+            End If
+            
           End If
           
         End If 'if persoonlijk
@@ -1434,6 +1476,16 @@ Do Until rsProgs.EOF
             End If
           Case PNT_TD_TO_PNT_MODE_LEN
             pnt = lenCalcFinaPoints(pntCalcBaseTime, pntProgInf.Afstand, pntProgInf.slag, m_of_v(pntProgInf.cat), wedInf.baan)
+          Case PNT_TD_TO_PNT_MODE_IPC_NED
+            pnt = lenCalcIPCPoints(pntCalcBaseTime, pntProgInf.Afstand, pntProgInf.slag, tpHndGes, wedInf.baan, tpHndCode)
+            'In this case, pnt might be less than the vvPnt even if the time is faster then vvt (eg, when swimmer does not have a handicap).
+            'Need to address this here.
+            If (pnt < vvPnt) Then
+              pntIsVVT = True
+              pntIsDis = False
+              pntTvDis = 0
+              pnt = vvPnt
+            End If
         End Select
       End If
         
@@ -1444,7 +1496,7 @@ Do Until rsProgs.EOF
         Dim lPntToIns As Long
         lPntToIns = CLng(pnt * 100)
         
-        If (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Then
+        If (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Or (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
           'To get order correctly.
           lPntToIns = -lPntToIns
         End If
@@ -1556,7 +1608,7 @@ appCleanRS rsPntDLV
 Dim blSortAscending As Boolean
 blSortAscending = True
 
-If pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN Then
+If (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Or (pntVSOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
   blSortAscending = False
 End If
 
@@ -2769,10 +2821,10 @@ Do Until eofflag
           tpNewSecs = swtToSeconds(pnt("UT_Tijd" & sOndCode)) + Nz(pnt("UT_TDIS" & sOndCode))
           
           'now add the additional penalty factor
-          Dim tpAf As String, tpSl As String
+          Dim tpAf As String, tpSl As String, tpHndCode As String
           tpAf = Nz(pnt("UT_Afstand" & sOndCode))
           tpSl = Nz(pnt("UT_Slag" & sOndCode))
-          
+          tpHndCode = Nz(pnt("UT_HndCode" & sOndCode))
           
           Dim tpNewTime As Double
           If Not pntNewVVT(tpNewSecs, val(tpAf), pntIndOpts.vvtOpts, tpNewTime) Then
@@ -2786,6 +2838,8 @@ Do Until eofflag
             Select Case pntIndOpts.tdToPointMode
               Case PNT_TD_TO_PNT_MODE_LEN
                 tpNewPnts = lenCalcFinaPoints(tpNewTime, tpAf, tpSl, tpGes, wedInf.baan)
+              Case PNT_TD_TO_PNT_MODE_IPC_NED
+                tpNewPnts = lenCalcIPCPoints(tpNewTime, tpAf, tpSl, tpGes, wedInf.baan, tpHndCode)
               Case PNT_TD_TO_PNT_MODE_SEC
                 tpNewPnts = swtToSeconds(tpNewTime)
               Case PNT_TD_TO_PNT_MODE_SECFIFTY
@@ -2807,7 +2861,7 @@ Do Until eofflag
           
           If (tpNewPnts > 0.5) Then
             If (ondNewVVP(ondIdx) > 0.5) Then
-              If (pntIndOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Then
+              If (pntIndOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_LEN) Or (pntIndOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
                 If (tpNewPnts < ondNewVVP(ondIdx)) Then
                   ondNewVVP(ondIdx) = tpNewPnts
                 End If
@@ -2926,6 +2980,13 @@ End If
 
 If Not isFnd Then
   Err.Raise 1, , "Kon puntentelling: " & pntInfo.wednr & " , " & pntInfo.orderID & " )  niet vinden"
+End If
+
+
+If (pntIndOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+  If Not wedCalcHandicaps(wedInf.wednr, pntInfo.blEntireMeet) Then
+    Exit Function
+  End If
 End If
 
 
@@ -3067,7 +3128,7 @@ Dim curActIsDis(0 To PNT_IND_MAX_N_CATOND) As Boolean
 Dim curActTimes(0 To PNT_IND_MAX_N_CATOND) As Double
 Dim curActAfstand(0 To PNT_IND_MAX_N_CATOND) As String
 Dim curActSlag(0 To PNT_IND_MAX_N_CATOND) As String
-
+Dim curActHndCode(0 To PNT_IND_MAX_N_CATOND) As String
 
 Dim curPntTimes(0 To PNT_IND_MAX_N_CATOND) As Double
 Dim curPntTvDis(0 To PNT_IND_MAX_N_CATOND) As Double
@@ -3075,6 +3136,8 @@ Dim curPntIsVV(0 To PNT_IND_MAX_N_CATOND) As Boolean
 
 Dim curPoints(0 To PNT_IND_MAX_N_CATOND) As Double
 Dim curPointsValid(0 To PNT_IND_MAX_N_CATOND) As Boolean
+
+
 
 
 
@@ -3176,6 +3239,7 @@ Do Until blEOFFlag
                 outp("UT_IsDis" & .Code) = curActIsDis(curOndOffset + i)
                 outp("UT_Afstand" & .Code) = hzn(curActAfstand(curOndOffset + i))
                 outp("UT_Slag" & .Code) = hzn(curActSlag(curOndOffset + i))
+                outp("UT_HndCode" & .Code) = hzn(curActHndCode(curOndOffset + i))
               End If
             End With
           Next i
@@ -3313,6 +3377,7 @@ Do Until blEOFFlag
         curActPrognr(curOndOffset + i) = ""
         curActAfstand(curOndOffset + i) = ""
         curActSlag(curOndOffset + i) = ""
+        curActHndCode(curOndOffset + i) = ""
         
         curPntTvDis(curOndOffset + i) = 0
         
@@ -3406,17 +3471,24 @@ Do Until blEOFFlag
       Dim tpActTimeCorrected As Double
       Dim tpActTvDis As Double
       Dim tpIsBM As Boolean
-           
-           
+      
+      Dim tpHndCode As String
+      tpHndCode = ""
            
       If (pntCalcMode = PNT_CALC_MODE_RESULT) Then
         tpActTime = Nz(rs(FNM_TY_PERS_EINDTIJD))
         tpActDis = Nz(rs(FNM_TY_PERS_DIS))
         tpIsBM = Nz(rs(FNM_TY_PERS_BM) = "J")
+        If (pntIndOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+          tpHndCode = Nz(rs(FNM_TY_PERS_HND_CODE))
+        End If
       ElseIf (pntCalcMode = PNT_CALC_MODE_ESTIMATE) Then
         tpActTime = Nz(rs(FNM_DE_PERS_INSTD))
         tpActDis = ""
         tpIsBM = Nz(rs(FNM_DE_PERS_BM) = "J")
+        If (pntIndOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+          tpHndCode = Nz(rs(FNM_DE_PERS_HND_CODE))
+        End If
       ElseIf (pntCalcMode = PNT_CALC_MODE_TEST) Then
         tpActTime = Nz(rs(FNM_DE_PERS_INSTD))
         tpActDis = ""
@@ -3425,6 +3497,10 @@ Do Until blEOFFlag
         'Assign random disqualifications for times which end in a nine.
         If (CLng(tpActTime * 100) Mod 10) = 9 Then
           tpActDis = "DQ"
+        End If
+        
+        If (pntIndOpts.tdToPointMode = PNT_TD_TO_PNT_MODE_IPC_NED) Then
+          tpHndCode = Nz(rs(FNM_DE_PERS_HND_CODE))
         End If
         
       End If
@@ -3473,6 +3549,9 @@ Do Until blEOFFlag
           Select Case pntIndOpts.tdToPointMode
             Case PNT_TD_TO_PNT_MODE_LEN
               tpPnts = lenCalcFinaPoints(tpActTimeCorrected, tpPntProgInfo.Afstand, tpPntProgInfo.slag, curGeslacht, wedInf.baan)
+              tpPntVVPnts = catOnd(tpOndIdx).vvPnts
+            Case PNT_TD_TO_PNT_MODE_IPC_NED
+              tpPnts = lenCalcIPCPoints(tpActTimeCorrected, tpPntProgInfo.Afstand, tpPntProgInfo.slag, curGeslacht, wedInf.baan, tpHndCode)
               tpPntVVPnts = catOnd(tpOndIdx).vvPnts
             Case PNT_TD_TO_PNT_MODE_SEC
               tpPnts = swtToSeconds(tpActTimeCorrected)
@@ -3562,6 +3641,7 @@ Do Until blEOFFlag
           curActIsDis(tpOndIdx) = (tpActDis <> "")
           curActAfstand(tpOndIdx) = tpPntProgInfo.Afstand
           curActSlag(tpOndIdx) = tpPntProgInfo.slag
+          curActHndCode(tpOndIdx) = tpHndCode
           
           curPntIsVV(tpOndIdx) = tpPntIsVV
           curPntTimes(tpOndIdx) = tpPntTime
@@ -5115,6 +5195,9 @@ For i = 0 To nOnd - 1
     tbDef.Fields.Append fld
     
     Set fld = tbDef.CreateField("UT_Slag" & ondCodes(i), dbText, 20)
+    tbDef.Fields.Append fld
+    
+    Set fld = tbDef.CreateField("UT_HndCode" & ondCodes(i), dbText, 10)
     tbDef.Fields.Append fld
     
 

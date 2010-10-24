@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1853569985
+Checksum =-1363010774
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -46,9 +46,9 @@ Begin Report
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000180000000000102710271027 ,
         0x0000102700000000000000000000c40200000000000000000000000000000000 ,
-        0x000000000000000003000000000000000000100072bf030072bf030000000000 ,
+        0x00000000000000000300000000000000000010005c4b03006843040000000000 ,
         0x000000000000010000000000000000000000000000000000e7b14b4c03000000 ,
-        0x05000400ff000000000000000000000000000000000000000000000000000000 ,
+        0x05000a00ff000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
         0x0000000000000000000000000000000000000000000000000000000000000000 ,
@@ -2325,7 +2325,7 @@ Begin Report
                     ColumnWidth =0
                     TabIndex =5
                     Name ="Buitenmd"
-                    ControlSource ="=IIf([DE_Buitenmededinging]=\"J\",\"BM\",[de_A/B/C])"
+                    ControlSource ="=fmtPVDlnCode(nz([DE_Buitenmededinging]),nz([de_A/B/C]),\"\",nz([de_hndCode]))"
                 End
                 Begin TextBox
                     TextAlign =1
@@ -4397,16 +4397,19 @@ End If
 
 If (blIsUitslag Or blIsUitslagLijst) Then
   'ensure sufficient height.
-  Me.Section(acDetail).Height = 4 * (Me.Controls("tst").Height + Me.naam.Height + Me.Controls("opm").Height)
+  Me.Section(acDetail).Height = 4 * (Me.Controls("tst").Height + Me.naam.Height + Me.Controls("opm").Height + Me.Controls("fldAutoOpm").Height)
   
   a = applyfont(Me.Controls("tst"), fPO.FTussentijden, , True)
   a = applyfont(Me.Controls("opm"), fPO.FTussentijden, , True)
+  a = applyfont(Me.Controls("fldAutoOpm"), fPO.FTussentijden, , True)
 
  
   Me.Controls("opm").Top = Me.naam.Height
   Me.Controls("tst").Top = Me.Controls("opm").Top + Me.Controls("opm").Height
+  Me.Controls("fldAutoOpm").Top = Me.Controls("tst").Top + Me.Controls("tst").Height
   Me.Controls("tst").FontItalic = True
   Me.Controls("opm").FontItalic = True
+  Me.Controls("fldAutoOpm").FontItalic = True
   
   a = applyfont(Me.Controls("eindtijd"), fPO.FEindtijd, , True)
 
@@ -4414,7 +4417,8 @@ If (blIsUitslag Or blIsUitslagLijst) Then
   
   
   'Resize detail
-  Me.Section(acDetail).Height = Me.Controls("tst").Top + Me.Controls("tst").Height
+  'Me.Section(acDetail).Height = Me.Controls("tst").Top + Me.Controls("tst").Height
+  Me.Section(acDetail).Height = Me.Controls("fldAutoOpm").Top + Me.Controls("fldAutoOpm").Height
   
 Else
   Me.Section(acDetail).Height = Me.naam.Height

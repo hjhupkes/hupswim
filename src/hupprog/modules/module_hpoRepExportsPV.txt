@@ -125,8 +125,10 @@ Private Const RXP_PV_FLD_S_DLNINS_DAT_INT = "DeelnemerInschrijftijdDatumInt"
 
 Private Const RXP_PV_FLD_S_DLNABCCODE = "DeelnemerABCCode"
 Private Const RXP_PV_FLD_S_DLNCATCODE = "DeelnemerCatCode"
+Private Const RXP_PV_FLD_S_DLNHNDCODE = "DeelnemerHNDCode"
 Private Const RXP_PV_FLD_B_DLNISBM = "DeelnemerIsBM"
 Private Const RXP_PV_FLD_S_DLNCODE_FMT = "DeelnemerCodeFmt"
+Private Const RXP_PV_FLD_S_DLNCODE_NOCAT_FMT = "DeelnemerCodeNoCatFmt"
 Private Const RXP_PV_FLD_S_DLNCAPKLEUR = "DeelnemerCapKleur"
 Private Const RXP_PV_FLD_L_DLNCAPNR = "DeelnemerCapNummer"
 
@@ -159,6 +161,10 @@ Private Const RXP_PV_FLD_S_DLNLNGOPM = "Opmerking"
 
 Private Const RXP_PV_BNDD_ETST = "ExtraTussentijden"
 Private Const RXP_PV_FLD_S_ETST_FMT = "ExtraTussentijdenFmt"
+
+Private Const RXP_PV_BNDD_DLNAUTOOPM = "DeelnemerAutoOpmerking"
+Private Const RXP_PV_FLD_S_DLNAUTOOPM = "AutoOpmerking"
+
 
 Private Const RXP_PV_BNDH_PLKOP = "PloegledenKop"
 
@@ -304,9 +310,10 @@ cbExpPV_UTL_TxtRegDefaultFormat = False
 Dim tpPO As TProgrammaOpmaak
 Dim blShowRecs As Boolean, blEstafsIntern As Boolean
 
-Dim argPVFmtWedstrijdnummer As Long, argPVFmtName As String
+Dim argPVFmtWedstrijdnummer As Long, argPVFmtName As String, argPVRestrictRank As Boolean
 argPVFmtWedstrijdnummer = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_WED_NR))
 argPVFmtName = rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_NAME)
+argPVRestrictRank = rxpGetUserArg(rxpPnt, RXP_PV_ARG_RESTRICT_RNK)
 
 
 tpPO = Vraag_ProgrammaOpmaak(argPVFmtWedstrijdnummer, argPVFmtName)
@@ -484,7 +491,7 @@ Select Case bandName
       bndColFields(2) = RXP_PV_FLD_S_DLNVER_FMT
       bndColFields(3) = RXP_PV_FLD_S_DLNINS_FMT
       bndColFields(4) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      bndColFields(5) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
       bndColFields(6) = RXP_PV_FLD_S_DLN_ET_FMT
       bndColFields(7) = RXP_PV_FLD_S_DLNDISOPM_FMT
       bndColFields(8) = RXP_PV_FLD_S_DLN_TST1_FMT
@@ -510,7 +517,7 @@ Select Case bandName
       bndColFields(1) = RXP_PV_FLD_S_DLNNAAM
       bndColFields(2) = RXP_PV_FLD_S_DLNVER_FMT
       bndColFields(3) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(4) = RXP_PV_FLD_S_DLNCODE_FMT
+      bndColFields(4) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
       bndColFields(5) = RXP_PV_FLD_S_DLNCAPKLEUR
       bndColFields(6) = RXP_PV_FLD_L_DLNCAPNR
       bndColFields(7) = RXP_PV_FLD_S_DLN_ET_FMT
@@ -534,6 +541,11 @@ Select Case bandName
       bndColFields(0) = RXP_PV_FLD_S_ETST_FMT
       bndNCols = 1
     End If
+  Case RXP_PV_BNDD_DLNAUTOOPM
+    bndColWidths(0) = RXP_UTL_TXT_FULL_WIDTH
+    bndColMultiLine(0) = True
+    bndColFields(0) = RXP_PV_FLD_S_DLNAUTOOPM
+    bndNCols = 1
     
   
   Case RXP_PV_BNDD_PLLINE
@@ -607,7 +619,7 @@ Select Case bandName
     End If
     'ensures printing of empty line
   Case RXP_PV_BNDD_DISCODE
-    If Not (tpPO.blDisTonen) Then
+    If (Not (tpPO.blDisTonen)) Or argPVRestrictRank Then
       blIgnoreBand = True
     Else
       bndColWidths(0) = 4
@@ -620,7 +632,7 @@ Select Case bandName
       bndNCols = 2
     End If
   Case RXP_PV_BNDT_DISCODESTAIL
-    If Not (tpPO.blDisTonen) Then
+    If (Not (tpPO.blDisTonen)) Or argPVRestrictRank Then
       blIgnoreBand = True
     End If
     'This ensures that an empty line is printed.
@@ -799,10 +811,10 @@ cbExpPV_UTL_HTMLRegDefaultFormat = False
 Dim tpPO As TProgrammaOpmaak
 Dim blShowRecs As Boolean, blEstafsIntern As Boolean
 
-Dim argPVFmtWedstrijdnummer As Long, argPVFmtName As String
+Dim argPVFmtWedstrijdnummer As Long, argPVFmtName As String, argPVRestrictRank As Boolean
 argPVFmtWedstrijdnummer = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_WED_NR))
 argPVFmtName = rxpGetUserArg(rxpPnt, RXP_PV_ARG_PV_FMT_NAME)
-
+argPVRestrictRank = rxpGetUserArg(rxpPnt, RXP_PV_ARG_RESTRICT_RNK)
 
 tpPO = Vraag_ProgrammaOpmaak(argPVFmtWedstrijdnummer, argPVFmtName)
 blShowRecs = tpPO.blRecsTonen
@@ -1051,7 +1063,7 @@ Select Case bandName
       bndColFields(2) = RXP_PV_FLD_S_DLNVER_FMT
       bndColFields(3) = RXP_PV_FLD_S_DLNINS_FMT
       bndColFields(4) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      bndColFields(5) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
       bndColFields(6) = RXP_PV_FLD_S_DLN_ET_FMT
       bndColFields(7) = RXP_PV_FLD_S_DLNDISOPM_FMT
       bndColFields(8) = RXP_PV_FLD_S_DLN_TST1_FMT
@@ -1071,7 +1083,7 @@ Select Case bandName
       bndColFields(1) = RXP_PV_FLD_S_DLNNAAM
       bndColFields(2) = RXP_PV_FLD_S_DLNVER_FMT
       bndColFields(3) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(4) = RXP_PV_FLD_S_DLNCODE_FMT
+      bndColFields(4) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
       bndColFields(5) = RXP_PV_FLD_S_DLNCAPKLEUR
       bndColFields(6) = RXP_PV_FLD_L_DLNCAPNR
       bndColFields(7) = RXP_PV_FLD_S_DLN_ET_FMT
@@ -1084,6 +1096,7 @@ Select Case bandName
   Case RXP_PV_BNDD_DLNLNGOPM
     bndColSpans(0) = RXP_UTL_HTML_N_COLS
     bndColFields(0) = RXP_PV_FLD_S_DLNLNGOPM
+    bndColItalic(0) = True
     bndNCols = 1
   Case RXP_PV_BNDD_ETST
     If (tpPO.blHideExtraTst) Then
@@ -1091,9 +1104,14 @@ Select Case bandName
     Else
       bndColSpans(0) = RXP_UTL_HTML_N_COLS
       bndColFields(0) = RXP_PV_FLD_S_ETST_FMT
+      bndColItalic(0) = True
       bndNCols = 1
     End If
-    
+  Case RXP_PV_BNDD_DLNAUTOOPM
+    bndColSpans(0) = RXP_UTL_HTML_N_COLS
+    bndColFields(0) = RXP_PV_FLD_S_DLNAUTOOPM
+    bndColItalic(0) = True
+    bndNCols = 1
   
   Case RXP_PV_BNDD_PLLINE
     If (Not blEstafsIntern) Then
@@ -1182,7 +1200,7 @@ Select Case bandName
     End If
     'ensures printing of empty line
   Case RXP_PV_BNDD_DISCODE
-    If Not (tpPO.blDisTonen) Then
+    If (Not (tpPO.blDisTonen)) Or (argPVRestrictRank) Then
       blIgnoreBand = True
     Else
       bndColSpans(1) = RXP_UTL_HTML_N_COLS - 1
@@ -1193,7 +1211,7 @@ Select Case bandName
       bndNCols = 2
     End If
   Case RXP_PV_BNDT_DISCODESTAIL
-    If Not (tpPO.blDisTonen) Then
+    If (Not (tpPO.blDisTonen)) Or (argPVRestrictRank) Then
       blIgnoreBand = True
     End If
     'This ensures that an empty line is printed.
@@ -1752,6 +1770,15 @@ Select Case bandName
         bndColFields(0) = RXP_PV_FLD_S_ETST_FMT
         bndNCols = 1
       End If
+    End If
+  Case RXP_PV_BNDD_DLNAUTOOPM
+    If (pvType = RXP_PV_TYPE_PRG) Then
+      blIgnoreBand = True
+    Else
+      bndColWidths(0) = RXP_UTB_TXT_FULL_WIDTH
+      bndColMultiLine(0) = True
+      bndColFields(0) = RXP_PV_FLD_S_DLNAUTOOPM
+      bndNCols = 1
     End If
     
   
@@ -2346,6 +2373,15 @@ Select Case bandName
         bndColFields(0) = RXP_PV_FLD_S_ETST_FMT
         bndNCols = 1
       End If
+    End If
+  Case RXP_PV_BNDD_DLNAUTOOPM
+    If (pvType = RXP_PV_TYPE_PRG) Then
+      blIgnoreBand = True
+    Else
+      bndColSpans(0) = RXP_UTB_HTML_N_COLS
+      bndColItalic(0) = True
+      bndColFields(0) = RXP_PV_FLD_S_DLNAUTOOPM
+      bndNCols = 1
     End If
     
   
@@ -2991,7 +3027,11 @@ Select Case bandName
       bndColFields(2) = RXP_PV_FLD_S_DLNVER_FMT
       bndColFields(3) = RXP_PV_FLD_S_DLNINS_FMT
       bndColFields(4) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      If (pvType = RXP_PV_TYPE_STLGRP) Then
+        bndColFields(5) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
+      Else
+        bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      End If
       bndColFields(6) = RXP_PV_FLD_S_DLNRES_FMT
       
       If (tpPO.blShowQlfDataSTL) Then
@@ -3021,7 +3061,11 @@ Select Case bandName
       bndColFields(1) = RXP_PV_FLD_S_DLNNAAM
       bndColFields(2) = RXP_PV_FLD_S_DLNVER_FMT
       bndColFields(3) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(4) = RXP_PV_FLD_S_DLNCODE_FMT
+      If (pvType = RXP_PV_TYPE_STLGRP) Then
+        bndColFields(4) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
+      Else
+        bndColFields(4) = RXP_PV_FLD_S_DLNCODE_FMT
+      End If
       bndColFields(5) = RXP_PV_FLD_S_DLNRES_FMT
       bndColFields(6) = RXP_PV_FLD_L_DLNCAPNR
       
@@ -3562,7 +3606,11 @@ Select Case bandName
       bndColFields(2) = RXP_PV_FLD_S_DLNVER_FMT
       bndColFields(3) = RXP_PV_FLD_S_DLNINS_FMT
       bndColFields(4) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      If (pvType = RXP_PV_TYPE_STLGRP) Then
+        bndColFields(5) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
+      Else
+        bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      End If
       bndColFields(6) = RXP_PV_FLD_S_DLNRES_FMT
       
       If (tpPO.blShowQlfDataSTL) Then
@@ -3592,7 +3640,13 @@ Select Case bandName
       
       bndColFixedText(3) = ""
       bndColFields(4) = RXP_PV_FLD_S_DLNSTART
-      bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      
+      If (pvType = RXP_PV_TYPE_STLGRP) Then
+        bndColFields(5) = RXP_PV_FLD_S_DLNCODE_NOCAT_FMT
+      Else
+        bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
+      End If
+      
       bndColFields(6) = RXP_PV_FLD_S_DLNRES_FMT
       bndColFields(7) = RXP_PV_FLD_L_DLNCAPNR
       
@@ -5272,14 +5326,16 @@ Do Until blProgsDone
   
     rxpSetProperty RXP_PV_FLD_B_DLNISBM, rxpFormatBoolean(dlnIsBM), rxpRS, maxUsedRXID
     rxpSetProperty RXP_PV_FLD_S_DLNABCCODE, Nz(geg("DE_A/B/C")), rxpRS, maxUsedRXID
+    rxpSetProperty RXP_PV_FLD_S_DLNCATCODE, Nz(geg("DE_CatCode")), rxpRS, maxUsedRXID
+    rxpSetProperty RXP_PV_FLD_S_DLNHNDCODE, Nz(geg("DE_HndCode")), rxpRS, maxUsedRXID
   
-    If (dlnIsBM) Then
-      rxpSetProperty RXP_PV_FLD_S_DLNCODE_FMT, "BM", rxpRS, maxUsedRXID
-    Else
-      rxpSetProperty RXP_PV_FLD_S_DLNCODE_FMT, Nz(geg("DE_A/B/C")), rxpRS, maxUsedRXID
-    End If
-  
-  
+    Dim dlnCode As String, dlnCodeNoCat As String
+    dlnCode = fmtPVDlnCode(Nz(geg("DE_Buitenmededinging")), Nz(geg("DE_A/B/C")), Nz(geg("DE_CatCode")), Nz(geg("DE_HndCode")))
+    dlnCodeNoCat = fmtPVDlnCode(Nz(geg("DE_Buitenmededinging")), Nz(geg("DE_A/B/C")), "", Nz(geg("DE_HndCode")))
+    
+    rxpSetProperty RXP_PV_FLD_S_DLNCODE_FMT, dlnCode, rxpRS, maxUsedRXID
+    rxpSetProperty RXP_PV_FLD_S_DLNCODE_NOCAT_FMT, dlnCodeNoCat, rxpRS, maxUsedRXID
+    
     Dim sDlnDis As String
     sDlnDis = Nz(geg("TY_DIS"))
   
@@ -5406,6 +5462,16 @@ Do Until blProgsDone
         rxpOpenBand RXP_PV_BNDD_ETST, RXP_BNDTYPE_DETAIL, rxpRS, maxUsedRXID
         rxpSetProperty RXP_PV_FLD_S_ETST_FMT, tstStr, rxpRS, maxUsedRXID
         rxpCloseBand RXP_PV_BNDD_ETST, RXP_BNDTYPE_DETAIL, rxpRS, maxUsedRXID
+      End If
+      
+      Dim dlnAutoOpm As String
+      dlnAutoOpm = Nz(geg("TY_AutoOpmerking"))
+      
+      If (dlnAutoOpm <> "") Then
+        'begin opmerking band
+        rxpOpenBand RXP_PV_BNDD_DLNAUTOOPM, RXP_BNDTYPE_DETAIL, rxpRS, maxUsedRXID
+        rxpSetProperty RXP_PV_FLD_S_DLNAUTOOPM, dlnAutoOpm, rxpRS, maxUsedRXID
+        rxpCloseBand RXP_PV_BNDD_DLNAUTOOPM, RXP_BNDTYPE_DETAIL, rxpRS, maxUsedRXID
       End If
       
       
