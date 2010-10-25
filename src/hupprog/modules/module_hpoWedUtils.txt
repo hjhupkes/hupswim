@@ -331,8 +331,53 @@ End If 'both times are valid
 End Sub
 
 
+Private Function wedBaanIndeling_shouldProcess(ByRef rsDln As Recordset, ByRef skTd As Recordset, ByVal blExcludeAFM As Boolean, ByVal blExcludeNG As Boolean, ByVal blExcludeNGZA As Boolean) As Boolean
 
-Private Function wedBaanIndeling_perform(ByVal lProgWedNr As Long, ByVal sProgNr As String, ByVal sProgAf As String, ByVal sProgSl As String, ByVal sProgGes As String, ByRef wedInf As WED_BASIC_INFO, ByVal blWisselBuiten As Boolean, ByVal blMinThreePerSer As Boolean, ByVal blOlympic As Boolean, ByRef wsLastUsedPosition As Integer) As Boolean
+Dim blProcess As Boolean
+blProcess = True
+
+If (blProcess) Then
+  If Nz(rsDln("de_reserve")) = "J" Then
+    blProcess = False
+  End If
+End If
+
+If (blProcess) Then
+
+  If (blExcludeAFM Or blExcludeNG Or blExcludeNGZA) Then
+    Dim dlnIdx As Long
+    dlnIdx = Nz(rsDln("DE_Index"))
+  
+    Dim tpDis As String
+    tpDis = ""
+    
+    skTd.Seek "=", dlnIdx
+    If Not skTd.NoMatch Then
+      tpDis = Nz(skTd("TY_Dis"))
+    End If
+    
+    If (blExcludeAFM) And tpDis = DIS_AFM Then
+      blProcess = False
+    End If
+    If (blExcludeNG) And tpDis = DIS_NG Then
+      blProcess = False
+    End If
+    If (blExcludeNGZA) And tpDis = DIS_NGZA Then
+      blProcess = False
+    End If
+    
+  End If
+End If
+
+wedBaanIndeling_shouldProcess = blProcess
+End Function
+
+
+Private Function wedBaanIndeling_perform(ByVal lProgWedNr As Long, ByVal sProgNr As String, _
+  ByVal sProgAf As String, ByVal sProgSl As String, ByVal sProgGes As String, _
+  ByRef wedInf As WED_BASIC_INFO, ByVal blWisselBuiten As Boolean, _
+  ByVal blMinThreePerSer As Boolean, ByVal blOlympic As Boolean, ByRef wsLastUsedPosition As Integer, _
+  ByVal blExcludeAFM As Boolean, ByVal blExcludeNG As Boolean, ByVal blExcludeNGZA As Boolean) As Boolean
 On Error GoTo fout
 wedBaanIndeling_perform = False
 
@@ -345,22 +390,22 @@ iFirstBaan = Nz(DLookup("WE_Eerste_Baan", "dtWedstrijdGegevens", "[WE_Wedstrijdn
 
 Dim baanVolgorde(0 To 20) As Integer
 If Not bnVolgorde(baanVolgorde, nBanen, iFirstBaan) Then
-  Exit Function
+  appRaiseSilentError
 End If
 
 'This can no longer be enforced.
 If (nBanen <= 4) Then
- blMinThreePerSer = False
+  blMinThreePerSer = False
 End If
 
 Dim rs25 As Recordset, rs50 As Recordset
 
 Dim sql25 As String, sql50 As String
 
-sql25 = "select * from dtDeelnemers where nz([de_qlf_baan],0) <> 50 and de_wedstrijdnummer=" & lProgWedNr & " and de_programmanummer=""" & sProgNr & """ and de_reserve <> ""J"" " & _
+sql25 = "select * from dtDeelnemers where nz([de_qlf_baan],0) <> 50 and de_wedstrijdnummer=" & lProgWedNr & " and de_programmanummer=""" & sProgNr & """  " & _
   "ORDER BY swtOrder([de_inschrijftijd]);"
   
-sql50 = "select * from dtDeelnemers where nz([de_qlf_baan],0) = 50 and de_wedstrijdnummer=" & lProgWedNr & " and de_programmanummer=""" & sProgNr & """ and de_reserve <> ""J"" " & _
+sql50 = "select * from dtDeelnemers where nz([de_qlf_baan],0) = 50 and de_wedstrijdnummer=" & lProgWedNr & " and de_programmanummer=""" & sProgNr & """  " & _
   "ORDER BY swtOrder([de_inschrijftijd]);"
 
   
@@ -368,19 +413,30 @@ Set rs25 = CurrentDb().OpenRecordset(sql25)
 Set rs50 = CurrentDb().OpenRecordset(sql50)
 
 
+Dim skTd As Recordset
+Set skTd = CurrentDb().OpenRecordset("dtTijden")
+skTd.Index = "TY_Index"
+
 Dim nDeeln As Integer
 nDeeln = 0
 
-rs25.MoveLast
-If (Not rs25.EOF) Then
-  nDeeln = rs25.RecordCount
-End If
+'Get a count of the number of deelns that need to be processed
 
-rs50.MoveLast
-If (Not rs50.EOF) Then
-  nDeeln = nDeeln + rs50.RecordCount
-End If
+rs25.MoveFirst
+Do Until rs25.EOF
+  If wedBaanIndeling_shouldProcess(rs25, skTd, blExcludeAFM, blExcludeNG, blExcludeNGZA) Then
+    nDeeln = nDeeln + 1
+  End If
+  rs25.MoveNext
+Loop
 
+rs50.MoveFirst
+Do Until rs50.EOF
+  If wedBaanIndeling_shouldProcess(rs50, skTd, blExcludeAFM, blExcludeNG, blExcludeNGZA) Then
+    nDeeln = nDeeln + 1
+  End If
+  rs50.MoveNext
+Loop
 
 
 Dim nSeries As Integer
@@ -435,67 +491,89 @@ Do Until (rs25.EOF And rs50.EOF)
     tpInsTime50 = Nz(rs50("DE_Inschrijftijd"), 0)
     wedInsTimeGetPriority wedInf, tpInsTime25, tpInsTime50, sProgAf, sProgSl, sProgGes, blProc25
   End If 'if eof
-
+  
+    
+    
+  Dim blProcess As Boolean
   'position deelnemer
   If (blProc25) Then
-    rs25.Edit
-      rs25("DE_Serienummer") = curSerie
-      rs25("DE_Baan") = baanVolgorde(curPosInSerie)
-    rs25.Update
+    blProcess = wedBaanIndeling_shouldProcess(rs25, skTd, blExcludeAFM, blExcludeNG, blExcludeNGZA)
+    If (blProcess) Then
+      rs25.Edit
+        rs25("DE_Serienummer") = curSerie
+        rs25("DE_Baan") = baanVolgorde(curPosInSerie)
+      rs25.Update
+    Else
+      rs25.Edit
+        rs25("DE_Serienummer") = 0
+        rs25("DE_Baan") = 0
+      rs25.Update
+    End If
   Else
-    rs50.Edit
-      rs50("DE_Serienummer") = curSerie
-      rs50("DE_Baan") = baanVolgorde(curPosInSerie)
-    rs50.Update
+    blProcess = wedBaanIndeling_shouldProcess(rs50, skTd, blExcludeAFM, blExcludeNG, blExcludeNGZA)
+    If (blProcess) Then
+      rs50.Edit
+        rs50("DE_Serienummer") = curSerie
+        rs50("DE_Baan") = baanVolgorde(curPosInSerie)
+      rs50.Update
+    Else
+      rs50.Edit
+        rs50("DE_Serienummer") = 0
+        rs50("DE_Baan") = 0
+      rs50.Update
+    End If
   End If
   
-  curDlnLeft = curDlnLeft - 1
   
-  'move to next position.
-  If (blOlympMode) Then
-    'We are in Olympic mode
-    curSerie = curSerie - 1
-    If (curSerie < minOlympSerie) Then
-      curSerie = nSeries
-      curPosInSerie = curPosInSerie + 1
-    End If
-    If (curPosInSerie >= nBanen) Then
-      curSerie = minOlympSerie - 1
-      curPosInSerie = 0
-      blOlympMode = False
-    End If
-  Else
-    'Normal mode.
-    curPosInSerie = curPosInSerie + 1
-    If (curPosInSerie >= nBanen) Then
+  If (blProcess) Then
+    curDlnLeft = curDlnLeft - 1
+    
+    'move to next position.
+    If (blOlympMode) Then
+      'We are in Olympic mode
       curSerie = curSerie - 1
-      curPosInSerie = 0
-    End If
-    'First check to see if we should move to next serie because there
-    'are not enough deelns left.
-    'Update sep 2007: try not to let swimmers swim alone, even if blMinThreePerSer is turned off (for example due to the fact that nBanen <=3.
-    If ((blMinThreePerSer) And (curDlnLeft <= 3)) Or (curDlnLeft <= 2) Then
-      'Check if they cannot fit in current serie.
-      If ((nBanen - curPosInSerie) < curDlnLeft) Then
-        'have to move to next serie.
+      If (curSerie < minOlympSerie) Then
+        curSerie = nSeries
+        curPosInSerie = curPosInSerie + 1
+      End If
+      If (curPosInSerie >= nBanen) Then
+        curSerie = minOlympSerie - 1
+        curPosInSerie = 0
+        blOlympMode = False
+      End If
+    Else
+      'Normal mode.
+      curPosInSerie = curPosInSerie + 1
+      If (curPosInSerie >= nBanen) Then
         curSerie = curSerie - 1
         curPosInSerie = 0
       End If
-    End If
-  End If
-
-  If (blWisselBuiten) Then
-    'Check to see if we can manipulate the final swimmer.
-    If (curDlnLeft = 1) Then
-      If (curPosInSerie = nBanen - 2) Then
-        'We have the possibility to switch.
-        If (wsLastUsedPosition = nBanen - 2) Then
-          curPosInSerie = nBanen - 1
+      'First check to see if we should move to next serie because there
+      'are not enough deelns left.
+      'Update sep 2007: try not to let swimmers swim alone, even if blMinThreePerSer is turned off (for example due to the fact that nBanen <=3.
+      If ((blMinThreePerSer) And (curDlnLeft <= 3)) Or (curDlnLeft <= 2) Then
+        'Check if they cannot fit in current serie.
+        If ((nBanen - curPosInSerie) < curDlnLeft) Then
+          'have to move to next serie.
+          curSerie = curSerie - 1
+          curPosInSerie = 0
         End If
-        wsLastUsedPosition = curPosInSerie
       End If
     End If
-  End If
+  
+    If (blWisselBuiten) Then
+      'Check to see if we can manipulate the final swimmer.
+      If (curDlnLeft = 1) Then
+        If (curPosInSerie = nBanen - 2) Then
+          'We have the possibility to switch.
+          If (wsLastUsedPosition = nBanen - 2) Then
+            curPosInSerie = nBanen - 1
+          End If
+          wsLastUsedPosition = curPosInSerie
+        End If
+      End If
+    End If
+  End If 'if blProcess
 
 
 
@@ -508,17 +586,29 @@ Loop
 
 appCleanRS rs25
 appCleanRS rs50
+appCleanRS skTd
 
 wedBaanIndeling_perform = True
 Exit Function
+
 fout:
 If (Err = 3021) Then Resume Next ' no current record
-MsgBox Err & " wedBaanIndeling_perform" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "wedBaanIndeling_perform", errInf
+
+appCleanRS rs25
+appCleanRS rs50
+appCleanRS skTd
+
+appDisplayError errInf
 Exit Function
+
 End Function
 
 
-Public Function wedBaanIndeling(blHuidigProg As Boolean, blEntireMeet As Boolean, curProg As String, curWedNr As Long) As Boolean
+Public Function wedBaanIndeling(blHuidigProg As Boolean, blEntireMeet As Boolean, curProg As String, curWedNr As Long, _
+  ByVal blExcludeAFM As Boolean, ByVal blExcludeNG As Boolean, ByVal blExcludeNGZA As Boolean) As Boolean
 On Error GoTo fout
 wedBaanIndeling = False
 
@@ -528,7 +618,7 @@ Dim wedInf As WED_BASIC_INFO
 
 Dim isFnd As Boolean
 If Not wedLookup(curWedNr, isFnd, wedInf) Then
-  Exit Function
+  appRaiseSilentError
 End If
 
 If (Not isFnd) Then
@@ -537,7 +627,7 @@ End If
 
 
 If Not wedCalcEstQlfBn(wedInf, blHuidigProg, blEntireMeet, curProg) Then
-  Exit Function
+  appRaiseSilentError
 End If
 
 
@@ -590,27 +680,31 @@ Do Until progs.EOF
   
   
   
-  If Not wedBaanIndeling_perform(tpProgWedNr, tpProgNr, tpProgAf, tpProgSl, tpProgGes, wedInf, blWisselen, blMinThree, blOlympisch, wsLastUsed) Then
-    Exit Function
+  If Not wedBaanIndeling_perform(tpProgWedNr, tpProgNr, tpProgAf, tpProgSl, tpProgGes, wedInf, blWisselen, blMinThree, blOlympisch, wsLastUsed, _
+    blExcludeAFM, blExcludeNG, blExcludeNGZA) Then
+    appRaiseSilentError
   End If
 
 
   progs.MoveNext
 Loop
 
-
-
-
-
+appCleanRS progs
 
 wedBaanIndeling = True
 Exit Function
+
 fout:
 If (Err = 3021) Then Resume Next ' no current record.
-MsgBox Err & " wedBaanIndeling" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "wedBaanIndeling", errInf
+
+appCleanRS progs
+
+appDisplayError errInf
 Exit Function
-On Error GoTo 0
-Resume Next
+
 End Function
 
 

@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =881266981
+Checksum =2073764601
 Begin Form
     PopUp = NotDefault
     Modal = NotDefault
@@ -14,14 +14,15 @@ Begin Form
     BorderStyle =1
     PictureAlignment =2
     DatasheetGridlinesBehavior =3
-    GridY =10
+    GridX =50
+    GridY =50
     Width =6122
     DatasheetFontHeight =10
-    ItemSuffix =54
+    ItemSuffix =60
     Left =3030
     Top =2565
-    Right =9795
-    Bottom =6510
+    Right =10065
+    Bottom =8325
     DatasheetBackColor =16776960
     DatasheetGridlinesColor =65280
     RecSrcDt = Begin
@@ -87,14 +88,14 @@ Begin Form
             End
         End
         Begin Section
-            Height =1474
+            Height =3024
             BackColor =12632256
             Name ="Detail"
             Begin
                 Begin CheckBox
                     SpecialEffect =0
                     OverlapFlags =85
-                    Left =453
+                    Left =432
                     Top =199
                     Name ="blHuidig"
                     AfterUpdate ="[Event Procedure]"
@@ -103,7 +104,7 @@ Begin Form
                         Begin Label
                             BackStyle =1
                             OverlapFlags =85
-                            Left =795
+                            Left =766
                             Top =174
                             Width =3495
                             Height =240
@@ -115,7 +116,7 @@ Begin Form
                 Begin CheckBox
                     SpecialEffect =0
                     OverlapFlags =85
-                    Left =453
+                    Left =432
                     Top =597
                     TabIndex =1
                     Name ="blMeet"
@@ -124,7 +125,7 @@ Begin Form
                         Begin Label
                             BackStyle =1
                             OverlapFlags =85
-                            Left =787
+                            Left =766
                             Top =567
                             Width =3240
                             Height =225
@@ -169,6 +170,87 @@ Begin Form
                     TabIndex =3
                     Name ="Text52"
                     ControlSource ="=waarde_prog()"
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =432
+                    Top =1872
+                    TabIndex =4
+                    Name ="blExcludeAFM"
+                    DefaultValue ="False"
+                    GUID = Begin
+                        0x426bbb316e5bee4ea3f8dd5e42ca3e84
+                    End
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =766
+                            Top =1845
+                            Width =2820
+                            Height =240
+                            Name ="Label55"
+                            Caption ="Zwemmers met discode AFM uitsluiten "
+                            GUID = Begin
+                                0x6d0ba3c3af7edf46b46f4d948b90cbe6
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =432
+                    Top =2184
+                    TabIndex =5
+                    Name ="blExcludeNG"
+                    DefaultValue ="False"
+                    GUID = Begin
+                        0xcffaa23e0eb4024c9e48d8c5e61fc9e8
+                    End
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =766
+                            Top =2160
+                            Width =2730
+                            Height =240
+                            Name ="Label57"
+                            Caption ="Zwemmers met discode NG uitsluiten "
+                            GUID = Begin
+                                0x9bc8cc2f1edcc344982cd64282c4e7a9
+                            End
+                        End
+                    End
+                End
+                Begin CheckBox
+                    SpecialEffect =0
+                    OverlapFlags =85
+                    Left =432
+                    Top =2513
+                    TabIndex =6
+                    Name ="blExcludeNGZA"
+                    DefaultValue ="False"
+                    GUID = Begin
+                        0x665b6b0d4eaebb44a05c0b6b5bf2454c
+                    End
+                    Begin
+                        Begin Label
+                            BackStyle =1
+                            OverlapFlags =85
+                            Left =766
+                            Top =2477
+                            Width =2940
+                            Height =240
+                            Name ="Label59"
+                            Caption ="Zwemmers met discode NGZA uitsluiten "
+                            GUID = Begin
+                                0x0a64c0717e728445a613e60d3a8bb390
+                            End
+                        End
+                    End
                 End
             End
         End
@@ -285,10 +367,17 @@ If MsgBox("Baanindeling genereren?", 33) = 2 Then Exit Function
 
 Dim curProg As String, curWedNr As Long, curMeetMainNr As Long
 
+Dim optExcludeAFM As Boolean, optExcludeNG As Boolean, optExcludeNGZA As Boolean
+
+optExcludeAFM = Nz(Me.blExcludeAFM)
+optExcludeNG = Nz(Me.blExcludeNG)
+optExcludeNGZA = Nz(Me.blExcludeNGZA)
+
 curProg = waarde_prog()
 curWedNr = waarde()
 
-If Not wedBaanIndeling(blOptHuidig, blOptMeet, curProg, curWedNr) Then
+If Not wedBaanIndeling(blOptHuidig, blOptMeet, curProg, curWedNr, _
+  optExcludeAFM, optExcludeNG, optExcludeNGZA) Then
   Exit Function
 End If
 
