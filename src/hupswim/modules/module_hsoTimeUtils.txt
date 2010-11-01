@@ -3305,8 +3305,16 @@ Do Until blDone
             If (blProcessTime) Then
             
               curZwmPnts = curZwmPnts + tpPoints
+              
+              Dim tpCatInf As CAT_INFO
+              If (blUseLft) Then
+                tpCatInf = lftCats(curZwmCatIdx)
+              Else
+                tpCatInf.cat = ""
+                tpCatInf.bescat = ""
+              End If
         
-              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 25, curZwmCatIdx, lftCats(curZwmCatIdx), curFstTime25, curFstWed25, curFstDis25, _
+              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 25, curZwmCatIdx, tpCatInf, curFstTime25, curFstWed25, curFstDis25, _
                 tpPoints, tpLevel) Then
                 Exit Function
               End If
@@ -3382,15 +3390,23 @@ Do Until blDone
           
             If (blProcessTime) Then
               curZwmPnts = curZwmPnts + tpPoints
+              
+              
+              If (blUseLft) Then
+                tpCatInf = lftCats(curZwmCatIdx)
+              Else
+                tpCatInf.cat = ""
+                tpCatInf.bescat = ""
+              End If
         
-              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 50, curZwmCatIdx, lftCats(curZwmCatIdx), curFstTime50, curFstWed50, curFstDis50, _
+              If Not rnkBuildRanking_ProcessTime(outpDetails, skWed, curStart, curName, curVer, curAf, curSl, 50, curZwmCatIdx, tpCatInf, curFstTime50, curFstWed50, curFstDis50, _
                 tpPoints, tpLevel) Then
                 Exit Function
               End If
             Else
               tpPoints = 0
             End If 'if blProcessTime
-          
+
           End If 'if swtvalid
           
           If (tpPoints > LIMEPS) Then
