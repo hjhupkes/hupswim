@@ -5010,7 +5010,27 @@ If (blIsOW) Then
   Exit Sub
 End If
 
-If Not fPO.blLegeRegel Or FormatCount >= 2 Then Cancel = True
+If Not fPO.blLegeRegel Or FormatCount >= 2 Then
+  Cancel = True
+  Exit Sub
+End If
+
+Dim curDisCode As String, curSerNr As Long
+curDisCode = ""
+curSerNr = 0
+
+If (blIsProgramma) Then
+  If (blProgHideNgAfm) Then
+    curDisCode = Nz([ty_dis])
+    curSerNr = Nz([DE_Serienummer])
+    If (curSerNr = 0) And ((curDisCode = DIS_NG) Or (curDisCode = DIS_AFM)) Then
+      Cancel = True
+    End If
+  End If
+End If
+      
+      
+
 
 End Sub
 
@@ -5455,6 +5475,20 @@ If (blIsUitslag) Then
   If (Nz([DE_Reserve]) = "J") Or (Nz([ty_dis]) = DIS_AFM) Or (Nz([ty_dis]) = DIS_NG) Then Cancel = True
 ElseIf (blIsProgramma) Then
   If Nz([DE_Reserve]) = "J" Then Cancel = True
+End If
+
+Dim curDisCode As String, curSerNr As Long
+curDisCode = ""
+curSerNr = 0
+
+If (blIsProgramma) Then
+  If (blProgHideNgAfm) Then
+    curDisCode = Nz([ty_dis])
+    curSerNr = Nz([DE_Serienummer])
+    If (curSerNr = 0) And ((curDisCode = DIS_NG) Or (curDisCode = DIS_AFM)) Then
+      Cancel = True
+    End If
+  End If
 End If
 
 If IsNull([DE_Vereniging]) Then
