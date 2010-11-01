@@ -95,6 +95,7 @@ Private Const RXP_PV_FLD_B_SERISRESONLY = "SerieAlleenReserve"
 Private Const RXP_PV_FLD_S_SERNR = "SerieNummer"
 Private Const RXP_PV_FLD_S_SERSAMENVOEG = "SerieSamenvoegInfo"
 Private Const RXP_PV_FLD_S_SERNR_FMT = "SerieNummerFmt"
+Private Const RXP_PV_FLD_B_SERISHIDDEN = "SerieIsHidden"
 
 Private Const RXP_PV_BNDT_SERTAIL = "SerieStaart"
 
@@ -1935,10 +1936,11 @@ Select Case bndName
     blSkipDefaultOutput = True
     
   Case RXP_PV_BNDH_SERHEAD
-    Dim tpSerFmt As String
+    Dim tpSerFmt As String, tpSerIsHidden As Boolean
     tpSerFmt = rxpExtractField(RXP_PV_FLD_S_SERNR_FMT, rxpPnt)
+    tpSerIsHidden = rxpParseBoolean(rxpExtractField(RXP_PV_FLD_B_SERISHIDDEN, rxpPnt))
     
-    If (tpSerFmt = "") Then
+    If (tpSerFmt = "") Or tpSerIsHidden Then
       blSkipDefaultOutput = True
     End If
     
@@ -1967,7 +1969,12 @@ Select Case bndName
       End If
     
     End If 'if pvType = TYPE_PRG
-  
+    
+  Case RXP_PV_BNDT_SERTAIL
+    tpSerIsHidden = rxpParseBoolean(rxpExtractField(RXP_PV_FLD_B_SERISHIDDEN, rxpPnt))
+    If (tpSerIsHidden) Then
+      blSkipDefaultOutput = True
+    End If
     
   Case RXP_PV_BNDD_OWSTAT
     Dim nDln As Long, nZk As Long, nNG As Long, nNTG As Long, nGes As Long, nOpg As Long, nDis As Long, nArr As Long, nOnb As Long
@@ -2534,10 +2541,11 @@ Select Case bndName
     blSkipDefaultOutput = True
     
   Case RXP_PV_BNDH_SERHEAD
-    Dim tpSerFmt As String
+    Dim tpSerFmt As String, tpSerIsHidden As Boolean
     tpSerFmt = rxpExtractField(RXP_PV_FLD_S_SERNR_FMT, rxpPnt)
+    tpSerIsHidden = rxpParseBoolean(rxpExtractField(RXP_PV_FLD_B_SERISHIDDEN, rxpPnt))
     
-    If (tpSerFmt = "") Then
+    If (tpSerFmt = "") Or tpSerIsHidden Then
       blSkipDefaultOutput = True
     End If
     
@@ -2567,7 +2575,11 @@ Select Case bndName
     
     End If 'if pvType = TYPE_PRG
   
-  
+  Case RXP_PV_BNDT_SERTAIL
+    tpSerIsHidden = rxpParseBoolean(rxpExtractField(RXP_PV_FLD_B_SERISHIDDEN, rxpPnt))
+    If (tpSerIsHidden) Then
+      blSkipDefaultOutput = True
+    End If
     
   Case RXP_PV_BNDD_OWSTAT
     Dim nDln As Long, nZk As Long, nNG As Long, nNTG As Long, nGes As Long, nOpg As Long, nDis As Long, nArr As Long, nOnb As Long
@@ -4142,6 +4154,7 @@ Dim wednr As Long, blEntireMeet As Boolean, wedMainNr As Long, blIsOW As Boolean
 Dim sFirstProg As String, sLastProg As String
 Dim blRestrictRnk As Boolean, lMaxRnk As Long
 Dim blSingleProg As Boolean, sSingleProg As String
+Dim blProgHideNgAfm As Boolean
 
 wednr = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_WED_NR))
 blEntireMeet = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_ENTIRE_MEET))
@@ -4153,7 +4166,7 @@ blRestrictRnk = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_RESTRICT_RNK))
 lMaxRnk = CLng(rxpGetUserArg(rxpPnt, RXP_PV_ARG_MAX_RNK))
 blSingleProg = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_IS_SINGLE_PROG))
 sSingleProg = rxpGetUserArg(rxpPnt, RXP_PV_ARG_SINGLE_PROG)
-
+blProgHideNgAfm = rxpParseBoolean(rxpGetUserArg(rxpPnt, RXP_PV_ARG_PRG_HIDE_NG_AFM))
 
 
 
@@ -4209,7 +4222,7 @@ Select Case pvType
   Case RXP_PV_TYPE_UTL
     obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, nz([de_buitenmededinging]) DESC , nz([DE_A/B/C]), DE_CatIdx, TY_echtePlaats, TY_Eindtijd, TY_ab;"
   Case RXP_PV_TYPE_UTB
-    obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, de_reserve desc,de_serienummer,de_baan,de_int_cnt;"
+    obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, (nz([DE_Reserve])=""J"") Or (nz([ty_dis])=""AFM"") Or (nz([ty_dis])=""NG"") desc,de_serienummer,de_baan,de_int_cnt;"
   Case RXP_PV_TYPE_PRG
     obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, de_reserve desc,de_serienummer,de_baan,de_int_cnt;"
   Case RXP_PV_TYPE_STL
@@ -5153,11 +5166,32 @@ Do Until blProgsDone
     rxpSetProperty RXP_PV_FLD_S_SERNR, Nz(geg("DE_Serienummer")), rxpRS, maxUsedRXID
     rxpSetProperty RXP_PV_FLD_S_SERSAMENVOEG, Nz(geg("SA_Beschrijving")), rxpRS, maxUsedRXID
     
+    Dim tpSerDes As String, tpSerIsHidden As Boolean
+    tpSerDes = "Serie: " & Nz(geg("DE_Serienummer"))
+    tpSerIsHidden = False
+    
     If (tpReserve = "J") Then
-      rxpSetProperty RXP_PV_FLD_S_SERNR_FMT, "", rxpRS, maxUsedRXID
+      tpSerDes = ""
     Else
-      rxpSetProperty RXP_PV_FLD_S_SERNR_FMT, "Serie: " & Nz(geg("DE_Serienummer")), rxpRS, maxUsedRXID
+      If (pvType = RXP_PV_TYPE_PRG) Then
+        If blProgHideNgAfm Then
+          Dim tpSerDis As String
+          tpSerDis = Nz(geg("TY_Dis"))
+          If (tpSerie = 0) And ((tpSerDis = DIS_AFM) Or (tpSerDis = DIS_NG)) Then
+            tpSerDes = ""
+            tpSerIsHidden = True
+          End If
+        End If
+      ElseIf (pvType = RXP_PV_TYPE_UTB) Then
+        tpSerDis = Nz(geg("TY_Dis"))
+        If (tpSerDis = DIS_AFM) Or (tpSerDis = DIS_NG) Then
+          tpSerDes = ""
+        End If
+      End If
     End If
+    
+    rxpSetProperty RXP_PV_FLD_S_SERNR_FMT, tpSerDes, rxpRS, maxUsedRXID
+    rxpSetProperty RXP_PV_FLD_B_SERISHIDDEN, rxpFormatBoolean(tpSerIsHidden), rxpRS, maxUsedRXID
   
     rxpCloseBand RXP_PV_BNDH_SERHEAD, RXP_BNDTYPE_HEAD, rxpRS, maxUsedRXID
 
@@ -5192,7 +5226,7 @@ Do Until blProgsDone
  
   Dim curDisCode As String
   curDisCode = ""
-  If (pvType = RXP_PV_TYPE_UTB) Or (pvType = RXP_PV_TYPE_UTL) Then
+  If (pvType = RXP_PV_TYPE_UTB) Or (pvType = RXP_PV_TYPE_UTL) Or (pvType = RXP_PV_TYPE_PRG) Then
     curDisCode = Nz(geg("TY_Dis"))
   End If
 
@@ -5234,6 +5268,12 @@ Do Until blProgsDone
     If (Not blIsOW) Then
       If (Nz(geg("DE_Buitenmededinging")) = "J") Then
         dlnValid = False
+      End If
+    End If
+  ElseIf (pvType = RXP_PV_TYPE_PRG) Then
+    If (blProgHideNgAfm) Then
+      If (curDisCode = DIS_NG) Or (curDisCode = DIS_AFM) Then
+        dlnSkip = True
       End If
     End If
   End If 'case pvType
@@ -5423,10 +5463,15 @@ Do Until blProgsDone
       Dim tpDlnBn As Integer
       tpDlnBn = Nz(geg("DE_Baan"))
       
-      
       If (tpDlnIsRes) Then
         rxpSetProperty RXP_PV_FLD_I_DLNBAAN, 0, rxpRS, maxUsedRXID
         rxpSetProperty RXP_PV_FLD_S_DLNBAAN_FMT, "Res.", rxpRS, maxUsedRXID
+      ElseIf (pvType = RXP_PV_TYPE_UTB) And (curDisCode = DIS_AFM) Then
+        rxpSetProperty RXP_PV_FLD_I_DLNBAAN, 0, rxpRS, maxUsedRXID
+        rxpSetProperty RXP_PV_FLD_S_DLNBAAN_FMT, "Afg.", rxpRS, maxUsedRXID
+      ElseIf (pvType = RXP_PV_TYPE_UTB) And (curDisCode = DIS_NG) Then
+        rxpSetProperty RXP_PV_FLD_I_DLNBAAN, 0, rxpRS, maxUsedRXID
+        rxpSetProperty RXP_PV_FLD_S_DLNBAAN_FMT, "Ng.", rxpRS, maxUsedRXID
       Else
         rxpSetProperty RXP_PV_FLD_I_DLNBAAN, tpDlnBn, rxpRS, maxUsedRXID
         rxpSetProperty RXP_PV_FLD_S_DLNBAAN_FMT, tpDlnBn & ".", rxpRS, maxUsedRXID
