@@ -19,7 +19,8 @@ On Error Resume Next
 End Sub
 
 
-Public Function limDetermineFastTimes(ByVal wednr As Long, ByVal prognr As String, ByVal satisfiedVarCat As String, ByRef ins As Recordset, ByVal isWissel As Boolean, ByVal afNZw As Integer, ByRef snCnt25() As Integer, ByRef snMinUnblocked25() As Integer, ByRef snTd25() As Double, ByRef snSt25() As String, ByRef snInsWednr25() As Long, ByRef snNames25() As String, ByRef snBlocked25() As Boolean, ByRef snCnt50() As Integer, ByRef snMinUnblocked50() As Integer, ByRef snTd50() As Double, ByRef snSt50() As String, ByRef snInsWednr50() As Long, ByRef snNames50() As String, ByRef snBlocked50() As Boolean) As Boolean
+Public Function limDetermineFastTimes(ByVal wednr As Long, ByVal prognr As String, _
+  ByRef blkStarts() As String, ByVal nBlkStarts As Integer, ByVal satisfiedVarCat As String, ByRef ins As Recordset, ByVal isWissel As Boolean, ByVal afNZw As Integer, ByRef snCnt25() As Integer, ByRef snMinUnblocked25() As Integer, ByRef snTd25() As Double, ByRef snSt25() As String, ByRef snInsWednr25() As Long, ByRef snNames25() As String, ByRef snBlocked25() As Boolean, ByRef snCnt50() As Integer, ByRef snMinUnblocked50() As Integer, ByRef snTd50() As Double, ByRef snSt50() As String, ByRef snInsWednr50() As Long, ByRef snNames50() As String, ByRef snBlocked50() As Boolean) As Boolean
 On Error GoTo fout
 limDetermineFastTimes = False
 
@@ -64,119 +65,131 @@ While Not blDone
    
    tpStart = Nz(ins("PC_Startnummer"))
    tpName = Nz(ins("Naam"))
-
-   Dim td25 As Double
-   Dim insWedNr25 As Long
-   Dim td50 As Double
-   Dim insWedNr50 As Long
    
+   Dim tpProcess As Boolean
+   tpProcess = True
    
+   'Need to ignore swimmers from blkStarts list.
+   If (bSearchString(tpStart, nBlkStarts, blkStarts) >= 0) Then
+     tpProcess = False
+   End If
    
-   For slIdx = minSlIdx To maxSlIdx
-    
-     If Not isWissel Then
-       td25 = Nz(ins("PC_InsTime25"))
-       insWedNr25 = Nz(ins("PC_InsWedNr25"))
+   If (tpProcess) Then
+  
+     Dim td25 As Double
+     Dim insWedNr25 As Long
+     Dim td50 As Double
+     Dim insWedNr50 As Long
      
-       td50 = Nz(ins("PC_InsTime50"))
-       insWedNr50 = Nz(ins("PC_InsWedNr50"))
-     Else
-       Dim tpSlagSuffix As String
-       tpSlagSuffix = slWisselVolg(slIdx + 1)
+     
+     
+     For slIdx = minSlIdx To maxSlIdx
+      
+       If Not isWissel Then
+         td25 = Nz(ins("PC_InsTime25"))
+         insWedNr25 = Nz(ins("PC_InsWedNr25"))
        
-       td25 = Nz(ins("PC_InsTime25" & tpSlagSuffix))
-       insWedNr25 = Nz(ins("PC_InsWedNr25" & tpSlagSuffix))
-     
-       td50 = Nz(ins("PC_InsTime50" & tpSlagSuffix))
-       insWedNr50 = Nz(ins("PC_InsWedNr50" & tpSlagSuffix))
-     End If ' if not isWissel
-     
-     
-     If Not swtIsValid(td25) Then
-       td25 = 9999
-     End If
-     
-     If Not swtIsValid(td50) Then
-       td50 = 9999
-     End If
-     
-     'If 50m time happens to be faster, use that.
-     If (td50 < td25) Then
-       td25 = td50
-       insWedNr25 = insWedNr50
-     End If
-     
-     
-     'Tijden bepaald.
-     'Nu tijden toevoegen aan lijstje.
-  
-     Dim insPos As Integer
-     insPos = snCnt25(slIdx)
-  
-     Dim insDone As Boolean
-     insDone = (insPos <= 0)
-     While (Not insDone)
-       If (snTd25(slIdx, insPos - 1) > td25) Then
-         'shift everything, if possible
-         If (insPos < afNZw * MAX_KA_ESTAFS) Then
-           snTd25(slIdx, insPos) = snTd25(slIdx, insPos - 1)
-           snSt25(slIdx, insPos) = snSt25(slIdx, insPos - 1)
-           snInsWednr25(slIdx, insPos) = snInsWednr25(slIdx, insPos - 1)
-           snNames25(slIdx, insPos) = snNames25(slIdx, insPos - 1)
-         End If
-             
-         insPos = insPos - 1
-         If (insPos <= 0) Then
-           insDone = True
-         End If
+         td50 = Nz(ins("PC_InsTime50"))
+         insWedNr50 = Nz(ins("PC_InsWedNr50"))
        Else
-         insDone = True
+         Dim tpSlagSuffix As String
+         tpSlagSuffix = slWisselVolg(slIdx + 1)
+         
+         td25 = Nz(ins("PC_InsTime25" & tpSlagSuffix))
+         insWedNr25 = Nz(ins("PC_InsWedNr25" & tpSlagSuffix))
+       
+         td50 = Nz(ins("PC_InsTime50" & tpSlagSuffix))
+         insWedNr50 = Nz(ins("PC_InsWedNr50" & tpSlagSuffix))
+       End If ' if not isWissel
+       
+       
+       If Not swtIsValid(td25) Then
+         td25 = 9999
        End If
-     Wend 'while not insDone
-     If (insPos < afNZw * MAX_KA_ESTAFS) Then
-       snTd25(slIdx, insPos) = td25
-       snSt25(slIdx, insPos) = tpStart
-       snInsWednr25(slIdx, insPos) = insWedNr25
-       snNames25(slIdx, insPos) = tpName
-       If (snCnt25(slIdx) < afNZw * MAX_KA_ESTAFS) Then
-         snCnt25(slIdx) = snCnt25(slIdx) + 1
+       
+       If Not swtIsValid(td50) Then
+         td50 = 9999
        End If
-     End If
-  
-
-     'Repeat everyting for 50m
-     insPos = snCnt50(slIdx)
+       
+       'If 50m time happens to be faster, use that.
+       If (td50 < td25) Then
+         td25 = td50
+         insWedNr25 = insWedNr50
+       End If
+       
+       
+       'Tijden bepaald.
+       'Nu tijden toevoegen aan lijstje.
     
-     insDone = (insPos <= 0)
-     While (Not insDone)
-       If (snTd50(slIdx, insPos - 1) > td50) Then
-         'shift everything, if possible
-         If (insPos < afNZw * MAX_KA_ESTAFS) Then
-           snTd50(slIdx, insPos) = snTd50(slIdx, insPos - 1)
-           snSt50(slIdx, insPos) = snSt50(slIdx, insPos - 1)
-           snInsWednr50(slIdx, insPos) = snInsWednr50(slIdx, insPos - 1)
-           snNames50(slIdx, insPos) = snNames50(slIdx, insPos - 1)
-         End If
-        
-         insPos = insPos - 1
-         If (insPos <= 0) Then
+       Dim insPos As Integer
+       insPos = snCnt25(slIdx)
+    
+       Dim insDone As Boolean
+       insDone = (insPos <= 0)
+       While (Not insDone)
+         If (snTd25(slIdx, insPos - 1) > td25) Then
+           'shift everything, if possible
+           If (insPos < afNZw * MAX_KA_ESTAFS) Then
+             snTd25(slIdx, insPos) = snTd25(slIdx, insPos - 1)
+             snSt25(slIdx, insPos) = snSt25(slIdx, insPos - 1)
+             snInsWednr25(slIdx, insPos) = snInsWednr25(slIdx, insPos - 1)
+             snNames25(slIdx, insPos) = snNames25(slIdx, insPos - 1)
+           End If
+               
+           insPos = insPos - 1
+           If (insPos <= 0) Then
+             insDone = True
+           End If
+         Else
            insDone = True
          End If
-       Else
-         insDone = True
+       Wend 'while not insDone
+       If (insPos < afNZw * MAX_KA_ESTAFS) Then
+         snTd25(slIdx, insPos) = td25
+         snSt25(slIdx, insPos) = tpStart
+         snInsWednr25(slIdx, insPos) = insWedNr25
+         snNames25(slIdx, insPos) = tpName
+         If (snCnt25(slIdx) < afNZw * MAX_KA_ESTAFS) Then
+           snCnt25(slIdx) = snCnt25(slIdx) + 1
+         End If
        End If
-     Wend
-     If (insPos < afNZw * MAX_KA_ESTAFS) Then
-       snTd50(slIdx, insPos) = td50
-       snSt50(slIdx, insPos) = tpStart
-       snInsWednr50(slIdx, insPos) = insWedNr50
-       snNames50(slIdx, insPos) = tpName
-       If (snCnt50(slIdx) < afNZw * MAX_KA_ESTAFS) Then
-         snCnt50(slIdx) = snCnt50(slIdx) + 1
+    
+  
+       'Repeat everyting for 50m
+       insPos = snCnt50(slIdx)
+      
+       insDone = (insPos <= 0)
+       While (Not insDone)
+         If (snTd50(slIdx, insPos - 1) > td50) Then
+           'shift everything, if possible
+           If (insPos < afNZw * MAX_KA_ESTAFS) Then
+             snTd50(slIdx, insPos) = snTd50(slIdx, insPos - 1)
+             snSt50(slIdx, insPos) = snSt50(slIdx, insPos - 1)
+             snInsWednr50(slIdx, insPos) = snInsWednr50(slIdx, insPos - 1)
+             snNames50(slIdx, insPos) = snNames50(slIdx, insPos - 1)
+           End If
+          
+           insPos = insPos - 1
+           If (insPos <= 0) Then
+             insDone = True
+           End If
+         Else
+           insDone = True
+         End If
+       Wend
+       If (insPos < afNZw * MAX_KA_ESTAFS) Then
+         snTd50(slIdx, insPos) = td50
+         snSt50(slIdx, insPos) = tpStart
+         snInsWednr50(slIdx, insPos) = insWedNr50
+         snNames50(slIdx, insPos) = tpName
+         If (snCnt50(slIdx) < afNZw * MAX_KA_ESTAFS) Then
+           snCnt50(slIdx) = snCnt50(slIdx) + 1
+         End If
        End If
-     End If
-   
-   Next slIdx
+     
+     Next slIdx
+     
+   End If 'if tpProcess
 
    ins.MoveNext
    blDone = ins.EOF
@@ -226,7 +239,8 @@ Resume Next
 End Function
 
 
-Public Function limWriteFoundEstaf_TEAM(ByVal wednr As Long, ByVal prog As String, ByVal lim As String, ByVal afst As String, ByVal sl As String, ByVal cat As String, ByVal afNZw As Integer, ByVal isRes As Boolean, ByVal insTime As Double, ByVal inswednr As Long, ByRef estStartnummers() As String, estNames() As String, ByRef outp As Recordset) As Boolean
+Public Function limWriteFoundEstaf_TEAM(ByVal wednr As Long, ByVal prog As String, _
+  ByRef blkStarts() As String, ByRef nBlkStarts As Integer, ByVal lim As String, ByVal afst As String, ByVal sl As String, ByVal cat As String, ByVal afNZw As Integer, ByVal isRes As Boolean, ByVal insTime As Double, ByVal inswednr As Long, ByRef estStartnummers() As String, estNames() As String, ByRef outp As Recordset) As Boolean
 On Error GoTo fout
 limWriteFoundEstaf_TEAM = False
 
@@ -264,11 +278,21 @@ outp.AddNew
     outp("KA_Startnummer") = hzn(estStartnummers(0))
     Dim ivg As Integer
     For ivg = 0 To afNZw - 1
-        outp("KA_EST_Startnummer_" & CStr(ivg + 1)) = hzn(estStartnummers(ivg))
-        If (ivg > 0) Then
-          nameS = nameS & ", "
-        End If
-        nameS = nameS & estNames(ivg)
+    
+      Dim tpStart As String
+      tpStart = estStartnummers(ivg)
+        
+      'block this swimmer
+      If (bSearchString(tpStart, nBlkStarts, blkStarts) < 0) Then
+        insString tpStart, nBlkStarts, blkStarts
+      End If
+    
+      outp("KA_EST_Startnummer_" & CStr(ivg + 1)) = hzn(tpStart)
+      If (ivg > 0) Then
+        nameS = nameS & ", "
+      End If
+      nameS = nameS & estNames(ivg)
+      
     Next ivg
 
     outp("KA_EST_Names") = nameS
@@ -283,11 +307,17 @@ Exit Function
 fout:
 MsgBox Err & " limWriteFoundEstaf_TEAM" & Error$, 16
 Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
 End Function
 
 
 
-Public Function limWriteFoundEstaf(ByVal wednr As Long, ByVal prog As String, ByVal lim As String, ByVal afst As String, ByVal sl As String, ByVal cat As String, ByVal afNZw As Integer, ByVal isRes As Boolean, ByVal totTime As Double, ByRef fstIdx() As Integer, ByRef fstRefSt() As String, ByRef fstRefNames() As String, ByRef fstRefTimes() As Double, ByRef fstRefWedins() As Long, ByRef outp As Recordset) As Boolean
+Public Function limWriteFoundEstaf(ByVal wednr As Long, ByVal prog As String, _
+  ByRef blkStarts() As String, ByRef nBlkStarts As Integer, ByVal lim As String, ByVal afst As String, ByVal sl As String, ByVal cat As String, ByVal afNZw As Integer, ByVal isRes As Boolean, ByVal totTime As Double, ByRef fstIdx() As Integer, ByRef fstRefSt() As String, ByRef fstRefNames() As String, ByRef fstRefTimes() As Double, ByRef fstRefWedins() As Long, ByRef outp As Recordset) As Boolean
 On Error GoTo fout
 limWriteFoundEstaf = False
 
@@ -327,21 +357,30 @@ outp.AddNew
       Else
         isl = 0
       End If
-        
       
-        outp("KA_EST_Startnummer_" & CStr(ivg + 1)) = hzn(fstRefSt(isl, fstIdx(ivg)))
-        outp("KA_EST_Inschrijftijd_" & CStr(ivg + 1)) = fstRefTimes(isl, fstIdx(ivg))
-        outp("KA_EST_Wedintijd_" & CStr(ivg + 1)) = fstRefWedins(isl, fstIdx(ivg))
-        If (ivg > 0) Then
-          nameS = nameS & ", "
-        End If
-        nameS = nameS & fstRefNames(isl, fstIdx(ivg))
+      Dim tpStart As String
+      tpStart = fstRefSt(isl, fstIdx(ivg))
+        
+      'block this swimmer
+      If (bSearchString(tpStart, nBlkStarts, blkStarts) < 0) Then
+        insString tpStart, nBlkStarts, blkStarts
+      End If
+      
+      outp("KA_EST_Startnummer_" & CStr(ivg + 1)) = hzn(tpStart)
+      outp("KA_EST_Inschrijftijd_" & CStr(ivg + 1)) = fstRefTimes(isl, fstIdx(ivg))
+      outp("KA_EST_Wedintijd_" & CStr(ivg + 1)) = fstRefWedins(isl, fstIdx(ivg))
+      If (ivg > 0) Then
+        nameS = nameS & ", "
+      End If
+      nameS = nameS & fstRefNames(isl, fstIdx(ivg))
     Next ivg
 
     outp("KA_EST_Names") = hzn(nameS)
 
 
 outp.Update
+
+
 
 
 
@@ -589,19 +628,46 @@ End Function
 
 
 
-Public Function limFindKandidatenEstaf_PerformIND(ByRef wedInf As WED_BASIC_INFO, ByVal wednr As Long, ByVal prognr As String, ByVal satisfiedVarCat As String, _
+Public Function limFindKandidatenEstaf_PerformIND(ByRef wedInf As WED_BASIC_INFO, ByVal wednr As Long, ByVal prognr As String, _
+  ByRef blkStarts() As String, ByRef nBlkStarts As Integer, ByVal satisfiedVarCat As String, _
 ByVal afNZw As Integer, ByVal isWissel As Boolean, ByVal lim As String, ByVal curProgAfstand As String, curProgSlag As String, ByVal curProgCat As String, _
 ByRef blRunOut As Boolean, ByRef cntFnd As Integer, _
-ByRef snCnt25() As Integer, ByRef snMinUnblocked25() As Integer, ByRef snTd25() As Double, _
-ByRef snSt25() As String, ByRef snInsWednr25() As Long, ByRef snNames25() As String, ByRef snBlocked25() As Boolean, _
-ByRef snCnt50() As Integer, ByRef snMinUnblocked50() As Integer, ByRef snTd50() As Double, _
-ByRef snSt50() As String, ByRef snInsWednr50() As Long, ByRef snNames50() As String, ByRef snBlocked50() As Boolean, _
 is25Of50 As Boolean, lim25 As Double, lim50 As Double, limMin As Double, limMax As Double, limMid As Double, hasMid As Boolean, _
 resIs25Of50 As Boolean, resLim25 As Double, resLim50 As Double, resLim As Double, _
-ByRef outp As Recordset) As Boolean
+ByRef ins As Recordset, ByRef outp As Recordset) As Boolean
 
 On Error GoTo fout
 limFindKandidatenEstaf_PerformIND = False
+
+
+
+'Preparations:
+Dim snCnt25(0 To 3) As Integer
+Dim snMinUnblocked25(0 To 3) As Integer
+Dim snTd25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Double
+Dim snSt25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
+Dim snInsWednr25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Long
+Dim snNames25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
+Dim snBlocked25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Boolean
+
+Dim snCnt50(0 To 3) As Integer
+Dim snMinUnblocked50(0 To 3) As Integer
+Dim snTd50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Double
+Dim snSt50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
+Dim snInsWednr50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Long
+Dim snNames50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
+Dim snBlocked50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Boolean
+
+
+'Get the times from the recordset ins, only using swimmers that are not in the blkStarts list
+If Not limDetermineFastTimes(wednr, prognr, blkStarts, nBlkStarts, satisfiedVarCat, ins, isWissel, afNZw, snCnt25, snMinUnblocked25, snTd25, snSt25, snInsWednr25, snNames25, snBlocked25, snCnt50, snMinUnblocked50, snTd50, snSt50, snInsWednr50, snNames50, snBlocked50) Then
+  Exit Function
+End If
+
+
+
+
+
 
 
 blRunOut = False
@@ -679,11 +745,11 @@ While Not done
           
     'Now write out the estafette.
     If (actBn = 50) Then
-      If Not limWriteFoundEstaf(wednr, prognr, lim, curProgAfstand, curProgSlag, satisfiedVarCat, afNZw, actIsRes, fstTime50, fstIdx50, snSt50, snNames50, snTd50, snInsWednr50, outp) Then
+      If Not limWriteFoundEstaf(wednr, prognr, blkStarts, nBlkStarts, lim, curProgAfstand, curProgSlag, satisfiedVarCat, afNZw, actIsRes, fstTime50, fstIdx50, snSt50, snNames50, snTd50, snInsWednr50, outp) Then
         Exit Function
       End If
     Else
-      If Not limWriteFoundEstaf(wednr, prognr, lim, curProgAfstand, curProgSlag, satisfiedVarCat, afNZw, actIsRes, fstTime25, fstIdx25, snSt25, snNames25, snTd25, snInsWednr25, outp) Then
+      If Not limWriteFoundEstaf(wednr, prognr, blkStarts, nBlkStarts, lim, curProgAfstand, curProgSlag, satisfiedVarCat, afNZw, actIsRes, fstTime25, fstIdx25, snSt25, snNames25, snTd25, snInsWednr25, outp) Then
         Exit Function
       End If
     End If
@@ -706,14 +772,12 @@ MsgBox Err & " limFindKandidatenEstaf_PerformIND" & vbCrLf & Error$, 16
 Exit Function
 End Function
 
-Public Function limFindKandidatenEstaf_PerformTEAM(ByRef wedInf As WED_BASIC_INFO, ByVal wednr As Long, ByVal prognr As String, ByVal satisfiedVarCat As String, _
+Public Function limFindKandidatenEstaf_PerformTEAM(ByRef wedInf As WED_BASIC_INFO, ByVal wednr As Long, ByVal prognr As String, _
+ByRef blkStarts() As String, ByRef nBlkStarts As Integer, _
+ByVal satisfiedVarCat As String, _
 ByRef insEst As Recordset, ByRef estPloegen As Recordset, _
 ByVal afNZw As Integer, ByVal isWissel As Boolean, ByVal lim As String, ByVal curProgAfstand As String, curProgSlag As String, ByVal curProgCat As String, _
 ByRef cntFnd As Integer, _
-ByRef snCnt25() As Integer, ByRef snMinUnblocked25() As Integer, ByRef snTd25() As Double, _
-ByRef snSt25() As String, ByRef snInsWednr25() As Long, ByRef snNames25() As String, ByRef snBlocked25() As Boolean, _
-ByRef snCnt50() As Integer, ByRef snMinUnblocked50() As Integer, ByRef snTd50() As Double, _
-ByRef snSt50() As String, ByRef snInsWednr50() As Long, ByRef snNames50() As String, ByRef snBlocked50() As Boolean, _
 is25Of50 As Boolean, lim25 As Double, lim50 As Double, limMin As Double, limMax As Double, limMid As Double, hasMid As Boolean, _
 resIs25Of50 As Boolean, resLim25 As Double, resLim50 As Double, resLim As Double, _
 ByRef outp As Recordset) As Boolean
@@ -721,47 +785,6 @@ ByRef outp As Recordset) As Boolean
 On Error GoTo fout
 limFindKandidatenEstaf_PerformTEAM = False
 
-
-Dim blkStarts(0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
-Dim nBlkStarts As Integer
-
-Dim maxSlIdx As Integer
-maxSlIdx = 0
-If (isWissel) Then
-  maxSlIdx = 3
-End If
-
-'First create an ordered array of blocked startnummers.
-'These can no longer be used.
-
-Dim slIdx As Integer
-Dim i As Integer
-
-For slIdx = 0 To maxSlIdx
-  For i = 0 To snCnt25(slIdx)
-    If snBlocked25(slIdx, i) Then
-      Dim tpStart As String
-      tpStart = snSt25(slIdx, i)
-      Dim lkpPos As String
-      lkpPos = bSearchString(tpStart, nBlkStarts, blkStarts)
-      If (lkpPos < 0) Then
-        insString tpStart, nBlkStarts, blkStarts
-      End If
-    End If
-  Next i
-  
-  'Now handle 50m times.
-  For i = 0 To snCnt50(slIdx)
-    If snBlocked50(slIdx, i) Then
-      tpStart = snSt50(slIdx, i)
-      lkpPos = bSearchString(tpStart, nBlkStarts, blkStarts)
-      If (lkpPos < 0) Then
-        insString tpStart, nBlkStarts, blkStarts
-      End If
-     End If
-  Next i
-  
-Next slIdx
 
 
 Dim fndSwimmers(0 To MAX_ESTAF_CNT) As String
@@ -888,6 +911,7 @@ While Not blDone
     
     'check the swimmers
     For swIdx = 0 To afNZw - 1
+      Dim lkpPos As Integer
       lkpPos = bSearchString(fndSwimmers(swIdx), nBlkStarts, blkStarts)
       If (lkpPos >= 0) Then
         isOK = False
@@ -924,7 +948,7 @@ While Not blDone
   If (isOK) Then
     'De ploeg has been verified.
     'Need to write to table.
-    If Not (limWriteFoundEstaf_TEAM(wednr, prognr, lim, curProgAfstand, curProgSlag, satisfiedVarCat, afNZw, isRes, tpTd, tpWed, fndSwimmers, fndNames, outp)) Then
+    If Not (limWriteFoundEstaf_TEAM(wednr, prognr, blkStarts, nBlkStarts, lim, curProgAfstand, curProgSlag, satisfiedVarCat, afNZw, isRes, tpTd, tpWed, fndSwimmers, fndNames, outp)) Then
       Exit Function
     End If
     
@@ -959,7 +983,8 @@ Resume
 End Function
 
 
-Public Function limFindKandidatenEstaf(ByRef wedInf As WED_BASIC_INFO, ByVal wednr As Long, ByVal prognr As String, ByVal satisfiedVarCat As String, ByRef ins As Recordset, ByRef insEst As Recordset, ByRef estPloegen As Recordset, ByVal curProgAfstand As String, ByVal curProgSlag As String, ByVal curProgCat As String, ByVal lim As String, ByVal resLimStr As String, ByRef outp As Recordset, ByRef outpErr As Recordset) As Boolean
+Public Function limFindKandidatenEstaf(ByRef wedInf As WED_BASIC_INFO, ByVal wednr As Long, ByVal prognr As String, _
+  ByRef blkStarts() As String, ByRef nBlkStarts As Integer, ByVal satisfiedVarCat As String, ByRef ins As Recordset, ByRef insEst As Recordset, ByRef estPloegen As Recordset, ByVal curProgAfstand As String, ByVal curProgSlag As String, ByVal curProgCat As String, ByVal lim As String, ByVal resLimStr As String, ByRef outp As Recordset, ByRef outpErr As Recordset) As Boolean
 On Error GoTo fout
 limFindKandidatenEstaf = False
 
@@ -1030,31 +1055,12 @@ End If
 
 
 
-Dim snCnt25(0 To 3) As Integer
-Dim snMinUnblocked25(0 To 3) As Integer
-Dim snTd25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Double
-Dim snSt25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
-Dim snInsWednr25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Long
-Dim snNames25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
-Dim snBlocked25(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Boolean
-
-Dim snCnt50(0 To 3) As Integer
-Dim snMinUnblocked50(0 To 3) As Integer
-Dim snTd50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Double
-Dim snSt50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
-Dim snInsWednr50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Long
-Dim snNames50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
-Dim snBlocked50(0 To 3, 0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As Boolean
 
 
 
 Dim isWissel As Boolean
 isWissel = (curProgSlag = "WISSEL")
 
-'Get the times from the recordset ins
-If Not limDetermineFastTimes(wednr, prognr, satisfiedVarCat, ins, isWissel, afNZw, snCnt25, snMinUnblocked25, snTd25, snSt25, snInsWednr25, snNames25, snBlocked25, snCnt50, snMinUnblocked50, snTd50, snSt50, snInsWednr50, snNames50, snBlocked50) Then
-  Exit Function
-End If
 
 Dim cntInsEstafs As Integer
 Dim blRunOut As Boolean
@@ -1069,12 +1075,11 @@ If (wedInf.qlfRelayMode <> RELAY_MODE_TEAM) Then
   
 
 
-  If Not limFindKandidatenEstaf_PerformIND(wedInf, wednr, prognr, satisfiedVarCat, afNZw, isWissel, lim, _
+  If Not limFindKandidatenEstaf_PerformIND(wedInf, wednr, prognr, _
+    blkStarts, nBlkStarts, satisfiedVarCat, afNZw, isWissel, lim, _
     curProgAfstand, curProgSlag, curProgCat, blRunOut, cntInsEstafs, _
-    snCnt25, snMinUnblocked25, snTd25, snSt25, snInsWednr25, snNames25, snBlocked25, _
-    snCnt50, snMinUnblocked50, snTd50, snSt50, snInsWednr50, snNames50, snBlocked50, _
     is25Of50, lim25, lim50, limMin, limMax, limMid, hasMid, _
-    resIs25Of50, resLim25, resLim50, resLim, outp) Then
+    resIs25Of50, resLim25, resLim50, resLim, ins, outp) Then
   
     Exit Function
   End If
@@ -1087,12 +1092,11 @@ End If
 If (wedInf.qlfRelayMode <> RELAY_MODE_IND) Then
 
   'Check for estafettes which have already swum the limit as a team.
-  If Not limFindKandidatenEstaf_PerformTEAM(wedInf, wednr, prognr, satisfiedVarCat, _
+  If Not limFindKandidatenEstaf_PerformTEAM(wedInf, wednr, prognr, _
+    blkStarts, nBlkStarts, satisfiedVarCat, _
     insEst, estPloegen, afNZw, isWissel, lim, _
     curProgAfstand, curProgSlag, curProgCat, _
     cntInsEstafs, _
-    snCnt25, snMinUnblocked25, snTd25, snSt25, snInsWednr25, snNames25, snBlocked25, _
-    snCnt50, snMinUnblocked50, snTd50, snSt50, snInsWednr50, snNames50, snBlocked50, _
     is25Of50, lim25, lim50, limMin, limMax, limMid, hasMid, _
     resIs25Of50, resLim25, resLim50, resLim, outp) Then
   
@@ -1673,6 +1677,14 @@ Do Until prs.EOF
     
     If (ptOpenForEntry(prType)) Then
     
+        'For estaf progs; need to keep a list of used startnrs in this prog
+        'to prevent swimmers being used more than once if prog has varcats.
+        
+        Dim blkStarts(0 To MAX_ESTAF_CNT * MAX_KA_ESTAFS) As String
+        Dim nBlkStarts As Integer
+        nBlkStarts = 0
+    
+    
         If (isVarCats) Then
           varCatIdx = catInfoGetProgIdx(prognr, nVarProgs, varProgNames)
           If (Not varCatIdx = -1) Then
@@ -1700,7 +1712,7 @@ Do Until prs.EOF
               If Not ins.NoMatch Then
                 'Perform analysis
                 If (isEstaf) Then
-                  If (Not limFindKandidatenEstaf(wedInf, prWedNr, prognr, curCat, ins, insEst, estPloegen, prAfstand, prSlag, prCat, curCatLim, curCatResLim, output, outputErr)) Then
+                  If (Not limFindKandidatenEstaf(wedInf, prWedNr, prognr, blkStarts, nBlkStarts, curCat, ins, insEst, estPloegen, prAfstand, prSlag, prCat, curCatLim, curCatResLim, output, outputErr)) Then
                     Application.SysCmd acSysCmdRemoveMeter
                     Exit Function
                   End If
@@ -1725,7 +1737,7 @@ Do Until prs.EOF
           
           If (Not ins.NoMatch) Then
             If (isEstaf) Then
-              If (Not limFindKandidatenEstaf(wedInf, prWedNr, prognr, "", ins, insEst, estPloegen, prAfstand, prSlag, prCat, glbLim, glbResLim, output, outputErr)) Then
+              If (Not limFindKandidatenEstaf(wedInf, prWedNr, prognr, blkStarts, nBlkStarts, "", ins, insEst, estPloegen, prAfstand, prSlag, prCat, glbLim, glbResLim, output, outputErr)) Then
                 Application.SysCmd acSysCmdRemoveMeter
                 Exit Function
               End If
