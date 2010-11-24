@@ -6856,13 +6856,13 @@ Do Until blDone
       tpAge = catGetAge(stnrExtractYOB(curStart, LACEindDat(per), #1/1/1900#), #1/1/1900#, LFT_MODE_SZYR, LACEindDat(per))
       tpAge = tpAge + 1
       
-      lacGeg.FindFirst "[LC_Leeftijd] >= " & tpAge & " and [lc_Periode] = " & per & " and lc_slag = ""VRIJ"""
+      lacGeg.FindFirst "[LC_Leeftijd] >= " & tpAge & " and [lc_geslacht] = """ & curZwmGes & """ and [lc_Periode] = " & per & " and lc_slag = ""VRIJ"""
       If lacGeg.NoMatch Then
         Err.Raise 1, , "internal error"
       End If
       curZwmAfVrij = Nz(lacGeg("lc_afstand"))
       
-      lacGeg.FindFirst "[LC_Leeftijd] >= " & tpAge & " and [lc_Periode] = " & per & " and lc_slag = ""WISSEL"""
+      lacGeg.FindFirst "[LC_Leeftijd] >= " & tpAge & " and [lc_geslacht] = """ & curZwmGes & """ and [lc_Periode] = " & per & " and lc_slag = ""WISSEL"""
       If lacGeg.NoMatch Then
         Err.Raise 1, , "internal error"
       End If
@@ -6891,7 +6891,7 @@ Do Until blDone
         tpPoints = tpPoints + val(tpAf) / 100
       End If
     
-      If (tpSl = "WISSEL") And (tpAf = curZwmAfWissel) Then
+      If (tpSl = "WISSEL") And (tpAf = curZwmAfWissel) And (curZwmAfWissel <> "") Then
         If swtIsValid(tpTime) Then
           Dim blUpdate As Boolean
           blUpdate = False
@@ -6912,7 +6912,7 @@ Do Until blDone
       
       
         End If 'if swtIsValid
-      ElseIf (tpSl = "VRIJ") And (tpAf = curZwmAfVrij) Then
+      ElseIf (tpSl = "VRIJ") And (tpAf = curZwmAfVrij) And (curZwmAfVrij <> "") Then
         If swtIsValid(tpTime) Then
           blUpdate = False
           If (Not curZwmVrijFstFnd) Then
@@ -6920,7 +6920,7 @@ Do Until blDone
           ElseIf (tpPoints < curZwmVrijFstPoint) Then
             blUpdate = True
           End If
-          
+
           If (blUpdate) Then
             curZwmVrijFstFnd = True
             curZwmVrijFstPoint = tpPoints
