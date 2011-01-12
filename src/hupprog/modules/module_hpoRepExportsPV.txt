@@ -4318,7 +4318,9 @@ sqlDQ = "SELECT [~UIT_DIS].DIS_Wedstrijdnummer, [~UIT_DIS].DIS_Programmanummer, 
 "[dis_naam],[dis_custom_beschrijving]), IIf(nz([dis_custom_beschrijving])<>"""",True,False);"
 
 Dim gegDis As Recordset
-Set gegDis = CurrentDb().OpenRecordset(sqlDQ)
+If (pvType = RXP_PV_TYPE_UTB) Or (pvType = RXP_PV_TYPE_UTL) Then
+  Set gegDis = CurrentDb().OpenRecordset(sqlDQ)
+End If
 
 
 
@@ -4351,7 +4353,9 @@ curReserve = ""
 
 geg.MoveFirst
 
-gegDis.MoveFirst
+If (pvType = RXP_PV_TYPE_UTB) Or (pvType = RXP_PV_TYPE_UTL) Then
+  gegDis.MoveFirst
+End If
 
 
 
