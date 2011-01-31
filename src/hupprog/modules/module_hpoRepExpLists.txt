@@ -3373,7 +3373,12 @@ For i = 0 To rs.Fields.Count - 1
   ElseIf (rs.Fields(i).type = dbMemo) Then
     'ignore memo fields
   ElseIf (rs.Fields(i).type = dbDouble) Or (rs.Fields(i).type = dbSingle) Then
-    sFld = CStr(CLng(rs(i) * 1000000))
+    'bug fix; times above 20 minutes gave overflow.
+    If (Abs(rs(i)) > 2000) Then
+      sFld = CStr(rs(i))
+    Else
+      sFld = CStr(CLng(rs(i) * 1000000))
+    End If
   Else
     sFld = CStr(Nz(rs(i)))
   End If
@@ -3409,6 +3414,10 @@ appRecordError "rxlCalcMD5Hash_processRec", errInf
 
 appDisplayError errInf
 Exit Function
+
+'debug
+On Error GoTo 0
+Resume
 
 End Function
 
