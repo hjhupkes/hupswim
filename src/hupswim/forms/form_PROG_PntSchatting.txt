@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-990461788
+Checksum =1754969699
 Begin Form
     RecordSelectors = NotDefault
     NavigationButtons = NotDefault
@@ -14,7 +14,7 @@ Begin Form
     GridY =10
     Width =9637
     DatasheetFontHeight =10
-    ItemSuffix =1
+    ItemSuffix =2
     Left =4230
     Top =735
     Right =14595
@@ -328,7 +328,7 @@ Begin Form
             End
         End
         Begin FormFooter
-            Height =495
+            Height =510
             BackColor =16776960
             Name ="FormFooter"
             Begin
@@ -347,6 +347,22 @@ Begin Form
                         0x6a4163e24e2dab499313a8cd3c5f9648
                     End
                     UnicodeAccessKey =66
+                End
+                Begin CommandButton
+                    OverlapFlags =85
+                    Left =6472
+                    Top =75
+                    Width =2421
+                    Height =328
+                    TabIndex =1
+                    ForeColor =255
+                    Name ="btnDeleteOthers"
+                    Caption ="Verwijder Overige Deelnemers"
+                    OnClick ="[Event Procedure]"
+                    FontName ="MS Sans Serif"
+                    GUID = Begin
+                        0x69bf2dc8bbeae648afb6cf5b17376dbb
+                    End
                 End
             End
         End
@@ -369,6 +385,20 @@ End If
 
 If Not rptHandleDefault(REP_PNT_VER, RPT_MODE_PREVIEW, -1, -1, False, "") Then
   Exit Sub
+End If
+
+End Sub
+
+Private Sub btnDeleteOthers_Click()
+On Error Resume Next
+If MsgBox("Deze functie zal alle deelnemers aan hierboven vermelde programmanummers die " & _
+  "te langzaam zijn om mee te tellen voor de puntentelling " & _
+  "uit de wedstrijd verwijderen." & vbCrLf & vbCrLf & "Wilt u doorgaan?", vbOKCancel + vbQuestion) = vbCancel Then
+  Exit Sub
+End If
+
+If Not wedDeleteAllButPntCandidates(wed_MeetMainNr()) Then
+  appRaiseSilentError
 End If
 
 End Sub
