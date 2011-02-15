@@ -5222,3 +5222,138 @@ If Not blFnd Then
 End If
 wedSuggestBaseFNameVerMeet = Format(Nz(wedInf.meetMinDate, #1/1/1900#), "yyyy\-mm\-dd") & "=" & GoedTekens(ver()) & "-" & GoedTekens(wedInf.Plaats) & "-" & GoedTekens(wedInf.meetDes)
 End Function
+
+
+Public Function wedDeleteAllButPntCandidates(ByVal lMainWedNr As Long) As Boolean
+On Error GoTo fout
+wedDeleteAllButPntCandidates = False
+
+Dim dsTmp As DIR_SERVER_DATA
+dsInit dsTmp, True, "__dsdata__punten", 5000
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("__punten")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim lWed As Long, sProg As String, blEstaf As Boolean
+  lWed = Nz(rs("PT_Wedstrijdnummer"))
+  sProg = Nz(rs("PT_Programmanummer"))
+  blEstaf = Nz(rs("PT_Is_Estaf"))
+  
+  Dim sBaseName As String
+  sBaseName = lWed & "\" & sProg & "\"
+  
+  Dim lDummy As Long, blDummy As Boolean, sDummy As String
+  If Not dsSetPropertyByName(dsTmp, sBaseName & "IsEstaf", rxpFormatBoolean(blEstaf), lDummy, blDummy, sDummy) Then
+    appRaiseSilentError
+  End If
+  
+  Dim tpNMeetel As Integer
+  tpNMeetel = Nz(rs("PT_N_Meetellende_zwemmers"))
+  If (tpNMeetel > MAX_N_MEETEL) Then
+    tpNMeetel = MAX_N_MEETEL
+  End If
+  
+  Dim i As Integer
+  For i = 1 To tpNMeetel
+    If (blEstaf) Then
+      Dim tpEstNr As Integer
+      tpEstNr = Nz(rs("PT_Estafettenummer_" & i))
+      
+      If Not dsSetPropertyByName(dsTmp, sBaseName & tpEstNr, "present", lDummy, blDummy, sDummy) Then
+        appRaiseSilentError
+      End If
+      
+    Else
+    
+      Dim tpStart As String
+      tpStart = Nz(rs("PT_Startnummer_" & i))
+      
+      If Not dsSetPropertyByName(dsTmp, sBaseName & tpStart, "present", lDummy, blDummy, sDummy) Then
+        appRaiseSilentError
+      End If
+    End If
+  Next i
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+Dim sql As String
+
+sql = "SELECT dtDeelnemers.* FROM dtWedstrijden INNER JOIN dtDeelnemers ON " & _
+  "dtWedstrijden.[Wedstrijd nummer] = dtDeelnemers.wedstrijdnr " & _
+  "WHERE dtWedstrijden.MainWedstrijdNummer=" & lMainWedNr & "  OR dtWedstrijden.[Wedstrijd nummer]=" & lMainWedNr & ";"
+
+Set rs = CurrentDb().OpenRecordset(sql)
+
+rs.MoveFirst
+Do Until rs.EOF
+  
+  Dim tpWed As Long, tpProg As String
+  tpWed = Nz(rs("WEDSTRIJDNR"))
+  tpProg = Nz(rs("PROGRAMMANR"))
+  
+  sBaseName = tpWed & "\" & tpProg & "\"
+  
+  Dim sPropValue As String
+  If Not dsLookupPropertyByName(dsTmp, sBaseName & "IsEstaf", blDummy, sPropValue, lDummy) Then
+    appRaiseSilentError
+  End If
+  
+  If sPropValue <> "" Then
+    'the prog nr exists in the __punten table
+    Dim tpIsEstaf As Boolean
+    tpIsEstaf = rxpParseBoolean(sPropValue)
+    
+    Dim sPropName As String
+    If (tpIsEstaf) Then
+      tpEstNr = Nz(rs("ESTAFETTE NUMMER"))
+      sPropName = sBaseName & tpEstNr
+    Else
+      tpStart = Nz(rs("STARTNUMMER"))
+      sPropName = sBaseName & tpStart
+    End If
+    
+    Dim blPropPresent As Boolean
+    If Not dsLookupPropertyByName(dsTmp, sPropName, blPropPresent, sDummy, lDummy) Then
+      appRaiseSilentError
+    End If
+    
+    If Not blPropPresent Then
+      'this swimmer is not present in the __punten table -> delete
+      rs.Delete
+    End If
+    
+  End If
+  
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+
+
+
+dsClean dsTmp
+
+wedDeleteAllButPntCandidates = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+Dim errInf As ERR_INFO
+appRecordError "wedDeleteAllButPntCandidates", errInf
+
+appCleanRS rs
+dsClean dsTmp
+
+appDisplayError errInf
+Exit Function
+
+End Function
