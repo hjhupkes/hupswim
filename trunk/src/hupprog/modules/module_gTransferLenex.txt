@@ -234,7 +234,7 @@ End Function
 
 
 
-Private Function lenFormatStartnummer(st As String) As String
+Private Function lenFormatStartnummer(st As String, ByVal yob As Long) As String
 On Error Resume Next
 lenFormatStartnummer = Left(st, 2) & Right(st, 5)
 End Function
@@ -434,6 +434,8 @@ isCodeValid = False
 If (lenIsValidStartnr(sCode)) Then
   If (Len(sCode) = 8) Then
     lenParseStartnr = sCode
+  ElseIf (Len(sCode) = 9) Then
+    lenParseStartnr = Mid(sCode, 3, 2) & "-" & Right(sCode, 5)
   Else
     lenParseStartnr = Left(sCode, 2) & "-" & Right(sCode, 5)
   End If
@@ -6903,7 +6905,7 @@ Do Until atInp.EOF
     startnr = Nz(atInp("ZW_Startnummer"))
     If (licCode = "" Or (licCode = startnr)) And Nz(atInp("ZW_Startnummer_Fixed")) Then
       'Only allow startnummer if startnummer is fixed.
-      licCode = lenFormatStartnummer(startnr)
+      licCode = lenFormatStartnummer(startnr, jaartal)
     End If
     
     atOutp("LEN_LICENSE") = hzn(licCode)
