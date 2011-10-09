@@ -213,7 +213,7 @@ On Error GoTo fout_cleanup
 
 
 Dim backupdb As Database
-Set backupdb = DBEngine.Workspaces(0).CreateDatabase(bckMDBFileName, DB_LANG_GENERAL, dbVersion30)
+Set backupdb = DBEngine.Workspaces(0).CreateDatabase(bckMDBFileName, DB_LANG_GENERAL, HUP_DB_VERSION_30)
 
 Dim dummy(0 To 0) As String
 
@@ -576,19 +576,25 @@ End If
 blImported = False
 
 If (Not blImported) And (tbNamePrimary <> "") Then
-  DoCmd.TransferDatabase iImpType, "Microsoft Access", file, acTable, tbNamePrimary, newTbName
+  If Not appSafeTransferTable(iImpType, file, tbNamePrimary, newTbName) Then
+    appRaiseSilentError
+  End If
   If (tableExists(newTbName)) Then
     blImported = True
   End If
 End If
 If (Not blImported) And (tbNameSecondary <> "") Then
-  DoCmd.TransferDatabase iImpType, "Microsoft Access", file, acTable, tbNameSecondary, newTbName
+  If Not appSafeTransferTable(iImpType, file, tbNameSecondary, newTbName) Then
+    appRaiseSilentError
+  End If
   If (tableExists(newTbName)) Then
     blImported = True
   End If
 End If
 If (Not blImported) And (tbNameTertiary <> "") Then
-  DoCmd.TransferDatabase iImpType, "Microsoft Access", file, acTable, tbNameTertiary, newTbName
+  If Not appSafeTransferTable(iImpType, file, tbNameTertiary, newTbName) Then
+    appRaiseSilentError
+  End If
   If (tableExists(newTbName)) Then
     blImported = True
   End If
@@ -597,10 +603,16 @@ End If
 
 bckReadTable = True
 Exit Function
+
 fout:
 If (Err = 3011) Or (Err = 7874) Then Resume Next ' could not find object to import / delete
-MsgBox Err & " bckReadTable" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "bckReadTable", errInf
+
+appDisplayError errInf
 Exit Function
+
 End Function
 
 
@@ -610,7 +622,9 @@ bckWriteData = False
 
 Dim i As Integer
 For i = 0 To nBckTables - 1
-  DoCmd.CopyObject fName, , acTable, bckTbNames(i)
+  'Oct 2011: copyObject causes problems; e.g. ' and ` in an indexed string field are treated as the same characters and cause a primary key clash.
+  'DoCmd.CopyObject fName, , acTable, bckTbNames(i)
+  DoCmd.TransferDatabase acExport, "Microsoft Access", fName, acTable, bckTbNames(i), bckTbNames(i)
 Next i
 
 bckWriteData = True

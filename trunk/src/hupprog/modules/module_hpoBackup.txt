@@ -577,7 +577,7 @@ Dim uitvoer As Database
 Dim mydb As Database
 
 Set mydb = CurrentDb()
-Set uitvoer = DBEngine.Workspaces(0).CreateDatabase(file, DB_LANG_GENERAL, dbVersion30)
+Set uitvoer = DBEngine.Workspaces(0).CreateDatabase(file, DB_LANG_GENERAL, HUP_DB_VERSION_30)
 
 
 
@@ -1375,19 +1375,25 @@ End If
 
 
   If (tertIdx <> -1) Then
-    DoCmd.TransferDatabase iImpMode, "Microsoft Access", file, acTable, "~~wedexp~" & tertIdx, "~~wedimp~~"
+    If Not appSafeTransferTable(iImpMode, file, "~~wedexp~" & tertIdx, "~~wedimp~~") Then
+      appRaiseSilentError
+    End If
     If (tableExists("~~wedimp~~")) Then
       blImported = True
     End If
   End If
   If (Not blImported) And (secIdx <> -1) Then
-    DoCmd.TransferDatabase iImpMode, "Microsoft Access", file, acTable, "~~wedexp~" & secIdx, "~~wedimp~~"
+    If Not appSafeTransferTable(iImpMode, file, "~~wedexp~" & secIdx, "~~wedimp~~") Then
+      appRaiseSilentError
+    End If
     If (tableExists("~~wedimp~~")) Then
       blImported = True
     End If
   End If
   If (Not blImported) And (primIdx <> -1) Then
-    DoCmd.TransferDatabase iImpMode, "Microsoft Access", file, acTable, "~~wedexp~" & primIdx, "~~wedimp~~"
+    If Not appSafeTransferTable(iImpMode, file, "~~wedexp~" & primIdx, "~~wedimp~~") Then
+      appRaiseSilentError
+    End If
     If (tableExists("~~wedimp~~")) Then
       blImported = True
     End If

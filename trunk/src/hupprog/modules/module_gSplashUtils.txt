@@ -1341,11 +1341,21 @@ splMMImpAnalyzeFile_Perform_MM2007_ExtractData = False
     If (blImpTables) Then
       'Import all the tables we need.
       
+      If Not appSafeImportTable(splMDBFileName, "SWIMEVENT", "splEvent") Then
+        appRaiseSilentError
+      End If
       
-      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMEVENT", "splEvent"
-      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMSESSION", "splSession"
-      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "AGEGROUP", "splAgegroup"
-      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMSTYLE", "splStyle"
+      If Not appSafeImportTable(splMDBFileName, "SWIMSESSION", "splSession") Then
+        appRaiseSilentError
+      End If
+      
+      If Not appSafeImportTable(splMDBFileName, "AGEGROUP", "splAgegroup") Then
+        appRaiseSilentError
+      End If
+      
+      If Not appSafeImportTable(splMDBFileName, "SWIMSTYLE", "splStyle") Then
+        appRaiseSilentError
+      End If
       
       
     End If
@@ -1384,20 +1394,21 @@ errCode = Err
 
 msg = errCode & " " & Error$
 
+Dim errInf As ERR_INFO
+appRecordError "splMMImpAnalyzeFile_Perform_MM2007_ExtractData", errInf
 
 If (errCode = 1) Then
-  'Deze fout is niet kritiek.
   If (blDisplayErrDlg) Then
-    MsgBox msg, 16
+    appDisplayError errInf
   End If
   splMMImpAnalyzeFile_Perform_MM2007_ExtractData = True
-
 Else
-  'Dit is een critical failure.
+   'Dit is een critical failure.
   
   MsgBox "An unexpected error has occurred. " & vbCrLf & "This may be caused by the fact that hupswim.dll and hupswim_unzip32.dll have not been copied into the windows system directory (c:\windows\system)" & _
   vbCrLf & "These dll's are automatically installed by the setup.exe program, but can also be downloaded from the Hupswim website (See About-box for details)." & vbCrLf & "The error that prompted this message is described below: " & vbCrLf & msg, 16
 End If
+
 
 Exit Function
 

@@ -848,7 +848,17 @@ Exit Function
 End Function
 
 
-Public Sub appSafeLinkTable(ByVal sDBName As String, sSrcName As String, sTgtName As String)
+Public Function appSafeTransferTable(ByVal iImpMode As Integer, ByVal sDBName As String, sSrcName As String, sTgtName As String) As Boolean
+If (iImpMode = acLink) Then
+  appSafeTransferTable = appSafeLinkTable(sDBName, sSrcName, sTgtName)
+Else
+  appSafeTransferTable = appSafeImportTable(sDBName, sSrcName, sTgtName)
+End If
+End Function
+
+Public Function appSafeLinkTable(ByVal sDBName As String, sSrcName As String, sTgtName As String) As Boolean
+On Error GoTo fout
+appSafeLinkTable = False
 
 Dim db As Database
 Set db = CurrentDb()
@@ -861,7 +871,142 @@ tbDef.SourceTableName = sSrcName
 
 db.TableDefs.Append tbDef
 
-End Sub
+If Not tbDef Is Nothing Then
+  Set tbDef = Nothing
+End If
+
+appSafeLinkTable = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "appSafeLinkTable", errInf
+
+If Not tbDef Is Nothing Then
+  Set tbDef = Nothing
+End If
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
+Public Function appSafeImportTable(ByVal sDBName As String, sSrcName As String, sTgtName As String) As Boolean
+On Error GoTo fout
+
+appSafeImportTable = False
+
+Dim blDeletingTable As Boolean
+blDeletingTable = False
+
+'if access 2007 or higher than need special import procedure
+'access 2007 = version "12.0"
+If val(SysCmd(acSysCmdAccessVer)) < 11.5 Then
+  'old access; can safely use transferdatabase
+  DoCmd.TransferDatabase acImport, "Microsoft Access", sDBName, acTable, sSrcName, sTgtName
+Else
+
+  DoCmd.SetWarnings False
+  
+  blDeletingTable = True
+  DoCmd.DeleteObject acTable, "__safe__import__temp"
+  blDeletingTable = False
+
+  'need to first import table and then make new table
+  appSafeLinkTable sDBName, sSrcName, "__safe__import__temp"
+  
+  Dim sql As String
+  sql = "SELECT [__safe__import__temp].* INTO [" & sTgtName & "] FROM [__safe__import__temp];"
+  DoCmd.RunSQL sql
+  
+  
+  'now need to copy over indices
+  Dim dsTmp As DIR_SERVER_DATA
+  dsInit dsTmp, True, "__safe__import__temp__indexes", 10000
+  
+  Dim tbSrc As TableDef, tbTgt As TableDef, curDB As Database
+  
+  Set curDB = CurrentDb()
+  Set tbSrc = curDB.TableDefs("__safe__import__temp")
+  Set tbTgt = curDB.TableDefs(sTgtName)
+  
+  Dim iIdx As Integer, nIdx As Integer
+  nIdx = tbSrc.Indexes.Count
+  
+  For iIdx = 0 To nIdx - 1
+    Dim idx As Index
+    Set idx = tbSrc.Indexes(iIdx)
+  
+    Dim sIdxPropName As String
+    sIdxPropName = "\INDEX_" & iIdx
+  
+    If Not xdbReadStructure_readIndex(dsTmp, idx, sIdxPropName) Then
+      appRaiseSilentError
+    End If
+  
+    Set idx = Nothing
+    
+    Set idx = tbTgt.CreateIndex
+    If Not xdbCreateStructure_writeIndex(dsTmp, idx, sIdxPropName) Then
+      appRaiseSilentError
+    End If
+    
+    tbTgt.Indexes.Append idx
+    Set idx = Nothing
+    
+  Next iIdx
+  
+  
+
+  dsClean dsTmp
+  If Not (tbSrc Is Nothing) Then
+    Set tbSrc = Nothing
+  End If
+  If Not (tbTgt Is Nothing) Then
+    Set tbTgt = Nothing
+  End If
+
+
+  
+  
+  blDeletingTable = True
+  DoCmd.DeleteObject acTable, "__safe__import__temp"
+  blDeletingTable = False
+  
+  DoCmd.SetWarnings True
+  
+End If
+
+
+
+appSafeImportTable = True
+Exit Function
+
+fout:
+
+'could not find object to delete
+If (blDeletingTable) Then
+  If Err = 3011 Or Err = 7874 Then Resume Next 'could not find object to delete
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "appSafeImportTable", errInf
+
+DoCmd.SetWarnings True
+dsClean dsTmp
+
+If Not (tbSrc Is Nothing) Then
+  Set tbSrc = Nothing
+End If
+If Not (tbTgt Is Nothing) Then
+  Set tbTgt = Nothing
+End If
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
 
 
 Private Function xdbReadStructure_IsValidTbProp(ByVal sPropName As String) As Boolean
@@ -1371,9 +1516,9 @@ Set db = DBEngine.Workspaces(0).OpenDatabase(sFileName)
 Dim lVersionCode As Long
 
 If val(db.Version) >= 4 Then
-  lVersionCode = 64 'dbVersion40; hardcoded to allow compile in access97
+  lVersionCode = HUP_DB_VERSION_40 'dbVersion40; hardcoded to allow compile in access97
 Else
-  lVersionCode = 32 'dbVersion30;
+  lVersionCode = HUP_DB_VERSION_30 'dbVersion30;
 End If
 
 Dim sPropName As String, sPropVal As String
@@ -2099,7 +2244,7 @@ Dim sPropName As String, sPropVal As String
 Dim blDummy As Boolean, lDummy As Long
 
 Dim lVersionCode As Long
-lVersionCode = dbVersion30
+lVersionCode = HUP_DB_VERSION_30
 
 sPropName = sPropBaseName & "\DB_VERSION"
 If Not dsLookupPropertyByName(dsData, sPropName, blDummy, sPropVal, lDummy) Then
