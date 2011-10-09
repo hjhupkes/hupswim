@@ -575,25 +575,27 @@ End If
 
 blImported = False
 
+Dim tpErrInf As ERR_INFO
+
 If (Not blImported) And (tbNamePrimary <> "") Then
-  If Not appSafeTransferTable(iImpType, file, tbNamePrimary, newTbName) Then
-    appRaiseSilentError
+  If Not appSafeTransferTable(iImpType, file, tbNamePrimary, newTbName, False, tpErrInf) Then
+    appReraiseError tpErrInf
   End If
   If (tableExists(newTbName)) Then
     blImported = True
   End If
 End If
 If (Not blImported) And (tbNameSecondary <> "") Then
-  If Not appSafeTransferTable(iImpType, file, tbNameSecondary, newTbName) Then
-    appRaiseSilentError
+  If Not appSafeTransferTable(iImpType, file, tbNameSecondary, newTbName, False, tpErrInf) Then
+    appReraiseError tpErrInf
   End If
   If (tableExists(newTbName)) Then
     blImported = True
   End If
 End If
 If (Not blImported) And (tbNameTertiary <> "") Then
-  If Not appSafeTransferTable(iImpType, file, tbNameTertiary, newTbName) Then
-    appRaiseSilentError
+  If Not appSafeTransferTable(iImpType, file, tbNameTertiary, newTbName, False, tpErrInf) Then
+    appReraiseError tpErrInf
   End If
   If (tableExists(newTbName)) Then
     blImported = True

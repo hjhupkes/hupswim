@@ -848,15 +848,15 @@ Exit Function
 End Function
 
 
-Public Function appSafeTransferTable(ByVal iImpMode As Integer, ByVal sDBName As String, sSrcName As String, sTgtName As String) As Boolean
+Public Function appSafeTransferTable(ByVal iImpMode As Integer, ByVal sDBName As String, sSrcName As String, sTgtName As String, ByVal blHandleError As Boolean, ByRef errUnhandled As ERR_INFO) As Boolean
 If (iImpMode = acLink) Then
-  appSafeTransferTable = appSafeLinkTable(sDBName, sSrcName, sTgtName)
+  appSafeTransferTable = appSafeLinkTable(sDBName, sSrcName, sTgtName, blHandleError, errUnhandled)
 Else
-  appSafeTransferTable = appSafeImportTable(sDBName, sSrcName, sTgtName)
+  appSafeTransferTable = appSafeImportTable(sDBName, sSrcName, sTgtName, blHandleError, errUnhandled)
 End If
 End Function
 
-Public Function appSafeLinkTable(ByVal sDBName As String, sSrcName As String, sTgtName As String) As Boolean
+Public Function appSafeLinkTable(ByVal sDBName As String, sSrcName As String, sTgtName As String, ByVal blHandleError As Boolean, ByRef errUnhandled As ERR_INFO) As Boolean
 On Error GoTo fout
 appSafeLinkTable = False
 
@@ -886,12 +886,16 @@ If Not tbDef Is Nothing Then
   Set tbDef = Nothing
 End If
 
-appDisplayError errInf
+If (blHandleError) Then
+  appDisplayError errInf
+Else
+  appCopyError errInf, errUnhandled
+End If
 Exit Function
 
 End Function
 
-Public Function appSafeImportTable(ByVal sDBName As String, sSrcName As String, sTgtName As String) As Boolean
+Public Function appSafeImportTable(ByVal sDBName As String, sSrcName As String, sTgtName As String, ByVal blHandleError As Boolean, ByRef errUnhandled As ERR_INFO) As Boolean
 On Error GoTo fout
 
 appSafeImportTable = False
@@ -913,7 +917,18 @@ Else
   blDeletingTable = False
 
   'need to first import table and then make new table
-  appSafeLinkTable sDBName, sSrcName, "__safe__import__temp"
+  Dim tpErrInf As ERR_INFO
+  If Not appSafeLinkTable(sDBName, sSrcName, "__safe__import__temp", blHandleError, tpErrInf) Then
+    If (blHandleError) Then
+      appRaiseSilentError
+    Else
+      appReraiseError tpErrInf
+    End If
+  End If
+  
+  If Not tableExists("__safe__import__temp") Then
+    Err.Raise 3011, , "The table: " & sSrcName & " could not be found in " & vbCrLf & sDBName
+  End If
   
   Dim sql As String
   sql = "SELECT [__safe__import__temp].* INTO [" & sTgtName & "] FROM [__safe__import__temp];"
@@ -1002,10 +1017,15 @@ If Not (tbTgt Is Nothing) Then
   Set tbTgt = Nothing
 End If
 
-appDisplayError errInf
+If (blHandleError) Then
+  appDisplayError errInf
+Else
+  appCopyError errInf, errUnhandled
+End If
 Exit Function
 
 End Function
+
 
 
 
