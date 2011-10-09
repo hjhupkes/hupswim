@@ -133,18 +133,34 @@ If FileExists(splMDBFileName) Then
   
     If (blExtractTables) Then
       'Transfer the tables.
-      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "MEMBERS", "splMembers"
-      DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "CLUBS", "splClubs"
+      If Not appSafeImportTable(splMDBFileName, "MEMBERS", "splMembers") Then
+        appRaiseSilentError
+      End If
+      If Not appSafeImportTable(splMDBFileName, "CLUBS", "splClubs") Then
+        appRaiseSilentError
+      End If
       If Not blAlleenZwms Then
-        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "MEETS", "splMeets"
-        If (iSplTMVersion = SPL_TM_VER_2007) Then
-          DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "STYLES", "splStyles"
-        Else
-          DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "SWIMSTYLE", "splStyles"
+        If Not appSafeImportTable(splMDBFileName, "MEETS", "splMeets") Then
+          appRaiseSilentError
         End If
-        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "RESULTS", "splResults"
-        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "RELAYS", "splRelays"
-        DoCmd.TransferDatabase acImport, "Microsoft Access", splMDBFileName, acTable, "RELAYSPOS", "splRelayPos"
+        If (iSplTMVersion = SPL_TM_VER_2007) Then
+          If Not appSafeImportTable(splMDBFileName, "STYLES", "splStyles") Then
+            appRaiseSilentError
+          End If
+        Else
+          If Not appSafeImportTable(splMDBFileName, "SWIMSTYLE", "splStyles") Then
+            appRaiseSilentError
+          End If
+        End If
+        If Not appSafeImportTable(splMDBFileName, "RESULTS", "splResults") Then
+          appRaiseSilentError
+        End If
+        If Not appSafeImportTable(splMDBFileName, "RELAYS", "splRelays") Then
+          appRaiseSilentError
+        End If
+        If Not appSafeImportTable(splMDBFileName, "RELAYSPOS", "splRelayPos") Then
+          appRaiseSilentError
+        End If
       End If
     End If
 
@@ -164,7 +180,11 @@ If (Err = 3078) Then Resume Next ' RESULTS niet gevonden.
 If (Err = 3343) Then Resume Next ' unrecognized database format
 If (Err = 3021) Then Resume Next ' no current record.
 
-MsgBox Err & " splAnalyzeBackup_extractInfo" & vbCrLf & Error$, 16
+
+Dim errInf As ERR_INFO
+appRecordError "splAnalyzeBackup_extractInfo", errInf
+
+appDisplayError errInf
 Exit Function
 
 End Function
