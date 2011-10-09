@@ -578,14 +578,17 @@ Err.Raise 2, , "Silent"
 End Sub
 
 Public Sub appRecordError(ByVal sFncName As String, ByRef errInf As ERR_INFO)
-errInf.lErrCode = Err
-errInf.sErrMsg = Error$
 
-If (errInf.lErrCode = 3) Then
-  errInf.lErrCode = CLng(val(extractToken(errInf.sErrMsg, "____")))
-  errInf.sFncName = extractToken(errInf.sErrMsg, "____")
-Else
+errInf.lErrCode = Err
+
+Dim tpMsg As String
+tpMsg = Error$
+
+errInf.sErrMsg = extractToken(tpMsg, "____")
+If (Len(tpMsg) = 0) Then
   errInf.sFncName = sFncName
+Else
+  errInf.sFncName = sFncName & "; " & tpMsg
 End If
 
 End Sub
@@ -599,7 +602,7 @@ If (errInf.lErrCode <> 2) Then
 End If
 End Sub
 Public Sub appReraiseError(ByRef errInf As ERR_INFO)
-Err.Raise 3, , errInf.lErrCode & "____" & errInf.sFncName & "____" & errInf.sErrMsg
+Err.Raise errInf.lErrCode, , errInf.sErrMsg & "____" & errInf.sFncName
 End Sub
 
 Public Sub appCopyError(ByRef errInfSrc As ERR_INFO, errInfTgt As ERR_INFO)
