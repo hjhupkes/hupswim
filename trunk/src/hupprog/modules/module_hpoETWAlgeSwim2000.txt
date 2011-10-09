@@ -393,31 +393,63 @@ algLink = False
 
 algCleanLinks
 
+Dim tpErrInf As ERR_INFO
+
 If (blLinkDlns) Then
-  appSafeLinkTable sDBFName, "Allgemein", "__etw__alge__meet"
-  appSafeLinkTable sDBFName, "Daten", "__etw__alge__config_info"
-  appSafeLinkTable sDBFName, "Wettkampfgericht", "__etw__alge__sessions"
-  appSafeLinkTable sDBFName, "Klassen", "__etw__alge__class"
-  appSafeLinkTable sDBFName, "BewToKlassen", "__etw__alge__prog_class"
-  appSafeLinkTable sDBFName, "Teilnehmer", "__etw__alge__swimmers"
-  appSafeLinkTable sDBFName, "Meldeliste", "__etw__alge__entries"
+  If Not appSafeLinkTable(sDBFName, "Allgemein", "__etw__alge__meet", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "Daten", "__etw__alge__config_info", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "Wettkampfgericht", "__etw__alge__sessions", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "Klassen", "__etw__alge__class", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "BewToKlassen", "__etw__alge__prog_class", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "Teilnehmer", "__etw__alge__swimmers", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "Meldeliste", "__etw__alge__entries", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
   
-  appSafeLinkTable sDBFName, "bewToAnschlage", "__etw__alge__toclear__bewtoanschlage"
-  appSafeLinkTable sDBFName, "kombi", "__etw__alge__toclear__kombi"
-  appSafeLinkTable sDBFName, "rekorde", "__etw__alge__toclear__rekorde"
-  appSafeLinkTable sDBFName, "punktecup", "__etw__alge__toclear__punktecup"
-  appSafeLinkTable sDBFName, "team", "__etw__alge__toclear__team"
-  appSafeLinkTable sDBFName, "zwischenzeiten", "__etw__alge__toclear__zwischenzeiten"
+  If Not appSafeLinkTable(sDBFName, "bewToAnschlage", "__etw__alge__toclear__bewtoanschlage", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "kombi", "__etw__alge__toclear__kombi", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "rekorde", "__etw__alge__toclear__rekorde", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "punktecup", "__etw__alge__toclear__punktecup", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "team", "__etw__alge__toclear__team", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
+  If Not appSafeLinkTable(sDBFName, "zwischenzeiten", "__etw__alge__toclear__zwischenzeiten", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
   
   'Note: table ranking is not always present, therefore ignore it
 End If
 
 If (blLinkDlns Or blLinkTimes) Then
-  appSafeLinkTable sDBFName, "Bewerbe", "__etw__alge__prog"
+  If Not appSafeLinkTable(sDBFName, "Bewerbe", "__etw__alge__prog", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
 End If
 
 If (blLinkTimes) Then
-  appSafeLinkTable sDBFName, "Timing", "__etw__alge__times"
+  If Not appSafeLinkTable(sDBFName, "Timing", "__etw__alge__times", True, tpErrInf) Then
+    appRaiseSilentError
+  End If
 End If
 
 algLink = True

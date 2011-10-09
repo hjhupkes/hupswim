@@ -132,34 +132,36 @@ If FileExists(splMDBFileName) Then
   
   
     If (blExtractTables) Then
+    
+      Dim tpErrInf As ERR_INFO
       'Transfer the tables.
-      If Not appSafeImportTable(splMDBFileName, "MEMBERS", "splMembers") Then
-        appRaiseSilentError
+      If Not appSafeImportTable(splMDBFileName, "MEMBERS", "splMembers", False, tpErrInf) Then
+        appReraiseError tpErrInf
       End If
-      If Not appSafeImportTable(splMDBFileName, "CLUBS", "splClubs") Then
-        appRaiseSilentError
+      If Not appSafeImportTable(splMDBFileName, "CLUBS", "splClubs", False, tpErrInf) Then
+        appReraiseError tpErrInf
       End If
       If Not blAlleenZwms Then
-        If Not appSafeImportTable(splMDBFileName, "MEETS", "splMeets") Then
-          appRaiseSilentError
+        If Not appSafeImportTable(splMDBFileName, "MEETS", "splMeets", False, tpErrInf) Then
+          appReraiseError tpErrInf
         End If
         If (iSplTMVersion = SPL_TM_VER_2007) Then
-          If Not appSafeImportTable(splMDBFileName, "STYLES", "splStyles") Then
-            appRaiseSilentError
+          If Not appSafeImportTable(splMDBFileName, "STYLES", "splStyles", False, tpErrInf) Then
+            appReraiseError tpErrInf
           End If
         Else
-          If Not appSafeImportTable(splMDBFileName, "SWIMSTYLE", "splStyles") Then
-            appRaiseSilentError
+          If Not appSafeImportTable(splMDBFileName, "SWIMSTYLE", "splStyles", False, tpErrInf) Then
+            appReraiseError tpErrInf
           End If
         End If
-        If Not appSafeImportTable(splMDBFileName, "RESULTS", "splResults") Then
-          appRaiseSilentError
+        If Not appSafeImportTable(splMDBFileName, "RESULTS", "splResults", False, tpErrInf) Then
+          appReraiseError tpErrInf
         End If
-        If Not appSafeImportTable(splMDBFileName, "RELAYS", "splRelays") Then
-          appRaiseSilentError
+        If Not appSafeImportTable(splMDBFileName, "RELAYS", "splRelays", False, tpErrInf) Then
+          appReraiseError tpErrInf
         End If
-        If Not appSafeImportTable(splMDBFileName, "RELAYSPOS", "splRelayPos") Then
-          appRaiseSilentError
+        If Not appSafeImportTable(splMDBFileName, "RELAYSPOS", "splRelayPos", False, tpErrInf) Then
+          appReraiseError tpErrInf
         End If
       End If
     End If
