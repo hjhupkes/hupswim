@@ -1,6 +1,13 @@
 Option Compare Database
 Option Explicit
 
+Public Const STL_PEN_VALID = 0
+Public Const STL_PEN_RES = 4
+Public Const STL_PEN_BM = 8
+Public Const STL_PEN_AFM = 12
+Public Const STL_PEN_NG = 16
+Public Const STL_PEN_FACTOR = 100000
+
 
 Public Function uitslagTransferSettings_Handle(ByVal wednr As Long, ByVal blEntireMeet As Boolean) As Boolean
 On Error GoTo fout
@@ -1540,10 +1547,10 @@ End Function
 
 
 
-Private Function progSetCounters_handleSet(ByRef dlns25 As Recordset, ByRef dlns50 As Recordset, ByVal blIsPerCat As Boolean, ByRef wedInf As WED_BASIC_INFO, ByVal blIsOW As Boolean) As Boolean
+Private Function progSetCounters_cnt_handleSet(ByRef dlns25 As Recordset, ByRef dlns50 As Recordset, ByRef skTd As Recordset, ByVal blIsPerCat As Boolean, ByRef wedInf As WED_BASIC_INFO, ByVal blIsOW As Boolean) As Boolean
 On Error GoTo fout
 
-progSetCounters_handleSet = False
+progSetCounters_cnt_handleSet = False
 
 
 
@@ -1555,7 +1562,7 @@ prInf.cat = ""
 
 
 
-Dim tpCnt As Long
+Dim tpCnt As Long, tpPenaltyCnt As Long
 
 
 
@@ -1572,13 +1579,17 @@ curCatIdx = -1
 Dim tpProg As String
 Dim tpABC As String
 Dim tpCatIdx As Integer
+Dim tpRes As Boolean
+Dim tpBM As Boolean
+Dim tpDis As String
+Dim tpDlnIdx As Long
 
 
 
 
 
-
-Dim isFirstInProg As Boolean
+'isFirstInProg is now delegated to separate routine
+'Dim isFirstInProg As Boolean
 
 dlns25.MoveFirst
 dlns50.MoveFirst
@@ -1591,9 +1602,12 @@ Do Until dlns25.EOF And dlns50.EOF
   ElseIf (dlns50.EOF) Then
     blProc25 = True
   Else
+  
+    'We no longer perform the res,bm comparison here ourselves. This is delegated to later on.
+  
     Dim tpProg25 As String, tpProg50 As String
-    Dim tpRes25 As String, tpRes50 As String
-    Dim tpBM25 As String, tpBM50 As String
+    'Dim tpRes25 As String, tpRes50 As String
+    'Dim tpBM25 As String, tpBM50 As String
     Dim tpABC25 As String, tpABC50 As String
     Dim tpCatIdx25 As Long, tpCatIdx50 As Long
     Dim tpIns25 As Double, tpIns50 As Double
@@ -1601,11 +1615,11 @@ Do Until dlns25.EOF And dlns50.EOF
     tpProg25 = Nz(dlns25("DE_Programmanummer"))
     tpProg50 = Nz(dlns50("DE_Programmanummer"))
     
-    tpRes25 = Nz(dlns25("DE_Reserve"))
-    tpRes50 = Nz(dlns50("DE_Reserve"))
+    'tpRes25 = Nz(dlns25("DE_Reserve"))
+    'tpRes50 = Nz(dlns50("DE_Reserve"))
     
-    tpBM25 = Nz(dlns25("DE_Buitenmededinging"))
-    tpBM50 = Nz(dlns50("DE_Buitenmededinging"))
+    'tpBM25 = Nz(dlns25("DE_Buitenmededinging"))
+    'tpBM50 = Nz(dlns50("DE_Buitenmededinging"))
     
     tpABC25 = Nz(dlns25("DE_A/B/C"))
     tpABC50 = Nz(dlns50("DE_A/B/C"))
@@ -1621,14 +1635,14 @@ Do Until dlns25.EOF And dlns50.EOF
       blProc25 = True
     ElseIf (tpProg25 > tpProg50) Then
       blProc25 = False
-    ElseIf (Not blIsPerCat) And (tpRes25 > tpRes50) Then
-      blProc25 = True
-    ElseIf (Not blIsPerCat) And (tpRes25 < tpRes50) Then
-      blProc25 = False
-    ElseIf (tpBM25 > tpBM50) Then
-      blProc25 = True
-    ElseIf (tpBM25 < tpBM50) Then
-      blProc25 = False
+    'ElseIf (Not blIsPerCat) And (tpRes25 > tpRes50) Then
+    '  blProc25 = True
+    'ElseIf (Not blIsPerCat) And (tpRes25 < tpRes50) Then
+    '  blProc25 = False
+    'ElseIf (tpBM25 > tpBM50) Then
+    '  blProc25 = True
+    'ElseIf (tpBM25 < tpBM50) Then
+    '  blProc25 = False
     ElseIf (blIsPerCat) And (tpABC25 < tpABC50) Then
       blProc25 = True
     ElseIf (blIsPerCat) And (tpABC25 > tpABC50) Then
@@ -1637,10 +1651,10 @@ Do Until dlns25.EOF And dlns50.EOF
       blProc25 = True
     ElseIf (blIsPerCat) And (tpCatIdx25 > tpCatIdx50) Then
       blProc25 = False
-    ElseIf (blIsPerCat) And (tpRes25 > tpRes50) Then
-      blProc25 = True
-    ElseIf (blIsPerCat) And (tpRes25 < tpRes50) Then
-      blProc25 = False
+    'ElseIf (blIsPerCat) And (tpRes25 > tpRes50) Then
+    '  blProc25 = True
+    'ElseIf (blIsPerCat) And (tpRes25 < tpRes50) Then
+    '  blProc25 = False
     Else
       'update prog information
       If (wedInf.qlfConvMode = QLF_CONV_FINA_POINTS) Then
@@ -1669,10 +1683,24 @@ Do Until dlns25.EOF And dlns50.EOF
     tpProg = Nz(dlns25("DE_Programmanummer"))
     tpABC = Nz(dlns25("DE_A/B/C"))
     tpCatIdx = Nz(dlns25("DE_CatIdx"))
+    tpRes = Nz(dlns25("DE_Reserve")) = "J"
+    tpBM = Nz(dlns25("DE_Buitenmededinging")) = "J"
+    tpDlnIdx = Nz(dlns25("DE_Index"))
   Else
     tpProg = Nz(dlns50("DE_Programmanummer"))
     tpABC = Nz(dlns50("DE_A/B/C"))
     tpCatIdx = Nz(dlns50("DE_CatIdx"))
+    tpRes = Nz(dlns50("DE_Reserve")) = "J"
+    tpBM = Nz(dlns50("DE_Buitenmededinging")) = "J"
+    tpDlnIdx = Nz(dlns50("DE_Index"))
+  End If
+  
+  'Get corresponding dis code; if available
+  tpDis = ""
+    
+  skTd.Seek "=", tpDlnIdx
+  If Not skTd.NoMatch Then
+    tpDis = Nz(skTd("TY_Dis"))
   End If
   
   
@@ -1685,7 +1713,7 @@ Do Until dlns25.EOF And dlns50.EOF
     curABC = tpABC
     curCatIdx = tpCatIdx
     blReset = True
-    isFirstInProg = True
+    'isFirstInProg = True
   ElseIf (blIsPerCat) And (tpABC <> curABC) Then
     curABC = tpABC
     curCatIdx = tpCatIdx
@@ -1696,36 +1724,61 @@ Do Until dlns25.EOF And dlns50.EOF
   End If
   
   If (blReset) Then
-    tpCnt = 1
+    tpCnt = 0
+    tpPenaltyCnt = 0
   End If
   
   
+  Dim tpPen As Long
+  tpPen = 0
+  
+  If (tpDis = DIS_NG) Then
+    tpPen = STL_PEN_NG
+  ElseIf (tpDis = DIS_AFM) Then
+    tpPen = STL_PEN_AFM
+  ElseIf (tpBM) Then
+    tpPen = STL_PEN_BM
+  ElseIf (tpRes) Then
+    tpPen = STL_PEN_RES
+  End If
+  
+  Dim tpActCnt As Long
+  If (tpPen = 0) Then
+    tpCnt = tpCnt + 1
+    tpActCnt = tpCnt
+  Else
+    tpPenaltyCnt = tpPenaltyCnt + 1
+    tpActCnt = tpPen * STL_PEN_FACTOR + tpPenaltyCnt
+  End If
+    
+  
+  
   Dim fnCnt As String
-  Dim fnFirst As String
+  'Dim fnFirst As String
   
   If (blIsPerCat) Then
     fnCnt = "DE_INT_CatCnt"
-    fnFirst = "DE_INT_CatFirst"
+    'fnFirst = "DE_INT_CatFirst"
   Else
     fnCnt = "DE_INT_Cnt"
-    fnFirst = "DE_INT_First"
+    'fnFirst = "DE_INT_First"
   End If
   
   
   If (blProc25) Then
     dlns25.Edit
-      dlns25(fnCnt) = tpCnt
-      dlns25(fnFirst) = isFirstInProg
+      dlns25(fnCnt) = tpActCnt
+      'dlns25(fnFirst) = isFirstInProg
     dlns25.Update
   Else
     dlns50.Edit
-      dlns50(fnCnt) = tpCnt
-      dlns50(fnFirst) = isFirstInProg
+      dlns50(fnCnt) = tpActCnt
+      'dlns50(fnFirst) = isFirstInProg
     dlns50.Update
   End If
   
-  tpCnt = tpCnt + 1
-  isFirstInProg = False
+  'tpCnt = tpCnt + 1
+  'isFirstInProg = False
   
   If (blProc25) Then
     dlns25.MoveNext
@@ -1739,15 +1792,74 @@ Loop
 
 
 
-progSetCounters_handleSet = True
+progSetCounters_cnt_handleSet = True
 Exit Function
 
 fout:
 If (Err = 3021) Then Resume Next
-MsgBox Err & " progSetCounters_handleSet" & vbCrLf & Error$, 16
+MsgBox Err & " progSetCounters_cnt_handleSet" & vbCrLf & Error$, 16
 Exit Function
 
 End Function
+
+
+Private Function progSetCounters_first_handleSet(ByRef dlns As Recordset, ByVal blIsPerCat As Boolean) As Boolean
+On Error GoTo fout
+
+progSetCounters_first_handleSet = False
+
+Dim curProg As String
+curProg = ""
+
+Dim tpProg As String
+
+
+dlns.MoveFirst
+
+Do Until dlns.EOF
+  
+  tpProg = Nz(dlns("DE_Programmanummer"))
+  
+    
+  Dim blFirstInProg As Boolean
+  blFirstInProg = False
+  
+  If (tpProg <> curProg) Then
+    curProg = tpProg
+    blFirstInProg = True
+  End If
+  
+  Dim fnFirst As String
+  
+  If (blIsPerCat) Then
+    fnFirst = "DE_INT_CatFirst"
+  Else
+    fnFirst = "DE_INT_First"
+  End If
+  
+  
+  dlns.Edit
+    dlns(fnFirst) = blFirstInProg
+  dlns.Update
+  
+  
+  blFirstInProg = False
+  
+  dlns.MoveNext
+ 
+Loop
+
+
+progSetCounters_first_handleSet = True
+Exit Function
+
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " progSetCounters_first_handleSet" & vbCrLf & Error$, 16
+Exit Function
+
+End Function
+
 
 
 
@@ -1761,14 +1873,19 @@ If Not wedCalcEstQlfBn(wedInf, False, False, "") Then
   Exit Function
 End If
 
+Dim skTd As Recordset
+Set skTd = CurrentDb().OpenRecordset("dtTijden")
+skTd.Index = "TY_Index"
 
-'Note that (reserve, bm) is deliberately in this order; to keep the same ordering as the programma / uitslagblad.
+
+
+'obsoleted: Note that (reserve, bm) is deliberately in this order; to keep the same ordering as the programma / uitslagblad.
 Dim sql25 As String, sql50 As String
 If (Not blIsOW) Then
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  swtOrder(nz([de_inschrijftijd])), de_index;"
-  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  swtOrder(nz([de_inschrijftijd])), de_index;"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer,  swtOrder(nz([de_inschrijftijd])), de_index;"
+  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer,   swtOrder(nz([de_inschrijftijd])), de_index;"
 Else
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer,de_reserve desc, de_buitenmededinging desc,  de_ow_capnummer, de_index;"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer,  de_ow_capnummer, de_index;"
   sql50 = "select * from dtDeelnemers where false;"
 End If
 
@@ -1777,19 +1894,33 @@ Dim dlns25 As Recordset, dlns50 As Recordset
 Set dlns25 = CurrentDb().OpenRecordset(sql25)
 Set dlns50 = CurrentDb().OpenRecordset(sql50)
 
-If Not progSetCounters_handleSet(dlns25, dlns50, False, wedInf, blIsOW) Then
+If Not progSetCounters_cnt_handleSet(dlns25, dlns50, skTd, False, wedInf, blIsOW) Then
   Exit Function
 End If
 
 appCleanRS dlns25
 appCleanRS dlns50
 
+Dim sql As String
+'Have to make sure the ordering is exactly the same as in the stl report.
+sql = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer, de_int_cnt, de_index;"
+
+Dim dlns As Recordset
+Set dlns = CurrentDb().OpenRecordset(sql)
+
+If Not progSetCounters_first_handleSet(dlns, False) Then
+  Exit Function
+End If
+
+appCleanRS dlns
+
+
 
 If (Not blIsOW) Then
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, swtOrder(nz([de_inschrijftijd])), de_index;"
-  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, swtOrder(nz([de_inschrijftijd])), de_index;"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) <> 50 order by de_programmanummer,  [de_a/b/c],de_catidx,  swtOrder(nz([de_inschrijftijd])), de_index;"
+  sql50 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " and nz([de_qlf_baan]) = 50 order by de_programmanummer,  [de_a/b/c],de_catidx,  swtOrder(nz([de_inschrijftijd])), de_index;"
 Else
-  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx, de_reserve desc, de_ow_capnummer, de_index;"
+  sql25 = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer, [de_a/b/c],de_catidx,  de_ow_capnummer, de_index;"
   sql50 = "select * from dtDeelnemers where false;"
 End If
 
@@ -1797,13 +1928,27 @@ End If
 Set dlns25 = CurrentDb().OpenRecordset(sql25)
 Set dlns50 = CurrentDb().OpenRecordset(sql50)
 
-If Not progSetCounters_handleSet(dlns25, dlns50, True, wedInf, blIsOW) Then
+If Not progSetCounters_cnt_handleSet(dlns25, dlns50, skTd, True, wedInf, blIsOW) Then
   Exit Function
 End If
 
 appCleanRS dlns25
 appCleanRS dlns50
 
+'Have to make sure the ordering is exactly the same as in the stl_cat report.
+'Therefore need to sort by de_buitenmededinging desc
+sql = "select * from dtDeelnemers where de_wedstrijdnummer = " & wedInf.wednr & " order by de_programmanummer, de_buitenmededinging desc, [de_a/b/c],de_catidx,de_int_catcnt, de_index;"
+
+Set dlns = CurrentDb().OpenRecordset(sql)
+
+If Not progSetCounters_first_handleSet(dlns, True) Then
+  Exit Function
+End If
+
+appCleanRS dlns
+
+
+appCleanRS skTd
 
 progSetCounters = True
 Exit Function
