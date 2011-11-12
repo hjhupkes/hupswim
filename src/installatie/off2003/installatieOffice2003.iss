@@ -1,10 +1,10 @@
-;Setup For Office 2003/2007
+;Setup For Office 2003/2007/2010
 
 ;Requires non-public directory bin_priv
 ;To obtain this directory, contact hjhupkes
 
 [Setup]
-AppName=Hupsoft voor Office 2003/2007
+AppName=Hupsoft voor Office 2003/2007/2010
 AppID=Hupsoft voor Office 2003
 AppVerName=Hupsoft
 AppPublisher=H.J. Hupkes - Hupsoft
@@ -90,8 +90,9 @@ Source: "..\..\..\bin\img\hzzian2.ico"; DestDir: "{app}\database"; Flags: ignore
 
 
 [Tasks]
-Name: useAcc2003; Description: "Access 2003 gebruiken [aanbevolen]"; GroupDescription: "Access 2003 en Access 2007 werden beiden aangetroffen. Kies de versie om te gebruiken:"; Flags: exclusive;  Check: ShouldPromptVersion();
-Name: useAcc2007; Description: "Access 2007 gebruiken"; GroupDescription: "Access 2003 en Access 2007 werden beiden aangetroffen. Kies de versie om te gebruiken:"; Flags: exclusive unchecked; Check: ShouldPromptVersion();
+Name: useAcc2003; Description: "Access 2003 gebruiken [aanbevolen]"; GroupDescription: "Meerdere versies van Access werden aangetroffen. Kies de versie om te gebruiken:"; Flags: exclusive;  Check: ShouldPromptVersion() and IsAcc2003Present();
+Name: useAcc2007; Description: "Access 2007 gebruiken"; GroupDescription: "Meerdere versies van Access werden aangetroffen. Kies de versie om te gebruiken:"; Flags: exclusive unchecked; Check: ShouldPromptVersion() and IsAcc2007Present();
+Name: useAcc2010; Description: "Access 2010 gebruiken"; GroupDescription: "Meerdere versies van Access werden aangetroffen. Kies de versie om te gebruiken:"; Flags: exclusive unchecked; Check: ShouldPromptVersion() and IsAcc2010Present();
 Name: desktopicon; Description: "Create a &desktop icon"; GroupDescription: "Additional icons:";
 Name: restorebackups; Description: "&Restore data from current version of Hupswim and Hupprog"; GroupDescription: "Restore data:"; Check: ShouldRestore(ExpandConstant('{app}\database'))
 
@@ -135,12 +136,29 @@ Name: "{userdesktop}\Hupswim (Tijden administratie)"; Filename: "{reg:HKLM\SOFTW
 Name: "{userdesktop}\Hupprog (Wedstrijd organisatie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\12.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Tasks: desktopicon;  Check: UseAcc2007();
 
 
+;Acc 2010 hoofd-programma's
+Name: "{group}\Hupswim (Tijden administratie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"""; IconFileName: "{app}\database\hzzian2.ico";  Check: UseAcc2010();
+Name: "{group}\Hupprog (Wedstrijd organisatie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"""; IconFileName: "{app}\database\hzzian2.ico";  Check: UseAcc2010();
+Name: "{group}\Hupswim [safe mode]"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"" /cmd ""SafeMode"""; IconFileName: "{app}\database\hzzian2.ico"; Check: UseAcc2010();
+Name: "{group}\Hupprog [safe mode]"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"" /cmd ""SafeMode"""; IconFileName: "{app}\database\hzzian2.ico"; Check: UseAcc2010();
+Name: "{group}\Huppay (Contributie administratie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\huppay.mde"""; IconFileName: "{app}\database\hzzian2.ico";  Check: UseAcc2010();
+;Acc 2010 support:
+Name: "{group}\Onderhoud Hupswim"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/compact /repair ""{app}\database\hupsw97.mde"""; IconFileName: "{app}\database\hzzian2.ico";  Check: UseAcc2010();
+Name: "{group}\Onderhoud Hupprog"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/compact /repair ""{app}\database\wedstr97.mde"""; IconFileName: "{app}\database\hzzian2.ico";  Check: UseAcc2010();
+Name: "{group}\Onderhoud Huppay"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/compact /repair ""{app}\database\huppay.mde"""; IconFileName: "{app}\database\hzzian2.ico";  Check: UseAcc2010();
+;Acc 2010 desktop icons:
+Name: "{userdesktop}\Hupswim (Tijden administratie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Tasks: desktopicon;  Check: UseAcc2010();
+Name: "{userdesktop}\Hupprog (Wedstrijd organisatie)"; Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"""; IconFileName: "{app}\database\hzzian2.ico"; Tasks: desktopicon;  Check: UseAcc2010();
+
+
 
 [Run]
 Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\11.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"" /x gRestoreSetupBackup";  StatusMsg: "Restoring Hupswim data...";  Tasks: restorebackups; Check: ShouldRestore(ExpandConstant('{app}\database')) and UseAcc2003();
 Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\11.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"" /x gRestoreSetupBackup"; StatusMsg: "Restoring Hupprog data...";  Tasks: restorebackups;  Check: ShouldRestore(ExpandConstant('{app}\database')) and UseAcc2003();
 Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\12.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"" /x gRestoreSetupBackup";  StatusMsg: "Restoring Hupswim data...";  Tasks: restorebackups; Check: ShouldRestore(ExpandConstant('{app}\database')) and UseAcc2007();
 Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\12.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"" /x gRestoreSetupBackup"; StatusMsg: "Restoring Hupprog data...";  Tasks: restorebackups;  Check: ShouldRestore(ExpandConstant('{app}\database')) and UseAcc2007();
+Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\hupsw97.mde"" /x gRestoreSetupBackup";  StatusMsg: "Restoring Hupswim data...";  Tasks: restorebackups; Check: ShouldRestore(ExpandConstant('{app}\database')) and UseAcc2010();
+Filename: "{reg:HKLM\SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot,Path}msaccess.exe"; Parameters: "/runtime ""{app}\database\wedstr97.mde"" /x gRestoreSetupBackup"; StatusMsg: "Restoring Hupprog data...";  Tasks: restorebackups;  Check: ShouldRestore(ExpandConstant('{app}\database')) and UseAcc2010();
 
 
 
@@ -153,6 +171,7 @@ var
   backupOK:boolean;
   blFoundAcc2003:boolean;
   blFoundAcc2007:boolean;
+  blFoundAcc2010:boolean;
 
 function InitializeSetup(): Boolean;
 begin
@@ -163,27 +182,55 @@ begin
   
   blFoundAcc2003:= RegKeyExists(HKEY_LOCAL_MACHINE, 'Software\microsoft\office\11.0\Access');
   blFoundAcc2007:= RegKeyExists(HKEY_LOCAL_MACHINE, 'Software\microsoft\office\12.0\Access');
+  blFoundAcc2010:= RegKeyExists(HKEY_LOCAL_MACHINE, 'Software\microsoft\office\14.0\Access');
   
   
-  if (not (blFoundAcc2003 or blFoundAcc2007) ) then begin
-    msgBox('Hupswim kon geen geinstalleerde versie van Access 2003/2007 vinden. Download eerst de runtime versie van Access 2003 van de Hupsoft website (http://home.kpn.nl/wimhupke/hupsoft)', mbInformation, MB_OK);
+  if (not (blFoundAcc2003 or blFoundAcc2007 or blFoundAcc2010) ) then begin
+    msgBox('Hupswim kon geen geinstalleerde versie van Access 2003/2007/2010 vinden. Download eerst de runtime versie van Access 2003 van de Hupsoft website (http://home.kpn.nl/wimhupke/hupsoft)', mbInformation, MB_OK);
     result:=false;
   end;
 end;
 
 function ShouldPromptVersion(): Boolean;
+var
+  nVerFound:integer;
 begin
   result:=false;
-  if (blFoundAcc2003 and blFoundAcc2007) then begin
+  nVerFound:=0;
+  if (blFoundAcc2003) then begin
+    nVerFound:=nVerFound+1;
+  end;
+  if (blFoundAcc2007) then begin
+    nVerFound:=nVerFound+1;
+  end;
+  if (blFoundAcc2010) then begin
+    nVerFound:=nVerFound+1;
+  end;
+  if (nVerFound > 1) then begin
     result:=true;
   end;
+end;
+
+function IsAcc2003Present(): Boolean;
+begin
+  result:=blFoundAcc2003;
+end;
+
+function IsAcc2007Present(): Boolean;
+begin
+  result:=blFoundAcc2007;
+end;
+
+function IsAcc2010Present(): Boolean;
+begin
+  result:=blFoundAcc2010;
 end;
 
 function UseAcc2003(): Boolean;
 begin
   result:=false;
   if (blFoundAcc2003) then begin
-    if (not blFoundAcc2007) then begin
+    if ( (not blFoundAcc2007) and (not blFoundAcc2010) ) then begin
       result:=true;
     end else begin
       if IsTaskSelected('useAcc2003') then begin
@@ -197,10 +244,24 @@ function UseAcc2007(): Boolean;
 begin
   result:=false;
   if (blFoundAcc2007) then begin
-    if (not blFoundAcc2003) then begin
+    if ( (not blFoundAcc2003) and (not blFoundAcc2010) ) then begin
       result:=true;
     end else begin
       if IsTaskSelected('useAcc2007') then begin
+        result:=true;
+      end;
+    end;
+  end;
+end;
+
+function UseAcc2010(): Boolean;
+begin
+  result:=false;
+  if (blFoundAcc2010) then begin
+    if ( (not blFoundAcc2003) and (not blFoundAcc2007) ) then begin
+      result:=true;
+    end else begin
+      if IsTaskSelected('useAcc2010') then begin
         result:=true;
       end;
     end;

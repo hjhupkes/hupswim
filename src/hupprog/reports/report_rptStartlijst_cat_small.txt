@@ -1,6 +1,6 @@
 Version =20
 VersionRequired =20
-Checksum =-1363010774
+Checksum =471474317
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
@@ -8,10 +8,10 @@ Begin Report
     GridY =60
     Width =10752
     ItemSuffix =68
-    Left =6465
-    Top =315
-    Right =18720
-    Bottom =8685
+    Left =4005
+    Top =180
+    Right =16260
+    Bottom =8550
     ShortcutMenuBar ="gShortcutRpt"
     Toolbar ="gRptToolbar"
     RecSrcDt = Begin
@@ -2264,21 +2264,10 @@ Begin Report
                 Begin TextBox
                     TextAlign =1
                     TextFontFamily =34
-                    Left =236
-                    Width =318
-                    Height =227
-                    ColumnWidth =210
-                    Name ="Baan"
-                    ControlSource ="=IIf([DE_Reserve]=\"J\",\"Rs.\")"
-                End
-                Begin TextBox
-                    TextAlign =1
-                    TextFontFamily =34
                     Left =586
                     Width =1693
                     Height =227
                     ColumnWidth =600
-                    TabIndex =1
                     Name ="naam"
                     ControlSource ="=IIf(IsNull([DE_Startnummer]),[de_estDisplayName],[DE_Naam])"
                 End
@@ -2289,7 +2278,7 @@ Begin Report
                     Width =766
                     Height =227
                     ColumnWidth =765
-                    TabIndex =2
+                    TabIndex =1
                     Name ="start"
                     ControlSource ="=[de_startnummer]"
                 End
@@ -2300,7 +2289,7 @@ Begin Report
                     Width =621
                     Height =227
                     ColumnWidth =675
-                    TabIndex =3
+                    TabIndex =2
                     Name ="insch"
                     ControlSource ="=fmtSwimTime(nz([DE_Inschrijftijd],0))"
                     Format ="# 00.0#;;\"\""
@@ -2312,7 +2301,7 @@ Begin Report
                     Width =1281
                     Height =227
                     ColumnWidth =705
-                    TabIndex =4
+                    TabIndex =3
                     Name ="Vereniging"
                     ControlSource ="=IIf(IsNull([DE_Startnummer]),\"\",[DE_Vereniging])"
                 End
@@ -2323,25 +2312,24 @@ Begin Report
                     Width =276
                     Height =225
                     ColumnWidth =0
-                    TabIndex =5
+                    TabIndex =4
                     Name ="Buitenmd"
                     ControlSource ="=fmtPVDlnCode(nz([DE_Buitenmededinging]),nz([de_A/B/C]),\"\",nz([de_hndCode]))"
                 End
                 Begin TextBox
                     TextAlign =1
                     TextFontFamily =34
-                    Width =228
+                    Width =578
                     Height =227
-                    TabIndex =6
+                    TabIndex =5
                     Name ="cnt"
-                    ControlSource ="=[de_int_catcnt]"
                 End
                 Begin TextBox
                     TextFontFamily =34
                     Left =1152
                     Width =336
                     Height =227
-                    TabIndex =7
+                    TabIndex =6
                     Name ="fldCapkleur"
                     ControlSource ="DE_OW_Capkleur"
                 End
@@ -2351,7 +2339,7 @@ Begin Report
                     Left =1606
                     Width =456
                     Height =227
-                    TabIndex =8
+                    TabIndex =7
                     Name ="fldCapnummer"
                     ControlSource ="DE_OW_Capnummer"
                 End
@@ -3431,6 +3419,47 @@ Begin Report
                     ControlSource ="PR_Wedstrijdnummer"
                     GUID = Begin
                         0x48b0dc81d1499b47bd65ae7c6df9bafc
+                    End
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    IMESentenceMode =3
+                    Left =8494
+                    Top =2787
+                    Width =591
+                    TabIndex =106
+                    Name ="DE_Reserve"
+                    ControlSource ="DE_Reserve"
+                    Format =">"
+                    InputMask =">C;;\" \""
+                    GUID = Begin
+                        0xb25df3e0f320cf448376a23d7783a152
+                    End
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    IMESentenceMode =3
+                    Left =8050
+                    Top =2532
+                    Width =651
+                    TabIndex =107
+                    Name ="DE_INT_Cnt"
+                    ControlSource ="DE_INT_Cnt"
+                    GUID = Begin
+                        0x65cb2dcd2f8e8346ba999121d624ea31
+                    End
+                End
+                Begin TextBox
+                    Visible = NotDefault
+                    IMESentenceMode =3
+                    Left =8050
+                    Top =2834
+                    Width =366
+                    TabIndex =108
+                    Name ="DE_INT_CatCnt"
+                    ControlSource ="DE_INT_CatCnt"
+                    GUID = Begin
+                        0xe757c8ede4be3b48b552694d59440ae0
                     End
                 End
             End
@@ -4518,9 +4547,11 @@ End If
 If (blIsStartLijst And blShowQlfData) Then
   'Need to make space
   
-  Me.Controls("baan").Width = 0.8 * 567
+  'Me.Controls("baan").Width = 0.8 * 567
+  Me.Controls("cnt").Width = (0.693 + 0.8) * 567
   
-  Me.Controls("naam").Left = Me.Controls("baan").Left + Me.Controls("baan").Width + 0.02 * 567
+  'Me.Controls("naam").Left = Me.Controls("baan").Left + Me.Controls("baan").Width + 0.02 * 567
+  Me.Controls("naam").Left = Me.Controls("cnt").Left + Me.Controls("cnt").Width + 0.02 * 567
   Me.Controls("naam").Width = 3.8 * 567
   
   Me.Controls("vereniging").Left = Me.Controls("naam").Left + Me.Controls("naam").Width + 0.02 * 567
@@ -5112,7 +5143,15 @@ End If
 If (blIsUitslag And blIsOW) Then
   'Do not move DIS_AFM and DIS_NG swimmers to the end of the list for OW matches.
   'This is to ensure that  de_int_first will remain an accurate way of telling whether the current dln is the first.
-  Me.GroupLevel(5).ControlSource = "de_reserve"
+  'Me.GroupLevel(5).ControlSource = "de_reserve"
+  
+  'Need to respect the ordering of de_int_cnt
+  Me.GroupLevel(5).ControlSource = "=true"
+End If
+
+If (blIsProgramma And blIsOW) Then
+  'Respect the ordering of de_int_cnt
+  Me.GroupLevel(5).ControlSource = "=true"
 End If
 
 
@@ -5313,11 +5352,11 @@ Else
     If (blIsCntVisible) Then
       Me.Controls("cnt").Visible = True
       Me.Controls("cnt").Width = 1 * 567
-      If (blIsSLCat) Then
-        Me.Controls("cnt").ControlSource = "=[de_int_catcnt] & ""."""
-      Else
-        Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
-      End If
+      'If (blIsSLCat) Then
+      '  Me.Controls("cnt").ControlSource = "=[de_int_catcnt] & ""."""
+      'Else
+      '  Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
+      'End If
       Me.fldCapkleur.Left = Me.Controls("cnt").Left + Me.Controls("cnt").Width + 0.05 * 567
     Else
       Me.Controls("cnt").Visible = False
@@ -5330,7 +5369,7 @@ Else
        
       
     
-      Me.Controls("Baan").Visible = False
+      'Me.Controls("Baan").Visible = False
     
       Me.fldCapkleur.Width = 1.6 * 567
       Me.fldCapnummer.Width = 0.5 * 678
@@ -5395,7 +5434,7 @@ Else
       ElseIf (blIsUitslag) Then
         Me.Controls("cnt").Width = 0.7 * 567
       End If
-      Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
+      'Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
       Me.fldCapkleur.Left = Me.Controls("cnt").Left + Me.Controls("cnt").Width + 0.05 * 567
     Else
       Me.Controls("cnt").Visible = False
@@ -5769,17 +5808,30 @@ Else
   
   ElseIf (blIsStartLijst) Then
   
-  
-    If (Not blIsOW) Then
-      deelnIsValid = True
-      If (Nz([DE_Buitenmededinging]) = "J") Then
-        deelnIsValid = False
-      End If
+    Dim tpPenType As Long, tpCnt As Long
+    tpPenType = 0
+    tpCnt = 0
     
-      
-      Me.Controls("cnt").Visible = deelnIsValid
+    If (blIsSLCat) Then
+      tpCnt = Nz([DE_INT_CatCnt])
+    Else
+      tpCnt = Nz([DE_INT_Cnt])
     End If
     
+    tpPenType = tpCnt \ STL_PEN_FACTOR
+    
+    
+    If (tpPenType = STL_PEN_VALID) Then
+      Me.Controls("cnt") = tpCnt & "."
+    ElseIf (tpPenType = STL_PEN_RES) Then
+      Me.Controls("cnt") = "Res."
+    ElseIf (tpPenType = STL_PEN_BM) Then
+      Me.Controls("cnt") = "BM"
+    ElseIf (tpPenType = STL_PEN_AFM) Then
+      Me.Controls("cnt") = "Afg."
+    ElseIf (tpPenType = STL_PEN_NG) Then
+      Me.Controls("cnt") = "Ng."
+    End If
     
   ElseIf (blIsProgramma) Then
   
@@ -5789,6 +5841,30 @@ Else
         Cancel = True
       End If
   
+    End If
+    
+    If (blIsOW) Then
+      'need to use cnt control
+      
+      tpPenType = 0
+      tpCnt = 0
+    
+      tpCnt = Nz([DE_INT_Cnt])
+          
+      tpPenType = tpCnt \ STL_PEN_FACTOR
+    
+    
+      If (tpPenType = STL_PEN_VALID) Then
+        Me.Controls("cnt") = tpCnt & "."
+      ElseIf (tpPenType = STL_PEN_RES) Then
+        Me.Controls("cnt") = "Res."
+      ElseIf (tpPenType = STL_PEN_BM) Then
+        Me.Controls("cnt") = "BM"
+      ElseIf (tpPenType = STL_PEN_AFM) Then
+        Me.Controls("cnt") = "Afg."
+      ElseIf (tpPenType = STL_PEN_NG) Then
+        Me.Controls("cnt") = "Ng."
+      End If
     End If
     
   End If

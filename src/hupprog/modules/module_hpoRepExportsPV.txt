@@ -3044,7 +3044,9 @@ Select Case bandName
       Else
         bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
       End If
-      bndColFields(6) = RXP_PV_FLD_S_DLNRES_FMT
+      
+      'bndColFields(6) = RXP_PV_FLD_S_DLNRES_FMT
+      bndColFixedText(6) = ""
       
       If (tpPO.blShowQlfDataSTL) Then
         bndColFields(7) = RXP_PV_FLD_S_DLNINS_BN_FMT
@@ -3623,7 +3625,9 @@ Select Case bandName
       Else
         bndColFields(5) = RXP_PV_FLD_S_DLNCODE_FMT
       End If
-      bndColFields(6) = RXP_PV_FLD_S_DLNRES_FMT
+      
+      'bndColFields(6) = RXP_PV_FLD_S_DLNRES_FMT
+      bndColFixedText(6) = ""
       
       If (tpPO.blShowQlfDataSTL) Then
         bndColFields(7) = RXP_PV_FLD_S_DLNINS_BN_FMT
@@ -4222,9 +4226,18 @@ Select Case pvType
   Case RXP_PV_TYPE_UTL
     obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, nz([de_buitenmededinging]) DESC , nz([DE_A/B/C]), DE_CatIdx, TY_echtePlaats, TY_Eindtijd, TY_ab;"
   Case RXP_PV_TYPE_UTB
-    obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, (nz([DE_Reserve])=""J"") Or (nz([ty_dis])=""AFM"") Or (nz([ty_dis])=""NG"") desc,de_serienummer,de_baan,de_int_cnt;"
+    If (blIsOW) Then
+      obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, de_serienummer,de_baan,de_int_cnt;"
+    Else
+      obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, (nz([DE_Reserve])=""J"") Or (nz([ty_dis])=""AFM"") Or (nz([ty_dis])=""NG"") desc, " _
+        & "iif((nz([DE_Reserve])=""J"") Or (nz([ty_dis])=""AFM"") Or (nz([ty_dis])=""NG""), 0,[de_serienummer]),de_baan,de_int_cnt;"
+    End If
   Case RXP_PV_TYPE_PRG
-    obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, de_reserve desc,de_serienummer,de_baan,de_int_cnt;"
+    If (blIsOW) Then
+      obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, de_serienummer,de_baan,de_int_cnt;"
+    Else
+      obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, de_reserve desc,de_serienummer,de_baan,de_int_cnt;"
+    End If
   Case RXP_PV_TYPE_STL
     obClause = "ORDER BY dtWedstrijdGegevens.WE_Wedstrijdnummer, Val([pr_programmanummer]), dtProgramma.PR_Programmanummer, de_int_cnt;"
   Case RXP_PV_TYPE_STLGRP
@@ -4465,6 +4478,16 @@ Do Until blProgsDone
     
     tpSerie = Nz(geg("DE_Serienummer"))
     tpReserve = Nz(geg("DE_Reserve"), "N")
+    
+    If (pvType = RXP_PV_TYPE_UTB) Then
+      Dim tpUTBDis As String
+      tpUTBDis = Nz(geg("TY_Dis"))
+      If (tpUTBDis = DIS_AFM) Or (tpUTBDis = DIS_NG) Then
+        tpSerie = 0
+      ElseIf (tpReserve = "J") Then
+        tpSerie = 0
+      End If
+    End If
     
     If (tpWed <> curWed) Then
       blIsNewWed = True
@@ -5213,11 +5236,16 @@ Do Until blProgsDone
   dlnPosS = ""
   
   Dim dlnPosI As Long
+  dlnPosI = 0
   
   If (pvType = RXP_PV_TYPE_UTB) Or (pvType = RXP_PV_TYPE_UTL) Then
     dlnPosI = Nz(geg("TY_EchtePlaats"))
-  Else
+  ElseIf (pvType = RXP_PV_TYPE_STL) Then
     dlnPosI = Nz(geg("DE_int_cnt"))
+  ElseIf (pvType = RXP_PV_TYPE_PRG) And (blIsOW) Then
+    dlnPosI = Nz(geg("DE_int_cnt"))
+  ElseIf (pvType = RXP_PV_TYPE_STLGRP) Then
+    dlnPosI = Nz(geg("de_int_catcnt"))
   End If
   
   
@@ -5269,12 +5297,15 @@ Do Until blProgsDone
   
   
   ElseIf (pvType = RXP_PV_TYPE_STL) Or (pvType = RXP_PV_TYPE_STLGRP) Then
-    If (Not blIsOW) Then
-      If (Nz(geg("DE_Buitenmededinging")) = "J") Then
+    If (dlnPosI >= STL_PEN_FACTOR) Then
+      dlnValid = False
+    End If
+  ElseIf (pvType = RXP_PV_TYPE_PRG) Then
+    If (blIsOW) Then
+      If (dlnPosI >= STL_PEN_FACTOR) Then
         dlnValid = False
       End If
     End If
-  ElseIf (pvType = RXP_PV_TYPE_PRG) Then
     If (blProgHideNgAfm) Then
       If (curDisCode = DIS_NG) Or (curDisCode = DIS_AFM) Then
         dlnSkip = True
@@ -5290,6 +5321,18 @@ Do Until blProgsDone
     dlnPrevPosI = dlnPosI
   ElseIf (pvType = RXP_PV_TYPE_UTL) Then
     dlnPosS = "-"
+  ElseIf (pvType = RXP_PV_TYPE_STL) Or (pvType = RXP_PV_TYPE_STLGRP) Or (pvType = RXP_PV_TYPE_PRG And blIsOW) Then
+    Dim tpPenType As Long
+    tpPenType = dlnPosI \ STL_PEN_FACTOR
+    If (tpPenType = STL_PEN_RES) Then
+      dlnPosS = "Res."
+    ElseIf (tpPenType = STL_PEN_BM) Then
+      dlnPosS = "BM"
+    ElseIf (tpPenType = STL_PEN_AFM) Then
+      dlnPosS = "Afg."
+    ElseIf (tpPenType = STL_PEN_NG) Then
+      dlnPosS = "Ng."
+    End If
   End If
 
 
@@ -5315,7 +5358,8 @@ Do Until blProgsDone
 
     rxpOpenBand RXP_PV_BNDD_DEELN, RXP_BNDTYPE_DETAIL, rxpRS, maxUsedRXID
 
-    If (pvType = RXP_PV_TYPE_UTB Or pvType = RXP_PV_TYPE_UTL Or pvType = RXP_PV_TYPE_STL Or pvType = RXP_PV_TYPE_STLGRP) Then
+    If (pvType = RXP_PV_TYPE_UTB Or pvType = RXP_PV_TYPE_UTL Or pvType = RXP_PV_TYPE_STL Or pvType = RXP_PV_TYPE_STLGRP _
+      Or (pvType = RXP_PV_TYPE_PRG And blIsOW)) Then
       rxpSetProperty RXP_PV_FLD_S_DLNPOS_FMT, dlnPosS, rxpRS, maxUsedRXID
       rxpSetProperty RXP_PV_FLD_I_DLNPOS, dlnPosI, rxpRS, maxUsedRXID
     End If

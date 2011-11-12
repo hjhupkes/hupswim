@@ -432,14 +432,16 @@ curVersionAcc = SysCmd(acSysCmdAccessVer)
 Dim blIsAcc2003 As Boolean
 Dim blIsAcc2007 As Boolean
 Dim blIsAcc97 As Boolean
+Dim blIsAcc2010 As Boolean
 
 
 blIsAcc2003 = (curVersionAcc = "11.0")
 blIsAcc2007 = (curVersionAcc = "12.0")
 blIsAcc97 = (curVersionAcc = "8.0")
+blIsAcc2010 = (curVersionAcc = "14.0")
 
-If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97) Then
-  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007 en access 97 versies van Hupswim"
+If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010) Then
+  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007, access 2010 en access 97 versies van Hupswim"
 End If
 
 Dim msg As String
@@ -453,7 +455,7 @@ End If
 
 
 Dim sURLNameSetup As String
-If (blIsAcc2003 Or blIsAcc2007) Then
+If (blIsAcc2003 Or blIsAcc2007 Or blIsAcc2010) Then
   sURLNameSetup = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/lenex/setup_hupsoft_office_2003_2007.exe"
 Else
   sURLNameSetup = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/lenex/setup_hupsoft_office_97.exe"
@@ -485,6 +487,8 @@ If (blIsAcc2003) Then
   sTaskStr = "/tasks=""restorebackups,useAcc2003"""
 ElseIf (blIsAcc2007) Then
   sTaskStr = "/tasks=""restorebackups,useAcc2007"""
+ElseIf (blIsAcc2010) Then
+  sTaskStr = "/tasks=""restorebackups,useAcc2010"""
 Else
   sTaskStr = "/tasks=""restorebackups"""
 End If

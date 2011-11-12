@@ -1,13 +1,13 @@
 Version =20
 VersionRequired =20
-Checksum =-1685841234
+Checksum =-1887337686
 Begin Report
     LayoutForPrint = NotDefault
     DateGrouping =1
     GridX =60
     GridY =60
     Width =10563
-    ItemSuffix =233
+    ItemSuffix =235
     Left =930
     Top =1260
     Right =13755
@@ -3383,6 +3383,19 @@ Begin Report
                         0x66afd1a788d0374bb32e184cf3bb108e
                     End
                 End
+                Begin TextBox
+                    Visible = NotDefault
+                    IMESentenceMode =3
+                    Left =8711
+                    Top =2069
+                    Width =696
+                    TabIndex =109
+                    Name ="DE_INT_Cnt"
+                    ControlSource ="DE_INT_Cnt"
+                    GUID = Begin
+                        0x073b3f5c4798874e8384dc13ee670a09
+                    End
+                End
             End
         End
         Begin BreakFooter
@@ -4758,9 +4771,11 @@ End If
 If (blIsStartLijst And blShowQlfData) Then
   'Need to make space
   
-  Me.Controls("baan").Width = 0.8 * 567
+  'Me.Controls("baan").Width = 0.8 * 567
+  Me.Controls("cnt").Width = (0.693 + 0.8) * 567
   
-  Me.Controls("naam").Left = Me.Controls("baan").Left + Me.Controls("baan").Width + 0.02 * 567
+  'Me.Controls("naam").Left = Me.Controls("baan").Left + Me.Controls("baan").Width + 0.02 * 567
+  Me.Controls("naam").Left = Me.Controls("cnt").Left + Me.Controls("cnt").Width + 0.02 * 567
   Me.Controls("naam").Width = 3.8 * 567
   
   Me.Controls("vereniging").Left = Me.Controls("naam").Left + Me.Controls("naam").Width + 0.02 * 567
@@ -5352,7 +5367,15 @@ End If
 If (blIsUitslag And blIsOW) Then
   'Do not move DIS_AFM and DIS_NG swimmers to the end of the list for OW matches.
   'This is to ensure that  de_int_first will remain an accurate way of telling whether the current dln is the first.
-  Me.GroupLevel(5).ControlSource = "de_reserve"
+  'Me.GroupLevel(5).ControlSource = "de_reserve"
+  
+  'Need to respect the ordering of de_int_cnt
+  Me.GroupLevel(5).ControlSource = "=true"
+End If
+
+If (blIsProgramma And blIsOW) Then
+  'Respect the ordering of de_int_cnt
+  Me.GroupLevel(5).ControlSource = "=true"
 End If
 
 
@@ -5553,11 +5576,11 @@ Else
     If (blIsCntVisible) Then
       Me.Controls("cnt").Visible = True
       Me.Controls("cnt").Width = 1 * 567
-      If (blIsSLCat) Then
-        Me.Controls("cnt").ControlSource = "=[de_int_catcnt] & ""."""
-      Else
-        Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
-      End If
+      'If (blIsSLCat) Then
+      '  Me.Controls("cnt").ControlSource = "=[de_int_catcnt] & ""."""
+      'Else
+      '  Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
+      'End If
       Me.fldCapkleur.Left = Me.Controls("cnt").Left + Me.Controls("cnt").Width + 0.05 * 567
     Else
       Me.Controls("cnt").Visible = False
@@ -5570,7 +5593,7 @@ Else
        
       
     
-      Me.Controls("Baan").Visible = False
+      'Me.Controls("Baan").Visible = False
     
       Me.fldCapkleur.Width = 1.6 * 567
       Me.fldCapnummer.Width = 0.5 * 678
@@ -5635,7 +5658,7 @@ Else
       ElseIf (blIsUitslag) Then
         Me.Controls("cnt").Width = 0.7 * 567
       End If
-      Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
+      'Me.Controls("cnt").ControlSource = "=[de_int_cnt] & ""."""
       Me.fldCapkleur.Left = Me.Controls("cnt").Left + Me.Controls("cnt").Width + 0.05 * 567
     Else
       Me.Controls("cnt").Visible = False
@@ -6009,17 +6032,30 @@ Else
   
   ElseIf (blIsStartLijst) Then
   
-  
-    If (Not blIsOW) Then
-      deelnIsValid = True
-      If (Nz([DE_Buitenmededinging]) = "J") Then
-        deelnIsValid = False
-      End If
+    Dim tpPenType As Long, tpCnt As Long
+    tpPenType = 0
+    tpCnt = 0
     
-      
-      Me.Controls("cnt").Visible = deelnIsValid
+    If (blIsSLCat) Then
+      tpCnt = Nz([DE_INT_CatCnt])
+    Else
+      tpCnt = Nz([DE_INT_Cnt])
     End If
     
+    tpPenType = tpCnt \ STL_PEN_FACTOR
+    
+    
+    If (tpPenType = STL_PEN_VALID) Then
+      Me.Controls("cnt") = tpCnt & "."
+    ElseIf (tpPenType = STL_PEN_RES) Then
+      Me.Controls("cnt") = "Res."
+    ElseIf (tpPenType = STL_PEN_BM) Then
+      Me.Controls("cnt") = "BM"
+    ElseIf (tpPenType = STL_PEN_AFM) Then
+      Me.Controls("cnt") = "Afg."
+    ElseIf (tpPenType = STL_PEN_NG) Then
+      Me.Controls("cnt") = "Ng."
+    End If
     
   ElseIf (blIsProgramma) Then
   
@@ -6029,6 +6065,30 @@ Else
         Cancel = True
       End If
   
+    End If
+    
+    If (blIsOW) Then
+      'need to use cnt control
+      
+      tpPenType = 0
+      tpCnt = 0
+    
+      tpCnt = Nz([DE_INT_Cnt])
+          
+      tpPenType = tpCnt \ STL_PEN_FACTOR
+    
+    
+      If (tpPenType = STL_PEN_VALID) Then
+        Me.Controls("cnt") = tpCnt & "."
+      ElseIf (tpPenType = STL_PEN_RES) Then
+        Me.Controls("cnt") = "Res."
+      ElseIf (tpPenType = STL_PEN_BM) Then
+        Me.Controls("cnt") = "BM"
+      ElseIf (tpPenType = STL_PEN_AFM) Then
+        Me.Controls("cnt") = "Afg."
+      ElseIf (tpPenType = STL_PEN_NG) Then
+        Me.Controls("cnt") = "Ng."
+      End If
     End If
     
   End If
