@@ -142,6 +142,73 @@ On Error Resume Next
 Assistant.Visible = False
 End Function
 
+Public Function appGetSnapshotFormat() As String
+On Error GoTo fout
+appGetSnapshotFormat = "Snapshot Format (*.snp)"
+
+
+Dim curVersionAcc As String
+
+curVersionAcc = SysCmd(acSysCmdAccessVer)
+
+Dim blIsAcc2003 As Boolean
+Dim blIsAcc2007 As Boolean
+Dim blIsAcc97 As Boolean
+Dim blIsAcc2010 As Boolean
+
+blIsAcc2003 = (curVersionAcc = "11.0")
+blIsAcc2007 = (curVersionAcc = "12.0")
+blIsAcc97 = (curVersionAcc = "8.0")
+blIsAcc2010 = (curVersionAcc = "14.0")
+
+If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010) Then
+  appRaiseSilentError
+End If
+
+
+Dim sKeyValue As String
+If (blIsAcc2003) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\11.0\Access\Report Formats", "Snapshot Format", sKeyValue) Then
+    appRaiseSilentError
+  End If
+ElseIf (blIsAcc2007) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\12.0\Access\Report Formats", "Snapshot Format", sKeyValue) Then
+    appRaiseSilentError
+  End If
+ElseIf (blIsAcc2010) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\14.0\Access\Report Formats", "Snapshot Format", sKeyValue) Then
+    appRaiseSilentError
+  End If
+ElseIf (blIsAcc97) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\8.0\Access\Report Formats", "Snapshot Format", sKeyValue) Then
+    appRaiseSilentError
+  End If
+End If
+
+extractToken sKeyValue, ","
+extractToken sKeyValue, ","
+extractToken sKeyValue, ","
+
+Dim tpS As String
+tpS = extractToken(sKeyValue, ",")
+
+If (tpS <> "") Then
+  appGetSnapshotFormat = tpS
+End If
+
+
+
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "appGetSnapshotFormat", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
 'Register lxf files to the current application.
 Public Function appRegisterLXF() As Boolean
 On Error GoTo fout
