@@ -2,7 +2,6 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-
 Option Compare Database
 Option Explicit
 Private fFileName As String
@@ -1622,6 +1621,9 @@ While (level >= 0)
     outp("XML_OBJECT_TYPE") = dsObjTypeNames(curObjTypeIdx)
     outp("XML_OBJECT_ID") = curObjID
     For fldIdx = 1 To dsObjNProps(curObjTypeIdx)
+      If (Len(objFieldValues(level, fldIdx)) > 255) Then
+        objFieldValues(level, fldIdx) = Left(objFieldValues(level, fldIdx), 255)
+      End If
       outp("XML_PROP_" & fldIdx) = hzn(objFieldValues(level, fldIdx))
     Next fldIdx
        
@@ -1738,9 +1740,7 @@ MsgBox emsg, 16
 
 Close
 
-'debug
-'On Error GoTo 0
-'Resume Next
+
 
 DoCmd.Hourglass False
 
@@ -1753,4 +1753,9 @@ appCleanRS xmlObjRels
 
 
 Exit Function
+
+'debug
+On Error GoTo 0
+Resume Next
+
 End Function

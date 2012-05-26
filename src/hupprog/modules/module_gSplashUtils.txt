@@ -505,7 +505,11 @@ End If
 End Function
 Public Function splReadStartAsWas(startnr As String) As String
 On Error Resume Next
-splReadStartAsWas = Left(startnr, 2) & Right(startnr, 5)
+If (Len(startnr) >= 9) Then
+  splReadStartAsWas = Mid(startnr, 3, 2) & Right(startnr, 5)
+Else
+  splReadStartAsWas = Left(startnr, 2) & Right(startnr, 5)
+End If
 End Function
 Public Function splReadStart(startnr As String) As String
 On Error Resume Next
@@ -516,6 +520,12 @@ If (Left(startnr, 2) Like "[0-9][0-9]") Then
   ElseIf (Len(startnr) = 8) Then
     If (Mid(startnr, 3, 1) = "-") Then
       splReadStart = Left(startnr, 2) & "-" & Right(startnr, 5)
+    End If
+  ElseIf (Len(startnr) = 9) Then
+    splReadStart = Mid(startnr, 3, 2) & "-" & Right(startnr, 5)
+  ElseIf (Len(startnr) = 10) Then
+    If (Mid(startnr, 5, 1) = "-") Then
+      splReadStart = Mid(startnr, 3, 2) & "-" & Right(startnr, 5)
     End If
   End If
 End If
@@ -1361,7 +1371,7 @@ splMMImpAnalyzeFile_Perform_MM2007_ExtractData = False
     End If
       
   
-  
+
   
   'Only if blimpTables = false, do we also clean up the tables we imported.
   
