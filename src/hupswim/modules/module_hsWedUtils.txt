@@ -669,6 +669,13 @@ If (Not rs.EOF) Then
   
   wedInfo.lftBep = Nz(rs("Leeftijdsbepaling"))
   
+  wedInfo.insDeadlineDate = Nz(rs("InsDeadlineDate"), #1/1/1900#)
+  wedInfo.insDeadlineTimeValid = False
+  If (Not IsNull(rs("InsDeadlineTime"))) Then
+    wedInfo.insDeadlineTime = Nz(rs("InsDeadlineTime"))
+    wedInfo.insDeadlineTimeValid = True
+  End If
+  
   
   If (wedInfo.isMeet) Then
     wedInfo.meetDes = Nz(rs("MainBeschrijving"))

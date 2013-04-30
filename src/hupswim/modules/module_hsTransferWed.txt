@@ -767,6 +767,17 @@ Do Until inp.EOF
     
     outp("WE_QLF_RelayMode") = hzn(wedInf.qlfRelayMode)
     
+    
+    outp("WE_InsDeadlineDate") = Null
+    outp("WE_InsDeadlineTime") = Null
+    
+    If (lenDateIsValid(wedInf.insDeadlineDate)) Then
+      outp("WE_InsDeadlineDate") = wedInf.insDeadlineDate
+      If (wedInf.insDeadlineTimeValid) Then
+        outp("WE_InsDeadlineTime") = wedInf.insDeadlineTime
+      End If
+    End If
+    
     'end meet-level settings
     
     
@@ -842,7 +853,7 @@ Do Until inp.EOF
     If Not lenWriteCatInfo(outp, "PR_", False, catInf) Then Exit Function
     
     'feb 2007
-    If Not lenExtractLimsRecsFromCatInfo(wedBn, wedQlfConvMode, prAfstand, prSlag, catInf, lastUsedRecID, lastUsedLimID, outpRecs, outpLims, expLims, expRecs) Then
+    If Not lenExtractLimsRecsFromCatInfo(wedBn, wedQlfConvMode, prID, prAfstand, prSlag, catInf, lastUsedRecID, lastUsedLimID, outpRecs, outpLims, expLims, expRecs) Then
       Exit Function
     End If
     
@@ -924,8 +935,11 @@ Do Until inp.EOF
   outp("LF_PR_ID") = inp("PR_ID")
   
   'febr 2007.
+    Dim prID As Long
     Dim prAfstand As String
     Dim prSlag As String
+    
+    prID = Nz(inp("PR_ID"), -1)
     prAfstand = Nz(inp("PR_Afstand"))
     prSlag = Nz(inp("PR_Slag"))
   
@@ -935,7 +949,7 @@ Do Until inp.EOF
   If Not lenWriteCatInfo(outp, "LF_", True, catInf) Then Exit Function
   
       'feb 2007
-    If Not lenExtractLimsRecsFromCatInfo(wedBn, wedQlfConvMode, prAfstand, prSlag, catInf, lastUsedRecID, lastUsedLimID, outpRecs, outpLims, expLims, expRecs) Then
+    If Not lenExtractLimsRecsFromCatInfo(wedBn, wedQlfConvMode, prID, prAfstand, prSlag, catInf, lastUsedRecID, lastUsedLimID, outpRecs, outpLims, expLims, expRecs) Then
       Exit Function
     End If
   
@@ -2279,6 +2293,8 @@ wedGeg("KwalificatieMinDatum") = wedInp("WE_QLF_FROM")
 wedGeg("KwalificatieMaxDatum") = wedInp("WE_QLF_UNTIL")
 wedGeg("KwalificatieRelayMode") = wedInp("WE_QLF_RelayMode")
 
+wedGeg("InsDeadlineDate") = wedInp("WE_InsDeadlineDate")
+wedGeg("InsDeadlineTime") = wedInp("WE_InsDeadlineTime")
 
 
 

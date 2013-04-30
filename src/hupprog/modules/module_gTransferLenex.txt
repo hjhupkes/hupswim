@@ -114,7 +114,7 @@ MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
 
-Private Function lenAppendLimit(ByVal isVVT As Boolean, ByVal isMinLim As Boolean, ByVal isMaxLim As Boolean, ByVal bn As Integer, ByVal cat As String, ByVal td As Double, ByVal afst As String, ByVal slag As String, ByRef lastUsedLimID As Long, ByRef rsLims As Recordset) As Boolean
+Private Function lenAppendLimit(ByVal isVVT As Boolean, ByVal isMinLim As Boolean, ByVal isMaxLim As Boolean, ByVal bn As Integer, ByVal cat As String, ByVal td As Double, ByVal afst As String, ByVal slag As String, ByVal lProgID As Long, ByRef lastUsedLimID As Long, ByRef rsLims As Recordset) As Boolean
 On Error GoTo fout
 lenAppendLimit = False
 
@@ -136,6 +136,11 @@ rsLims.AddNew
   Else
     rsLims("LIM_Name") = "Limiet"
   End If
+  
+  If (lProgID >= 0) Then
+    rsLims("LIM_PR_ID") = lProgID
+  End If
+  
 rsLims.Update
 
 lenAppendLimit = True
@@ -144,12 +149,12 @@ fout:
 MsgBox Err & " " & Error$, 16
 Exit Function
 End Function
-Public Function lenExtractLimsRecsFromCatInfo(ByVal wedBnLen As Integer, ByVal wedQlfConvMode As String, ByVal prAfst As String, ByVal prSlag As String, ByRef catInf As CAT_INFO, ByRef lastUsedRecID As Long, ByRef lastUsedLimID As Long, ByRef rsRecs As Recordset, ByRef rsLims As Recordset, ByVal expLims As Boolean, ByVal expRecs As Boolean) As Boolean
+Public Function lenExtractLimsRecsFromCatInfo(ByVal wedBnLen As Integer, ByVal wedQlfConvMode As String, ByVal lProgID As Long, ByVal prAfst As String, ByVal prSlag As String, ByRef catInf As CAT_INFO, ByRef lastUsedRecID As Long, ByRef lastUsedLimID As Long, ByRef rsRecs As Recordset, ByRef rsLims As Recordset, ByVal expLims As Boolean, ByVal expRecs As Boolean) As Boolean
 On Error GoTo fout
 lenExtractLimsRecsFromCatInfo = False
 
 If (catInf.vvt > 0.01) Then
-  If Not lenAppendLimit(True, False, False, 25, Nz(Trim(catInf.cat)), catInf.vvt, prAfst, prSlag, lastUsedLimID, rsLims) Then
+  If Not lenAppendLimit(True, False, False, 25, Nz(Trim(catInf.cat)), catInf.vvt, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
     Exit Function
   End If
 End If
@@ -164,10 +169,10 @@ If (expLims) Then
       If (analyzeLimiet(limS, is25Of50, lim25, lim50, limMin, limMax, hasMid, limMid)) Then
         'Export the limit.
         If (is25Of50) Then
-          If Not lenAppendLimit(False, False, True, 25, Nz(Trim(catInf.cat)), lim25, prAfst, prSlag, lastUsedLimID, rsLims) Then
+          If Not lenAppendLimit(False, False, True, 25, Nz(Trim(catInf.cat)), lim25, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
             Exit Function
           End If
-          If Not lenAppendLimit(False, False, True, 50, Nz(Trim(catInf.cat)), lim50, prAfst, prSlag, lastUsedLimID, rsLims) Then
+          If Not lenAppendLimit(False, False, True, 50, Nz(Trim(catInf.cat)), lim50, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
             Exit Function
           End If
         Else
@@ -175,14 +180,14 @@ If (expLims) Then
           blWriteBoth = Not (wedQlfConvMode = QLF_CONV_SAME_LN_ONLY)
           If (limMin > 0.01) Then
             If (blWriteBoth) Then
-              If Not lenAppendLimit(False, True, False, 25, Nz(Trim(catInf.cat)), limMin, prAfst, prSlag, lastUsedLimID, rsLims) Then
+              If Not lenAppendLimit(False, True, False, 25, Nz(Trim(catInf.cat)), limMin, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
                  Exit Function
               End If
-              If Not lenAppendLimit(False, True, False, 50, Nz(Trim(catInf.cat)), limMin, prAfst, prSlag, lastUsedLimID, rsLims) Then
+              If Not lenAppendLimit(False, True, False, 50, Nz(Trim(catInf.cat)), limMin, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
                 Exit Function
               End If
             Else
-              If Not lenAppendLimit(False, True, False, wedBnLen, Nz(Trim(catInf.cat)), limMin, prAfst, prSlag, lastUsedLimID, rsLims) Then
+              If Not lenAppendLimit(False, True, False, wedBnLen, Nz(Trim(catInf.cat)), limMin, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
                 Exit Function
               End If
             End If
@@ -190,14 +195,14 @@ If (expLims) Then
           
           If (limMax < 8888) Then
             If (blWriteBoth) Then
-              If Not lenAppendLimit(False, False, True, 25, Nz(Trim(catInf.cat)), limMax, prAfst, prSlag, lastUsedLimID, rsLims) Then
+              If Not lenAppendLimit(False, False, True, 25, Nz(Trim(catInf.cat)), limMax, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
                  Exit Function
               End If
-              If Not lenAppendLimit(False, False, True, 50, Nz(Trim(catInf.cat)), limMax, prAfst, prSlag, lastUsedLimID, rsLims) Then
+              If Not lenAppendLimit(False, False, True, 50, Nz(Trim(catInf.cat)), limMax, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
                 Exit Function
               End If
             Else
-              If Not lenAppendLimit(False, False, True, wedBnLen, Nz(Trim(catInf.cat)), limMax, prAfst, prSlag, lastUsedLimID, rsLims) Then
+              If Not lenAppendLimit(False, False, True, wedBnLen, Nz(Trim(catInf.cat)), limMax, prAfst, prSlag, lProgID, lastUsedLimID, rsLims) Then
                 Exit Function
               End If
             End If
@@ -1415,6 +1420,17 @@ Do Until wed.EOF
       mtOutp("LEN_ORGANIZER") = wed("WE_Organiserende_Vereniging")
       
       
+      Dim tpInsDeadlineDate As Date, tpInsDeadlineTime As Date
+      tpInsDeadlineDate = Nz(wed("WE_InsDeadlineDate"), #1/1/1900#)
+      tpInsDeadlineTime = Nz(wed("WE_InsDeadlineTime"), #1/1/1900#)
+          
+      If lenDateIsValid(tpInsDeadlineDate) Then
+        mtOutp("LEN_Deadline") = lenFormatDate(tpInsDeadlineDate)
+      End If
+      
+      If Not IsNull(wed("WE_InsDeadlineTime")) Then
+        mtOutp("LEN_Deadlinetime") = lenFormatTime(tpInsDeadlineTime)
+      End If
       
       
       
@@ -1837,6 +1853,23 @@ Do Until ss.EOF
   If (qlfUntilValid) Then
     wedOutp("WE_QLF_Until") = qlfUntilDate
   End If
+  
+  
+  Dim tpInsDeadlineDate As Date
+  tpInsDeadlineDate = lenParseDate(Nz(ss("LEN_Deadline")))
+  
+  
+  wedOutp("WE_InsDeadlineDate") = Null
+  wedOutp("WE_InsDeadlineTime") = Null
+  
+  If lenDateIsValid(tpInsDeadlineDate) Then
+    wedOutp("WE_InsDeadlineDate") = tpInsDeadlineDate
+    If Not IsNull(ss("LEN_Deadlinetime")) Then
+      wedOutp("WE_InsDeadlineTime") = lenParseDaytime(Nz(ss("LEN_Deadlinetime")))
+    End If
+  End If
+  
+  
   
   Dim ssFeeCollID As Long
   
@@ -7059,6 +7092,61 @@ Resume
 
 End Function
 
+Private Function lenAppendTStdRef(ByRef skTStdRefs As Recordset, ByRef skPrWithTStdRefs As Recordset, ByRef rsTStdRef As Recordset, ByRef rsTStdRefColl As Recordset, ByRef muTStdRefXID As Long, ByVal lPRXId As Long, ByVal lLenListID As Long) As Boolean
+On Error GoTo fout
+lenAppendTStdRef = False
+
+skTStdRefs.Seek "=", lPRXId, lLenListID
+
+If skTStdRefs.NoMatch Then
+
+  muTStdRefXID = muTStdRefXID + 1
+  
+  Dim lTStdRefCollID As Long
+  lTStdRefCollID = lPRXId
+
+    
+  rsTStdRef.AddNew
+    rsTStdRef("ID_TIMESTANDARDREF") = muTStdRefXID
+    rsTStdRef("LEN_timestandardlistid") = lLenListID
+  rsTStdRef.Update
+  
+  
+  skTStdRefs.AddNew
+    skTStdRefs("TSR_PR_XID") = lPRXId
+    skTStdRefs("TSR_LIST_LEN_ID") = lLenListID
+  skTStdRefs.Update
+  
+  
+  If Not lenAddToCollection(rsTStdRefColl, lTStdRefCollID, muTStdRefXID, "TIMESTANDARDREF") Then
+    Exit Function
+  End If
+  
+  skPrWithTStdRefs.Seek "=", lPRXId
+  If skPrWithTStdRefs.NoMatch Then
+    skPrWithTStdRefs.AddNew
+      skPrWithTStdRefs("PWTS_PR_XID") = lPRXId
+    skPrWithTStdRefs.Update
+  End If
+  
+End If
+
+
+lenAppendTStdRef = True
+Exit Function
+fout:
+MsgBox Err & " lenAppendTStdRef" & vbCrLf & Error$, 16
+
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+
 Private Function lenWriteDeelnemersToXMLTables(ByVal lxVersion As Long, ByRef maxUsedMeetInfoID As Long, ByRef maxUsedHeatID As Long) As Boolean
 On Error GoTo fout
 lenWriteDeelnemersToXMLTables = False
@@ -8536,6 +8624,39 @@ Private Function lenWriteTimestandardsToXMLTables(ByVal lxVersion As Long, ByVal
 On Error GoTo fout
 lenWriteTimestandardsToXMLTables = False
 
+
+Dim skTStdRefs As Recordset
+Set skTStdRefs = Nothing
+
+If (lxVersion >= LX_VERSION_3) Then
+  Set skTStdRefs = CurrentDb().OpenRecordset("~len_write_time_std_refs")
+  skTStdRefs.Index = "PrimaryKey"
+End If
+
+
+Dim skPrWithTStdRef As Recordset
+Set skPrWithTStdRef = Nothing
+
+If (lxVersion >= LX_VERSION_3) Then
+  Set skPrWithTStdRef = CurrentDb().OpenRecordset("~len_progs_with_time_std_refs")
+  skPrWithTStdRef.Index = "PrimaryKey"
+End If
+
+Dim rsTStdRef As Recordset
+Set rsTStdRef = CurrentDb().OpenRecordset("LEN_TIMESTANDARDREF")
+
+Dim rsTStdRefColl As Recordset
+Set rsTStdRefColl = CurrentDb().OpenRecordset("LEN_TIMESTANDARDREF_COLL")
+
+
+
+Dim maxUsedTStdRefXID As Long
+maxUsedTStdRefXID = 0
+
+
+
+
+
 Dim curIsVVT As Boolean
 Dim curIsMinLim As Boolean
 Dim curIsMaxLim As Boolean
@@ -8558,6 +8679,10 @@ inp.MoveFirst
 Dim maxUsedListID As Long
 maxUsedListID = 0
 
+Dim muTStdRefXID As Long
+muTStdRefXID = 0
+
+
 Dim listColl As Recordset
 Set listColl = CurrentDb().OpenRecordset("LEN_TIMESTANDARDLIST_COLL")
 Dim lst As Recordset
@@ -8579,6 +8704,9 @@ Do Until inp.EOF
   Dim tpIsVVT As Boolean, tpIsMinLim As Boolean, tpIsMaxLim As Boolean, tpBaan As Integer, tpCat As String, tpName As String
   Dim curListID As Long
   
+  Dim curListLenID As Long
+  
+  
   tpIsVVT = Nz(inp("LIM_IsVVT"))
   tpIsMinLim = Nz(inp("LIM_IsMinLim"))
   tpIsMaxLim = Nz(inp("LIM_IsMaxLim"))
@@ -8594,12 +8722,16 @@ Do Until inp.EOF
     maxUsedListID = maxUsedListID + 1
     curListID = maxUsedListID
     
+    curListLenID = curListID
+    
     If Not lenAddToCollection(listColl, 1, curListID, "TIMESTANDARDLIST") Then Exit Function
     
     
     
     lst.AddNew
       lst("ID_TIMESTANDARDLIST") = curListID
+      
+      lst("LEN_timestandardlistid") = curListLenID
     
       lst("LEN_TYPE") = hzn(lenFormatLimitType(tpIsVVT, tpIsMinLim, tpIsMaxLim))
       
@@ -8662,6 +8794,19 @@ Do Until inp.EOF
   tpAf = Nz(inp("LIM_Afstand"))
   tpSlag = Nz(inp("LIM_SLAG"))
   
+  Dim tpPrXID As Long
+  tpPrXID = Nz(inp("LIM_PR_ID"), -1)
+  
+  'Need to check if we need to add a reference to this timestandardlist in the timestandardrefs section of an event.
+  If (tpPrXID >= 0) Then
+    If (lxVersion >= LX_VERSION_3) Then
+      If Not lenAppendTStdRef(skTStdRefs, skPrWithTStdRef, rsTStdRef, rsTStdRefColl, muTStdRefXID, tpPrXID, curListLenID) Then
+        Exit Function
+      End If
+    End If
+  End If
+    
+  
   
   maxUsedSWSTID = maxUsedSWSTID + 1
   If Not lenAppendLXSwimStyle(swst, maxUsedSWSTID, tpAf, tpSlag, "") Then Exit Function
@@ -8700,6 +8845,11 @@ fout:
 If (Err = 3021) Then Resume Next
 MsgBox Err & " " & Error$, 16
 Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
 End Function
 
 Private Function lenWriteRecordsToXMLTables(ByVal lxVersion As Long, ByVal wedDate As Date, ByRef maxUsedAGID As Long, maxUsedSWSTID As Long, maxUsedMeetInfo As Long, maxUsedSplitID) As Boolean
@@ -8983,6 +9133,8 @@ lenWriteToXMLTables_cleanTempTables = False
 DoCmd.DeleteObject acTable, "~len_write_heats"
 DoCmd.DeleteObject acTable, "~len_progs_with_heats"
 DoCmd.DeleteObject acTable, "~len_ag_with_rankings"
+DoCmd.DeleteObject acTable, "~len_write_time_std_refs"
+DoCmd.DeleteObject acTable, "~len_progs_with_time_std_refs"
 
 
 lenWriteToXMLTables_cleanTempTables = True
@@ -9050,6 +9202,42 @@ Set tb = db.CreateTableDef("~len_ag_with_rankings")
 tb.Fields.Append tb.CreateField("AWR_AG_XID", dbLong)
 Set idx = tb.CreateIndex("PrimaryKey")
 idx.Fields.Append idx.CreateField("AWR_AG_XID", dbLong)
+tb.Indexes.Append idx
+db.TableDefs.Append tb
+
+Set idx = Nothing
+Set tb = Nothing
+
+
+
+
+
+
+Set tb = db.CreateTableDef("~len_write_time_std_refs")
+
+tb.Fields.Append tb.CreateField("TSR_PR_XID", dbLong)
+tb.Fields.Append tb.CreateField("TSR_LIST_LEN_ID", dbLong)
+
+
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("TSR_PR_XID", dbLong)
+idx.Fields.Append idx.CreateField("TSR_LIST_LEN_ID", dbLong)
+idx.Primary = True
+
+tb.Indexes.Append idx
+
+db.TableDefs.Append tb
+
+Set idx = Nothing
+Set tb = Nothing
+
+
+
+Set tb = db.CreateTableDef("~len_progs_with_time_std_refs")
+
+tb.Fields.Append tb.CreateField("PWTS_PR_XID", dbLong)
+Set idx = tb.CreateIndex("PrimaryKey")
+idx.Fields.Append idx.CreateField("PWTS_PR_XID", dbLong)
 tb.Indexes.Append idx
 db.TableDefs.Append tb
 
@@ -9184,6 +9372,69 @@ Resume
 End Function
 
 
+Private Function lenWriteTStdRefSmyToXMLTables() As Boolean
+On Error GoTo fout
+lenWriteTStdRefSmyToXMLTables = False
+
+
+Dim rs As Recordset
+Set rs = CurrentDb().OpenRecordset("~len_progs_with_time_std_refs")
+
+Dim skEvs As Recordset
+Set skEvs = CurrentDb().OpenRecordset("LEN_EVENT")
+skEvs.Index = "P"
+
+Dim rsTStdRefs As Recordset
+Set rsTStdRefs = CurrentDb().OpenRecordset("LEN_TIMESTANDARDREFS")
+
+rs.MoveFirst
+Do Until rs.EOF
+
+  Dim tpPrXID As Long
+  tpPrXID = Nz(rs("PWTS_PR_XID"))
+  
+  skEvs.Seek "=", tpPrXID
+  
+   
+  If (skEvs.NoMatch) Then
+    Err.Raise 1, , "Internal error."
+  End If
+  
+  
+    
+  skEvs.Edit
+    skEvs("SYS_REF_TIMESTANDARDREFS") = tpPrXID
+  skEvs.Update
+
+  If Not lenWriteSimpleCollection(rsTStdRefs, tpPrXID, "TIMESTANDARDREF") Then
+    Exit Function
+  End If
+    
+   
+  
+  
+
+  rs.MoveNext
+Loop
+
+appCleanRS rs
+appCleanRS rsTStdRefs
+appCleanRS skEvs
+
+
+
+lenWriteTStdRefSmyToXMLTables = True
+Exit Function
+fout:
+If (Err = 3021) Then Resume Next
+MsgBox Err & " lenWriteTStdRefSmyToXMLTables" & vbCrLf & Error$, 16
+Exit Function
+'debug
+On Error GoTo 0
+Resume
+End Function
+
+
 Public Function lenWriteToXMLTables(ByVal lxVersion As Long) As Boolean
 On Error GoTo fout
 lenWriteToXMLTables = False
@@ -9266,6 +9517,10 @@ If (lxVersion >= LX_VERSION_3) Then
   End If
   
   If Not lenWriteRnkSmyToXMLTables() Then
+    Exit Function
+  End If
+  
+  If Not lenWriteTStdRefSmyToXMLTables() Then
     Exit Function
   End If
 
