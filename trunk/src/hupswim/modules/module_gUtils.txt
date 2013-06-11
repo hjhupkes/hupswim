@@ -1574,6 +1574,7 @@ Exit Function
 
 End Function
 
+
 'HJH maintenance function; To be called only by HJH at design time
 Public Function fxsStoreString(ByVal sName As String, ByVal sValue As String) As Boolean
 On Error GoTo fout
@@ -1910,7 +1911,7 @@ Exit Function
 End Function
 
 
-Private Function xdbCreateStructure_writeTable(ByRef dsData As DIR_SERVER_DATA, ByRef tb As TableDef, ByVal sPropBaseName As String, ByRef nExtProps As Integer, ByRef sExtPropFieldName() As String, ByRef pExtProp() As Property) As Boolean
+Private Function xdbCreateStructure_writeTable(ByRef dsData As DIR_SERVER_DATA, ByRef tb As TableDef, ByVal sPropBaseName As String, ByRef nExtProps As Integer, ByRef sExtPropFieldName() As String, ByRef pExtProp() As Property, ByVal blUniqueIndicesOnly As Boolean) As Boolean
 On Error GoTo fout
 xdbCreateStructure_writeTable = False
 
@@ -1999,8 +2000,21 @@ For iIdx = 0 To nIdx - 1
     appRaiseSilentError
   End If
   
-  tb.Indexes.Append idx
+  Dim blShouldAppend As Boolean
+  blShouldAppend = True
+  
+  If (blUniqueIndicesOnly) Then
+    If idx.Unique = False Then
+      blShouldAppend = False
+    End If
+  End If
+    
+  If (blShouldAppend) Then
+    tb.Indexes.Append idx
+  End If
+  
   Set idx = Nothing
+  
 Next iIdx
 
 
@@ -2017,7 +2031,94 @@ Exit Function
 End Function
 
 
-Private Function xdbCreateStructure_writeTables(ByRef dsData As DIR_SERVER_DATA, ByRef db As Database, sPropBaseName As String) As Boolean
+Private Function xdbCreateStructure_updateTable_addNonUnqIdx(ByRef dsData As DIR_SERVER_DATA, ByRef tb As TableDef, ByVal sPropBaseName As String, ByRef nExtProps As Integer, ByRef sExtPropFieldName() As String, ByRef pExtProp() As Property) As Boolean
+On Error GoTo fout
+xdbCreateStructure_updateTable_addNonUnqIdx = False
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+
+nExtProps = 0
+
+sPropName = sPropBaseName & "\N_INDEXES"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim blAddingIdx As Boolean
+blAddingIdx = False
+
+
+
+Dim nIdx As Integer
+nIdx = CInt(sPropVal)
+
+Dim iIdx As Integer
+For iIdx = 0 To nIdx - 1
+  Dim idx As Index
+  Set idx = tb.CreateIndex()
+  
+  Dim sIdxPropName As String
+  sIdxPropName = sPropBaseName & "\INDEX_" & iIdx
+  
+  If Not xdbCreateStructure_writeIndex(dsData, idx, sIdxPropName) Then
+    appRaiseSilentError
+  End If
+  
+  Dim blShouldAppend As Boolean
+  blShouldAppend = True
+  
+  If idx.Unique = True Then
+    blShouldAppend = False
+  End If
+    
+  
+  
+  If (blShouldAppend) Then
+    blAddingIdx = True
+      tb.Indexes.Append idx
+    blAddingIdx = False
+  End If
+  
+  Set idx = Nothing
+  
+Next iIdx
+
+
+xdbCreateStructure_updateTable_addNonUnqIdx = True
+Exit Function
+
+fout:
+If (Err = 3284) Then
+  If (blAddingIdx) Then
+    'The index was already present.
+    'This means it was added automatically when an accompanying relationship was added.
+    'Therefore safely ignore the index and do not add it again here.
+    Resume Next
+  End If
+End If
+
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_updateTable_addNonUnqIdx", errInf
+
+appDisplayError errInf
+Exit Function
+
+'debug
+On Error GoTo 0
+Resume
+
+End Function
+
+
+Private Function xdbCreateStructure_writeTables(ByRef dsData As DIR_SERVER_DATA, ByRef db As Database, sPropBaseName As String, ByVal blUnqIdxOnly As Boolean) As Boolean
 On Error GoTo fout
 xdbCreateStructure_writeTables = False
 
@@ -2050,7 +2151,7 @@ For it = 0 To nTables - 1
   Dim sExtPropFldNames(0 To 1000) As String
   Dim pExtProps(0 To 1000) As Property
   
-  If Not xdbCreateStructure_writeTable(dsData, tbDef, sTbPropName, nExtProps, sExtPropFldNames, pExtProps) Then
+  If Not xdbCreateStructure_writeTable(dsData, tbDef, sTbPropName, nExtProps, sExtPropFldNames, pExtProps, blUnqIdxOnly) Then
     appRaiseSilentError
   End If
   
@@ -2083,6 +2184,84 @@ appDisplayError errInf
 Exit Function
 
 End Function
+
+Private Function xdbCreateStructure_updateTables_addNonUnqIndices(ByRef dsData As DIR_SERVER_DATA, ByRef db As Database, sPropBaseName As String) As Boolean
+On Error GoTo fout
+xdbCreateStructure_updateTables_addNonUnqIndices = False
+
+
+Dim sPropName As String, sPropVal As String
+
+Dim blPresent As Boolean, lDummy As Long
+
+sPropName = sPropBaseName & "\N_TABLES"
+If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+  appRaiseSilentError
+End If
+
+If Not blPresent Then
+  Err.Raise 1, , "internal error"
+End If
+
+Dim nTables As Integer
+nTables = CInt(sPropVal)
+
+Dim it As Integer
+For it = 0 To nTables - 1
+  Dim tbDef As TableDef
+  
+  Dim sTbPropName As String
+  sTbPropName = sPropBaseName & "\TABLE_" & it
+  
+  
+  sPropName = sTbPropName & "\NAME"
+  If Not dsLookupPropertyByName(dsData, sPropName, blPresent, sPropVal, lDummy) Then
+    appRaiseSilentError
+  End If
+
+  If Not blPresent Then
+    appRaiseSilentError
+  End If
+  
+  Dim sTbName As String
+  sTbName = sPropVal
+  
+  Set tbDef = db.TableDefs(sTbName)
+  
+  Dim nExtProps As Integer
+  Dim sExtPropFldNames(0 To 1000) As String
+  Dim pExtProps(0 To 1000) As Property
+  
+  If Not xdbCreateStructure_updateTable_addNonUnqIdx(dsData, tbDef, sTbPropName, nExtProps, sExtPropFldNames, pExtProps) Then
+    appRaiseSilentError
+  End If
+  
+  Set tbDef = Nothing
+  
+  Dim ip As Integer
+  For ip = 0 To nExtProps - 1
+    Dim fld As Field
+    Set fld = db.TableDefs(sTbName).Fields(sExtPropFldNames(ip))
+    fld.Properties.Append fld.CreateProperty(pExtProps(ip).name, pExtProps(ip).Type, pExtProps(ip).value)
+    Set fld = Nothing
+    Set pExtProps(ip) = Nothing
+  Next ip
+  
+Next it
+
+
+xdbCreateStructure_updateTables_addNonUnqIndices = True
+Exit Function
+
+fout:
+Dim errInf As ERR_INFO
+appRecordError "xdbCreateStructure_updateTables_addNonUnqIndices", errInf
+
+appDisplayError errInf
+Exit Function
+
+End Function
+
 
 Private Function xdbCreateStructure_writeRelation(ByRef dsData As DIR_SERVER_DATA, ByRef rel As Relation, ByVal sPropBaseName As String) As Boolean
 On Error GoTo fout
@@ -2220,7 +2399,7 @@ Exit Function
 fout:
 
 If (blAddingRel) And (Err = 3284) Then
-  rel.name = "__relationship__number__" & ir
+  rel.name = "__relationship__number__" & ir & Format(Now(), "yyyymmddhhnnss") & CStr(CLng(Timer() * 1000))
   Resume
 End If
   
@@ -2278,11 +2457,15 @@ Dim db As Database
 Set db = DBEngine.Workspaces(0).CreateDatabase(sFileName, DB_LANG_GENERAL, lVersionCode)
 
 
-If Not xdbCreateStructure_writeTables(dsData, db, sPropBaseName) Then
+If Not xdbCreateStructure_writeTables(dsData, db, sPropBaseName, True) Then
   appRaiseSilentError
 End If
 
 If Not xdbCreateStructure_writeRelations(dsData, db, sPropBaseName) Then
+  appRaiseSilentError
+End If
+
+If Not xdbCreateStructure_updateTables_addNonUnqIndices(dsData, db, sPropBaseName) Then
   appRaiseSilentError
 End If
 
