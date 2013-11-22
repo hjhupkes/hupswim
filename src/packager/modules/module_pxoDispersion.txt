@@ -525,16 +525,20 @@ If bldOpts.blBuildOff2003 Then
 
   SysCmd acSysCmdSetStatus, "Converting to office2003"
 
-  If Not getAccessVersion(accApp2003, 11, envSettings, sPrepDir) Then
-    Exit Function
-  End If
+  'If Not getAccessVersion(accApp2003, 11, envSettings, sPrepDir) Then
+  '  Exit Function
+  'End If
 
-  accApp2003.ConvertAccessProject sRelDBDir & "\off97\hupsw97.mdb", sRelDBDir & "\off2003\hupsw97.mdb", acFileFormatAccess2002
-  accApp2003.ConvertAccessProject sRelDBDir & "\off97\wedstr97.mdb", sRelDBDir & "\off2003\wedstr97.mdb", acFileFormatAccess2002
+  'accApp2003.ConvertAccessProject sRelDBDir & "\off97\hupsw97.mdb", sRelDBDir & "\off2003\hupsw97.mdb", acFileFormatAccess2002
+  'accApp2003.ConvertAccessProject sRelDBDir & "\off97\wedstr97.mdb", sRelDBDir & "\off2003\wedstr97.mdb", acFileFormatAccess2002
 
-  If Not cleanAccessVersion(accApp2003) Then
-    Exit Function
-  End If
+  'If Not cleanAccessVersion(accApp2003) Then
+  '  Exit Function
+  'End If
+  
+  'try using application directly here
+  Application.ConvertAccessProject sRelDBDir & "\off97\hupsw97.mdb", sRelDBDir & "\off2003\hupsw97.mdb", acFileFormatAccess2002
+  Application.ConvertAccessProject sRelDBDir & "\off97\wedstr97.mdb", sRelDBDir & "\off2003\wedstr97.mdb", acFileFormatAccess2002
 
 
   'Last used was acc2003 -> may safely call acc2003
@@ -553,9 +557,7 @@ If bldOpts.blBuildOff2003 Then
 
   SysCmd acSysCmdSetStatus, "Handling office 2003 MDE creating sequence"
 
-  If Not getAccessVersion(accApp2003, 11, envSettings, sPrepDir) Then
-    Exit Function
-  End If
+  
 
   'Final distribution preparation
   If Not ShellAndWait(envSettings.sLocAcc2003 & " """ & sRelDBDir & "\off2003\hupsw97.mdb"" /x gDistributeFinal", CLng(1000) * CLng(60) * CLng(5)) Then
@@ -566,13 +568,26 @@ If bldOpts.blBuildOff2003 Then
     Err.Raise 1, , "Error waiting for acc2003 to finish"
   End If
 
+
+  If Not getAccessVersion(accApp2003, 11, envSettings, sPrepDir) Then
+    Exit Function
+  End If
+
   'Create MDE file
+  DoCmd.Hourglass True
+  
   accApp2003.SysCmd 603, sRelDBDir & "\off2003\hupsw97.mdb", sRelDBDir & "\off2003\hupsw97.mde"
   accApp2003.SysCmd 603, sRelDBDir & "\off2003\wedstr97.mdb", sRelDBDir & "\off2003\wedstr97.mde"
+  
+  DoCmd.Hourglass False
 
   If Not cleanAccessVersion(accApp2003) Then
     Exit Function
   End If
+  
+  
+  'Application.SysCmd 603, sRelDBDir & "\off2003\hupsw97.mdb", sRelDBDir & "\off2003\hupsw97.mde"
+  'Application.SysCmd 603, sRelDBDir & "\off2003\wedstr97.mdb", sRelDBDir & "\off2003\wedstr97.mde"
 
 End If 'if bldOpts.blBuildOff2003
 
