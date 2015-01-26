@@ -6746,11 +6746,17 @@ Do Until clInp.EOF
 
   
   clOutp("LEN_CITY") = clInp("V_PLAATS")
+  
+  
+  'modification jan 2015: only use external code if depot nr is generated
   Dim extCode As String
   extCode = Nz(clInp("V_Extern_Code"))
-  If (extCode = "" And Nz(clInp("V_Depot_Fixed"))) Then
+  
+  If (Nz(clInp("V_Depot_Fixed"))) Then
     extCode = Nz(clInp("V_Depot"))
   End If
+    
+  
   clOutp("LEN_CODE") = hzn(extCode)
   
   clOutp("LEN_Region") = clInp("V_Region")
