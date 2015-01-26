@@ -45,20 +45,57 @@ Exit Function
 End Function
 
 
-Public Function lnhWriteVer(ByRef ver As Recordset, ByRef inp As Recordset, ByVal depNr As String, ByVal naam As String) As Boolean
+Public Function lnhWriteVer(ByRef ver As Recordset, ByRef inp As Recordset, ByVal depNr As String, ByVal naam As String, ByVal blIsNewRecord As Boolean) As Boolean
 On Error GoTo fout
 lnhWriteVer = False
 
 
 ver("V_Naam") = naam
-ver("V_Depot") = depNr
+'depot is considered later.
+
 If (Nz(inp("V_PLAATS"), "") <> "") Then
   ver("V_Plaats") = inp("V_Plaats")
 End If
 ver("V_Nation") = inp("V_Land")
-ver("V_DepotGenerated") = Not Nz(inp("V_Depot_Fixed"))
-ver("V_ExternalCode") = inp("V_Extern_Code")
 
+'modification jan 2015: do not always overwrite v_depotgenerated and v_externalcode
+
+Dim blOvwDepotInfo As Boolean
+
+blOvwDepotInfo = True
+If (Not blIsNewRecord) Then
+  Dim tpCurValid As Boolean
+  Dim tpCurGenerated As Boolean
+  Dim tpCurHasValidExt As Boolean
+  
+  Dim tpNewGenerated As Boolean
+  Dim tpNewHasValidExt As Boolean
+
+  tpCurValid = Nz(ver("V_Depot"), "") <> ""
+  tpCurGenerated = Nz(ver("V_DepotGenerated"), False)
+  tpCurHasValidExt = Nz(ver("V_ExternalCode"), "") <> ""
+  
+  tpNewGenerated = Not Nz(inp("V_Depot_Fixed"), False)
+  tpNewHasValidExt = Nz(inp("V_Extern_Code"), "") <> ""
+  
+  'Never overwrite a fixed depotnr with a generated depotnr
+  If (tpCurValid) And (Not tpCurGenerated) And (tpNewGenerated) Then
+    blOvwDepotInfo = False
+  End If
+  
+  'never overwrite a generated depotnr with non-zero external code by generated depotnr with a zero external code
+  If (tpCurValid) And (tpCurGenerated And tpCurHasValidExt) And (tpNewGenerated And (Not tpNewHasValidExt)) Then
+    blOvwDepotInfo = False
+  End If
+  
+End If
+
+If (blOvwDepotInfo) Then
+  ver("V_Depot") = depNr
+  ver("V_DepotGenerated") = Not Nz(inp("V_Depot_Fixed"))
+  ver("V_ExternalCode") = inp("V_Extern_Code")
+End If
+  
 
 lnhWriteVer = True
 Exit Function
@@ -648,12 +685,12 @@ Do Until inp.EOF
   If (ver.NoMatch) Then
     'need to append.
     ver.AddNew
-    If Not lnhWriteVer(ver, inp, depNr, naam) Then Exit Function
+    If Not lnhWriteVer(ver, inp, depNr, naam, True) Then Exit Function
     ver.Update
   Else
     'need to overwrite
     ver.Edit
-    If Not lnhWriteVer(ver, inp, depNr, naam) Then Exit Function
+    If Not lnhWriteVer(ver, inp, depNr, naam, False) Then Exit Function
     ver.Update
   End If
   
