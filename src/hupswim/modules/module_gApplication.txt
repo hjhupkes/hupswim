@@ -155,13 +155,17 @@ Dim blIsAcc2003 As Boolean
 Dim blIsAcc2007 As Boolean
 Dim blIsAcc97 As Boolean
 Dim blIsAcc2010 As Boolean
+Dim blIsAcc2013 As Boolean
+Dim blIsAcc2016 As Boolean
 
 blIsAcc2003 = (curVersionAcc = "11.0")
 blIsAcc2007 = (curVersionAcc = "12.0")
 blIsAcc97 = (curVersionAcc = "8.0")
 blIsAcc2010 = (curVersionAcc = "14.0")
+blIsAcc2013 = (curVersionAcc = "15.0")
+blIsAcc2016 = (curVersionAcc = "16.0")
 
-If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010) Then
+If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010 Or blIsAcc2013 Or blIsAcc2016) Then
   appRaiseSilentError
 End If
 
@@ -177,6 +181,14 @@ ElseIf (blIsAcc2007) Then
   End If
 ElseIf (blIsAcc2010) Then
   If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\14.0\Access\Report Formats", "Snapshot Format", sKeyValue) Then
+    appRaiseSilentError
+  End If
+ElseIf (blIsAcc2013) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\15.0\Access\Report Formats", "Snapshot Format", sKeyValue) Then
+    appRaiseSilentError
+  End If
+ElseIf (blIsAcc2016) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\16.0\Access\Report Formats", "Snapshot Format", sKeyValue) Then
     appRaiseSilentError
   End If
 ElseIf (blIsAcc97) Then
@@ -223,14 +235,18 @@ Dim blIsAcc2003 As Boolean
 Dim blIsAcc2007 As Boolean
 Dim blIsAcc97 As Boolean
 Dim blIsAcc2010 As Boolean
+Dim blIsAcc2013 As Boolean
+Dim blIsAcc2016 As Boolean
 
 blIsAcc2003 = (curVersionAcc = "11.0")
 blIsAcc2007 = (curVersionAcc = "12.0")
 blIsAcc97 = (curVersionAcc = "8.0")
 blIsAcc2010 = (curVersionAcc = "14.0")
+blIsAcc2013 = (curVersionAcc = "15.0")
+blIsAcc2016 = (curVersionAcc = "16.0")
 
-If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010) Then
-  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007, access 2010 en acces 97 versies van Hupswim"
+If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010 Or blIsAcc2013 Or blIsAcc2016) Then
+  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007, access 2010, access 2013, access 2016 en access 97 versies van Hupswim"
 End If
 
 
@@ -246,6 +262,14 @@ ElseIf (blIsAcc2007) Then
   End If
 ElseIf (blIsAcc2010) Then
   If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\14.0\Access\InstallRoot", "PATH", sAccesFName) Then
+    Exit Function
+  End If
+ElseIf (blIsAcc2013) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\15.0\Access\InstallRoot", "PATH", sAccesFName) Then
+    Exit Function
+  End If
+ElseIf (blIsAcc2016) Then
+  If Not regGetKeyValueString(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Office\16.0\Access\InstallRoot", "PATH", sAccesFName) Then
     Exit Function
   End If
 ElseIf (blIsAcc97) Then
@@ -507,15 +531,19 @@ Dim blIsAcc2003 As Boolean
 Dim blIsAcc2007 As Boolean
 Dim blIsAcc97 As Boolean
 Dim blIsAcc2010 As Boolean
+Dim blIsAcc2013 As Boolean
+Dim blIsAcc2016 As Boolean
 
 
 blIsAcc2003 = (curVersionAcc = "11.0")
 blIsAcc2007 = (curVersionAcc = "12.0")
 blIsAcc97 = (curVersionAcc = "8.0")
 blIsAcc2010 = (curVersionAcc = "14.0")
+blIsAcc2013 = (curVersionAcc = "15.0")
+blIsAcc2016 = (curVersionAcc = "16.0")
 
-If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010) Then
-  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007, access 2010 en access 97 versies van Hupswim"
+If Not (blIsAcc2003 Or blIsAcc2007 Or blIsAcc97 Or blIsAcc2010 Or blIsAcc2013 Or blIsAcc2016) Then
+  Err.Raise 1, , "Deze optie werkt alleen voor de access 2003, access 2007, access 2010, access 2013, access 2016 en access 97 versies van Hupswim"
 End If
 
 Dim msg As String
@@ -529,9 +557,10 @@ End If
 
 
 Dim sURLNameSetup As String
-If (blIsAcc2003 Or blIsAcc2007 Or blIsAcc2010) Then
+If (blIsAcc2003 Or blIsAcc2007 Or blIsAcc2010 Or blIsAcc2013 Or blIsAcc2016) Then
   'sURLNameSetup = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/lenex/setup_hupsoft_office_2003_2007.exe"
-  sURLNameSetup = "http://www.math.leidenuniv.nl/~hhupkes/hupsoft/lenex/setup_hupsoft_office_2003_2007.exe"
+  'sURLNameSetup = "http://www.math.leidenuniv.nl/~hhupkes/hupsoft/lenex/setup_hupsoft_office_2003_2007.exe"
+  sURLNameSetup = "http://www.math.leidenuniv.nl/~hhupkes/hupsoft/lenex/setup_hupsoft_office_2010_plus.exe"
   
 Else
   'sURLNameSetup = "http://www.dam.brown.edu/people/hjhupkes/hupsoft/lenex/setup_hupsoft_office_97.exe"
@@ -566,6 +595,10 @@ ElseIf (blIsAcc2007) Then
   sTaskStr = "/tasks=""restorebackups,useAcc2007"""
 ElseIf (blIsAcc2010) Then
   sTaskStr = "/tasks=""restorebackups,useAcc2010"""
+ElseIf (blIsAcc2013) Then
+  sTaskStr = "/tasks=""restorebackups,useAcc2013"""
+ElseIf (blIsAcc2016) Then
+  sTaskStr = "/tasks=""restorebackups,useAcc2016"""
 Else
   sTaskStr = "/tasks=""restorebackups"""
 End If
