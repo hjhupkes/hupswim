@@ -482,6 +482,8 @@ If bldOpts.blBuildOff2003 Then
   SysCmd acSysCmdSetStatus, "Handling office 2003 MDE creating sequence in rel_db\off2003"
 
 
+  Dim sPrepDir As String
+  sPrepDir = sRelDBDir & "\prep"
 
   If Not getAccessVersion(accAppBuilder, envSettings.lAccBuilderVer, envSettings, sPrepDir) Then
     Exit Function
@@ -653,10 +655,7 @@ Set accApp = Nothing
 
 Dim sMDBName As String, sCommand As String
 
-If (versionNr = 8) Then
-  sMDBName = sPrepDir & "\empty_off97.mdb"
-  sCommand = envSettings.sLocAcc97 & " """ & sMDBName & """"
-ElseIf (versionNr = envSettings.lAccBuilderVer) Then
+If (versionNr = envSettings.lAccBuilderVer) Then
   sMDBName = sPrepDir & "\empty_off2003.mdb"
   sCommand = envSettings.sLocAccBuilder & " """ & sMDBName & """"
 Else

@@ -33,7 +33,7 @@ OutputBaseFileName=buildMDBs
 [Messages]
 SetupWindowTitle=Build hupswim / hupprog / packager from source
 WelcomeLabel1=Welcome to the build routines for hupswim / hupprog / packager
-WelcomeLabel2=This will build hupswim / hupprog / packager from source.%n%nIt is recommended that you close all other applications before continuing.
+WelcomeLabel2=This will build hupswim / hupprog / packager from source.%n%nPlease set macro-security settings to LOW in access before continuing (Tools->Macro->Security or Options->Trust Center->Macro).
 
 WizardSelectTasks=Select Build options
 SelectTasksDesc=Which applications do you want to build?
